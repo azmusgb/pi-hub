@@ -1,0 +1,17 @@
+[Unit]
+Description=Camera address for the workshop display: the Pi's X2D bridge first, the MacBook's as backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/bin/python3 -u /usr/local/lib/pi-hub/x2d-camera-failover.py
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=60M
+
+[Install]
+WantedBy=multi-user.target

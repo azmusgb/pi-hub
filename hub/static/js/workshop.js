@@ -8,13 +8,38 @@ const OUTCOME = { finished: ["Finished", "ok"], stopped: ["Stopped", "warn"], fa
 
 export function mount(state) {
   state.band = h("div");
+  state.cam = h("div");
   state.body = h("div", { class: "cards" });
-  state.root.append(state.band, state.body);
+  state.root.append(state.band, state.cam, state.body);
+  // A new frame every 2 seconds while this page is open and visible.
+  state.camTimer = setInterval(() => {
+    const img = state.root.querySelector(".cam-img");
+    if (img && !document.hidden) img.src = `/api/camera.jpg?t=${Date.now()}`;
+  }, 2000);
+}
+
+export function leave(state) { clearInterval(state.camTimer); }
+
+function camera(c) {
+  const src = c.source === "Pi" ? "From the Pi" : c.source === "MacBook" ? "From the MacBook (backup)" : null;
+  if (!c.ok) {
+    const tips = [];
+    if (c.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't set up yet");
+    if (c.sources?.MacBook && !c.sources.MacBook.fresh) tips.push("the MacBook is asleep or Bambu Studio's live view is closed");
+    return card("Camera", { cls: "wide", pill: "No picture", tone: "warn" },
+      h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the printer right now."));
+  }
+  return card("Camera", { cls: "wide", pill: src, tone: c.source === "Pi" ? "ok" : "warn" },
+    h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }));
 }
 
 export async function load(state) {
-  const d = await api("/api/workshop");
+  const [d, cam] = await Promise.all([api("/api/workshop"), api("/api/camera").catch(() => ({ ok: false }))]);
   state.band.replaceChildren(band(d.printer));
+  if (state.camOk !== cam.ok || state.camSource !== cam.source) {
+    state.cam.replaceChildren(camera(cam));
+    state.camOk = cam.ok; state.camSource = cam.source;
+  }
   const prints = d.prints.map((p) => {
     const [label, tone] = p.ended ? (OUTCOME[p.outcome] || ["Ended", "warn"]) : ["Printing", "ok"];
     return h("li", { class: "log-row" },

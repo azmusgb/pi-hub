@@ -163,6 +163,34 @@ def api_workshop():
     })
 
 
+# ---- Workshop camera (through the failover service) ----
+
+CAMERA = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
+
+
+@app.get("/api/camera.jpg")
+def api_camera():
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{CAMERA}/x2d/frame.jpg", timeout=4) as r:
+            return Response(r.read(400 * 1024), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    except OSError:
+        raise HTTPException(503, "The camera isn't sending pictures right now.")
+
+
+@app.get("/api/camera")
+def api_camera_health():
+    import json as _json
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{CAMERA}/x2d/health.json", timeout=3) as r:
+            h = _json.load(r)
+        return fresh({"ok": bool(h.get("ok")), "source": h.get("source"), "since": h.get("since"),
+                      "sources": {k: {"up": v.get("up"), "fresh": v.get("fresh")} for k, v in (h.get("sources") or {}).items()}})
+    except OSError:
+        return fresh({"ok": False, "source": None, "sources": {}})
+
+
 # ---- Print ----
 
 @app.get("/api/print")

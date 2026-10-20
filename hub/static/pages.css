@@ -302,3 +302,5 @@ body.wall.night { filter: brightness(0.55); }
 body.wall.night .band-headline, body.wall.night .wall-time { color: #cfc8ba; }
 
 .field select { width: 100%; max-width: 100%; }
+
+.cam-img { display: block; width: 100%; max-width: 760px; aspect-ratio: 16 / 9; height: auto; border-radius: 14px; background: #000; object-fit: cover; }
