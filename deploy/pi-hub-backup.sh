@@ -23,6 +23,6 @@ tar -czf "$WORK/backup.tgz" \
        var/lib/homebridge opt/homepage/config usr/local/bin \
   -C "$WORK" hub.db 2>/dev/null || true
 
-install -m 600 "$WORK/backup.tgz" "$DEST/pi-$STAMP.tgz"
+install -m 640 -o root -g pi-backup "$WORK/backup.tgz" "$DEST/pi-$STAMP.tgz"
 ls -1t "$DEST"/pi-*.tgz | tail -n +15 | xargs -r rm -f
 echo "saved $DEST/pi-$STAMP.tgz"

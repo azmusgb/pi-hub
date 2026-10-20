@@ -51,7 +51,7 @@ for s in 180 192 512; do rsvg-convert -w $s -h $s "$NEW/hub/static/icon.svg" -o 
 # The parts that run outside the hub: helper, backup, camera address, self-check, status service and units.
 D="$NEW/deploy"
 install -d -m 755 /usr/local/lib/pi-hub
-install -m 755 "$D/pi-hub-helper.py" "$D/pi-hub-backup.sh" "$D/x2d-camera-failover.py" "$D/pi-hub-selfcheck.py" "$D/pi-hub-release" /usr/local/lib/pi-hub/
+install -m 755 "$D/pi-hub-helper.py" "$D/pi-hub-backup.sh" "$D/x2d-camera-failover.py" "$D/pi-hub-selfcheck.py" "$D/pi-hub-release" "$D/pi-backup-serve" /usr/local/lib/pi-hub/
 for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service \
          pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
   install -m 644 "$D/$u" "/etc/systemd/system/$u"

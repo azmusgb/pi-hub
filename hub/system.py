@@ -156,3 +156,12 @@ def releases():
     except OSError:
         current, on_pi = None, []
     return {"current": current, "on_pi": on_pi, "log": log[:12]}
+
+
+def pc_copy():
+    """When the Windows PC last copied a backup (it pulls one each morning at 5:00)."""
+    try:
+        ts, name = open("/var/lib/pi-backup/last-copied").read().split()[:2]
+        return {"ts": int(ts), "name": name}
+    except (OSError, ValueError):
+        return None

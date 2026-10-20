@@ -163,7 +163,10 @@ export async function load(state) {
         ? h("ul", { class: "log" }, d.backups.slice(0, 5).map((b) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: "ok" } }),
           h("span", { class: "log-main" }, h("strong", {}, when(b.ts))), h("span", { class: "log-side" }, `${b.mb} MB`))))
         : empty("The first backup runs tonight at about 3:30."),
-      h("p", { class: "meta" }, "Kept on the Pi for 14 days: hub data, lists, history, Homebridge settings and the Pi's own settings.")),
+      h("p", { class: "meta" }, "Kept on the Pi for 14 days: hub data, lists, history, Homebridge settings and the Pi's own settings."),
+      d.pc_copy ? h("p", {}, h("span", { class: "dot", dataset: { tone: Date.now() / 1000 - d.pc_copy.ts < 50 * 3600 ? "ok" : "warn" }, style: "display:inline-block;margin-right:.5rem" }),
+        `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
+        : h("p", { class: "note" }, "Not copied to the PC yet.")),
     versionsCard(d.releases, save),
     card("Activity", { cls: "wide" },
       d.log.length

@@ -60,6 +60,11 @@ def main(gate=False):
         add("Last night's backup", hours < 36, f"{hours:.0f} h ago")
     except (OSError, ValueError):
         add("Last night's backup", False, "none found")
+    try:
+        hours = (time.time() - int(open("/var/lib/pi-backup/last-copied").read().split()[0])) / 3600
+        add("Backup copied to the PC", hours < 50, f"{hours:.0f} h ago")
+    except (OSError, ValueError, IndexError):
+        add("Backup copied to the PC", False, "never")
     with open("/sys/class/thermal/thermal_zone0/temp") as f:
         temp = int(f.read()) / 1000
     add("Temperature", temp < 80, f"{temp:.0f} °C")

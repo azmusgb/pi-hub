@@ -560,6 +560,7 @@ def api_settings(request: Request):
         "homebridge": {"connected": bool(hb), "username": hb["username"] if hb else ""},
         "wifi": {"ssid": w["ssid"], "security": w["security"]} if w else None,
         "backups": system.backups(),
+        "pc_copy": system.pc_copy(),
         "log": auth.recent_actions(30),
         "people": auth.people(),
         "releases": system.releases(),

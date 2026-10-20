@@ -1,0 +1,14 @@
+#!/bin/sh
+# The only thing the PC's backup key may run on the Pi (forced command in ~pi-backup/.ssh/authorized_keys).
+#   name   -> the newest backup's file name
+#   sha    -> its SHA-256
+#   (else) -> the newest backup itself, on stdout
+set -eu
+f=$(ls -1t /var/backups/pi-hub/pi-*.tgz 2>/dev/null | head -1)
+[ -n "$f" ] || { echo "no backup yet" >&2; exit 1; }
+case "${SSH_ORIGINAL_COMMAND:-}" in
+  name) basename "$f" ;;
+  sha) sha256sum "$f" | cut -d' ' -f1
+       echo "$(date +%s) $(basename "$f")" > /var/lib/pi-backup/last-copied ;;  # the PC asks for the sum right after copying
+  *) cat "$f" ;;
+esac
