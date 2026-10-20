@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Home</title>
+  <meta name="description" content="The Pi, the workshop and everything on the home network">
+  <meta name="theme-color" content="#1b1f22">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Home">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the summary</a>
+  <header class="top">
+    <h1 class="brand">Home</h1>
+    <p class="clock"><time id="clock"></time></p>
+  </header>
+
+  <main id="main">
+    <p class="summary" id="summary" aria-live="polite" data-tone="none">Checking the house…</p>
+
+    <section class="band" id="band" data-state="none" aria-labelledby="band-name">
+      <p class="band-name" id="band-name">Bambu X2D</p>
+      <h2 class="band-headline" id="band-headline">No status yet</h2>
+      <div class="line" role="progressbar" aria-label="Print progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="line-track"></div>
+        <div class="line-bead" id="bead"></div>
+        <div class="line-nozzle" id="nozzle"></div>
+      </div>
+      <p class="band-detail" id="band-detail"></p>
+    </section>
+
+    <section class="issues" id="issues" aria-labelledby="issues-title" hidden>
+      <h2 class="section-title" id="issues-title">Needs a look</h2>
+      <ul id="issue-list"></ul>
+    </section>
+
+    <div class="cards">
+      <section class="card" id="card-movies" aria-labelledby="movies-title">
+        <div class="card-head">
+          <h2 id="movies-title">Movies</h2>
+          <span class="pill" id="movies-pill"></span>
+        </div>
+        <p class="big" id="movies-count">—</p>
+        <p class="meta" id="movies-drive"></p>
+        <h3 class="sub">Playing now</h3>
+        <ul class="playing" id="playing"></ul>
+        <a class="action" href="http://10.0.0.30:32400/web" target="_blank" rel="noopener">Open Plex</a>
+      </section>
+
+      <section class="card" id="card-home" aria-labelledby="home-title">
+        <div class="card-head">
+          <h2 id="home-title">Home</h2>
+          <span class="pill" id="home-pill"></span>
+        </div>
+        <p class="big" id="home-state">—</p>
+        <p class="meta">Light, plug and scene controls will appear here.</p>
+        <a class="action" href="http://10.0.0.30:8581" target="_blank" rel="noopener">Open Homebridge</a>
+      </section>
+
+      <section class="card" id="card-workshop" aria-labelledby="workshop-title">
+        <div class="card-head">
+          <h2 id="workshop-title">Workshop</h2>
+        </div>
+        <dl class="facts">
+          <div><dt>Workshop display</dt><dd id="ws-display">—</dd></div>
+          <div><dt>Local AI</dt><dd id="ws-ai">—</dd></div>
+          <div><dt>Models loaded</dt><dd id="ws-models">—</dd></div>
+        </dl>
+        <a class="action" href="https://10.0.0.21" target="_blank" rel="noopener">Open Local AI</a>
+      </section>
+
+      <section class="card" id="card-pi" aria-labelledby="pi-title">
+        <div class="card-head">
+          <h2 id="pi-title">Raspberry Pi</h2>
+          <span class="pill" id="pi-pill"></span>
+        </div>
+        <div class="gauges">
+          <figure class="gauge">
+            <figcaption>Temperature</figcaption>
+            <p class="gauge-value" id="pi-temp">—</p>
+            <svg class="spark" id="spark-temp" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </figure>
+          <figure class="gauge">
+            <figcaption>Processor</figcaption>
+            <p class="gauge-value" id="pi-cpu">—</p>
+            <svg class="spark" id="spark-cpu" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </figure>
+          <figure class="gauge">
+            <figcaption>Memory free</figcaption>
+            <p class="gauge-value" id="pi-mem">—</p>
+            <svg class="spark" id="spark-mem" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </figure>
+        </div>
+        <dl class="facts">
+          <div><dt>Power</dt><dd id="pi-power">—</dd></div>
+          <div><dt>Free space</dt><dd id="pi-disk">—</dd></div>
+          <div><dt>Updates waiting</dt><dd id="pi-updates">—</dd></div>
+          <div><dt>Running for</dt><dd id="pi-uptime">—</dd></div>
+        </dl>
+        <a class="action" href="https://10.0.0.30:9090" target="_blank" rel="noopener">Manage in Cockpit</a>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <p id="updated">Not updated yet</p>
+    <a href="?wall=1" id="wall-link">Wall display</a>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
