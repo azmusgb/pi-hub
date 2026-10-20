@@ -1,0 +1,58 @@
+# Pi Hub: evolution roadmap (20 Oct 2026)
+
+Where the hub goes after the seven pages: from *showing* the house, to *fixing* it, to *running* it.
+
+## Stage 1: Self-service (next, about 3 sessions)
+Anyone in the house can fix the usual problems without asking.
+- **PIN and Fix-it:**
+  - household PIN, 30-day device sessions;
+  - one-tap restart of Plex or Homebridge, remount the drive, install updates, restart the Pi, rescan Plex;
+  - an action log showing who did what.
+- **Settings (owner only):** the Homebridge login, Wi-Fi for the QR code, the alert topic, quiet hours, the PIN.
+- **Home control:** Homebridge lights, plugs and scenes; favourites on Now.
+- **Guest Wi-Fi QR** on Now and in wall mode.
+- **Nightly backup** of hub data and Pi settings to the PC, keeping 14 days.
+- **Away access** through Tailscale.
+
+## Stage 2: The house reacts (about 3 sessions)
+The hub notices and acts, not just reports.
+- **Rules** written as "when … then …", chosen from a list rather than code:
+  - print finished → a phone alert, plus a light scene in the workshop;
+  - movie drive dropped → try a remount, then alert if it's still missing;
+  - PC down for 5 minutes → alert "check the breaker";
+  - Pi above 75 °C → alert, and pause Plex scans.
+- **Morning digest:** one phone message at 8 am covering overnight prints, dropouts, updates, and anything still wrong.
+- **Wall mode 2:** clock, weather, the next calendar item, the print band, today's list. It dims at night.
+- **Ask Local AI** on the hub: "What's printing?" or "Why did Plex stop last night?". The answer comes from the hub's own history plus Local AI on the PC.
+
+## Stage 3: Media you can trust (about 2 sessions, once a new drive arrives)
+- **Drive move helper:** copies the movies from the failing drive, checks every file, lists unreadable ones, points Plex at the new drive and retires the old one.
+- **Drive health** on the new drive (SMART), with a "replace soon" alert well before it fails.
+- **Movie requests:** family members add titles they want; you see the list.
+- **Watch stats:** what's watched, by whom, and what's never been opened (good to delete).
+
+## Stage 4: Workshop control room (about 2 sessions)
+- **X2D camera on the hub:** move the camera bridge from the MacBook to the Pi, so it works with the Mac asleep. A snapshot on the band, plus a live view.
+- **Filament shelf:** spools by colour and material, grams left, low-stock alerts. Cost per print from grams used.
+- **Print log 2:** a thumbnail of each print, its duration and filament; failures with the printer's error code and a link to Bambu's help page.
+- **Workshop display tie-in:** the touchscreen shows hub alerts and the shopping list.
+
+## Stage 5: A platform for the house (ongoing)
+- **People:** an account per person with roles (adult, kid, guest). Kids can tick lists but can't restart things.
+- **Power:** a UPS for the PC with status on the hub, smart-plug power use, and a breaker-trip history from the PC's outages.
+- **Cards you can add:** each device is a small module (status, page, actions, rules), so new things drop in without touching the rest.
+- **Self-updating:** the Pi pulls hub updates from git, runs the tests, and switches over only if they pass, with one-tap roll-back.
+- **Guarding itself:** a nightly self-check of every page and API, which alerts you if something broke.
+
+## Order and why
+1. **Stage 1 first:** it turns the hub from a screen into a tool, and the household PIN is the base for everything else that acts.
+2. **Stage 2 next:** most of the value of a hub is not having to look at it.
+3. **Stage 3** waits on a new drive, but should come soon, because the current drive is failing.
+4. **Stages 4 and 5** build on the history and rules from Stages 1–2.
+
+## What I'd need from you, by stage
+- **Stage 1:** pick the PIN; OK the admin helper; type in your Homebridge login, Wi-Fi details and Tailscale approval.
+- **Stage 2:** your city for the weather; a calendar link (read-only), if you want it on the wall.
+- **Stage 3:** a new drive (1–2 TB SSD).
+- **Stage 4:** an OK to move the camera bridge to the Pi.
+- **Stage 5:** a UPS for the PC (recommended anyway, given the breaker trips); smart plugs if you want power use.
