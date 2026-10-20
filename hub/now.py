@@ -92,7 +92,7 @@ def build(s, sessions, sampler, disk_free):
             "count": movies,
             "free": (s or {}).get("drive_free") or "",
             "resets": (s or {}).get("drive_resets"),
-            "playing": sessions if sessions is not None else None,
+            "playing": [{k: v for k, v in x.items() if not k.startswith("_")} for x in sessions] if sessions is not None else None,
         },
         "home": {"tone": _tone(svc.get("homebridge")), "homebridge_running": bool(svc.get("homebridge"))},
         "workshop": {

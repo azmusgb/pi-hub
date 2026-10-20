@@ -74,13 +74,22 @@ def _plex_sessions():
         title = m.get("title") or "Something"
         if m.get("type") == "episode" and m.get("grandparentTitle"):
             title = f"{m['grandparentTitle']}: {title}"
+        kind = m.get("type") if m.get("type") in ("movie", "episode") else "other"
+        thumb = m.get("grandparentThumb") if kind == "episode" else m.get("thumb")
+        n = len(out)
         out.append({
+            # The shape other apps (Local AI, the workshop display) rely on. Add fields; don't rename these.
             "title": title[:80],
+            "show": (m.get("grandparentTitle") or "")[:60] if kind == "episode" else "",
+            "year": m.get("year") if kind == "movie" else None,
+            "kind": kind,
             "who": ((m.get("User") or {}).get("title") or "")[:40],
             "device": ((m.get("Player") or {}).get("title") or "")[:40],
             "state": (m.get("Player") or {}).get("state") or "playing",
             "progress": round(offset * 100 / duration) if duration else 0,
             "minutes_left": round((duration - offset) / 60000) if duration else None,
+            "poster": f"/api/now/poster/{n}.jpg" if thumb else None,
+            "_thumb": thumb,
         })
     return out[:6]
 

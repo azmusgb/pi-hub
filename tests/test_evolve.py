@@ -64,3 +64,18 @@ def test_outages_pair_up_downs_and_ups():
     assert [(o["what"], o["end"] is not None) for o in out] == [("Movies drive", False), ("Windows PC", True)]
     pc = out[1]
     assert pc["end"] - pc["start"] == 600
+
+
+def test_playing_shape_is_stable_and_hides_internal_fields():
+    from hub import now
+    s = [{"title": "Alien", "show": "", "year": 1979, "kind": "movie", "who": "Bill", "device": "TV", "state": "paused",
+          "progress": 30, "minutes_left": 80, "poster": "/api/now/poster/0.jpg", "_thumb": "/library/metadata/1/thumb/2"}]
+    p = now.build(None, s, {}, None)["movies"]["playing"][0]
+    assert set(p) == {"title", "show", "year", "kind", "who", "device", "state", "progress", "minutes_left", "poster"}
+
+
+def test_poster_404_when_nothing_plays(monkeypatch):
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app, sources
+    monkeypatch.setattr(sources, "plex_sessions", lambda: [])
+    assert TestClient(hub_app.app).get("/api/now/poster/0.jpg").status_code == 404

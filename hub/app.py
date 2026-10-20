@@ -131,6 +131,25 @@ def api_drives_switch(request: Request):
     return fresh(r)
 
 
+@app.get("/api/now/poster/{n}.jpg")
+def api_now_poster(n: int):
+    """The poster of the n-th thing playing, as a small baseline JPEG that a microcontroller can decode."""
+    sessions = sources.plex_sessions() or []
+    if not 0 <= n < len(sessions) or not sessions[n].get("_thumb"):
+        raise HTTPException(404, "Nothing playing there")
+    try:
+        data, _ = plex.thumb(sessions[n]["_thumb"])
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(data)).convert("RGB")
+        img.thumbnail((300, 450))
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=82, progressive=False, optimize=False)
+        return Response(buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "max-age=60"})
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "Plex didn't send the poster")
+
+
 @app.get("/api/movies/pick")
 def api_movies_pick(kids: bool = False, short: bool = False, skip: str = ""):
     choice = plex.pick(kids, 105 if short else None, tuple(skip.split(",")[:30]))
