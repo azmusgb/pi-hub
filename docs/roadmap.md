@@ -56,3 +56,7 @@ The hub notices and acts, not just reports.
 - **Stage 3:** a new drive (1–2 TB SSD).
 - **Stage 4:** an OK to move the camera bridge to the Pi.
 - **Stage 5:** a UPS for the PC (recommended anyway, given the breaker trips); smart plugs if you want power use.
+
+## Status
+- 20 Oct 2026, Stage 1 shipped: setup code, owner password and household PIN (scrypt, 30-day device sessions, lockout after 5 wrong tries); Fix-it buttons through a root helper on a Unix socket with a fixed action list; one-tap fixes in Needs a look; Control page and favourites on Now (needs the Homebridge login); guest Wi-Fi QR; nightly backup on the Pi at 03:30, 14 kept; Tailscale installed, waiting for the owner to approve the Pi.
+- Not yet: copying backups off the Pi (to the PC) — needs a decision on where and how.
