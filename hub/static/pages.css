@@ -235,7 +235,6 @@ input:focus-visible { outline: 2px solid var(--pei); outline-offset: 1px; }
 .wifi-qr { width: 168px; height: 168px; border-radius: 14px; background: #fff; padding: 6px; }
 .secret { user-select: all; }
 @media (max-width: 420px) { .wifi { grid-template-columns: 1fr; justify-items: start; } }
-body.wall .wifi-qr { width: 220px; height: 220px; }
 
 /* Settings forms */
 .form { display: grid; gap: 0.8rem; margin-top: 0.4rem; }
@@ -294,7 +293,7 @@ body.wall .page-now > .summary { grid-area: sum; margin: 0; }
 body.wall .page-now > .now-main { grid-area: main; }
 body.wall .now-side { display: contents; }
 .wall-head { grid-area: head; display: grid; grid-template-columns: auto 1fr; gap: 1rem 3rem; align-items: end; }
-.wall-time { margin: 0; font-size: clamp(6rem, 17vw, 13rem); font-weight: 800; letter-spacing: -0.055em; line-height: 0.82; font-variant-numeric: tabular-nums; }
+.wall-time { margin: 0; font-size: clamp(6rem, 17vw, 13rem); font-weight: 800; letter-spacing: -0.055em; line-height: 0.82; }
 .wall-date { margin: 0.6rem 0 0; font-size: clamp(1.3rem, 2.4vw, 1.9rem); color: var(--muted); }
 .wall-weather { justify-self: end; display: grid; grid-template-columns: auto auto; gap: 0 1rem; align-items: center; text-align: right; }
 .wall-weather > .wx { width: clamp(4rem, 8vw, 6.5rem); height: clamp(4rem, 8vw, 6.5rem); grid-row: span 2; }
