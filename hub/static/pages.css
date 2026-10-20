@@ -375,3 +375,44 @@ body.wall.night .band-headline, body.wall.night .wall-time { color: #cfc8ba; }
 .wall-hours { grid-column: 1 / -1; list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; text-align: center; font-size: 1rem; }
 .wall-hours li { display: grid; justify-items: center; gap: 0.15rem; color: var(--muted); }
 .wall-hours strong { color: var(--ink); }
+
+/* Now: the house panel. One quiet surface, a row per area; the print band stays the only loud thing. */
+.house { border-radius: 20px; background: var(--acrylic); border: 1px solid var(--acrylic-edge); padding: 0.9rem 0.4rem 0.4rem; }
+.house .section-title { margin: 0 0 0.3rem 0.8rem; }
+.house-list { list-style: none; margin: 0; padding: 0; }
+.house-item + .house-item { border-top: 1px solid rgba(236, 232, 223, 0.07); }
+.house-row {
+  display: grid; grid-template-columns: 6.6rem 0.6rem minmax(0, 1fr) auto; gap: 0.7rem; align-items: center;
+  min-height: 56px; padding: 0.75rem 0.8rem; border-radius: 14px; color: var(--ink); text-decoration: none;
+}
+.house-row:hover { background: rgba(236, 232, 223, 0.04); }
+.house-row:hover .chev { color: var(--pei); transform: translateX(2px); }
+.house-name { font-weight: 700; }
+.house-say { color: var(--muted); }
+.chev { color: var(--muted); font-size: 1.4rem; line-height: 1; transition: transform 0.15s, color 0.15s; }
+.house-extra { margin: -0.2rem 0.8rem 0.7rem calc(6.6rem + 1.3rem + 0.8rem); }
+.house-spark .spark { height: 22px; opacity: 0.8; }
+@media (max-width: 520px) {
+  .house-row { grid-template-columns: 0.6rem minmax(0, 1fr) auto; grid-template-areas: "dot name chev" "dot say chev"; row-gap: 0.1rem; }
+  .house-row .dot { grid-area: dot; align-self: start; margin-top: 0.45rem; }
+  .house-name { grid-area: name; }
+  .house-say { grid-area: say; font-size: 0.95rem; }
+  .chev { grid-area: chev; }
+  .house-extra { margin-left: calc(0.6rem + 1.5rem); }
+}
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+.wifi-panel { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: center; padding: 0.9rem 1rem;
+  border-radius: 20px; border: 1px dashed rgba(207, 174, 110, 0.35); }
+.wifi-panel .wifi-qr { width: 132px; height: 132px; }
+.wifi-name { margin: 0; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+.wifi-panel .meta { margin: 0.2rem 0 0; }
+.now-side { display: grid; gap: 1rem; align-content: start; }
+
+/* Desktop: the printer and what needs a person on the left, the house on the right. */
+@media (min-width: 1100px) {
+  body:not(.wall) .page-now { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); column-gap: 1.5rem; align-items: start; }
+  body:not(.wall) .page-now > .summary, body:not(.wall) .page-now > div:nth-child(2) { grid-column: 1 / -1; }
+  body:not(.wall) .page-now > .now-side { grid-column: 2; grid-row: 3 / span 3; }
+  body:not(.wall) .page-now > :not(.now-side):not(.summary):not(:nth-child(2)) { grid-column: 1; }
+}

@@ -1,5 +1,5 @@
 // Now: the one-line answer, the print band, what needs a look, and a card per area.
-import { api, card, clockTime, ensure, fix, h, piLink, post, spark, toast, weatherIcon } from "./core.js";
+import { api, clockTime, ensure, fix, h, post, spark, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 
 export const every = 15;
@@ -60,12 +60,8 @@ export function mount(state) {
   state.band = h("div");
   state.issues = h("div");
   state.ask = document.body.classList.contains("wall") ? "" : askBox();
-  state.cards = h("div", { class: "cards" });
+  state.cards = h("div", { class: "now-side" });
   state.root.append(state.summary, state.outside, state.band, state.issues, state.ask, state.cards);
-}
-
-function fact(label, value, tone) {
-  return h("div", {}, h("dt", {}, label), h("dd", { dataset: tone ? { tone } : {} }, value ?? "—"));
 }
 
 export async function load(state) {
@@ -105,50 +101,38 @@ export async function load(state) {
   const cpu = p.cpu_series?.at(-1);
   const w = d.workshop;
 
+  // The house: one quiet panel, a row per area. The whole row opens its page; status is a dot plus words.
+  const row = (name, href, tone, say, extra) => h("li", { class: "house-item" },
+    h("a", { class: "house-row", href, "data-link": true },
+      h("span", { class: "house-name" }, name),
+      h("span", { class: "dot", dataset: { tone } }),
+      h("span", { class: "house-say" }, say),
+      h("span", { class: "chev", "aria-hidden": "true" }, "›")),
+    extra || null);
+  const mSay = !m.plex_running ? "Plex has stopped"
+    : m.drive === "Connected" ? `${m.count ?? "Your"} movies, ${m.free} free` : "The movies drive is missing";
+  const wSay = [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`,
+    w.ai === "Down" ? "Local AI down" : `Local AI ${w.ai.toLowerCase()}`].join(", ");
+  const hSay = !d.home.homebridge_running ? "Homebridge has stopped"
+    : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} favourites on`
+      : home.connected ? "Star lights and plugs on Control to see them here" : "Connect Homebridge in Settings to switch lights here";
+  const pSay = [p.temp != null ? `${Math.round(p.temp)} °C` : null, cpu != null ? `${Math.round(cpu)}% busy` : null,
+    p.power === "Good" ? "power good" : p.power ? `power: ${p.power.toLowerCase()}` : null,
+    p.updates ? `${p.updates} updates waiting` : null].filter(Boolean).join(", ");
+  const playingNow = m.playing?.length ? h("ul", { class: "playing house-extra" }, playing) : null;
+
   state.cards.replaceChildren(...[
-    card("Movies", { pill: !m.plex_running ? "Plex stopped" : m.drive === "Connected" ? "Ready" : "No movies", tone: m.tone },
-      h("p", { class: "big" }, m.count != null ? `${m.count} movies` : m.drive === "Connected" ? "Movies" : "Drive missing"),
-      h("p", { class: "meta" }, m.drive === "Connected" ? `Movies drive connected, ${m.free} free` : "Waiting for the movies drive."),
-      h("h3", { class: "sub" }, "Playing now"),
-      h("ul", { class: "playing" }, playing),
-      h("a", { class: "action", href: "/movies", "data-link": true }, "Browse movies")),
-    card("Workshop", {},
-      h("dl", { class: "facts" },
-        fact("Bambu X2D", d.printer.headline),
-        fact("Workshop display", w.display === "Online" ? `Online, ${w.display_firmware}` : w.display,
-          w.display === "Online" ? "ok" : w.display === "Offline" ? "bad" : null),
-        fact("Local AI", w.ai, w.ai === "Down" ? "bad" : "ok"),
-        fact("Models loaded", w.ai === "Down" ? "—" : String(w.ai_models ?? 0))),
-      h("a", { class: "action", href: "/workshop", "data-link": true }, "Print history")),
-    card("Home", { pill: d.home.homebridge_running ? "Running" : "Stopped", tone: d.home.tone },
-      favs.length
-        ? h("div", { class: "tiles compact" }, favs.map((a) => tile(a, state)))
-        : [h("p", { class: "big" }, d.home.homebridge_running ? "Homebridge running" : "Homebridge stopped"),
-          h("p", { class: "meta" }, home.connected ? "Star lights and plugs on the Control page to see them here." : "Connect Homebridge in Settings to switch lights from here.")],
-      h("div", { class: "quick" },
-        h("a", { class: "chip", href: "/control", "data-link": true }, "All controls"),
-        h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
-        h("a", { class: "chip", href: "/print", "data-link": true }, "Print something"),
-        h("a", { class: "chip", href: piLink(8581), target: "_blank", rel: "noopener" }, "Homebridge"))),
-    wifi.set ? card("Guest Wi-Fi", { cls: "wifi-card" },
-      h("div", { class: "wifi" },
-        h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 168, height: 168 }),
-        h("div", {}, h("p", { class: "big" }, wifi.ssid),
-          h("p", { class: "meta" }, "Point a phone camera at the code to join."),
-          wifi.password ? h("p", { class: "meta" }, "Password: ", h("strong", { class: "secret" }, wifi.password)) : null))) : null,
-    card("Raspberry Pi", { pill: p.tone === "ok" ? "Healthy" : "Check", tone: p.tone },
-      h("div", { class: "gauges" },
-        h("figure", { class: "gauge" }, h("figcaption", {}, "Temperature"),
-          h("p", { class: "gauge-value" }, p.temp != null ? `${Math.round(p.temp)} °C` : "—"), spark(p.temp_series, { max: 90 })),
-        h("figure", { class: "gauge" }, h("figcaption", {}, "Processor"),
-          h("p", { class: "gauge-value" }, cpu != null ? `${Math.round(cpu)}%` : "—"), spark(p.cpu_series, { max: 100 })),
-        h("figure", { class: "gauge" }, h("figcaption", {}, "Memory free"),
-          h("p", { class: "gauge-value" }, p.mem_free_gb != null ? `${p.mem_free_gb} GB` : "—"), spark(p.mem_series, { max: 100 }))),
-      h("dl", { class: "facts" },
-        fact("Power", p.power ?? "—", p.power === "Good" ? "ok" : p.power ? "bad" : null),
-        fact("Free space", p.disk_free_gb != null ? `${p.disk_free_gb} GB` : "—"),
-        fact("Updates waiting", p.updates == null ? "—" : String(p.updates))),
-      h("a", { class: "action", href: "/pi", "data-link": true }, "Pi details")),
+    h("section", { class: "house", "aria-labelledby": "house-title" },
+      h("h2", { class: "section-title", id: "house-title" }, "The house"),
+      h("ul", { class: "house-list" },
+        row("Movies", "/movies", m.tone, mSay, playingNow),
+        row("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
+        row("Home", "/control", d.home.tone, hSay, favs.length ? h("div", { class: "tiles compact house-extra" }, favs.map((a) => tile(a, state))) : null),
+        row("Raspberry Pi", "/pi", p.tone, pSay, h("div", { class: "house-extra house-spark", "aria-hidden": "true" }, spark(p.temp_series, { max: 90 }))))),
+    wifi.set ? h("section", { class: "wifi-panel", "aria-label": "Guest Wi-Fi" },
+      h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 132, height: 132 }),
+      h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid), h("p", { class: "meta" }, "Guests: point a phone camera at the code to join."),
+        wifi.password ? h("p", { class: "meta" }, "Password ", h("strong", { class: "secret" }, wifi.password)) : null)) : null,
   ].filter(Boolean));
 }
 
