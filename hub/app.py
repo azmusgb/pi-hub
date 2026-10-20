@@ -38,6 +38,10 @@ async def guard(request: Request, call_next):
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
     resp = await call_next(request)
+    # The page's own files are checked with the Pi on every load (a quick "not changed" reply),
+    # so a new hub version shows at once instead of the browser keeping an old stylesheet for hours.
+    if request.url.path.startswith("/static/"):
+        resp.headers.setdefault("Cache-Control", "no-cache")
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
