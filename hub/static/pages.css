@@ -583,3 +583,5 @@ body.wall .link-btn { display: none; }
 .night b { font-weight: 500; font-size: 0.75rem; color: var(--muted); }
 .people-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
 .people-bars li { display: grid; grid-template-columns: 6rem 1fr 2rem; gap: 0.6rem; align-items: center; }
+.check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; cursor: pointer; }
+.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pei); flex: none; }
