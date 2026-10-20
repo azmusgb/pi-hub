@@ -3,8 +3,19 @@ import { api, card, empty, forgetMe, h, post, toast, when, whoami } from "./core
 
 export const every = 60;
 
+// Phones capitalise the first letter and password managers fill in saved logins; neither
+// is wanted for logins to other systems, so text fields switch both off.
 function field(id, label, attrs = {}) {
-  return h("label", { class: "field", for: id }, h("span", {}, label), h("input", { id, ...attrs }));
+  const input = h("input", { id, autocapitalize: "none", autocorrect: "off", spellcheck: "false", ...attrs });
+  if (attrs.type !== "password") return h("label", { class: "field", for: id }, h("span", {}, label), input);
+  const show = h("button", { type: "button", class: "ghost small reveal", "aria-controls": id, "aria-pressed": "false",
+    onclick: () => {
+      const on = input.type === "password";
+      input.type = on ? "text" : "password";
+      show.setAttribute("aria-pressed", String(on));
+      show.textContent = on ? "Hide" : "Show";
+    } }, "Show");
+  return h("label", { class: "field", for: id }, h("span", {}, label), h("span", { class: "with-reveal" }, input, show));
 }
 
 function form(onsubmit, button, ...fields) {
@@ -70,8 +81,8 @@ export async function load(state) {
     card("Homebridge", { pill: d.homebridge.connected ? "Connected" : "Not connected", tone: d.homebridge.connected ? "ok" : "warn" },
       h("p", { class: "meta" }, "Use the login for Homebridge's own page at port 8581. The hub keeps it on the Pi and never shows it again."),
       form(save("homebridge"), d.homebridge.connected ? "Update login" : "Connect",
-        field("hb-user", "Homebridge username", { name: "username", value: d.homebridge.username || "", required: true, autocomplete: "off" }),
-        field("hb-pw", "Homebridge password", { name: "password", type: "password", required: true, autocomplete: "off" }))),
+        field("hb-user", "Homebridge username", { name: "username", value: d.homebridge.username || "bjrmc", required: true, autocomplete: "off", "data-1p-ignore": true, "data-lpignore": "true" }),
+        field("hb-pw", "Homebridge password", { name: "password", type: "password", required: true, autocomplete: "new-password", "data-1p-ignore": true, "data-lpignore": "true" }))),
     card("Guest Wi-Fi", { pill: d.wifi ? d.wifi.ssid : "Not set", tone: d.wifi ? "ok" : "warn" },
       h("p", { class: "meta" }, "Guests scan the QR code on the Now page to join."),
       form(save("wifi"), "Save Wi-Fi",

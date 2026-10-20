@@ -381,7 +381,8 @@ async def api_settings_save(what: str, request: Request):
         elif what == "homebridge":
             user, pw = str(b.get("username", "")).strip(), str(b.get("password", ""))
             if not homecontrol.test_login(user, pw):
-                raise ValueError("Homebridge didn't accept that login. Use the one for its web page at port 8581.")
+                raise ValueError("Homebridge didn't accept that login. Tap Show to check the password, and make sure "
+                                 "the username has no capital letter. It's the login for Homebridge's page at port 8581.")
             auth.put("homebridge_login", {"username": user, "password": pw})
             homecontrol.forget_token()
             msg = "Homebridge connected."

@@ -255,3 +255,6 @@ body.wall .wifi-qr { width: 220px; height: 220px; }
   background: var(--acrylic); border: 1px solid var(--acrylic-edge);
 }
 .more a:hover { border-color: rgba(207, 174, 110, 0.4); }
+
+.with-reveal { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+.reveal { min-width: 4.2rem; }
