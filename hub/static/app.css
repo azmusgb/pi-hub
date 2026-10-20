@@ -34,6 +34,7 @@
   --sheet-bg: #23282c;
   --toast-bg: #2a3035;
   --night-ink: #cfc8ba;
+  --field: rgb(0 0 0 / 0.28);
   color-scheme: dark;
 }
 
@@ -69,6 +70,7 @@
   --backdrop: rgb(30 36 40 / 0.35);
   --sheet-bg: #f6f7f7;
   --toast-bg: #ffffff;
+  --field: rgb(255 255 255 / 0.8);
   color-scheme: light;
 }
 
