@@ -417,3 +417,4 @@ body.wall.night .band-headline, body.wall.night .wall-time { color: #cfc8ba; }
 
 .now-main { display: grid; gap: 1.25rem; align-content: start; }
 .now-main > div:empty { display: none; }
+.page-now > div:empty { display: none; }
