@@ -491,3 +491,5 @@ body.wall .link-btn { display: none; }
 .mn-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.9rem; }
 .mn-actions .primary { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 480px) { .mn-pick { grid-template-columns: 90px minmax(0, 1fr); } .mn-poster { width: 90px; } }
+.mn-summary { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.mn-controls .check input { accent-color: var(--pei); }
