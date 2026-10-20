@@ -511,7 +511,7 @@ body.wall .link-btn { display: none; }
 
 /* Cards fill whatever width there is: one column on a phone, two on a tablet, three on a big screen.
    Each card then lays out its own contents by its own width (container queries), not the screen's. */
-.cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 .card { container-type: inline-size; }
 @container (max-width: 330px) {
   .gauges { grid-template-columns: 1fr 1fr; }
