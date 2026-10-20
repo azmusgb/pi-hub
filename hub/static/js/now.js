@@ -61,7 +61,8 @@ export function mount(state) {
   state.issues = h("div");
   state.ask = document.body.classList.contains("wall") ? "" : askBox();
   state.cards = h("div", { class: "now-side" });
-  state.root.append(state.summary, state.outside, state.band, state.issues, state.ask, state.cards);
+  state.main = h("div", { class: "now-main" }, state.band, state.issues, state.ask);
+  state.root.append(state.summary, state.outside, state.main, state.cards);
 }
 
 export async function load(state) {
@@ -118,7 +119,7 @@ export async function load(state) {
       : home.connected ? "Star lights and plugs on Control to see them here" : "Connect Homebridge in Settings to switch lights here";
   const pSay = [p.temp != null ? `${Math.round(p.temp)} °C` : null, cpu != null ? `${Math.round(cpu)}% busy` : null,
     p.power === "Good" ? "power good" : p.power ? `power: ${p.power.toLowerCase()}` : null,
-    p.updates ? `${p.updates} updates waiting` : null].filter(Boolean).join(", ");
+    p.updates ? `${p.updates} update${p.updates > 1 ? "s" : ""} waiting` : null].filter(Boolean).join(", ");
   const playingNow = m.playing?.length ? h("ul", { class: "playing house-extra" }, playing) : null;
 
   state.cards.replaceChildren(...[
