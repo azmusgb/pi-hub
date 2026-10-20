@@ -1,54 +1,28 @@
 #!/bin/bash
-# Installs or updates Pi Hub on the Pi. Run from the Mac: deploy/install.sh
+# Ships Pi Hub to the Pi. Run from the Mac: deploy/install.sh
+#
+# The first run sets up what a release needs (the hub's user, secrets folder, setup code, packages,
+# the git repo on the Pi and its hook). Every run then pushes main to the Pi, where the hook tests
+# the new version, switches to it, checks every page and API, and goes back if anything fails.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 quiet() { grep -v "post-quantum\|store now\|openssh.com/pq\|server may need" || true; }
 
-COPYFILE_DISABLE=1 tar --no-xattrs --exclude __pycache__ -czf /tmp/pi-hub.tgz hub deploy
-scp -q /tmp/pi-hub.tgz pi:/tmp/pi-hub.tgz 2>&1 | quiet
+[ -z "$(git status --porcelain)" ] || { echo "Commit your changes first; only committed work ships."; exit 1; }
+
+scp -q deploy/pi-hub-release pi:/tmp/pi-hub-release 2>&1 | quiet
 ssh -o BatchMode=yes pi 'bash -s' <<'EOF' 2>&1 | quiet
 set -euo pipefail
 id pi-hub >/dev/null 2>&1 || sudo useradd --system --no-create-home --shell /usr/sbin/nologin pi-hub
-sudo mkdir -p /opt/pi-hub /etc/pi-hub/secrets
-sudo tar -xzf /tmp/pi-hub.tgz -C /opt/pi-hub
-sudo find /opt/pi-hub -name __pycache__ -prune -exec rm -rf {} +
-sudo chown -R root:root /opt/pi-hub
+sudo mkdir -p /opt/pi-hub/releases /etc/pi-hub/secrets
+sudo install -d -m 755 /usr/local/lib/pi-hub
+sudo install -m 755 /tmp/pi-hub-release /usr/local/lib/pi-hub/pi-hub-release && rm -f /tmp/pi-hub-release
 
 # Plex key: readable by the hub only.
 if [ -s /opt/homepage/secrets/plex_token ] && [ ! -s /etc/pi-hub/secrets/plex_token ]; then
   sudo install -m 640 -o root -g pi-hub /opt/homepage/secrets/plex_token /etc/pi-hub/secrets/plex_token
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets && sudo chmod 750 /etc/pi-hub/secrets
-
-# Phone icons
-command -v rsvg-convert >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq librsvg2-bin >/dev/null
-for s in 180 192 512; do
-  sudo rsvg-convert -w $s -h $s /opt/pi-hub/hub/static/icon.svg -o /opt/pi-hub/hub/static/icon-$s.png
-done
-
-# The status and alerts service the hub reads from.
-if ! cmp -s /opt/pi-hub/deploy/pi-status.py /usr/local/bin/pi-status.py; then
-  sudo install -m 755 /opt/pi-hub/deploy/pi-status.py /usr/local/bin/pi-status.py
-  sudo systemctl restart pi-status
-fi
-sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
-
-command -v rsync >/dev/null && command -v smartctl >/dev/null || \
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq rsync smartmontools parted >/dev/null
-python3 -c "import qrcode, icalendar, recurring_ical_events" 2>/dev/null || \
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-qrcode python3-icalendar python3-recurring-ical-events >/dev/null
-
-# The helper (fixed list of admin actions) and the nightly backup.
-sudo install -d -m 755 /usr/local/lib/pi-hub
-sudo install -m 755 /opt/pi-hub/deploy/pi-hub-helper.py /opt/pi-hub/deploy/pi-hub-backup.sh /opt/pi-hub/deploy/x2d-camera-failover.py /opt/pi-hub/deploy/pi-hub-selfcheck.py /usr/local/lib/pi-hub/
-# The workshop camera: the Pi's bridge on 8092 (if installed), the failover address on 8091.
-if [ -f /etc/systemd/system/x2d-camera-bridge.service ]; then
-  sudo install -d -m 755 /etc/systemd/system/x2d-camera-bridge.service.d
-  sudo install -m 644 /opt/pi-hub/deploy/x2d-camera-bridge.service.d/port.conf /etc/systemd/system/x2d-camera-bridge.service.d/port.conf
-fi
-for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
-  sudo install -m 644 /opt/pi-hub/deploy/$u /etc/systemd/system/$u
-done
 
 # One-time setup code for the hub's Settings page.
 if [ ! -s /etc/pi-hub/setup-code ]; then
@@ -57,16 +31,30 @@ if [ ! -s /etc/pi-hub/setup-code ]; then
 fi
 sudo chown root:pi-hub /etc/pi-hub/setup-code && sudo chmod 640 /etc/pi-hub/setup-code
 
-sudo systemctl daemon-reload
-sudo systemctl enable pi-hub >/dev/null 2>&1
-sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer >/dev/null 2>&1
-sudo systemctl enable pi-hub-helper >/dev/null 2>&1
-sudo systemctl restart pi-hub-helper
-sudo systemctl enable x2d-camera-failover >/dev/null 2>&1
-sudo systemctl restart x2d-camera-failover
-systemctl is-active --quiet x2d-camera-bridge && sudo systemctl restart x2d-camera-bridge || true
-sudo systemctl restart pi-hub
-for i in $(seq 1 20); do curl -fs -o /dev/null http://127.0.0.1/healthz && break; sleep 1; done
-systemctl is-active pi-hub
-curl -s http://127.0.0.1/api/now | python3 -c "import json,sys; d=json.load(sys.stdin); print('summary:', d['summary'], '| printer:', d['printer']['headline'], '| playing:', d['movies']['playing'])"
+# What the hub, its tests and its helpers need.
+need=""
+for p in librsvg2-bin rsync smartmontools parted python3-qrcode python3-icalendar python3-recurring-ical-events \
+         python3-pytest python3-httpx git; do dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"; done
+[ -z "$need" ] || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $need >/dev/null
+sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
+
+# The repo the Mac pushes to; its hook hands each push of main to pi-hub-release.
+if [ ! -d /srv/pi-hub.git ]; then
+  sudo install -d -o bjrmc -g bjrmc /srv/pi-hub.git
+  git init -q --bare -b main /srv/pi-hub.git
+fi
+cat > /srv/pi-hub.git/hooks/post-receive <<'HOOK'
+#!/bin/sh
+while read old new ref; do
+  [ "$ref" = refs/heads/main ] && sudo /usr/local/lib/pi-hub/pi-hub-release "$new"
+done
+HOOK
+chmod 755 /srv/pi-hub.git/hooks/post-receive
 EOF
+
+git remote get-url pi >/dev/null 2>&1 || git remote add pi pi:/srv/pi-hub.git
+git push pi main 2>&1 | grep -E "pi-hub:|failed:|^ !|rejected|Everything up-to-date" | sed 's/^remote: //'
+
+ssh -o BatchMode=yes pi 'sudo systemctl enable pi-hub pi-hub-helper x2d-camera-failover >/dev/null 2>&1
+sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer >/dev/null 2>&1
+readlink /opt/pi-hub/current | xargs basename' 2>&1 | quiet | sed 's/^/running: /'

@@ -228,6 +228,26 @@ def background(name):
         _jobs[name] = {"state": "failed", "message": str(e)[:200], "ended": int(time.time())}
 
 
+RELEASES = "/opt/pi-hub/releases"
+CURRENT = "/opt/pi-hub/current"
+
+
+def rollback(to):
+    if not re.fullmatch(r"[0-9a-f]{7,40}", to or "") or not os.path.isdir(os.path.join(RELEASES, to)):
+        return {"ok": False, "message": "That version isn't on the Pi any more."}
+    if os.path.realpath(CURRENT) == os.path.realpath(os.path.join(RELEASES, to)):
+        return {"ok": True, "message": "That version is already running."}
+    tmp = CURRENT + ".new"
+    if os.path.lexists(tmp):
+        os.unlink(tmp)
+    os.symlink(os.path.join(RELEASES, to), tmp)
+    os.replace(tmp, CURRENT)
+    # Restart after answering, so the hub gets the reply before it goes away.
+    subprocess.Popen(["sh", "-c", "sleep 1 && systemctl restart pi-hub"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True, "message": f"Going back to version {to}. The hub restarts in a few seconds."}
+
+
 def handle(conn):
     with conn:
         creds = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
@@ -247,6 +267,8 @@ def handle(conn):
                 reply = move_start(str(req.get("device", "")))
             elif name == "move:switch":
                 reply = move_switch()
+            elif name == "release:rollback":
+                reply = rollback(str(req.get("to", "")))
             elif name not in ACTIONS:
                 reply = {"ok": False, "message": "Unknown action."}
             elif name in LONG:

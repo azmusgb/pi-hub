@@ -559,6 +559,7 @@ def api_settings(request: Request):
         "backups": system.backups(),
         "log": auth.recent_actions(30),
         "people": auth.people(),
+        "releases": system.releases(),
         "digest": auth.get("digest", {"on": True, "at": "08:00"}),
         "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
         "place": (auth.get("place") or {}).get("name"),
@@ -593,6 +594,11 @@ async def api_settings_save(what: str, request: Request):
             else:
                 wifi.save(str(b.get("ssid", "")), str(b.get("password", "")), str(b.get("security", "WPA")))
                 msg = "Wi-Fi saved. The QR code is on the Now page."
+        elif what == "rollback":
+            r = actions.helper_with("release:rollback", {"to": str(b.get("to", ""))}, timeout=20)
+            if not r.get("ok"):
+                raise ValueError(r.get("message") or "Couldn't go back to that version.")
+            msg = r["message"]
         elif what == "person-add":
             auth.add_person(b.get("name"), str(b.get("kind", "")), str(b.get("pin", "")))
             msg = f"Added {' '.join(str(b.get('name', '')).split())[:30]}."

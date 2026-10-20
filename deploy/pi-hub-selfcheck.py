@@ -24,7 +24,8 @@ def fetch(path, timeout=20):
         return r.status, body, round((time.time() - t) * 1000)
 
 
-def main():
+def main(gate=False):
+    """gate=True: only pages and APIs, for checking a new release; prints JSON, no file, no alert."""
     checks = []
 
     def add(name, ok, detail=""):
@@ -43,6 +44,10 @@ def main():
             add(f"API {p}", code == 200, f"{ms} ms")
         except Exception as e:  # noqa: BLE001
             add(f"API {p}", False, str(e)[:80])
+    if gate:
+        bad = [c for c in checks if not c["ok"]]
+        print(json.dumps({"passed": not bad, "checks": checks}))
+        raise SystemExit(1 if bad else 0)
     states = subprocess.run(["systemctl", "is-active", *SERVICES], capture_output=True, text=True).stdout.split()
     for (unit, name), state in zip(SERVICES.items(), states):
         add(name, state == "active", state)
@@ -82,4 +87,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(gate="--gate" in sys.argv)

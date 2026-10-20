@@ -142,3 +142,17 @@ def selfcheck():
             return json.load(f)
     except (OSError, ValueError):
         return None
+
+
+def releases():
+    try:
+        with open("/var/lib/pi-hub-releases/releases.json") as f:
+            log = json.load(f)
+    except (OSError, ValueError):
+        log = []
+    try:
+        current = os.path.basename(os.path.realpath("/opt/pi-hub/current"))
+        on_pi = sorted(os.listdir("/opt/pi-hub/releases"))
+    except OSError:
+        current, on_pi = None, []
+    return {"current": current, "on_pi": on_pi, "log": log[:12]}

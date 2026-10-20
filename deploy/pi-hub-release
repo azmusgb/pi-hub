@@ -1,0 +1,99 @@
+#!/bin/bash
+# Pi Hub release: test a pushed version, switch to it, check it, and switch back if it fails.
+# Runs as root from the git hook in /srv/pi-hub.git (after "git push pi main" on the Mac),
+# or by hand: sudo /usr/local/lib/pi-hub/pi-hub-release <commit>
+set -uo pipefail
+SHA="$1"
+REPO=/srv/pi-hub.git
+BASE=/opt/pi-hub
+REL=$BASE/releases
+CUR=$BASE/current
+LOG=/var/lib/pi-hub-releases/releases.json
+SHORT="${SHA:0:10}"
+NEW="$REL/$SHORT"
+say() { echo "pi-hub: $*"; }
+
+record() {  # status message
+  python3 - "$LOG" "$SHORT" "$1" "$2" "$(git --git-dir="$REPO" log -1 --format=%s "$SHA" 2>/dev/null)" <<'PY'
+import json, os, sys, time
+path, sha, status, message, subject = sys.argv[1:]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+try:
+    data = json.load(open(path))
+except (OSError, ValueError):
+    data = []
+data.insert(0, {"sha": sha, "status": status, "message": message, "subject": subject[:120], "ts": int(time.time())})
+json.dump(data[:30], open(path + ".tmp", "w"))
+os.chmod(path + ".tmp", 0o644)
+os.replace(path + ".tmp", path)
+PY
+}
+
+mkdir -p "$REL"
+rm -rf "$NEW.tmp" && mkdir -p "$NEW.tmp"
+git --git-dir="$REPO" archive "$SHA" | tar -x -C "$NEW.tmp" || { say "couldn't unpack $SHORT"; record failed "Couldn't unpack it."; exit 1; }
+
+say "testing $SHORT…"
+TESTDB=$(mktemp -d)
+if ! (cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 600 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1); then
+  tail -15 "$TESTDB/test.log"
+  say "tests failed; the running version is unchanged"
+  record failed "Tests failed; nothing changed."
+  rm -rf "$NEW.tmp" "$TESTDB"
+  exit 1
+fi
+say "$(tail -1 "$TESTDB/test.log")"
+rm -rf "$TESTDB"
+rm -rf "$NEW" && mv "$NEW.tmp" "$NEW"
+find "$NEW" -name __pycache__ -prune -exec rm -rf {} +
+for s in 180 192 512; do rsvg-convert -w $s -h $s "$NEW/hub/static/icon.svg" -o "$NEW/hub/static/icon-$s.png"; done
+
+# The parts that run outside the hub: helper, backup, camera address, self-check, status service and units.
+D="$NEW/deploy"
+install -d -m 755 /usr/local/lib/pi-hub
+install -m 755 "$D/pi-hub-helper.py" "$D/pi-hub-backup.sh" "$D/x2d-camera-failover.py" "$D/pi-hub-selfcheck.py" "$D/pi-hub-release" /usr/local/lib/pi-hub/
+for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service \
+         pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
+  install -m 644 "$D/$u" "/etc/systemd/system/$u"
+done
+if [ -f /etc/systemd/system/x2d-camera-bridge.service ]; then
+  install -d -m 755 /etc/systemd/system/x2d-camera-bridge.service.d
+  install -m 644 "$D/x2d-camera-bridge.service.d/port.conf" /etc/systemd/system/x2d-camera-bridge.service.d/port.conf
+fi
+if ! cmp -s "$D/pi-status.py" /usr/local/bin/pi-status.py; then
+  install -m 755 "$D/pi-status.py" /usr/local/bin/pi-status.py && systemctl restart pi-status
+fi
+systemctl daemon-reload
+
+PREV=$(readlink -f "$CUR" 2>/dev/null || true)
+ln -sfn "$NEW" "$CUR.new" && mv -T "$CUR.new" "$CUR"
+systemctl restart pi-hub pi-hub-helper x2d-camera-failover
+
+say "checking the new version…"
+ok=0
+for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1/healthz && { ok=1; break; }; sleep 1; done
+if [ $ok = 1 ]; then
+  sleep 3
+  python3 "$NEW/deploy/pi-hub-selfcheck.py" --gate > /tmp/pi-hub-gate.json 2>/dev/null && ok=1 || ok=0
+fi
+if [ $ok = 1 ]; then
+  say "$SHORT is live"
+  record live "Tests passed and every page and API answered."
+else
+  say "$SHORT failed its checks; switching back"
+  cat /tmp/pi-hub-gate.json 2>/dev/null | python3 -c "import json,sys; [print('  failed:', c['name'], c['detail']) for c in json.load(sys.stdin)['checks'] if not c['ok']]" 2>/dev/null
+  if [ -n "$PREV" ] && [ -d "$PREV" ]; then
+    ln -sfn "$PREV" "$CUR.new" && mv -T "$CUR.new" "$CUR"
+    systemctl restart pi-hub pi-hub-helper
+    record rolled-back "It failed its checks, so the hub went back to $(basename "$PREV")."
+  else
+    record failed "It failed its checks and there was no earlier version to go back to."
+  fi
+  exit 1
+fi
+
+# Keep the five newest releases, plus whatever is running.
+ls -1dt "$REL"/*/ 2>/dev/null | tail -n +6 | while read -r d; do
+  [ "$(readlink -f "$CUR")/" = "$d" ] || rm -rf "$d"
+done
+exit 0

@@ -30,6 +30,24 @@ function form(onsubmit, button, ...fields) {
   return f;
 }
 
+function versionsCard(r, save) {
+  const live = r.log.find((x) => x.sha === r.current);
+  const STATUS = { live: ["Live", "ok"], failed: ["Didn't pass", "bad"], "rolled-back": ["Went back", "warn"] };
+  return card("Versions", { cls: "wide", pill: r.current ? `Running ${r.current.slice(0, 7)}` : "Not set up", tone: "ok" },
+    h("p", { class: "meta" }, "New versions arrive from Claude, run the hub's tests on the Pi, and only go live if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
+    live ? h("p", {}, h("strong", {}, live.subject || "Current version"), h("span", { class: "meta" }, `, live since ${when(live.ts)}`)) : null,
+    r.log.length ? h("ul", { class: "log" }, r.log.map((x) => {
+      const [label, tone] = STATUS[x.status] || [x.status, "warn"];
+      const canGoBack = x.status === "live" && x.sha !== r.current && r.on_pi.includes(x.sha);
+      return h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone } }),
+        h("span", { class: "log-main" }, h("strong", {}, x.subject || x.sha), h("span", { class: "meta" }, `${label}. ${x.message} ${when(x.ts)}`)),
+        canGoBack ? h("button", { class: "ghost small", onclick: async () => {
+          if (!confirm(`Go back to “${x.subject || x.sha}”? The hub restarts.`)) return;
+          await save("rollback")({ to: x.sha });
+        } }, "Go back to this") : h("span", { class: "log-side" }, x.sha === r.current ? "Running" : ""));
+    })) : empty("No versions recorded yet."));
+}
+
 export function mount(state) {
   state.body = h("div", { class: "cards" });
   state.root.append(state.body);
@@ -144,6 +162,7 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, when(b.ts))), h("span", { class: "log-side" }, `${b.mb} MB`))))
         : empty("The first backup runs tonight at about 3:30."),
       h("p", { class: "meta" }, "Kept on the Pi for 14 days: hub data, lists, history, Homebridge settings and the Pi's own settings.")),
+    versionsCard(d.releases, save),
     card("Activity", { cls: "wide" },
       d.log.length
         ? h("ul", { class: "log" }, d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
