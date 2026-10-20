@@ -41,6 +41,7 @@ def _item(m):
         "minutes": round(duration / 60000) if duration else None,
         "progress": round(offset * 100 / duration) if duration and offset else 0,
         "thumb": m.get("thumb") if m.get("thumb") and THUMB_PATH.match(m["thumb"]) else None,
+        "art": next((a for a in (m.get("art"), m.get("grandparentArt")) if a and THUMB_PATH.match(a)), None),
         "summary": (m.get("summary") or "")[:280],
         "rating": m.get("audienceRating") or m.get("rating"),
         "added": m.get("addedAt"),
@@ -72,10 +73,11 @@ def search(query):
     return out[:24]
 
 
-def thumb(path):
+def thumb(path, wide=False):
     if not THUMB_PATH.match(path or ""):
         return None
-    with _request("/photo/:/transcode", {"url": path, "width": 300, "height": 450, "minSize": 1, "upscale": 1},
+    size = {"width": 1280, "height": 720} if wide else {"width": 300, "height": 450}
+    with _request("/photo/:/transcode", {"url": path, **size, "minSize": 1, "upscale": 1},
                   accept="image/jpeg", timeout=10) as r:
         return r.read(), r.headers.get("Content-Type", "image/jpeg")
 

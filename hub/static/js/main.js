@@ -37,6 +37,48 @@ let lastOk = 0;
 
 if (wall) document.body.classList.add("wall");
 
+// Theme: each device picks Auto (follow the device), Light or Dark. The wall display goes light by day, dark by night.
+const THEMES = ["auto", "light", "dark"];
+const LABEL = { auto: "Auto", light: "Light", dark: "Dark" };
+const dark = window.matchMedia("(prefers-color-scheme: dark)");
+let sun = null;  // [sunrise, sunset] in minutes after midnight, from the weather
+function pref() { try { return localStorage.getItem("hub-theme") || "auto"; } catch { return "auto"; } }
+function minutes(label) {
+  const m = /^(\d+)(?::(\d+))?\s*(AM|PM)$/i.exec(label || "");
+  if (!m) return null;
+  return ((Number(m[1]) % 12) + (/pm/i.test(m[3]) ? 12 : 0)) * 60 + Number(m[2] || 0);
+}
+export function applyTheme() {
+  let theme = pref();
+  if (wall) {
+    const now = new Date(), t = now.getHours() * 60 + now.getMinutes();
+    const [rise, set] = sun || [7 * 60, 19 * 60];
+    theme = t >= rise && t < set ? "light" : "dark";
+  } else if (theme === "auto") {
+    theme = dark.matches ? "dark" : "light";
+  }
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#e3e7e8" : "#1b1f22";
+  const b = document.getElementById("theme-btn");
+  if (b) b.textContent = `Theme: ${LABEL[pref()]}`;
+}
+dark.addEventListener?.("change", applyTheme);
+document.getElementById("theme-btn")?.addEventListener("click", () => {
+  const next = THEMES[(THEMES.indexOf(pref()) + 1) % THEMES.length];
+  try { localStorage.setItem("hub-theme", next); } catch {}
+  applyTheme();
+});
+if (wall) {
+  fetch("/api/outside").then((r) => r.json()).then((o) => {
+    const d = o.weather?.days?.[0];
+    const rise = minutes(d?.sunrise), set = minutes(d?.sunset);
+    if (rise != null && set != null) sun = [rise, set];
+    applyTheme();
+  }).catch(() => {});
+  setInterval(applyTheme, 60000);
+}
+applyTheme();
+
 function tick() {
   const d = new Date();
   const c = document.getElementById("clock");

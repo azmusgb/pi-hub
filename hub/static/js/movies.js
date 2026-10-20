@@ -84,6 +84,21 @@ function statsCard(d) {
       h("ul", { class: "pkg" }, s.never_watched_old.slice(0, 8).map((u) => h("li", {}, h("span", {}, `${u.title}${u.year ? ` (${u.year})` : ""}`), h("span", { class: "meta" }, `${u.gb} GB`))))] : null);
 }
 
+// The page's one bold thing: the film you were last watching, full width, ready to resume.
+function hero(item, machine) {
+  if (!item) return null;
+  const art = item.art || item.thumb;
+  const left = item.minutes && item.progress ? Math.round(item.minutes * (1 - item.progress / 100)) : null;
+  return h("section", { class: "movie-hero", "aria-label": "Pick up where you left off" },
+    art ? h("img", { class: "movie-hero-art", src: `/api/plex/thumb?wide=${item.art ? 1 : 0}&path=${encodeURIComponent(art)}`, alt: "", decoding: "async" }) : null,
+    h("div", { class: "movie-hero-body" },
+      h("p", { class: "movie-hero-kicker" }, "Pick up where you left off"),
+      h("h2", { class: "movie-hero-title" }, item.title),
+      h("p", { class: "meta" }, [item.year, left != null ? `${left} min left` : null].filter(Boolean).join(", ")),
+      item.progress ? h("span", { class: "movie-hero-bar" }, h("i", { style: `width:${item.progress}%` })) : null,
+      h("a", { class: "primary movie-hero-go", href: plexUrl(machine, item.key), target: "_blank", rel: "noopener" }, "Resume in Plex")));
+}
+
 export async function load(state) {
   if (!state.force && document.activeElement?.id === "req-new" && document.activeElement.value) return;
   state.force = false;
@@ -96,8 +111,9 @@ export async function load(state) {
       h("span", { class: "t" }, s.title),
       h("span", { class: "w" }, [[s.who, s.device].filter(Boolean).join(" on "), s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(", ")),
       h("span", { class: "bar" }, h("i", { style: `width:${s.progress}%` })))))) : null,
-    h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Continue watching"),
-      shelf(d.continue, d.machine, "Nothing half-watched.")),
+    hero(d.continue?.[0], d.machine),
+    d.continue?.length > 1 ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Also half-watched"),
+      shelf(d.continue.slice(1), d.machine, "")) : null,
     h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Recently added"),
       shelf(d.recent, d.machine, drv.state === "Connected" ? "Nothing new lately." : "The movies drive is missing, so Plex can't list new movies.")),
     card("Movies drive", { pill: drv.state, tone: drv.state === "Connected" ? (drv.errors ? "warn" : "ok") : "bad" },

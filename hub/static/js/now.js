@@ -145,21 +145,26 @@ function wallView(state, d, home, wifi, out) {
   const w = out?.weather;
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 0);
   const agenda = (out?.calendar || []).filter((e) => e.start * 1000 <= todayEnd.getTime() + 86400000).slice(0, 4);
-  state.cards.replaceChildren(h("div", { class: "wall-grid" },
-    h("section", { class: "wall-clock" },
-      h("p", { class: "wall-time" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-      h("p", { class: "wall-date" }, now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })),
+  // Top: the time, as big as the screen allows, with the weather beside it. Below: the printer and the day.
+  state.cards.replaceChildren(
+    h("section", { class: "wall-head" },
+      h("div", { class: "wall-clock" },
+        h("p", { class: "wall-time" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "")),
+        h("p", { class: "wall-date" }, now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))),
       w ? h("div", { class: "wall-weather" }, weatherIcon(w.now.icon, w.now.sky),
-        h("p", {}, h("strong", {}, `${w.now.temp}°`), ` ${w.now.sky}. High ${w.days[0].high}°, low ${w.days[0].low}°.`),
-        w.alerts?.length ? h("p", { class: "out-alert" }, w.alerts[0].event) : w.soon ? h("p", { class: "meta" }, w.soon) : null,
-        h("ol", { class: "wall-hours" }, w.hours.slice(1, 7).map((x) => h("li", {}, h("span", {}, x.label), weatherIcon(x.icon), h("strong", {}, `${x.temp}°`))))) : null),
-    h("section", { class: "wall-agenda" }, h("h2", { class: "section-title" }, "Coming up"),
-      agenda.length ? h("ul", {}, agenda.map((e) => h("li", {},
-        h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))
-        : h("p", { class: "meta" }, out?.calendar_set ? "Nothing on the calendar today." : "Connect a calendar in Settings to see the day here.")),
-    wifi.set ? h("section", { class: "wall-wifi" }, h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr" }),
-      h("p", {}, "Guest Wi-Fi: ", h("strong", {}, wifi.ssid))) : null,
-  ));
+        h("p", { class: "wall-temp" }, `${w.now.temp}°`),
+        h("p", { class: "wall-sky" }, `${w.now.sky}, high ${w.days[0].high}°`),
+        w.alerts?.length ? h("p", { class: "out-alert wall-note" }, w.alerts[0].event) : w.soon ? h("p", { class: "wall-note" }, w.soon) : null,
+        h("ol", { class: "wall-hours" }, w.hours.slice(1, 7).map((x) => h("li", {}, h("span", {}, x.label), weatherIcon(x.icon), h("strong", {}, `${x.temp}°`)))))
+        : h("p", { class: "meta wall-weather" }, "Set your town in Settings to see the weather here.")),
+    h("section", { class: "wall-side" },
+      h("div", { class: "wall-agenda" }, h("h2", { class: "section-title" }, "Coming up"),
+        agenda.length ? h("ul", {}, agenda.map((e) => h("li", {},
+          h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))
+          : h("p", { class: "meta" }, out?.calendar_set ? "Nothing on the calendar today." : "Connect a calendar in Settings to see the day here.")),
+      wifi.set ? h("div", { class: "wall-wifi" }, h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr" }),
+        h("p", {}, "Guest Wi-Fi ", h("strong", {}, wifi.ssid))) : null),
+  );
 }
 
 export function failed(state) {

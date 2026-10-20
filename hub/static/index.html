@@ -15,6 +15,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+  <script>
+    try {
+      const p = localStorage.getItem("hub-theme") || "auto";
+      const wall = new URLSearchParams(location.search).has("wall");
+      if (!wall) document.documentElement.dataset.theme = p === "auto" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : p;
+    } catch {}
+  </script>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/pages.css">
 </head>
@@ -46,7 +53,8 @@
       <main id="view" tabindex="-1"></main>
       <footer class="foot">
         <p id="updated">Not updated yet</p>
-        <a href="/?wall=1" id="wall-link">Wall display</a>
+        <span class="foot-links"><button type="button" class="link-btn" id="theme-btn">Theme: Auto</button>
+        <a href="/?wall=1" id="wall-link">Wall display</a></span>
       </footer>
     </div>
   </div>

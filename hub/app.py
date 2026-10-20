@@ -128,10 +128,10 @@ def api_movies_search(q: str = ""):
 
 
 @app.get("/api/plex/thumb")
-def api_thumb(path: str):
+def api_thumb(path: str, wide: bool = False):
     got = None
     try:
-        got = plex.thumb(path)
+        got = plex.thumb(path, wide)
     except Exception:
         pass
     if not got:
