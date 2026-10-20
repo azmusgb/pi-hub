@@ -1,5 +1,6 @@
 """Pi Hub: the home hub web app."""
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -9,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, auth, db, homecontrol, now, plex, printing, recorder, sources, system, wifi
+from . import actions, ask, auth, db, digest, events, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes"}
@@ -20,6 +21,8 @@ sampler = sources.Sampler()
 if os.environ.get("HUB_NO_SAMPLER") != "1":
     threading.Thread(target=sampler.run, daemon=True).start()
     threading.Thread(target=recorder.run, args=(sampler,), daemon=True).start()
+    threading.Thread(target=events.run, daemon=True).start()
+    threading.Thread(target=digest.run, daemon=True).start()
 
 
 def fresh(data):
@@ -352,6 +355,76 @@ def api_wifi_qr():
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
+# ---- Outside: weather and calendar ----
+
+@app.get("/api/outside")
+def api_outside():
+    return fresh({"weather": outside.weather(), "calendar": outside.calendar(),
+                  "place_set": bool(auth.get("place")), "calendar_set": bool(auth.get("calendar_url"))})
+
+
+# ---- Ask Local AI ----
+
+@app.post("/api/ask")
+async def api_ask(request: Request):
+    role, device = need(request, "household")
+    b = await request.json()
+    try:
+        return fresh(ask.ask(str(b.get("question", ""))))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+
+
+# ---- Rules ----
+
+def _accessory_names():
+    try:
+        return {a["id"]: a["name"] for a in homecontrol.accessories()}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+@app.get("/api/rules")
+def api_rules():
+    names = _accessory_names()
+    return fresh({
+        "rules": [{**r, "text": events.describe(r, names)} for r in events.rules()],
+        "triggers": [{"key": k, "label": v} for k, v in events.TRIGGERS.items()],
+        "actions": [{"key": k, "label": v[0], "needs_target": v[1]} for k, v in events.ACTIONS.items()],
+        "accessories": [{"id": k, "name": v} for k, v in names.items()],
+        "events": [{**e, "text": events.TRIGGERS.get(e["kind"], e["kind"])} for e in events.recent(30)],
+        "alerts_ready": events.topic_ready(),
+    })
+
+
+@app.post("/api/rules")
+async def api_rules_add(request: Request):
+    role, device = need(request, "household")
+    b = await request.json()
+    try:
+        rid = events.add_rule(str(b.get("trigger", "")), str(b.get("action", "")), b.get("target") or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    auth.log(role, device, "rules:add", "Added a rule.")
+    return fresh({"id": rid})
+
+
+@app.post("/api/rules/{rid}/{op}")
+def api_rules_change(rid: int, op: str, request: Request):
+    role, device = need(request, "household")
+    events.ready()
+    if op == "toggle":
+        db.run("UPDATE rules SET enabled = 1 - enabled WHERE id = ?", rid)
+    elif op == "delete":
+        db.run("DELETE FROM rules WHERE id = ?", rid)
+    else:
+        raise HTTPException(404, "Unknown change")
+    auth.log(role, device, f"rules:{op}", "Turned a rule on or off." if op == "toggle" else "Removed a rule.")
+    return fresh({"ok": True})
+
+
 # ---- Settings (owner) ----
 
 @app.get("/api/settings")
@@ -364,6 +437,11 @@ def api_settings(request: Request):
         "wifi": {"ssid": w["ssid"], "security": w["security"]} if w else None,
         "backups": system.backups(),
         "log": auth.recent_actions(30),
+        "digest": auth.get("digest", {"on": True, "at": "08:00"}),
+        "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
+        "place": (auth.get("place") or {}).get("name"),
+        "calendar_set": bool(auth.get("calendar_url")),
+        "alerts_ready": events.topic_ready(),
     })
 
 
@@ -393,6 +471,40 @@ async def api_settings_save(what: str, request: Request):
             else:
                 wifi.save(str(b.get("ssid", "")), str(b.get("password", "")), str(b.get("security", "WPA")))
                 msg = "Wi-Fi saved. The QR code is on the Now page."
+        elif what == "digest":
+            at = str(b.get("at", "08:00"))
+            if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", at):
+                raise ValueError("Choose a time for the morning digest.")
+            auth.put("digest", {"on": bool(b.get("on")), "at": at})
+            msg = f"Morning digest {'on, at ' + at if b.get('on') else 'off'}."
+        elif what == "digest-test":
+            msg = f"Test digest: {digest.send()}"
+        elif what == "quiet":
+            f, t = str(b.get("from", "22:00")), str(b.get("to", "07:00"))
+            if not all(re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", x) for x in (f, t)):
+                raise ValueError("Choose a start and end time.")
+            auth.put("quiet_hours", {"on": bool(b.get("on")), "from": f, "to": t})
+            msg = f"Quiet hours {'on, ' + f + ' to ' + t if b.get('on') else 'off'}."
+        elif what == "place":
+            if b.get("clear"):
+                auth.put("place", None)
+                msg = "Location removed."
+            else:
+                try:
+                    place = outside.find_place(str(b.get("name", "")))
+                except OSError:
+                    raise ValueError("Couldn't reach the weather service. Try again in a minute.")
+                auth.put("place", place)
+                sources._cache.pop("weather", None)
+                msg = f"Weather set for {place['name']}."
+        elif what == "calendar":
+            if b.get("clear"):
+                auth.put("calendar_url", None)
+                msg = "Calendar removed."
+            else:
+                auth.put("calendar_url", outside.check_calendar(str(b.get("url", ""))))
+                sources._cache.pop("calendar", None)
+                msg = "Calendar connected. Today's items show on Now and the wall display."
         else:
             raise HTTPException(404, "Unknown setting")
     except ValueError as e:

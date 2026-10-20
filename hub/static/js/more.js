@@ -7,6 +7,7 @@ const PAGES = [
   ["/workshop", "Workshop", "The X2D, print history, the touchscreen and Local AI"],
   ["/print", "Print", "Send a file to the HP DeskJet, see the queue and ink"],
   ["/pi", "Raspberry Pi", "Fix-it buttons, charts, services, storage and updates"],
+  ["/rules", "Rules", "When something happens, do something: lights, alerts, fixes"],
   ["/alerts", "Alerts", "Everything the Pi has sent to your phone"],
   ["/settings", "Settings", "Owner settings: PIN, Homebridge, Wi-Fi, backups"],
 ];
