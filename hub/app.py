@@ -33,7 +33,9 @@ def fresh(data):
 @app.middleware("http")
 async def guard(request: Request, call_next):
     # Changes must come from the hub's own pages, not from another site in the browser.
-    if request.method not in ("GET", "HEAD", "OPTIONS"):
+    # Siri Shortcuts carry their own key instead of coming from the hub's page; the key is checked by the route.
+    shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -538,6 +540,86 @@ def api_wifi_qr():
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
+# ---- Siri Shortcuts: plain-text answers Siri can read out ----
+
+from fastapi.responses import PlainTextResponse  # noqa: E402
+
+LIST_WORDS = {"shopping": "shopping", "groceries": "shopping", "grocery": "shopping", "todo": "todo", "to do": "todo",
+              "to-do": "todo", "jobs": "todo", "notes": "notes", "note": "notes", "movies": "requests", "movie": "requests"}
+
+
+def _shortcut(request: Request):
+    name = auth.shortcut_check(request.headers.get("authorization"))
+    if not name:
+        raise HTTPException(401, "That Shortcut key isn't valid. Make a new one in the hub's Settings.")
+    return name
+
+
+async def _shortcut_body(request: Request):
+    raw = (await request.body()).decode("utf-8", "replace").strip()
+    if raw.startswith("{"):
+        import json as _json
+        try:
+            return _json.loads(raw)
+        except ValueError:
+            pass
+    return {"text": raw}
+
+
+def say(text):
+    return PlainTextResponse(text, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/shortcut/status")
+def api_shortcut_status(request: Request):
+    _shortcut(request)
+    d = now.build(sources.pi_status(), sources.plex_sessions(), {}, None)
+    parts = [d["summary"] + "."]
+    parts += [f"{i['what']}: {i['say']}" for i in d["issues"][:2]]
+    p = d["printer"]
+    if p["state"] == "printing":
+        parts.append(f"The printer is {p['headline'].lower()}" + (f", {p['left']} to go." if p.get("left") else "."))
+    w = outside.weather()
+    if w:
+        parts.append(f"It's {w['now']['temp']} degrees and {w['now']['sky'].lower()}.")
+    return say(" ".join(parts))
+
+
+@app.post("/api/shortcut/add")
+async def api_shortcut_add(request: Request):
+    who_name = _shortcut(request)
+    b = await _shortcut_body(request)
+    key = LIST_WORDS.get(str(b.get("list") or "shopping").strip().lower(), "shopping")
+    text = " ".join(str(b.get("text", "")).split())[:200]
+    if not text:
+        return say("What should I add?")
+    db.run("INSERT INTO items (list, text, created) VALUES (?, ?, ?)", key, text, int(time.time()))
+    auth.log("household", f"Siri ({who_name})", f"lists:add:{key}", f"Added {text}.")
+    return say(f"Added {text} to the {LISTS[key].lower()} list.")
+
+
+@app.get("/api/shortcut/list")
+def api_shortcut_list(request: Request, list: str = "shopping"):
+    _shortcut(request)
+    key = LIST_WORDS.get(list.strip().lower(), "shopping")
+    items = [r["text"] for r in db.rows("SELECT text FROM items WHERE list = ? AND done = 0 ORDER BY created", key)]
+    if not items:
+        return say(f"The {LISTS[key].lower()} list is empty.")
+    return say(f"{len(items)} on the {LISTS[key].lower()} list: " + ", ".join(items[:15]) + ".")
+
+
+@app.post("/api/shortcut/ask")
+async def api_shortcut_ask(request: Request):
+    who_name = _shortcut(request)
+    b = await _shortcut_body(request)
+    try:
+        return say(ask.ask(str(b.get("question") or b.get("text") or ""))["answer"])
+    except ValueError:
+        return say("What would you like to know about the house?")
+    except RuntimeError as e:
+        return say(str(e))
+
+
 # ---- Outside: weather and calendar ----
 
 @app.get("/api/outside")
@@ -623,6 +705,7 @@ def api_settings(request: Request):
         "log": auth.recent_actions(30),
         "people": auth.people(),
         "releases": system.releases(),
+        "shortcut_keys": auth.shortcut_keys(),
         "digest": auth.get("digest", {"on": True, "at": "08:00"}),
         "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
         "place": (auth.get("place") or {}).get("name"),
@@ -663,6 +746,13 @@ async def api_settings_save(what: str, request: Request):
             if not r.get("ok"):
                 raise ValueError(r.get("message") or "Couldn't go back to that version.")
             msg = r["message"]
+        elif what == "shortcut-add":
+            key = auth.add_shortcut_key(b.get("name"))
+            auth.log(role, device, "settings:shortcut-add", "Made a Siri Shortcut key.")
+            return fresh({"ok": True, "message": "Key made. Copy it now; it won't be shown again.", "key": key})
+        elif what == "shortcut-remove":
+            auth.remove_shortcut_key(int(b.get("id", 0)))
+            msg = "Shortcut key removed. That phone's Shortcuts stop working."
         elif what == "person-add":
             auth.add_person(b.get("name"), str(b.get("kind", "")), str(b.get("pin", "")))
             msg = f"Added {' '.join(str(b.get('name', '')).split())[:30]}."

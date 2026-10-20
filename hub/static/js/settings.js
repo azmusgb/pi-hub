@@ -30,6 +30,39 @@ function form(onsubmit, button, ...fields) {
   return f;
 }
 
+function shortcutsCard(state, keys, save) {
+  const base = `${location.protocol}//${location.host}`;
+  const shown = state.newKey;
+  const steps = (key) => h("details", { class: "how", open: !!shown },
+    h("summary", {}, "Set up three Siri Shortcuts"),
+    h("ol", { class: "steps" },
+      h("li", {}, "Open the Shortcuts app, tap +, and add the action “Get Contents of URL”."),
+      h("li", {}, "For “Add to shopping”: set the URL to ", h("code", {}, `${base}/api/shortcut/add`),
+        ", Method POST, Request Body JSON with ", h("code", {}, "text"), " (put an “Ask for Input” action first and use its answer) and ",
+        h("code", {}, "list"), " = shopping. Add a header ", h("code", {}, "Authorization"), " = ", h("code", {}, `Bearer ${key || "your key"}`), "."),
+      h("li", {}, "For “House status”: URL ", h("code", {}, `${base}/api/shortcut/status`), ", Method GET, the same header."),
+      h("li", {}, "For “Ask the house”: URL ", h("code", {}, `${base}/api/shortcut/ask`), ", Method POST, JSON ", h("code", {}, "question"), " from an “Ask for Input”, the same header."),
+      h("li", {}, "End each with “Speak Text” on the result, and name them what you'll say: “Hey Siri, add to shopping”."),
+      h("li", {}, "Away from home, use the Tailscale address ", h("code", {}, "http://pi"), " in place of this one.")));
+  return card("Siri and Shortcuts", { cls: "wide", pill: keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : null, tone: "ok" },
+    h("p", { class: "meta" }, "A key lets a phone's Shortcuts add to the lists, hear the house's status, and ask Local AI, with no PIN. Make one per phone; remove it if the phone is lost."),
+    shown ? h("div", { class: "new-key" }, h("p", {}, h("strong", {}, "Copy this key now. It won't be shown again.")),
+      h("code", { class: "key", tabindex: 0 }, shown),
+      h("button", { class: "ghost", onclick: async () => { try { await navigator.clipboard.writeText(shown); toast("Key copied."); } catch { toast("Select the key and copy it.", "warn"); } } }, "Copy key")) : null,
+    keys.length ? h("ul", { class: "log" }, keys.map((k) => h("li", { class: "log-row" },
+      h("span", { class: "dot", dataset: { tone: "ok" } }),
+      h("span", { class: "log-main" }, h("strong", {}, k.name), h("span", { class: "meta" }, k.last_used ? `Last used ${when(k.last_used)}` : "Not used yet")),
+      h("button", { class: "ghost small", onclick: async () => { if (confirm(`Remove the key for ${k.name}?`)) await save("shortcut-remove")({ id: k.id }); } }, "Remove")))) : null,
+    form(async (v) => {
+      const r = await post("/api/settings/shortcut-add", v);
+      state.newKey = r.key;
+      toast(r.message);
+      state.force = true;
+      load(state);
+    }, "Make a key", field("sc-name", "Which phone", { name: "name", placeholder: "Bill's iPhone", maxlength: 30, required: true, autocomplete: "off" })),
+    steps(shown));
+}
+
 function versionsCard(r, save) {
   const live = r.log.find((x) => x.sha === r.current);
   const STATUS = { live: ["Live", "ok"], failed: ["Didn't pass", "bad"], "rolled-back": ["Went back", "warn"] };
@@ -168,6 +201,7 @@ export async function load(state) {
         `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
         : h("p", { class: "note" }, "Not copied to the PC yet.")),
     versionsCard(d.releases, save),
+    shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },
       d.log.length
         ? h("ul", { class: "log" }, d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
@@ -180,7 +214,7 @@ export async function load(state) {
     ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
-    ["people", "People and access", ["People", "Household PIN", "Owner password"]],
+    ["people", "People and access", ["People", "Siri and Shortcuts", "Household PIN", "Owner password"]],
     ["pi", "The Pi", ["Versions", "Backups", "Activity"]],
   ];
   const steps = [

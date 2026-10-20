@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY, role TEXT NOT NULL, created INTEGER NOT NULL, expires INTEGER NOT NULL, device TEXT
 );
 CREATE TABLE IF NOT EXISTS action_log (ts INTEGER NOT NULL, role TEXT, device TEXT, action TEXT, result TEXT);
+CREATE TABLE IF NOT EXISTS shortcut_keys (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, last_used INTEGER
+);
 CREATE TABLE IF NOT EXISTS people (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, pin TEXT NOT NULL, created INTEGER NOT NULL
 );
@@ -219,3 +222,38 @@ def log(role, device, action, result):
 def recent_actions(limit=30):
     _ready()
     return db.rows("SELECT ts, role, device, action, result FROM action_log ORDER BY ts DESC, rowid DESC LIMIT ?", limit)
+
+
+# ---- Keys for Siri Shortcuts: one per phone, shown once, stored only as a hash ----
+
+def add_shortcut_key(name):
+    name = " ".join(str(name or "").split())[:30] or "Phone"
+    _ready()
+    if db.one("SELECT COUNT(*) AS n FROM shortcut_keys")["n"] >= 12:
+        raise ValueError("That's the most Shortcut keys the hub keeps. Remove one first.")
+    key = "hub_" + secrets.token_urlsafe(24)
+    db.run("INSERT INTO shortcut_keys (name, key_hash, created) VALUES (?, ?, ?)",
+           name, hashlib.sha256(key.encode()).hexdigest(), int(time.time()))
+    return key
+
+
+def shortcut_keys():
+    _ready()
+    return db.rows("SELECT id, name, created, last_used FROM shortcut_keys ORDER BY created")
+
+
+def remove_shortcut_key(key_id):
+    _ready()
+    db.run("DELETE FROM shortcut_keys WHERE id = ?", key_id)
+
+
+def shortcut_check(header):
+    """Returns the key's name for a valid 'Bearer hub_…' header, else None."""
+    if not header or not header.startswith("Bearer hub_"):
+        return None
+    _ready()
+    row = db.one("SELECT id, name FROM shortcut_keys WHERE key_hash = ?", hashlib.sha256(header[7:].strip().encode()).hexdigest())
+    if row:
+        db.run("UPDATE shortcut_keys SET last_used = ? WHERE id = ?", int(time.time()), row["id"])
+        return row["name"]
+    return None

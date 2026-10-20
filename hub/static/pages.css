@@ -566,3 +566,10 @@ body.wall .link-btn { display: none; }
   body { background: #fff; color: #000; }
 }
 .drop.over { background: rgb(var(--pei-rgb) / 0.16); border-style: solid; }
+
+/* Settings: Siri keys */
+.new-key { display: grid; gap: 0.5rem; padding: 0.8rem 0.9rem; border-radius: 14px; background: rgb(var(--ok-rgb) / 0.1); border: 1px solid rgb(var(--ok-rgb) / 0.35); }
+.new-key p { margin: 0; }
+.key { display: block; padding: 0.6rem 0.7rem; border-radius: 10px; background: var(--field); overflow-wrap: anywhere; user-select: all; font-size: 0.95rem; }
+.how summary { cursor: pointer; font-weight: 700; color: var(--pei); }
+.how code { overflow-wrap: anywhere; background: var(--well); padding: 0.05rem 0.3rem; border-radius: 6px; font-size: 0.88em; }
