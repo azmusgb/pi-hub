@@ -105,6 +105,7 @@ async function refresh() {
 
 async function show(path, { focus = false } = {}) {
   const page = PAGES[path] || PAGES["/"];
+  shownPath = path;
   clearInterval(timer);
   current?.mod.leave?.(current.state);
   view.replaceChildren();
@@ -136,7 +137,9 @@ document.addEventListener("click", (e) => {
   window.scrollTo({ top: 0 });
 });
 
-window.addEventListener("popstate", () => show(location.pathname));
+// Jumping to a section (#group-…) is also a history step; only a new page address re-renders.
+let shownPath = location.pathname;
+window.addEventListener("popstate", () => { if (location.pathname !== shownPath) show(location.pathname); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); stayAwake(); } });
 
 async function stayAwake() {

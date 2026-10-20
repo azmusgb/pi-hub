@@ -51,7 +51,7 @@ function outsideLine(o) {
   }
   const next = o?.calendar?.find((e) => e.all_day || e.start * 1000 > Date.now() - 30 * 60000);
   if (next) bits.push(h("span", { class: "out-next" }, "Next: ", h("strong", {}, next.all_day ? next.title : `${clockTime(next.start)} ${next.title}`)));
-  return bits.length ? h("p", { class: "outside" }, ...bits) : "";
+  return bits.length ? h("p", { class: "outside" }, ...bits) : null;
 }
 
 export function mount(state) {
@@ -72,7 +72,8 @@ export async function load(state) {
     api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
     api("/api/wifi").catch(() => ({ set: false })),
   ]);
-  state.outside.replaceChildren(outsideLine(out));
+  state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !document.body.classList.contains("wall")
+    ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} left in Settings`) : null].filter(Boolean));
   const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;

@@ -49,7 +49,7 @@ function versionsCard(r, save) {
 }
 
 export function mount(state) {
-  state.body = h("div", { class: "cards" });
+  state.body = h("div", { class: "stack" });
   state.root.append(state.body);
 }
 
@@ -95,7 +95,7 @@ export async function load(state) {
     state.force = true;
     load(state);
   };
-  state.body.replaceChildren(
+  const parts = [
     card("Homebridge", { pill: d.homebridge.connected ? "Connected" : "Not connected", tone: d.homebridge.connected ? "ok" : "warn" },
       h("p", { class: "meta" }, "Use the login for Homebridge's own page at port 8581. The hub keeps it on the Pi and never shows it again."),
       form(save("homebridge"), d.homebridge.connected ? "Update login" : "Connect",
@@ -171,6 +171,34 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household PIN"}`)),
           h("span", { class: "log-side" }, when(l.ts)))))
         : empty("Nothing yet. Every restart, fix and settings change is listed here.")),
+  ];
+  const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
+  const GROUPS = [
+    ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
+    ["outside", "Weather and calendar", ["Weather", "Calendar"]],
+    ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
+    ["people", "People and access", ["People", "Household PIN", "Owner password"]],
+    ["pi", "The Pi", ["Versions", "Backups", "Activity"]],
+  ];
+  const steps = [
+    ["Connect Homebridge", d.homebridge.connected, "home", "so lights and plugs work from the hub"],
+    ["Set your town", !!d.place, "outside", "for the weather and the wall's day and night"],
+    ["Add guest Wi-Fi", !!d.wifi, "home", "for the QR code guests scan"],
+    ["Connect a calendar", d.calendar_set, "outside", "for “Coming up” and the digest"],
+    ["Add the people in the house", d.people.length > 0, "people", "so the activity log says who did what"],
+  ];
+  const left = steps.filter((x) => !x[1]);
+  state.body.replaceChildren(
+    left.length ? h("section", { class: "setup-steps", "aria-labelledby": "setup-title" },
+      h("h2", { class: "section-title", id: "setup-title" }, `Finish setting up: ${left.length} step${left.length > 1 ? "s" : ""} left`),
+      h("ol", {}, steps.map(([label, done, group, why]) => h("li", { dataset: { done: String(done) } },
+        h("span", { class: "dot", dataset: { tone: done ? "ok" : "warn" } }),
+        done ? h("span", {}, h("s", {}, label)) : h("a", { href: `#group-${group}` }, label),
+        h("span", { class: "meta" }, done ? "Done" : why))))) : null,
+    h("nav", { class: "jump", "aria-label": "Settings sections" }, GROUPS.map(([id, title]) => h("a", { class: "chip", href: `#group-${id}` }, title))),
+    ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
+      h("h2", { class: "group-title", id: `group-${id}-title` }, title),
+      h("div", { class: "cards" }, names.map((n) => byTitle[n]).filter(Boolean)))),
     h("button", { class: "ghost", onclick: async () => { await post("/api/signout"); forgetMe(); toast("Signed out on this device."); load(state); } }, "Sign out on this device"),
   );
 }

@@ -452,3 +452,17 @@ body.wall .link-btn { display: none; }
 .movie-hero-bar { display: block; width: min(320px, 100%); height: 5px; border-radius: 999px; background: rgb(255 255 255 / 0.18); overflow: hidden; margin: 0.3rem 0 0.4rem; }
 .movie-hero-bar i { display: block; height: 100%; background: #cfae6e; }
 .movie-hero-go { text-decoration: none; margin-top: 0.3rem; display: inline-flex; align-items: center; color: #1b1a16; background: #cfae6e; }
+
+/* Settings: a short checklist first, then sections you can jump to */
+.setup-steps { padding: 1rem 1.15rem; border-radius: 18px; background: rgb(var(--pei-rgb) / 0.08); border: 1px solid rgb(var(--pei-rgb) / 0.3); }
+.setup-steps ol { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
+.setup-steps li { display: grid; grid-template-columns: 0.6rem auto 1fr; gap: 0.7rem; align-items: baseline; }
+.setup-steps li .dot { transform: translateY(-1px); }
+.setup-steps a { font-weight: 700; color: var(--ink); text-decoration-color: rgb(var(--pei-rgb) / 0.6); text-underline-offset: 3px; }
+.setup-steps s { color: var(--muted); }
+.jump { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.settings-group { scroll-margin-top: 1rem; }
+.group-title { margin: 0.4rem 0 0.7rem; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.015em; }
+.settings-group .cards { margin: 0; }
+.setup-hint { display: inline-block; margin-top: 0.5rem; color: var(--pei); font-weight: 700; text-decoration: none; }
+.setup-hint:hover { text-decoration: underline; }
