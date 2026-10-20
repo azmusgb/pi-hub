@@ -39,6 +39,17 @@ export function mount(state) {
     h("label", { for: "print-copies" }, "Copies", copies),
     h("label", { class: "check", for: "print-mono" }, mono, "Black and white")),
   button);
+  // On a computer, a file can also be dragged onto the drop area.
+  const drop = form.querySelector(".drop");
+  for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
+  for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (!e.dataTransfer?.files?.length) return;
+    file.files = e.dataTransfer.files;
+    file.dispatchEvent(new Event("change"));
+  });
+  if (matchMedia("(hover: hover)").matches) drop.querySelector(".drop-title").textContent = "Choose a file, or drop one here";
   state.status = h("div", { class: "cards" });
   state.root.append(card("Print something", { cls: "wide" }, form), state.status);
 }
