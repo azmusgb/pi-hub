@@ -88,6 +88,7 @@ def api_movies():
                   "resets": s.get("drive_resets"), "errors": s.get("drive_errors")},
         "drive_events": system.drive_events(),
         "history": plex.history(),
+        "watching": sources.cached("plex-watching", 600, plex.watch_stats),
         "stats": {k: v for k, v in (plex.library_stats() or {}).items() if not k.startswith("_")} or None,
         "requests": db.rows("SELECT id, text, done, created FROM items WHERE list = 'requests' AND (done = 0 OR done_at > ?) "
                             "ORDER BY done, created DESC", int(time.time()) - 14 * 86400),

@@ -573,3 +573,13 @@ body.wall .link-btn { display: none; }
 .key { display: block; padding: 0.6rem 0.7rem; border-radius: 10px; background: var(--field); overflow-wrap: anywhere; user-select: all; font-size: 0.95rem; }
 .how summary { cursor: pointer; font-weight: 700; color: var(--pei); }
 .how code { overflow-wrap: anywhere; background: var(--well); padding: 0.05rem 0.3rem; border-radius: 6px; font-size: 0.88em; }
+
+/* Movies: watching over the month */
+.watching { display: grid; gap: 0.7rem; margin-bottom: 0.6rem; }
+.watch-sum { margin: 0; }
+.nights { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.4rem; align-items: end; height: 76px; }
+.night { display: grid; grid-template-rows: 1fr auto; gap: 0.25rem; height: 100%; text-align: center; }
+.night i { align-self: end; display: block; min-height: 3px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, var(--pei), var(--pei-deep)); }
+.night b { font-weight: 500; font-size: 0.75rem; color: var(--muted); }
+.people-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.people-bars li { display: grid; grid-template-columns: 6rem 1fr 2rem; gap: 0.6rem; align-items: center; }

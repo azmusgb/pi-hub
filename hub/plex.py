@@ -82,14 +82,53 @@ def thumb(path, wide=False):
         return r.read(), r.headers.get("Content-Type", "image/jpeg")
 
 
-def _history():
-    data = _json("/status/sessions/history/all", {"sort": "viewedAt:desc", "X-Plex-Container-Size": 40})
-    accounts = {}
+def _raw_history():
+    return _json("/status/sessions/history/all", {"sort": "viewedAt:desc", "X-Plex-Container-Start": 0, "X-Plex-Container-Size": 500})
+
+
+def raw_history():
+    return sources.cached("plex-raw-history", 600, _raw_history)
+
+
+def _accounts():
+    out = {}
     try:
         for a in (_json("/accounts").get("MediaContainer") or {}).get("Account") or []:
-            accounts[a.get("id")] = a.get("name") or ""
+            out[a.get("id")] = a.get("name") or ""
     except Exception:  # noqa: BLE001
         pass
+    return out
+
+
+def watch_stats(days=30):
+    """Watching over the last month: how much, who, and which nights."""
+    data = raw_history() or {}
+    since = int(time.time()) - days * 86400
+    lib = {u["key"]: u for u in (library_stats() or {}).get("_all", [])}
+    names = sources.cached("plex-accounts", 3600, _accounts) or {}
+    rows = [m for m in (data.get("MediaContainer") or {}).get("Metadata") or [] if (m.get("viewedAt") or 0) >= since]
+    people, nights, minutes, titles = {}, [0] * 7, 0, {}
+    for m in rows:
+        mins = round((m.get("duration") or 0) / 60000) or (lib.get(str(m.get("ratingKey"))) or {}).get("minutes") or 0
+        minutes += mins
+        who = names.get(m.get("accountID")) or "Someone"
+        people[who] = people.get(who, 0) + 1
+        nights[time.localtime(m["viewedAt"]).tm_wday] += 1
+        t = m.get("grandparentTitle") if m.get("type") == "episode" else m.get("title")
+        if t:
+            titles[t] = titles.get(t, 0) + 1
+    week = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"]
+    busiest = max(range(7), key=lambda i: nights[i]) if rows else None
+    return {"days": days, "watched": len(rows), "hours": round(minutes / 60, 1),
+            "people": sorted(({"name": k, "count": v} for k, v in people.items()), key=lambda x: -x["count"])[:6],
+            "nights": [{"day": week[i][:3], "count": nights[i]} for i in range(7)],
+            "busiest": week[busiest] if busiest is not None and nights[busiest] else None,
+            "again": [{"title": k[:60], "count": v} for k, v in sorted(titles.items(), key=lambda kv: -kv[1]) if v > 1][:5]}
+
+
+def _history():
+    data = raw_history() or {}
+    accounts = sources.cached("plex-accounts", 3600, _accounts) or {}
     out = []
     for m in (data.get("MediaContainer") or {}).get("Metadata") or []:
         title = m.get("title") or ""
@@ -109,8 +148,9 @@ def _library_stats():
     if not movies:
         return None
     items = (_json(f"/library/sections/{movies[0]['key']}/all").get("MediaContainer") or {}).get("Metadata") or []
-    unwatched, total_size, unwatched_size = [], 0, 0
+    unwatched, total_size, unwatched_size, every = [], 0, 0, []
     for m in items:
+        every.append({"key": str(m.get("ratingKey")), "minutes": round((m.get("duration") or 0) / 60000) or None})
         size = sum(p.get("size") or 0 for media in m.get("Media") or [] for p in media.get("Part") or [])
         total_size += size
         if not m.get("viewCount") and not m.get("viewOffset"):
@@ -125,7 +165,7 @@ def _library_stats():
     stale = sorted((u for u in unwatched if (u["added"] or 0) < old), key=lambda u: -u["gb"])
     return {"movies": len(items), "watched": len(items) - len(unwatched), "total_gb": round(total_size / 1e9),
             "unwatched": len(unwatched), "unwatched_gb": round(unwatched_size / 1e9), "never_watched_old": stale[:12],
-            "_unwatched": unwatched}
+            "_unwatched": unwatched, "_all": every}
 
 
 def pick(kids=False, max_minutes=None, skip=()):

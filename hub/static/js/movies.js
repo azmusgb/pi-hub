@@ -101,11 +101,27 @@ function movieNight(state) {
     out);
 }
 
+function watchingNow(w) {
+  if (!w) return null;
+  const top = Math.max(1, ...w.nights.map((n) => n.count));
+  const most = Math.max(1, ...w.people.map((p) => p.count));
+  return h("div", { class: "watching" },
+    h("p", { class: "watch-sum" }, h("strong", {}, `${w.watched} watched`), ` in the last ${w.days} days, about ${w.hours} hours.`,
+      w.busiest ? ` ${w.busiest} are movie night.` : ""),
+    h("div", { class: "nights", role: "img", "aria-label": `Watching by day of the week: ${w.nights.map((n) => `${n.day} ${n.count}`).join(", ")}` },
+      w.nights.map((n) => h("span", { class: "night" }, h("i", { style: `height:${Math.round((n.count / top) * 100)}%` }), h("b", {}, n.day.slice(0, 2))))),
+    w.people.length > 1 ? h("ul", { class: "people-bars" }, w.people.map((p) => h("li", {},
+      h("span", {}, p.name), h("span", { class: "meter" }, h("i", { style: `width:${Math.round((p.count / most) * 100)}%`, dataset: { tone: "ok" } })),
+      h("span", { class: "meta" }, String(p.count))))) : null,
+    w.again.length ? h("p", { class: "meta" }, "Watched more than once: " + w.again.map((a) => `${a.title} (${a.count})`).join(", ") + ".") : null);
+}
+
 function statsCard(d) {
   const s = d.stats;
   if (!s) return null;
   const hist = d.history || [];
   return card("Watching", { pill: `${s.watched} of ${s.movies} watched`, tone: "ok" },
+    watchingNow(d.watching),
     h("dl", { class: "facts" },
       h("div", {}, h("dt", {}, "Library size"), h("dd", {}, `${s.total_gb} GB`)),
       h("div", {}, h("dt", {}, "Never watched"), h("dd", {}, `${s.unwatched} movies, ${s.unwatched_gb} GB`))),
