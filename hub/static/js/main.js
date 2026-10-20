@@ -11,6 +11,7 @@ import * as settingsPage from "./settings.js";
 import * as morePage from "./more.js";
 import * as rulesPage from "./rules.js";
 import * as drivesPage from "./drives.js";
+import * as weatherPage from "./weather.js";
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
@@ -25,6 +26,7 @@ const PAGES = {
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Rules", mod: rulesPage },
   "/drives": { key: "drives", title: "Drives", mod: drivesPage },
+  "/weather": { key: "weather", title: "Weather", mod: weatherPage },
 };
 
 const view = document.getElementById("view");
@@ -72,7 +74,7 @@ async function show(path, { focus = false } = {}) {
   document.title = page.key === "now" ? "Home" : `${page.title} · Home`;
   document.getElementById("page-title").textContent = page.title;
   for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === page.key || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "drives", "more"].includes(page.key));
+    const here = a.dataset.page === page.key || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "drives", "weather", "more"].includes(page.key));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);

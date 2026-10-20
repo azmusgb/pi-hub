@@ -4,6 +4,7 @@ import { h } from "./core.js";
 export const every = 600;
 
 const PAGES = [
+  ["/weather", "Weather", "The next hours, the week, air quality and warnings"],
   ["/workshop", "Workshop", "The X2D, print history, the touchscreen and Local AI"],
   ["/print", "Print", "Send a file to the HP DeskJet, see the queue and ink"],
   ["/pi", "Raspberry Pi", "Fix-it buttons, charts, services, storage and updates"],

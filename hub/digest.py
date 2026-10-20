@@ -11,8 +11,13 @@ def build(hours=16):
     w = outside.weather()
     if w:
         today = w["days"][0]
+        u = w.get("units", "F")
         rain = f", {today['rain']}% chance of rain" if today.get("rain") else ""
-        lines.append(f"{w['now']['sky']}, {w['now']['temp']}°F now, high {today['high']}°{rain}.")
+        lines.append(f"{w['now']['sky']}, {w['now']['temp']}°{u} now, high {today['high']}°{rain}.")
+        if w.get("soon"):
+            lines.append(w["soon"])
+        for a in (w.get("alerts") or [])[:2]:
+            lines.append(f"Weather warning: {a['event']}.")
     prints = db.rows("SELECT outcome FROM prints WHERE ended >= ?", since)
     if prints:
         done = sum(1 for p in prints if p["outcome"] == "finished")

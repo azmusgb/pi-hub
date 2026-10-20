@@ -1,5 +1,5 @@
 // Now: the one-line answer, the print band, what needs a look, and a card per area.
-import { api, card, clockTime, ensure, fix, h, piLink, post, spark, toast } from "./core.js";
+import { api, card, clockTime, ensure, fix, h, piLink, post, spark, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 
 export const every = 15;
@@ -44,7 +44,10 @@ function outsideLine(o) {
   const bits = [];
   if (o?.weather) {
     const w = o.weather, t = w.days[0];
-    bits.push(h("span", { class: "out-weather" }, h("strong", {}, `${w.now.temp}°`), ` ${w.now.sky}, high ${t.high}°${t.rain >= 30 ? `, ${t.rain}% rain` : ""}`));
+    bits.push(h("a", { class: "out-weather", href: "/weather", "data-link": true }, weatherIcon(w.now.icon, w.now.sky),
+      h("strong", {}, `${w.now.temp}°`), ` ${w.now.sky}, high ${t.high}°`));
+    if (w.alerts?.length) bits.push(h("a", { class: "out-alert", href: "/weather", "data-link": true }, w.alerts[0].event));
+    else if (w.soon) bits.push(h("span", { class: "out-soon" }, w.soon));
   }
   const next = o?.calendar?.find((e) => e.all_day || e.start * 1000 > Date.now() - 30 * 60000);
   if (next) bits.push(h("span", { class: "out-next" }, "Next: ", h("strong", {}, next.all_day ? next.title : `${clockTime(next.start)} ${next.title}`)));
@@ -161,7 +164,10 @@ function wallView(state, d, home, wifi, out) {
     h("section", { class: "wall-clock" },
       h("p", { class: "wall-time" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
       h("p", { class: "wall-date" }, now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })),
-      w ? h("p", { class: "wall-weather" }, h("strong", {}, `${w.now.temp}°`), ` ${w.now.sky}. High ${w.days[0].high}°, low ${w.days[0].low}°.`) : null),
+      w ? h("div", { class: "wall-weather" }, weatherIcon(w.now.icon, w.now.sky),
+        h("p", {}, h("strong", {}, `${w.now.temp}°`), ` ${w.now.sky}. High ${w.days[0].high}°, low ${w.days[0].low}°.`),
+        w.alerts?.length ? h("p", { class: "out-alert" }, w.alerts[0].event) : w.soon ? h("p", { class: "meta" }, w.soon) : null,
+        h("ol", { class: "wall-hours" }, w.hours.slice(1, 7).map((x) => h("li", {}, h("span", {}, x.label), weatherIcon(x.icon), h("strong", {}, `${x.temp}°`))))) : null),
     h("section", { class: "wall-agenda" }, h("h2", { class: "section-title" }, "Coming up"),
       agenda.length ? h("ul", {}, agenda.map((e) => h("li", {},
         h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))

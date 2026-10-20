@@ -156,3 +156,30 @@ export async function fix(name, label, { confirmText } = {}) {
     return false;
   }
 }
+
+// ---- Weather icons: a small drawn set, coloured by the stylesheet ----
+const SUN = '<circle cx="12" cy="12" r="4.2" class="wx-sun"/><path class="wx-ray" d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>';
+const MOON = '<path class="wx-moon" d="M16.5 15.8A7 7 0 0 1 9.2 5.2a7 7 0 1 0 7.3 10.6z"/>';
+const CLOUD = '<path class="wx-cloud" d="M7 18.5h10.2a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1A4.3 4.3 0 0 0 7 18.5z"/>';
+const SMALL_SUN = '<g transform="translate(-3.5 -3.5) scale(.75)">' + SUN + '</g>';
+const SMALL_MOON = '<g transform="translate(-2.5 -3) scale(.75)">' + MOON + '</g>';
+const WX = {
+  "clear-day": SUN,
+  "clear-night": MOON,
+  "partly-day": SMALL_SUN + '<g transform="translate(3 3) scale(.82)">' + CLOUD + '</g>',
+  "partly-night": SMALL_MOON + '<g transform="translate(3 3) scale(.82)">' + CLOUD + '</g>',
+  cloudy: CLOUD,
+  fog: '<path class="wx-line" d="M4 9h16M3 13h18M5 17h14"/>',
+  rain: '<g transform="translate(0 -3)">' + CLOUD + '</g><path class="wx-drop" d="M8.5 18.5l-1 2.5M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/>',
+  sleet: '<g transform="translate(0 -3)">' + CLOUD + '</g><path class="wx-drop" d="M8.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/><circle cx="12" cy="20" r="1" class="wx-flake"/>',
+  snow: '<g transform="translate(0 -3)">' + CLOUD + '</g><circle cx="8" cy="19.5" r="1" class="wx-flake"/><circle cx="12" cy="21" r="1" class="wx-flake"/><circle cx="16" cy="19.5" r="1" class="wx-flake"/>',
+  storm: '<g transform="translate(0 -3)">' + CLOUD + '</g><path class="wx-bolt" d="M12.5 15.5l-2.5 4h3l-1.5 3.5"/>',
+};
+export function weatherIcon(name, label = "") {
+  const span = document.createElement("span");
+  span.className = `wx wx-${name}`;
+  span.setAttribute("role", label ? "img" : "presentation");
+  if (label) span.setAttribute("aria-label", label);
+  span.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${WX[name] || CLOUD}</svg>`;  // fixed markup from this file only
+  return span;
+}

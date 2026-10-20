@@ -128,7 +128,9 @@ export async function load(state) {
     card("Weather", { pill: d.place || "Not set", tone: d.place ? "ok" : "warn" },
       h("p", { class: "meta" }, "For the weather on Now, the wall display and the morning digest."),
       form(save("place"), d.place ? "Change town" : "Set town",
-        field("place-name", "Town or city", { name: "name", placeholder: "Springfield, Illinois", required: true, autocomplete: "address-level2" }))),
+        field("place-name", "Town or city", { name: "name", placeholder: "Springfield, Illinois", required: true, autocomplete: "address-level2" })),
+      h("div", { class: "seg", role: "group", "aria-label": "Temperature units" }, ["F", "C"].map((x) =>
+        h("button", { class: "seg-btn", "aria-pressed": String((d.units || "F") === x), onclick: () => save("units")({ units: x }) }, `°${x}`)))),
     card("Calendar", { pill: d.calendar_set ? "Connected" : "Not set", tone: d.calendar_set ? "ok" : "warn" },
       h("p", { class: "meta" }, "Paste a calendar's secret iCal address. In Google Calendar: Settings, your calendar, “Secret address in iCal format”. In iCloud: share the calendar publicly and copy the link."),
       form(save("calendar"), d.calendar_set ? "Replace calendar" : "Connect calendar",

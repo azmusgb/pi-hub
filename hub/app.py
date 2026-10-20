@@ -563,6 +563,7 @@ def api_settings(request: Request):
         "digest": auth.get("digest", {"on": True, "at": "08:00"}),
         "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
         "place": (auth.get("place") or {}).get("name"),
+        "units": outside.units(),
         "calendar_set": bool(auth.get("calendar_url")),
         "alerts_ready": events.topic_ready(),
     })
@@ -631,6 +632,13 @@ async def api_settings_save(what: str, request: Request):
                 auth.put("place", place)
                 sources._cache.pop("weather", None)
                 msg = f"Weather set for {place['name']}."
+        elif what == "units":
+            u = str(b.get("units", "F")).upper()
+            if u not in ("F", "C"):
+                raise ValueError("Choose °F or °C.")
+            auth.put("units", u)
+            sources._cache.pop("weather", None)
+            msg = f"Weather now in °{u}."
         elif what == "calendar":
             if b.get("clear"):
                 auth.put("calendar_url", None)

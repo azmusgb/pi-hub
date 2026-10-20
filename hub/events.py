@@ -30,6 +30,9 @@ TRIGGERS = {
     "homebridge_stopped": "Homebridge stops",
     "pi_hot": "the Pi gets hotter than 75 °C",
     "filament_low": "a filament spool runs low",
+    "weather_alert": "the weather service issues a warning",
+    "rain_soon": "rain is on the way",
+    "freeze_tonight": "it will freeze tonight",
 }
 
 # action -> (what people see in "then …", needs an accessory)
@@ -54,11 +57,15 @@ MESSAGES = {
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
     "pi_hot": ("The Pi is running hot", "Above 75 °C."),
     "filament_low": ("Filament running low", "Check the filament shelf in the hub."),
+    "weather_alert": ("Weather warning", ""),
+    "rain_soon": ("Rain on the way", ""),
+    "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
 }
 
 DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
     ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
+    ("weather_alert", "notify", None, "Pass on official weather warnings", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
@@ -139,7 +146,8 @@ def run_action(rule, kind, detail=""):
     try:
         if act == "notify":
             title, body = MESSAGES.get(kind, (TRIGGERS.get(kind, kind), ""))
-            return push(title, f"{detail}. {body}" if detail else body, "bell")
+            text = f"{detail.rstrip('.')}. {body}".strip() if detail else body
+            return push(title, text, "warning" if kind == "weather_alert" else "bell", urgent=kind == "weather_alert")
         if act in ("turn_on", "turn_off"):
             items = {a["id"]: a for a in homecontrol.accessories()}
             a = items.get(rule["target"])
@@ -179,6 +187,9 @@ class Watcher:
         self.pc_reported = None
         self.last_print = None
         self.last_progress = 0
+        self.alerts_seen = None
+        self.rain_day = None
+        self.freeze_day = None
 
     def _steady(self, key, value):
         """True once a new value has held for two checks; returns (changed, value)."""
@@ -233,6 +244,25 @@ class Watcher:
         if state != "No status" or self.last_print not in ("Printing", "Paused"):
             self.last_print = state
 
+    def check_weather(self, w, now=None):
+        """Weather events: new official warnings, rain coming (once a day), and frost tonight (once a day, after 3 pm)."""
+        if not w:
+            return
+        t = time.localtime(now or time.time())
+        today = time.strftime("%Y-%m-%d", t)
+        ids = {a["id"] for a in w.get("alerts") or []}
+        if self.alerts_seen is not None:
+            for a in w.get("alerts") or []:
+                if a["id"] not in self.alerts_seen:
+                    fire("weather_alert", a["headline"] or a["event"])
+        self.alerts_seen = ids
+        if w.get("soon") and w["soon"].startswith("Rain likely") and self.rain_day != today:
+            self.rain_day = today
+            fire("rain_soon", w["soon"])
+        if w.get("freeze_tonight") and t.tm_hour >= 15 and self.freeze_day != today:
+            self.freeze_day = today
+            fire("freeze_tonight", f"Down to {w.get('tonight_low')}°.")
+
 
 def run(every=30):
     w = Watcher()
@@ -240,6 +270,11 @@ def run(every=30):
     while True:
         try:
             w.check(sources.pi_status())
+        except Exception:
+            pass
+        try:
+            from . import outside
+            w.check_weather(outside.weather())
         except Exception:
             pass
         time.sleep(every)
