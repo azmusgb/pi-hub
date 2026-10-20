@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import db, now, plex, printing, recorder, sources, system
+from . import actions, auth, db, homecontrol, now, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes"}
@@ -200,6 +200,204 @@ def api_pi(hours: int = 24):
 @app.get("/api/alerts")
 def api_alerts():
     return fresh({"alerts": system.alerts()})
+
+
+# ---- Sign-in ----
+
+def who(request: Request):
+    s = auth.session(request.cookies.get(auth.COOKIE))
+    return (s["role"], s["device"]) if s else ("none", "")
+
+
+def need(request: Request, role):
+    have, device = who(request)
+    if not auth.allowed(have, role):
+        raise HTTPException(401, "Enter the household PIN first." if role == "household" else "Sign in as the owner first.")
+    return have, device
+
+
+def _device(request: Request):
+    ua = request.headers.get("user-agent", "")
+    for key, name in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android phone"),
+                      ("Macintosh", "Mac"), ("Windows", "Windows PC")):
+        if key in ua:
+            return name
+    return "A browser"
+
+
+def _signed_in(token, role):
+    resp = fresh({"role": role})
+    resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
+    return resp
+
+
+@app.get("/api/me")
+def api_me(request: Request):
+    role, device = who(request)
+    return fresh({"role": role, "setup_needed": auth.setup_needed(), "device": device})
+
+
+@app.post("/api/setup")
+async def api_setup(request: Request):
+    b = await request.json()
+    try:
+        auth.setup(b.get("code", ""), b.get("owner_password", ""), str(b.get("pin", "")))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    token, role = auth.sign_in(request.client.host, _device(request), password=b.get("owner_password"))
+    auth.log(role, _device(request), "setup", "The hub was set up.")
+    return _signed_in(token, role)
+
+
+@app.post("/api/signin")
+async def api_signin(request: Request):
+    b = await request.json()
+    try:
+        if "password" in b:
+            token, role = auth.sign_in(request.client.host, _device(request), password=str(b["password"]))
+        else:
+            token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
+    except PermissionError as e:
+        raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
+    return _signed_in(token, role)
+
+
+@app.post("/api/signout")
+def api_signout(request: Request):
+    auth.sign_out(request.cookies.get(auth.COOKIE))
+    resp = fresh({"role": "none"})
+    resp.delete_cookie(auth.COOKIE, path="/")
+    return resp
+
+
+# ---- Fix it ----
+
+@app.get("/api/actions")
+def api_actions(request: Request):
+    role, _ = who(request)
+    return fresh({"actions": actions.available(role), "updates": actions.updates_status(),
+                  "log": auth.recent_actions(12) if auth.allowed(role, "household") else []})
+
+
+@app.post("/api/actions/{name}")
+def api_action(name: str, request: Request):
+    role, device = need(request, "household")
+    try:
+        result = actions.run(name)
+        auth.log(role, device, name, result["message"])
+        return fresh(result)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        auth.log(role, device, name, str(e))
+        raise HTTPException(502, str(e))
+
+
+# ---- Home control ----
+
+@app.get("/api/home")
+def api_home():
+    try:
+        return fresh({"connected": True, "accessories": homecontrol.accessories(),
+                      "favourites": auth.get("favourites", [])})
+    except homecontrol.NotConnected as e:
+        return fresh({"connected": False, "message": str(e), "accessories": [], "favourites": []})
+    except OSError:
+        return fresh({"connected": False, "message": "Homebridge isn't answering.", "accessories": [], "favourites": []})
+
+
+@app.post("/api/home/{uid}")
+async def api_home_set(uid: str, request: Request):
+    role, device = need(request, "household")
+    b = await request.json()
+    try:
+        homecontrol.set_value(uid, str(b.get("characteristic", "")), b.get("value"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except homecontrol.NotConnected as e:
+        raise HTTPException(409, str(e))
+    except OSError:
+        raise HTTPException(502, "Homebridge didn't take the change. Try again.")
+    return fresh({"ok": True})
+
+
+@app.post("/api/home/{uid}/favourite")
+def api_home_favourite(uid: str, request: Request):
+    need(request, "household")
+    favs = auth.get("favourites", [])
+    favs = [f for f in favs if f != uid] if uid in favs else (favs + [uid])[-12:]
+    auth.put("favourites", favs)
+    return fresh({"favourites": favs})
+
+
+# ---- Wi-Fi ----
+
+@app.get("/api/wifi")
+def api_wifi(request: Request):
+    w = wifi.details()
+    role, _ = who(request)
+    if not w:
+        return fresh({"set": False})
+    return fresh({"set": True, "ssid": w["ssid"], "security": w["security"],
+                  "password": w["password"] if auth.allowed(role, "household") else None})
+
+
+@app.get("/api/wifi/qr.svg")
+def api_wifi_qr():
+    svg = wifi.qr_svg()
+    if not svg:
+        raise HTTPException(404, "No Wi-Fi saved")
+    return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
+
+# ---- Settings (owner) ----
+
+@app.get("/api/settings")
+def api_settings(request: Request):
+    need(request, "owner")
+    hb = auth.get("homebridge_login")
+    w = wifi.details()
+    return fresh({
+        "homebridge": {"connected": bool(hb), "username": hb["username"] if hb else ""},
+        "wifi": {"ssid": w["ssid"], "security": w["security"]} if w else None,
+        "backups": system.backups(),
+        "log": auth.recent_actions(30),
+    })
+
+
+@app.post("/api/settings/{what}")
+async def api_settings_save(what: str, request: Request):
+    role, device = need(request, "owner")
+    b = await request.json()
+    try:
+        if what == "pin":
+            auth.set_pin(str(b.get("pin", "")))
+            msg = "Household PIN changed. Everyone needs the new PIN next time."
+        elif what == "password":
+            auth.set_owner_password(str(b.get("password", "")))
+            msg = "Owner password changed."
+        elif what == "homebridge":
+            user, pw = str(b.get("username", "")).strip(), str(b.get("password", ""))
+            if not homecontrol.test_login(user, pw):
+                raise ValueError("Homebridge didn't accept that login. Use the one for its web page at port 8581.")
+            auth.put("homebridge_login", {"username": user, "password": pw})
+            homecontrol.forget_token()
+            msg = "Homebridge connected."
+        elif what == "wifi":
+            if b.get("clear"):
+                wifi.clear()
+                msg = "Wi-Fi details removed."
+            else:
+                wifi.save(str(b.get("ssid", "")), str(b.get("password", "")), str(b.get("security", "WPA")))
+                msg = "Wi-Fi saved. The QR code is on the Now page."
+        else:
+            raise HTTPException(404, "Unknown setting")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    auth.log(role, device, f"settings:{what}", msg)
+    return fresh({"ok": True, "message": msg})
 
 
 @app.get("/healthz")

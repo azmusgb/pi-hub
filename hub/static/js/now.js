@@ -1,5 +1,6 @@
 // Now: the one-line answer, the print band, what needs a look, and a card per area.
-import { api, card, h, piLink, spark } from "./core.js";
+import { api, card, fix, h, piLink, spark } from "./core.js";
+import { tile } from "./control.js";
 
 export const every = 15;
 
@@ -33,7 +34,12 @@ function fact(label, value, tone) {
 }
 
 export async function load(state) {
-  const d = await api("/api/now");
+  const [d, home, wifi] = await Promise.all([
+    api("/api/now"),
+    api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
+    api("/api/wifi").catch(() => ({ set: false })),
+  ]);
+  const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
@@ -43,7 +49,8 @@ export async function load(state) {
     ? h("section", { class: "issues", "aria-label": "Needs a look" },
       h("h2", { class: "section-title" }, "Needs a look"),
       h("ul", {}, d.issues.map((i) => h("li", { class: "issue", dataset: { tone: i.tone } },
-        h("span", { class: "dot" }), h("strong", {}, i.what), h("span", { class: "say" }, i.say)))))
+        h("span", { class: "dot" }), h("strong", {}, i.what), h("span", { class: "say" }, i.say),
+        i.fix ? h("button", { class: "ghost fix-btn", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : null))))
     : "");
 
   const m = d.movies;
@@ -59,7 +66,7 @@ export async function load(state) {
   const cpu = p.cpu_series?.at(-1);
   const w = d.workshop;
 
-  state.cards.replaceChildren(
+  state.cards.replaceChildren(...[
     card("Movies", { pill: !m.plex_running ? "Plex stopped" : m.drive === "Connected" ? "Ready" : "No movies", tone: m.tone },
       h("p", { class: "big" }, m.count != null ? `${m.count} movies` : m.drive === "Connected" ? "Movies" : "Drive missing"),
       h("p", { class: "meta" }, m.drive === "Connected" ? `Movies drive connected, ${m.free} free` : "Waiting for the movies drive."),
@@ -75,12 +82,21 @@ export async function load(state) {
         fact("Models loaded", w.ai === "Down" ? "—" : String(w.ai_models ?? 0))),
       h("a", { class: "action", href: "/workshop", "data-link": true }, "Print history")),
     card("Home", { pill: d.home.homebridge_running ? "Running" : "Stopped", tone: d.home.tone },
-      h("p", { class: "big" }, d.home.homebridge_running ? "Homebridge running" : "Homebridge stopped"),
-      h("p", { class: "meta" }, "Light, plug and scene controls will appear here."),
+      favs.length
+        ? h("div", { class: "tiles compact" }, favs.map((a) => tile(a, state)))
+        : [h("p", { class: "big" }, d.home.homebridge_running ? "Homebridge running" : "Homebridge stopped"),
+          h("p", { class: "meta" }, home.connected ? "Star lights and plugs on the Control page to see them here." : "Connect Homebridge in Settings to switch lights from here.")],
       h("div", { class: "quick" },
+        h("a", { class: "chip", href: "/control", "data-link": true }, "All controls"),
         h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
         h("a", { class: "chip", href: "/print", "data-link": true }, "Print something"),
         h("a", { class: "chip", href: piLink(8581), target: "_blank", rel: "noopener" }, "Homebridge"))),
+    wifi.set ? card("Guest Wi-Fi", { cls: "wifi-card" },
+      h("div", { class: "wifi" },
+        h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 168, height: 168 }),
+        h("div", {}, h("p", { class: "big" }, wifi.ssid),
+          h("p", { class: "meta" }, "Point a phone camera at the code to join."),
+          wifi.password ? h("p", { class: "meta" }, "Password: ", h("strong", { class: "secret" }, wifi.password)) : null))) : null,
     card("Raspberry Pi", { pill: p.tone === "ok" ? "Healthy" : "Check", tone: p.tone },
       h("div", { class: "gauges" },
         h("figure", { class: "gauge" }, h("figcaption", {}, "Temperature"),
@@ -94,7 +110,7 @@ export async function load(state) {
         fact("Free space", p.disk_free_gb != null ? `${p.disk_free_gb} GB` : "—"),
         fact("Updates waiting", p.updates == null ? "—" : String(p.updates))),
       h("a", { class: "action", href: "/pi", "data-link": true }, "Pi details")),
-  );
+  ].filter(Boolean));
 }
 
 export function failed(state) {

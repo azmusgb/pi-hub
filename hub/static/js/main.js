@@ -6,6 +6,9 @@ import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
 import * as piPage from "./pi.js";
 import * as alertsPage from "./alerts.js";
+import * as controlPage from "./control.js";
+import * as settingsPage from "./settings.js";
+import * as morePage from "./more.js";
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
@@ -15,6 +18,9 @@ const PAGES = {
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Raspberry Pi", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
+  "/control": { key: "control", title: "Control", mod: controlPage },
+  "/settings": { key: "settings", title: "Settings", mod: settingsPage },
+  "/more": { key: "more", title: "More", mod: morePage },
 };
 
 const view = document.getElementById("view");
@@ -62,7 +68,8 @@ async function show(path, { focus = false } = {}) {
   document.title = page.key === "now" ? "Home" : `${page.title} · Home`;
   document.getElementById("page-title").textContent = page.title;
   for (const a of document.querySelectorAll("[data-page]")) {
-    if (a.dataset.page === page.key) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    const here = a.dataset.page === page.key || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "more"].includes(page.key));
+    if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);
   await refresh();

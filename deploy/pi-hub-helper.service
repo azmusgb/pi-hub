@@ -1,0 +1,13 @@
+[Unit]
+Description=Pi Hub helper (runs the hub's fixed list of admin actions)
+After=local-fs.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/pi-hub/pi-hub-helper.py
+RuntimeDirectory=pi-hub-helper
+RuntimeDirectoryMode=0750
+Group=pi-hub
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

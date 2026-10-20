@@ -1,0 +1,8 @@
+[Unit]
+Description=Pi Hub nightly backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/pi-hub/pi-hub-backup.sh
+Nice=15
+IOSchedulingClass=idle

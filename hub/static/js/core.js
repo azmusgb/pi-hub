@@ -85,3 +85,73 @@ export const empty = (text) => h("p", { class: "empty" }, text);
 
 // Links to apps on this Pi follow whatever address the hub was opened with.
 export const piLink = (port, path = "", scheme = "http") => `${scheme}://${location.hostname}:${port}${path}`;
+
+// ---- Who's signed in, and asking for the PIN only when an action needs it ----
+let me = null;
+export async function whoami(force = false) {
+  if (!me || force) me = await api("/api/me");
+  return me;
+}
+
+export function forgetMe() { me = null; }
+
+const RANK = { none: 0, household: 1, owner: 2 };
+
+export async function ensure(role = "household") {
+  const m = await whoami(true);
+  if (RANK[m.role] >= RANK[role]) return true;
+  if (m.setup_needed) {
+    toast("Set up the hub first: choose the household PIN in Settings.", "warn");
+    setTimeout(() => location.assign("/settings"), 1200);
+    return false;
+  }
+  if (role === "owner") { location.assign("/settings"); return false; }
+  return pinSheet();
+}
+
+function pinSheet() {
+  return new Promise((resolve) => {
+    const input = h("input", { type: "password", inputmode: "numeric", pattern: "[0-9]*", maxlength: 6, autocomplete: "one-time-code",
+      id: "pin-input", class: "pin-input", "aria-describedby": "pin-help" });
+    const err = h("p", { class: "sheet-error", role: "alert" });
+    const prev = document.activeElement;
+    const close = (ok) => { dlg.close(); dlg.remove(); prev?.focus?.(); resolve(ok); };
+    const form = h("form", { method: "dialog", class: "sheet-body", onsubmit: async (e) => {
+      e.preventDefault();
+      err.textContent = "";
+      try {
+        await post("/api/signin", { pin: input.value });
+        me = null;
+        await whoami();
+        toast("Unlocked on this device for 30 days.");
+        close(true);
+      } catch (x) { err.textContent = x.message; input.select(); }
+    } },
+    h("h2", {}, "Enter the household PIN"),
+    h("p", { id: "pin-help", class: "meta" }, "Needed once on each device before it can change things."),
+    h("label", { for: "pin-input", class: "sr" }, "Household PIN"), input, err,
+    h("div", { class: "sheet-actions" },
+      h("button", { type: "button", class: "ghost", onclick: () => close(false) }, "Cancel"),
+      h("button", { type: "submit", class: "primary" }, "Unlock")));
+    const dlg = h("dialog", { class: "sheet", "aria-label": "Household PIN" }, form);
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(false); });
+    document.body.append(dlg);
+    dlg.showModal();
+    input.focus();
+  });
+}
+
+// Runs a Fix-it action after a confirm, and says what happened.
+export async function fix(name, label, { confirmText } = {}) {
+  if (!(await ensure("household"))) return false;
+  if (confirmText && !confirm(confirmText)) return false;
+  toast(`${label}…`, "warn");
+  try {
+    const r = await post(`/api/actions/${encodeURIComponent(name)}`);
+    toast(r.message);
+    return true;
+  } catch (e) {
+    toast(e.message, "bad");
+    return false;
+  }
+}

@@ -48,10 +48,11 @@ def issues(s):
                     "say": "It dropped out. Unplug it, wait 10 seconds, plug it back in."})
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",
-                    "say": "It's plugged in but not mounted yet. Give it a minute."})
+                    "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
     for key, name in (("plex", "Plex"), ("homebridge", "Homebridge")):
         if not svc.get(key):
-            out.append({"tone": "bad", "what": name, "say": f"{name} has stopped. Restart it from Cockpit."})
+            out.append({"tone": "bad", "what": name, "say": f"{name} has stopped.",
+                        "fix": f"restart:{key}", "fix_label": f"Restart {name}"})
     if s.get("ai_state") == "Down":
         out.append({"tone": "bad", "what": "Windows PC",
                     "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped."})

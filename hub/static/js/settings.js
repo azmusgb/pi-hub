@@ -1,0 +1,106 @@
+// Settings: first-time setup, owner sign-in, and the owner's controls.
+import { api, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
+
+export const every = 60;
+
+function field(id, label, attrs = {}) {
+  return h("label", { class: "field", for: id }, h("span", {}, label), h("input", { id, ...attrs }));
+}
+
+function form(onsubmit, button, ...fields) {
+  const btn = h("button", { type: "submit", class: "primary" }, button);
+  const f = h("form", { class: "form", onsubmit: async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    try { await onsubmit(Object.fromEntries(new FormData(f))); }
+    catch (x) { toast(x.message, "bad"); }
+    btn.disabled = false;
+  } }, ...fields, btn);
+  return f;
+}
+
+export function mount(state) {
+  state.body = h("div", { class: "cards" });
+  state.root.append(state.body);
+}
+
+function setup(state) {
+  return card("Set up the hub", { cls: "wide" },
+    h("p", {}, "Choose an owner password (for these settings) and a 6-digit household PIN (for everyone who should be able to restart things and switch lights)."),
+    h("p", { class: "meta" }, "The setup code is on the Pi. On the Mac, run: ssh pi sudo cat /etc/pi-hub/setup-code"),
+    form(async (v) => {
+      if (v.pin !== v.pin2) throw new Error("The two PINs don't match.");
+      await post("/api/setup", { code: v.code, owner_password: v.owner_password, pin: v.pin });
+      forgetMe();
+      toast("The hub is set up, and you're signed in as the owner.");
+      state.force = true;
+      load(state);
+    }, "Set up",
+    field("code", "Setup code", { name: "code", required: true, autocomplete: "off", autocapitalize: "characters" }),
+    field("owner_password", "Owner password", { name: "owner_password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }),
+    field("pin", "Household PIN (6 digits)", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }),
+    field("pin2", "Household PIN again", { name: "pin2", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" })));
+}
+
+function signIn(state, role) {
+  return card("Owner sign-in", { cls: "wide" },
+    h("p", {}, role === "household" ? "This device has the household PIN. Settings need the owner password." : "Settings need the owner password."),
+    form(async (v) => {
+      await post("/api/signin", { password: v.password });
+      forgetMe();
+      state.force = true;
+      load(state);
+    }, "Sign in", field("owner-pw", "Owner password", { name: "password", type: "password", required: true, autocomplete: "current-password" })));
+}
+
+export async function load(state) {
+  if (!state.force && state.root.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+  state.force = false;
+  const m = await whoami(true);
+  if (m.setup_needed) { state.body.replaceChildren(setup(state)); return; }
+  if (m.role !== "owner") { state.body.replaceChildren(signIn(state, m.role)); return; }
+  const d = await api("/api/settings");
+  const save = (what) => async (v) => {
+    const r = await post(`/api/settings/${what}`, v);
+    toast(r.message);
+    state.force = true;
+    load(state);
+  };
+  state.body.replaceChildren(
+    card("Homebridge", { pill: d.homebridge.connected ? "Connected" : "Not connected", tone: d.homebridge.connected ? "ok" : "warn" },
+      h("p", { class: "meta" }, "Use the login for Homebridge's own page at port 8581. The hub keeps it on the Pi and never shows it again."),
+      form(save("homebridge"), d.homebridge.connected ? "Update login" : "Connect",
+        field("hb-user", "Homebridge username", { name: "username", value: d.homebridge.username || "", required: true, autocomplete: "off" }),
+        field("hb-pw", "Homebridge password", { name: "password", type: "password", required: true, autocomplete: "off" }))),
+    card("Guest Wi-Fi", { pill: d.wifi ? d.wifi.ssid : "Not set", tone: d.wifi ? "ok" : "warn" },
+      h("p", { class: "meta" }, "Guests scan the QR code on the Now page to join."),
+      form(save("wifi"), "Save Wi-Fi",
+        field("wifi-ssid", "Network name", { name: "ssid", value: d.wifi?.ssid || "", required: true, autocomplete: "off" }),
+        field("wifi-pw", "Password", { name: "password", type: "password", autocomplete: "off" }),
+        h("label", { class: "field", for: "wifi-sec" }, h("span", {}, "Security"),
+          h("select", { id: "wifi-sec", name: "security" },
+            ["WPA", "WEP", "nopass"].map((v) => h("option", { value: v, selected: (d.wifi?.security || "WPA") === v },
+              { WPA: "WPA2 or WPA3 (most networks)", WEP: "WEP (old)", nopass: "No password" }[v]))))),
+      d.wifi ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/wifi", { clear: true }); toast("Wi-Fi details removed."); load(state); } }, "Remove Wi-Fi details") : null),
+    card("Household PIN", {},
+      h("p", { class: "meta" }, "Changing it signs every device out of the household PIN."),
+      form(save("pin"), "Change PIN",
+        field("new-pin", "New 6-digit PIN", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))),
+    card("Owner password", {},
+      form(save("password"), "Change password",
+        field("new-pw", "New owner password", { name: "password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }))),
+    card("Backups", { pill: d.backups.length ? `${d.backups.length} kept` : "None yet", tone: d.backups.length ? "ok" : "warn" },
+      d.backups.length
+        ? h("ul", { class: "log" }, d.backups.slice(0, 5).map((b) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: "ok" } }),
+          h("span", { class: "log-main" }, h("strong", {}, when(b.ts))), h("span", { class: "log-side" }, `${b.mb} MB`))))
+        : empty("The first backup runs tonight at about 3:30."),
+      h("p", { class: "meta" }, "Kept on the Pi for 14 days: hub data, lists, history, Homebridge settings and the Pi's own settings.")),
+    card("Activity", { cls: "wide" },
+      d.log.length
+        ? h("ul", { class: "log" }, d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
+          h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household PIN"}`)),
+          h("span", { class: "log-side" }, when(l.ts)))))
+        : empty("Nothing yet. Every restart, fix and settings change is listed here.")),
+    h("button", { class: "ghost", onclick: async () => { await post("/api/signout"); forgetMe(); toast("Signed out on this device."); load(state); } }, "Sign out on this device"),
+  );
+}

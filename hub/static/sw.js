@@ -1,8 +1,8 @@
 // Keeps the page shell available when the Pi is briefly unreachable. Live data is never cached.
-const SHELL = "pi-hub-shell-v6";
+const SHELL = "pi-hub-shell-v9";
 const FILES = ["/", "/static/app.css", "/static/pages.css", "/static/js/main.js", "/static/js/core.js", "/static/js/now.js",
   "/static/js/movies.js", "/static/js/workshop.js", "/static/js/print.js", "/static/js/lists.js", "/static/js/pi.js",
-  "/static/js/alerts.js", "/static/icon.svg", "/static/manifest.webmanifest"];
+  "/static/js/alerts.js", "/static/js/control.js", "/static/js/settings.js", "/static/js/more.js", "/static/icon.svg", "/static/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

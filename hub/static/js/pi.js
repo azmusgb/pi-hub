@@ -1,5 +1,5 @@
 // Raspberry Pi: health and history, every service, updates, storage and network.
-import { api, card, empty, h, piLink, spark } from "./core.js";
+import { api, card, empty, fix, h, piLink, spark, when } from "./core.js";
 
 export const every = 20;
 
@@ -18,7 +18,12 @@ function chart(title, series, unit, max, current) {
 }
 
 export async function load(state) {
-  const d = await api(`/api/pi?hours=${state.range}`);
+  const [d, acts] = await Promise.all([api(`/api/pi?hours=${state.range}`), api("/api/actions")]);
+  const CONFIRM = {
+    "restart:pi": "Restart the Pi? Plex, Homebridge and the hub go away for about a minute.",
+    "updates:install": "Install all waiting updates now? Plex or Homebridge may restart.",
+  };
+  const upd = acts.updates || {};
   const hist = d.history;
   const live = d.live;
   const ranges = [[6, "6 hours"], [24, "Day"], [168, "Week"]];
@@ -34,6 +39,17 @@ export async function load(state) {
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Power"), h("dd", { dataset: { tone: d.health.power === "Good" ? "ok" : "bad" } }, d.health.power || "—")),
         h("div", {}, h("dt", {}, "Running for"), h("dd", {}, d.health.uptime_h != null ? `${d.health.uptime_h} h` : "—")))),
+    card("Fix it", { cls: "wide", pill: upd.state === "running" ? "Updates installing" : null, tone: "warn" },
+      h("p", { class: "meta" }, "One tap. The first time on each device, it asks for the household PIN."),
+      h("div", { class: "fix-grid" }, acts.actions.map((a) => h("button", {
+        class: "fix-tile", disabled: a.name === "updates:install" && upd.state === "running",
+        onclick: async () => { if (await fix(a.name, a.label, { confirmText: CONFIRM[a.name] })) load(state); },
+      }, a.label))),
+      upd.state === "failed" ? h("p", { class: "note" }, `The last update run didn't finish: ${upd.message}`) : null,
+      acts.log.length ? [h("h3", { class: "sub" }, "Recent fixes"), h("ul", { class: "log" }, acts.log.slice(0, 5).map((l) =>
+        h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
+          h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, l.device || "A device")),
+          h("span", { class: "log-side" }, when(l.ts)))))] : null),
     card("Services", {},
       h("ul", { class: "log" }, d.services.map((s) => {
         const [label, tone] = STATE[s.state] || [s.state, "warn"];
@@ -41,7 +57,7 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, s.name), h("span", { class: "meta" }, s.what)),
           h("span", { class: "log-side", dataset: { tone } }, label));
       })),
-      h("a", { class: "action", href: piLink(9090, "/system/services", "https"), target: "_blank", rel: "noopener" }, "Restart one in Cockpit")),
+      h("a", { class: "action", href: piLink(9090, "/system/services", "https"), target: "_blank", rel: "noopener" }, "More in Cockpit")),
     card("Storage", {},
       d.storage.map((s) => h("div", { class: "store" },
         h("div", { class: "store-head" }, h("strong", {}, s.name), h("span", { class: "meta" }, s.mounted ? `${s.free_gb} GB free of ${s.total_gb} GB` : "Not connected")),
@@ -49,7 +65,7 @@ export async function load(state) {
     card("Updates", { pill: d.updates?.length ? `${d.updates.length} waiting` : "Up to date", tone: d.updates?.length ? "warn" : "ok" },
       d.updates?.length ? h("ul", { class: "pkg" }, d.updates.slice(0, 12).map((u) => h("li", {}, h("strong", {}, u.name), h("span", { class: "meta" }, u.version))))
         : empty("Everything's up to date. Security fixes install by themselves each day."),
-      h("a", { class: "action", href: piLink(9090, "/updates", "https"), target: "_blank", rel: "noopener" }, "Install in Cockpit")),
+      d.updates?.length ? h("button", { class: "ghost", onclick: async () => { if (await fix("updates:install", "Install updates", { confirmText: CONFIRM["updates:install"] })) load(state); } }, "Install them now") : null),
     card("Network", {},
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Name"), h("dd", {}, d.network.name)),

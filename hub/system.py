@@ -107,3 +107,18 @@ def alerts(limit=200):
         except (ValueError, KeyError, TypeError):
             continue
     return out
+
+
+BACKUP_DIR = os.environ.get("HUB_BACKUP_DIR", "/var/backups/pi-hub")
+
+
+def backups():
+    try:
+        names = sorted((n for n in os.listdir(BACKUP_DIR) if n.startswith("pi-") and n.endswith(".tgz")), reverse=True)
+    except OSError:
+        return []
+    out = []
+    for n in names[:14]:
+        st = os.stat(os.path.join(BACKUP_DIR, n))
+        out.append({"name": n, "ts": int(st.st_mtime), "mb": round(st.st_size / 1e6, 1)})
+    return out
