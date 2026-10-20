@@ -40,13 +40,13 @@ python3 -c "import qrcode, icalendar, recurring_ical_events" 2>/dev/null || \
 
 # The helper (fixed list of admin actions) and the nightly backup.
 sudo install -d -m 755 /usr/local/lib/pi-hub
-sudo install -m 755 /opt/pi-hub/deploy/pi-hub-helper.py /opt/pi-hub/deploy/pi-hub-backup.sh /opt/pi-hub/deploy/x2d-camera-failover.py /usr/local/lib/pi-hub/
+sudo install -m 755 /opt/pi-hub/deploy/pi-hub-helper.py /opt/pi-hub/deploy/pi-hub-backup.sh /opt/pi-hub/deploy/x2d-camera-failover.py /opt/pi-hub/deploy/pi-hub-selfcheck.py /usr/local/lib/pi-hub/
 # The workshop camera: the Pi's bridge on 8092 (if installed), the failover address on 8091.
 if [ -f /etc/systemd/system/x2d-camera-bridge.service ]; then
   sudo install -d -m 755 /etc/systemd/system/x2d-camera-bridge.service.d
   sudo install -m 644 /opt/pi-hub/deploy/x2d-camera-bridge.service.d/port.conf /etc/systemd/system/x2d-camera-bridge.service.d/port.conf
 fi
-for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service; do
+for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
   sudo install -m 644 /opt/pi-hub/deploy/$u /etc/systemd/system/$u
 done
 
@@ -59,7 +59,7 @@ sudo chown root:pi-hub /etc/pi-hub/setup-code && sudo chmod 640 /etc/pi-hub/setu
 
 sudo systemctl daemon-reload
 sudo systemctl enable pi-hub >/dev/null 2>&1
-sudo systemctl enable --now pi-hub-backup.timer >/dev/null 2>&1
+sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer >/dev/null 2>&1
 sudo systemctl enable pi-hub-helper >/dev/null 2>&1
 sudo systemctl restart pi-hub-helper
 sudo systemctl enable x2d-camera-failover >/dev/null 2>&1

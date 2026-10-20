@@ -23,6 +23,7 @@ ACTIONS = {
     "restart:homebridge": (["systemctl", "restart", "homebridge"], 60),
     "remount:movies": (["sh", "-c", "systemctl restart mnt-usb1.automount && ls /mnt/usb1 >/dev/null"], 120),
     "restart:pi": (["sh", "-c", "sleep 3 && systemctl reboot"], None),  # runs in the background
+    "selfcheck:run": (["systemctl", "start", "pi-hub-selfcheck.service"], 300),
     "updates:install": (["sh", "-c", "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get -y -qq "
                                      "-o Dpkg::Options::=--force-confold full-upgrade"], 1800),
 }

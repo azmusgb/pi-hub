@@ -16,6 +16,7 @@ ACTIONS = {
     "rescan:plex": ("Rescan the Plex library", "Plex is looking for new movies.", "household"),
     "updates:install": ("Install updates", "Updates are installing. This can take a few minutes.", "household"),
     "restart:pi": ("Restart the Pi", "The Pi is restarting. The hub is back in about a minute.", "household"),
+    "selfcheck:run": ("Run a self-check", "Self-check finished. The result is on this page.", "household"),
 }
 
 

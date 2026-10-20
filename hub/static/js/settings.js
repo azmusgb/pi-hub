@@ -116,6 +116,21 @@ export async function load(state) {
       form(save("calendar"), d.calendar_set ? "Replace calendar" : "Connect calendar",
         field("cal-url", "Calendar address", { name: "url", type: "url", placeholder: "https://…/basic.ics", required: true, autocomplete: "off" })),
       d.calendar_set ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/calendar", { clear: true }); toast("Calendar removed."); state.force = true; load(state); } }, "Remove calendar") : null),
+    card("People", { pill: d.people.length ? `${d.people.length}` : null, cls: "wide" },
+      h("p", { class: "meta" }, "Give each person their own PIN so the activity log shows who did what. Adults can do everything the household PIN can; kids can switch lights and plugs and tick lists, but can't restart things, change rules or ask Local AI."),
+      d.people.length ? h("ul", { class: "log" }, d.people.map((p) => h("li", { class: "log-row" },
+        h("span", { class: "dot", dataset: { tone: "ok" } }),
+        h("span", { class: "log-main" }, h("strong", {}, p.name), h("span", { class: "meta" }, p.kind === "kid" ? "Kid" : "Adult")),
+        h("button", { class: "ghost small", onclick: async () => {
+          if (!confirm(`Remove ${p.name}? Their devices are signed out.`)) return;
+          await save("person-remove")({ id: p.id });
+        } }, "Remove")))) : null,
+      form(save("person-add"), "Add person",
+        h("div", { class: "two" },
+          field("person-name", "Name", { name: "name", required: true, maxlength: 30, autocomplete: "off" }),
+          h("label", { class: "field", for: "person-kind" }, h("span", {}, "Who"),
+            h("select", { id: "person-kind", name: "kind" }, h("option", { value: "adult" }, "Adult"), h("option", { value: "kid" }, "Kid")))),
+        field("person-pin", "Their 6-digit PIN", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))),
     card("Household PIN", {},
       h("p", { class: "meta" }, "Changing it signs every device out of the household PIN."),
       form(save("pin"), "Change PIN",

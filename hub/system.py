@@ -134,3 +134,11 @@ def movies_present():
     except OSError:
         pass
     return False
+
+
+def selfcheck():
+    try:
+        with open("/var/lib/pi-hub-selfcheck/last.json") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None

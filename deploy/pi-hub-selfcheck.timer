@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the Pi Hub self-check every night
+
+[Timer]
+OnCalendar=*-*-* 04:15
+Persistent=true
+
+[Install]
+WantedBy=timers.target

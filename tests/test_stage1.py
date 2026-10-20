@@ -3,8 +3,8 @@ import tempfile
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 _tmp = tempfile.mkdtemp()
-os.environ["HUB_SETUP_CODE_FILE"] = os.path.join(_tmp, "setup-code")
-with open(os.environ["HUB_SETUP_CODE_FILE"], "w") as f:
+CODE_FILE = os.path.join(_tmp, "setup-code")
+with open(CODE_FILE, "w") as f:
     f.write("ABCD-1234\n")
 
 import pytest  # noqa: E402
@@ -19,6 +19,7 @@ SAME = {"Origin": "http://testserver"}
 @pytest.fixture
 def c():
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
+    os.environ["HUB_SETUP_CODE_FILE"] = CODE_FILE
     auth._tries.clear()
     return TestClient(hub_app.app)
 

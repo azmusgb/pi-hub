@@ -1,0 +1,10 @@
+[Unit]
+Description=Pi Hub nightly self-check
+After=pi-hub.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/pi-hub/pi-hub-selfcheck.py
+StateDirectory=pi-hub-selfcheck
+StateDirectoryMode=0755
+Nice=10

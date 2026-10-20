@@ -95,9 +95,10 @@ export async function whoami(force = false) {
 
 export function forgetMe() { me = null; }
 
-const RANK = { none: 0, household: 1, owner: 2 };
+const RANK = { none: 0, kid: 1, household: 2, owner: 3 };
 
 export async function ensure(role = "household") {
+  // "kid" is enough for switching lights; everything else that acts needs an adult's PIN.
   const m = await whoami(true);
   if (RANK[m.role] >= RANK[role]) return true;
   if (m.setup_needed) {
@@ -127,8 +128,8 @@ function pinSheet() {
         close(true);
       } catch (x) { err.textContent = x.message; input.select(); }
     } },
-    h("h2", {}, "Enter the household PIN"),
-    h("p", { id: "pin-help", class: "meta" }, "Needed once on each device before it can change things."),
+    h("h2", {}, "Enter your PIN"),
+    h("p", { id: "pin-help", class: "meta" }, "The household PIN, or your own. Needed once on each device before it can change things."),
     h("label", { for: "pin-input", class: "sr" }, "Household PIN"), input, err,
     h("div", { class: "sheet-actions" },
       h("button", { type: "button", class: "ghost", onclick: () => close(false) }, "Cancel"),

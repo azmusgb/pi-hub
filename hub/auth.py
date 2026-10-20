@@ -11,8 +11,10 @@ import time
 from . import db
 
 COOKIE = "hub_session"
-LIFETIME = {"household": 30 * 86400, "owner": 12 * 3600}
-RANK = {"none": 0, "household": 1, "owner": 2}
+LIFETIME = {"kid": 30 * 86400, "household": 30 * 86400, "owner": 12 * 3600}
+# kid: switch lights and plugs; household: everything that acts (fixes, rules, filament, Ask); owner: settings.
+RANK = {"none": 0, "kid": 1, "household": 2, "owner": 3}
+PERSON_ROLE = {"adult": "household", "kid": "kid"}
 MAX_TRIES, LOCK_SECONDS = 5, 600
 
 SCHEMA = """
@@ -21,6 +23,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY, role TEXT NOT NULL, created INTEGER NOT NULL, expires INTEGER NOT NULL, device TEXT
 );
 CREATE TABLE IF NOT EXISTS action_log (ts INTEGER NOT NULL, role TEXT, device TEXT, action TEXT, result TEXT);
+CREATE TABLE IF NOT EXISTS people (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, pin TEXT NOT NULL, created INTEGER NOT NULL
+);
 """
 
 _tries = {}
@@ -29,6 +34,8 @@ _tries_lock = threading.Lock()
 
 def _ready():
     db.conn().executescript(SCHEMA)
+    if "person_id" not in {r["name"] for r in db.rows("PRAGMA table_info(sessions)")}:
+        db.conn().execute("ALTER TABLE sessions ADD COLUMN person_id INTEGER")
 
 
 def get(key, default=None):
@@ -94,7 +101,7 @@ def set_pin(pin):
     if not valid_pin(pin):
         raise ValueError("The household PIN needs exactly 6 digits.")
     put("household_pin", _hash(pin))
-    db.run("DELETE FROM sessions WHERE role = 'household'")
+    db.run("DELETE FROM sessions WHERE role = 'household' AND person_id IS NULL")
 
 
 def set_owner_password(pw):
@@ -117,25 +124,68 @@ def _fail(who):
         t["count"] += 1
 
 
+def people():
+    _ready()
+    return db.rows("SELECT id, name, kind, created FROM people ORDER BY name")
+
+
+def _pin_taken(pin):
+    _ready()
+    if _check(pin, get("household_pin")):
+        return True
+    return any(_check(pin, json.loads(r["pin"])) for r in db.rows("SELECT pin FROM people"))
+
+
+def add_person(name, kind, pin):
+    name = " ".join(str(name or "").split())[:30]
+    if not name:
+        raise ValueError("Give the person a name.")
+    if kind not in PERSON_ROLE:
+        raise ValueError("Choose adult or kid.")
+    if not valid_pin(pin):
+        raise ValueError("Their PIN needs exactly 6 digits.")
+    if _pin_taken(pin):
+        raise ValueError("Someone already uses that PIN. Choose another.")
+    if db.one("SELECT COUNT(*) AS n FROM people")["n"] >= 12:
+        raise ValueError("That's the most people the hub keeps.")
+    return db.run("INSERT INTO people (name, kind, pin, created) VALUES (?, ?, ?, ?)",
+                  name, kind, json.dumps(_hash(pin)), int(time.time())).lastrowid
+
+
+def remove_person(person_id):
+    _ready()
+    db.run("DELETE FROM sessions WHERE person_id = ?", person_id)
+    db.run("DELETE FROM people WHERE id = ?", person_id)
+
+
 def sign_in(who, device, pin=None, password=None):
     """Returns (token, role). `who` is the caller's address, used for the try limit."""
     if _locked(who) or _locked("*"):
         raise PermissionError("Too many wrong tries. Wait 10 minutes and try again.")
+    person = None
     if password is not None:
         ok, role = _check(password, get("owner_password")), "owner"
     else:
         ok, role = _check(str(pin or ""), get("household_pin")), "household"
+        if not ok:
+            _ready()
+            for r in db.rows("SELECT id, name, kind, pin FROM people"):
+                if _check(str(pin or ""), json.loads(r["pin"])):
+                    ok, role, person = True, PERSON_ROLE[r["kind"]], r
+                    break
     if not ok:
         _fail(who)
         _fail("*") if role == "owner" else None
-        raise PermissionError("That PIN isn't right." if role == "household" else "That password isn't right.")
+        raise PermissionError("That password isn't right." if role == "owner" else "That PIN isn't right.")
     with _tries_lock:
         _tries.pop(who, None)
     token = secrets.token_urlsafe(32)
     now = int(time.time())
     _ready()
-    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, ?, ?, ?, ?)",
-           hashlib.sha256(token.encode()).hexdigest(), role, now, now + LIFETIME[role], (device or "")[:80])
+    label = f"{person['name']} on {device}" if person else device
+    db.run("INSERT INTO sessions (token_hash, role, created, expires, device, person_id) VALUES (?, ?, ?, ?, ?, ?)",
+           hashlib.sha256(token.encode()).hexdigest(), role, now, now + LIFETIME[role], (label or "")[:80],
+           person["id"] if person else None)
     db.run("DELETE FROM sessions WHERE expires < ?", now)
     return token, role
 

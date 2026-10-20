@@ -26,7 +26,7 @@ export function tile(a, state, { favourite } = {}) {
   const toggle = h("button", {
     class: "tile-main", "aria-pressed": String(a.on),
     onclick: async () => {
-      if (!a.control || !(await ensure("household"))) return;
+      if (!a.control || !(await ensure("kid"))) return;
       busy();
       try {
         await post(`/api/home/${a.id}`, { characteristic: a.control, value: !a.on });
@@ -46,7 +46,7 @@ export function tile(a, state, { favourite } = {}) {
   if (a.brightness != null) {
     const slider = h("input", { type: "range", min: 1, max: 100, value: a.brightness || 1, class: "tile-slider", "aria-label": `${a.name} brightness` });
     slider.addEventListener("change", async () => {
-      if (!(await ensure("household"))) return;
+      if (!(await ensure("kid"))) return;
       try { await post(`/api/home/${a.id}`, { characteristic: "Brightness", value: Number(slider.value) }); }
       catch (e) { toast(e.message, "bad"); }
     });

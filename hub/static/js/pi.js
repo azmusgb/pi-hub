@@ -17,6 +17,15 @@ function chart(title, series, unit, max, current) {
     spark(series, { max, height: 40 }));
 }
 
+function selfcheckCard(c) {
+  if (!c) return card("Self-check", {}, empty("The first self-check runs tonight at 4:15. Tap “Run a self-check” above to run one now."));
+  const bad = c.checks.filter((x) => !x.ok);
+  return card("Self-check", { pill: c.passed ? `All ${c.total} passed` : `${c.failed} of ${c.total} failed`, tone: c.passed ? "ok" : "bad" },
+    h("p", { class: "meta" }, `Last run ${when(c.ts)}. Every page, every API, the services, free space, last night's backup and the temperature.`),
+    bad.length ? h("ul", { class: "log" }, bad.map((x) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: "bad" } }),
+      h("span", { class: "log-main" }, h("strong", {}, x.name), h("span", { class: "meta" }, x.detail))))) : null);
+}
+
 export async function load(state) {
   const [d, acts] = await Promise.all([api(`/api/pi?hours=${state.range}`), api("/api/actions")]);
   const CONFIRM = {
@@ -50,6 +59,7 @@ export async function load(state) {
         h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, l.device || "A device")),
           h("span", { class: "log-side" }, when(l.ts)))))] : null),
+    selfcheckCard(d.selfcheck),
     card("Services", {},
       h("ul", { class: "log" }, d.services.map((s) => {
         const [label, tone] = STATE[s.state] || [s.state, "warn"];

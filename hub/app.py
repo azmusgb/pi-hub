@@ -313,6 +313,7 @@ def api_pi(hours: int = 24):
         "storage": system.storage(),
         "network": system.network(),
         "history": system.history(max(1, min(hours, 168))),
+        "selfcheck": system.selfcheck(),
     })
 
 
@@ -333,7 +334,9 @@ def who(request: Request):
 def need(request: Request, role):
     have, device = who(request)
     if not auth.allowed(have, role):
-        raise HTTPException(401, "Enter the household PIN first." if role == "household" else "Sign in as the owner first.")
+        if have == "kid":
+            raise HTTPException(403, "Kids' PINs can switch lights and tick lists. Ask a grown-up for this one.")
+        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
     return have, device
 
 
@@ -431,7 +434,7 @@ def api_home():
 
 @app.post("/api/home/{uid}")
 async def api_home_set(uid: str, request: Request):
-    role, device = need(request, "household")
+    role, device = need(request, "kid")
     b = await request.json()
     try:
         homecontrol.set_value(uid, str(b.get("characteristic", "")), b.get("value"))
@@ -555,6 +558,7 @@ def api_settings(request: Request):
         "wifi": {"ssid": w["ssid"], "security": w["security"]} if w else None,
         "backups": system.backups(),
         "log": auth.recent_actions(30),
+        "people": auth.people(),
         "digest": auth.get("digest", {"on": True, "at": "08:00"}),
         "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
         "place": (auth.get("place") or {}).get("name"),
@@ -589,6 +593,12 @@ async def api_settings_save(what: str, request: Request):
             else:
                 wifi.save(str(b.get("ssid", "")), str(b.get("password", "")), str(b.get("security", "WPA")))
                 msg = "Wi-Fi saved. The QR code is on the Now page."
+        elif what == "person-add":
+            auth.add_person(b.get("name"), str(b.get("kind", "")), str(b.get("pin", "")))
+            msg = f"Added {' '.join(str(b.get('name', '')).split())[:30]}."
+        elif what == "person-remove":
+            auth.remove_person(int(b.get("id", 0)))
+            msg = "Removed that person, and signed out their devices."
         elif what == "digest":
             at = str(b.get("at", "08:00"))
             if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", at):
