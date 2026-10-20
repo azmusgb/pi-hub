@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, ask, auth, db, digest, events, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import actions, ask, auth, db, digest, events, filament, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -147,7 +147,9 @@ def api_workshop():
     s = sources.pi_status()
     w = sources.world() or {}
     models = (w.get("models") or {})
-    prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
+    filament.ready()
+    prints = db.rows("SELECT p.*, s.colour, s.material, s.hex FROM prints p LEFT JOIN spools s ON s.id = p.spool_id "
+                     "ORDER BY p.id DESC LIMIT 20")
     week = int(time.time()) - 7 * 86400
     return fresh({
         "printer": now.printer(s),
@@ -157,10 +159,55 @@ def api_workshop():
             "hours": round(sum(((p["ended"] or time.time()) - p["started"]) for p in prints if p["started"] >= week) / 3600, 1),
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
+        "spools": filament.spools(),
+        "materials": filament.MATERIALS,
+        "low_at": filament.low_at(),
+        "filament_month": filament.summary(30),
         "ai": {"state": (s or {}).get("ai_state", "Down"),
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],
                "waiting": ((models.get("queue") or {}).get("waiting"))},
     })
+
+
+# ---- Filament ----
+
+@app.post("/api/filament")
+async def api_filament_add(request: Request):
+    role, device = need(request, "household")
+    try:
+        sid = filament.add(await request.json())
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e) or "Check the spool's details.")
+    auth.log(role, device, "filament:add", "Added a spool.")
+    return fresh({"id": sid})
+
+
+@app.post("/api/filament/{sid}")
+async def api_filament_update(sid: int, request: Request):
+    role, device = need(request, "household")
+    b = await request.json()
+    try:
+        if b.get("remove"):
+            filament.remove(sid)
+        else:
+            filament.update(sid, b)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e) or "Check the numbers.")
+    return fresh({"ok": True})
+
+
+@app.post("/api/prints/{pid}/filament")
+async def api_print_filament(pid: int, request: Request):
+    role, device = need(request, "household")
+    b = await request.json()
+    try:
+        return fresh(filament.log_print(pid, int(b.get("spool_id", 0)), b.get("grams", 0)))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e) or "Enter the grams used.")
 
 
 # ---- Workshop camera (through the failover service) ----

@@ -29,6 +29,7 @@ TRIGGERS = {
     "plex_stopped": "Plex stops",
     "homebridge_stopped": "Homebridge stops",
     "pi_hot": "the Pi gets hotter than 75 °C",
+    "filament_low": "a filament spool runs low",
 }
 
 # action -> (what people see in "then …", needs an accessory)
@@ -52,10 +53,12 @@ MESSAGES = {
     "plex_stopped": ("Plex stopped", "Restart it from the hub's Pi page."),
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
     "pi_hot": ("The Pi is running hot", "Above 75 °C."),
+    "filament_low": ("Filament running low", "Check the filament shelf in the hub."),
 }
 
 DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
+    ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
@@ -63,10 +66,13 @@ TOPIC_FILE = "/etc/pi-status/ntfy_topic"
 
 def ready():
     db.conn().executescript(SCHEMA)
-    if not auth.get("rules_seeded"):
-        for trig, act, target, label, on in DEFAULT_RULES:
-            db.run("INSERT INTO rules (trigger, action, target, label, enabled) VALUES (?, ?, ?, ?, ?)", trig, act, target, label, on)
-        auth.put("rules_seeded", True)
+    seeded = auth.get("rules_seeded")
+    if seeded is True:  # the first release seeded one rule
+        seeded = 1
+    for trig, act, target, label, on in DEFAULT_RULES[seeded or 0:]:
+        db.run("INSERT INTO rules (trigger, action, target, label, enabled) VALUES (?, ?, ?, ?, ?)", trig, act, target, label, on)
+    if (seeded or 0) < len(DEFAULT_RULES):
+        auth.put("rules_seeded", len(DEFAULT_RULES))
 
 
 # ---- Phone messages, respecting quiet hours ----
@@ -127,13 +133,13 @@ def add_rule(trigger, action, target=None):
                   trigger, action, target if ACTIONS[action][1] else None).lastrowid
 
 
-def run_action(rule, kind):
+def run_action(rule, kind, detail=""):
     from . import actions, homecontrol
     act = rule["action"]
     try:
         if act == "notify":
             title, body = MESSAGES.get(kind, (TRIGGERS.get(kind, kind), ""))
-            return push(title, body, "bell")
+            return push(title, f"{detail}. {body}" if detail else body, "bell")
         if act in ("turn_on", "turn_off"):
             items = {a["id"]: a for a in homecontrol.accessories()}
             a = items.get(rule["target"])
@@ -153,7 +159,7 @@ def fire(kind, detail=""):
     db.run("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", now, kind, detail[:200])
     db.run("DELETE FROM events WHERE ts < ?", now - 30 * 86400)
     for rule in db.rows("SELECT * FROM rules WHERE enabled = 1 AND trigger = ?", kind):
-        result = run_action(rule, kind)
+        result = run_action(rule, kind, detail)
         db.run("UPDATE rules SET last_run = ?, last_result = ? WHERE id = ?", now, result[:200], rule["id"])
         auth.log("rule", "Rules", f"rule:{rule['id']}", result)
 

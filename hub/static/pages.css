@@ -304,3 +304,24 @@ body.wall.night .band-headline, body.wall.night .wall-time { color: #cfc8ba; }
 .field select { width: 100%; max-width: 100%; }
 
 .cam-img { display: block; width: 100%; max-width: 760px; aspect-ratio: 16 / 9; height: auto; border-radius: 14px; background: #000; object-fit: cover; }
+
+/* Filament shelf and print log */
+.spools { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.spool { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "sw main btn" "sw left left"; gap: 0.35rem 0.75rem;
+  align-items: center; padding: 0.7rem 0.8rem; border-radius: 14px; background: var(--well); }
+.spool[data-low="true"] { background: rgba(238, 118, 114, 0.1); }
+.swatch { grid-area: sw; width: 38px; height: 38px; border-radius: 999px; border: 3px solid rgba(255, 255, 255, 0.18); box-shadow: inset 0 0 0 7px rgba(0, 0, 0, 0.25); }
+.spool-main { grid-area: main; display: grid; min-width: 0; }
+.spool > .ghost { grid-area: btn; }
+.spool-left { grid-area: left; display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; align-items: center; }
+.grams { display: flex; align-items: center; gap: 0.3rem; color: var(--muted); }
+.grams input { width: 5.2rem; min-height: 36px; padding: 0.3rem 0.5rem; }
+.add-spool summary { cursor: pointer; font-weight: 700; color: var(--pei); margin-top: 0.4rem; }
+.spool-form { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 0.7rem; align-items: end; }
+.spool-form .primary { justify-self: start; }
+.colour-pick input { padding: 0.2rem; min-height: 44px; width: 100%; }
+.print-row { grid-template-columns: 0.7rem minmax(0, 1fr) auto; }
+.print-row .use-btn { grid-column: 2 / 4; justify-self: start; margin-top: 0.2rem; }
+.use-form { grid-column: 2 / 4; display: grid; grid-template-columns: minmax(0, 1fr) 6rem auto; gap: 0.5rem; margin-top: 0.3rem; }
+.use-form select { font: inherit; color: var(--ink); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--acrylic-edge); border-radius: 12px; padding: 0.5rem; min-height: 44px; }
+.small-btn { min-height: 44px; padding: 0.5rem 0.9rem; }

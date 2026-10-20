@@ -1,7 +1,7 @@
 """The morning digest: one phone message with what happened overnight and what needs doing."""
 import time
 
-from . import auth, db, events, now, outside, sources
+from . import auth, db, events, filament, now, outside, sources
 
 
 def build(hours=16):
@@ -34,6 +34,9 @@ def build(hours=16):
     if todays:
         lines.append("Today: " + "; ".join(
             (e["title"] if e["all_day"] else f"{time.strftime('%-I:%M %p', time.localtime(e['start']))} {e['title']}") for e in todays[:3]) + ".")
+    low = [f"{x['colour']} {x['material']} ({x['grams_left']} g)" for x in filament.spools() if x["low"]]
+    if low:
+        lines.append("Filament running low: " + ", ".join(low[:4]) + ".")
     shopping = db.one("SELECT COUNT(*) AS n FROM items WHERE list = 'shopping' AND done = 0")["n"]
     if shopping:
         lines.append(f"{shopping} thing{'s' if shopping > 1 else ''} on the shopping list.")

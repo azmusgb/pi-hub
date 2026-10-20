@@ -6,7 +6,7 @@ from . import db, sources
 KEEP_DAYS = 7
 
 
-def record_print(state, progress, now):
+def record_print(state, progress, now, error=None):
     open_print = db.one("SELECT * FROM prints WHERE ended IS NULL ORDER BY id DESC LIMIT 1")
     if state in ("Printing", "Paused"):
         if open_print:
@@ -24,7 +24,10 @@ def record_print(state, progress, now):
         outcome = "stopped" if open_print["progress"] < 97 else "finished"
     else:
         outcome = "finished" if open_print["progress"] >= 97 else "stopped"
-    db.run("UPDATE prints SET ended = ?, outcome = ? WHERE id = ?", now, outcome, open_print["id"])
+    from . import filament
+    filament.ready()
+    db.run("UPDATE prints SET ended = ?, outcome = ?, error = ? WHERE id = ?", now, outcome,
+           (error or None) if outcome == "failed" else None, open_print["id"])
 
 
 def record_drive(present, now):
@@ -42,7 +45,7 @@ def tick(sampler):
     if s:
         drive = 1 if s.get("drive_state") == "Connected" else 0
         record_drive(bool(drive), now)
-        record_print(s.get("x2d_state"), s.get("x2d_progress"), now)
+        record_print(s.get("x2d_state"), s.get("x2d_progress"), now, s.get("x2d_error"))
     last = lambda xs: xs[-1] if xs else None  # noqa: E731
     db.run("INSERT OR REPLACE INTO samples (ts, cpu, mem, temp, drive) VALUES (?, ?, ?, ?, ?)",
            now, last(snap["cpu_series"]), last(snap["mem_series"]), last(snap["temp_series"]), drive)
