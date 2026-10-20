@@ -44,6 +44,22 @@ def pi_status():
     return cached("pi", 10, lambda: _get_json(PI_STATUS_URL))
 
 
+WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")
+
+
+def _world():
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE  # Local AI uses its own certificate on the home network
+    with urllib.request.urlopen(WORLD_URL, timeout=4, context=ctx) as r:
+        return json.load(r)
+
+
+def world():
+    return cached("world", 20, _world)
+
+
 def _plex_token():
     with open(PLEX_TOKEN_FILE) as f:
         return f.read().strip()

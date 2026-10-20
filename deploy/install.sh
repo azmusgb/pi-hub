@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 quiet() { grep -v "post-quantum\|store now\|openssh.com/pq\|server may need" || true; }
 
-COPYFILE_DISABLE=1 tar --no-xattrs --exclude __pycache__ -czf /tmp/pi-hub.tgz hub deploy/pi-hub.service
+COPYFILE_DISABLE=1 tar --no-xattrs --exclude __pycache__ -czf /tmp/pi-hub.tgz hub deploy/pi-hub.service deploy/pi-status.py
 scp -q /tmp/pi-hub.tgz pi:/tmp/pi-hub.tgz 2>&1 | quiet
 ssh -o BatchMode=yes pi 'bash -s' <<'EOF' 2>&1 | quiet
 set -euo pipefail
@@ -25,6 +25,13 @@ command -v rsvg-convert >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-ge
 for s in 180 192 512; do
   sudo rsvg-convert -w $s -h $s /opt/pi-hub/hub/static/icon.svg -o /opt/pi-hub/hub/static/icon-$s.png
 done
+
+# The status and alerts service the hub reads from.
+if ! cmp -s /opt/pi-hub/deploy/pi-status.py /usr/local/bin/pi-status.py; then
+  sudo install -m 755 /opt/pi-hub/deploy/pi-status.py /usr/local/bin/pi-status.py
+  sudo systemctl restart pi-status
+fi
+sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
 
 sudo install -m 644 /opt/pi-hub/deploy/pi-hub.service /etc/systemd/system/pi-hub.service
 sudo systemctl daemon-reload

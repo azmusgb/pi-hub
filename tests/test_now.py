@@ -1,6 +1,7 @@
 import os
 
 os.environ["HUB_NO_SAMPLER"] = "1"
+os.environ.setdefault("HUB_DB", os.path.join(__import__("tempfile").mkdtemp(), "hub.db"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
