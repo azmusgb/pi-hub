@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, ask, auth, db, digest, events, filament, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -23,6 +23,7 @@ if os.environ.get("HUB_NO_SAMPLER") != "1":
     threading.Thread(target=recorder.run, args=(sampler,), daemon=True).start()
     threading.Thread(target=events.run, daemon=True).start()
     threading.Thread(target=digest.run, daemon=True).start()
+    threading.Thread(target=reminders.run, daemon=True).start()
 
 
 def fresh(data):
@@ -61,6 +62,7 @@ def api_now():
     except OSError:
         disk = None
     data = now.build(sources.pi_status(), sources.plex_sessions(), sampler.snapshot(), disk)
+    data["reminders"] = reminders.due_today()
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
     return fresh(data)
@@ -80,7 +82,7 @@ def api_movies():
                   "resets": s.get("drive_resets"), "errors": s.get("drive_errors")},
         "drive_events": system.drive_events(),
         "history": plex.history(),
-        "stats": plex.library_stats(),
+        "stats": {k: v for k, v in (plex.library_stats() or {}).items() if not k.startswith("_")} or None,
         "requests": db.rows("SELECT id, text, done, created FROM items WHERE list = 'requests' AND (done = 0 OR done_at > ?) "
                             "ORDER BY done, created DESC", int(time.time()) - 14 * 86400),
     })
@@ -123,6 +125,12 @@ def api_drives_switch(request: Request):
     except Exception:  # noqa: BLE001
         pass
     return fresh(r)
+
+
+@app.get("/api/movies/pick")
+def api_movies_pick(kids: bool = False, short: bool = False, skip: str = ""):
+    choice = plex.pick(kids, 105 if short else None, tuple(skip.split(",")[:30]))
+    return fresh({"pick": choice})
 
 
 @app.get("/api/movies/search")
@@ -264,10 +272,11 @@ def api_print_cancel(job_id: str):
 
 @app.get("/api/lists")
 def api_lists():
+    reminders.ready()
     out = {}
     for key, name in LISTS.items():
         out[key] = {"name": name, "items": db.rows(
-            "SELECT id, text, done, created, done_at FROM items WHERE list = ? AND (done = 0 OR done_at > ?) "
+            "SELECT id, text, done, created, done_at, due, repeat FROM items WHERE list = ? AND (done = 0 OR done_at > ?) "
             "ORDER BY done, created DESC", key, int(time.time()) - 3 * 86400)}
     return fresh(out)
 
@@ -280,8 +289,34 @@ async def api_list_add(key: str, request: Request):
     text = " ".join(str(body.get("text", "")).split())[:200]
     if not text:
         raise HTTPException(400, "Type something to add.")
-    cur = db.run("INSERT INTO items (list, text, created) VALUES (?, ?, ?)", key, text, int(time.time()))
+    due, repeat = body.get("due"), str(body.get("repeat") or "")
+    if due not in (None, ""):
+        try:
+            due = int(due)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Choose a time for the reminder.")
+        if repeat not in ("", "daily", "weekly"):
+            raise HTTPException(400, "Choose how often it repeats.")
+    else:
+        due, repeat = None, ""
+    reminders.ready()
+    cur = db.run("INSERT INTO items (list, text, created, due, repeat) VALUES (?, ?, ?, ?, ?)",
+                 key, text, int(time.time()), due, repeat or None)
     return fresh({"id": cur.lastrowid})
+
+
+@app.post("/api/lists/{key}/print")
+def api_list_print(key: str, request: Request):
+    role, device = need(request, "kid")
+    if key not in LISTS:
+        raise HTTPException(404, "No such list")
+    items = db.rows("SELECT text FROM items WHERE list = ? AND done = 0 ORDER BY created", key)
+    if not items:
+        raise HTTPException(400, "The list is empty.")
+    text = f"{LISTS[key]}, {time.strftime('%A %-d %B')}\n\n" + "\n".join(f"[  ]  {i['text']}" for i in items) + "\n"
+    r = _say(printing.submit, text.encode(), f"{LISTS[key]}.txt", 1, True)
+    auth.log(role, device, f"lists:print:{key}", f"Printed the {LISTS[key].lower()} list.")
+    return fresh({**r, "count": len(items)})
 
 
 @app.post("/api/lists/{key}/{item_id}/toggle")
@@ -317,6 +352,7 @@ def api_pi(hours: int = 24):
         "network": system.network(),
         "history": system.history(max(1, min(hours, 168))),
         "selfcheck": system.selfcheck(),
+        "outages": system.outages(),
     })
 
 

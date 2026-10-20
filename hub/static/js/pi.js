@@ -1,5 +1,5 @@
 // Raspberry Pi: health and history, every service, updates, storage and network.
-import { api, card, empty, fix, h, piLink, spark, when } from "./core.js";
+import { api, card, duration, empty, fix, h, piLink, spark, when } from "./core.js";
 
 export const every = 20;
 
@@ -60,6 +60,13 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, l.device || "A device")),
           h("span", { class: "log-side" }, when(l.ts)))))] : null),
     selfcheckCard(d.selfcheck),
+    card("Outages", { pill: d.outages.length ? `${d.outages.length} in 30 days` : "None", tone: d.outages.length ? "warn" : "ok" },
+      d.outages.length ? h("ul", { class: "log" }, d.outages.slice(0, 10).map((o) => h("li", { class: "log-row" },
+        h("span", { class: "dot", dataset: { tone: o.end ? "warn" : "bad" } }),
+        h("span", { class: "log-main" }, h("strong", {}, o.what), h("span", { class: "meta" }, when(o.start))),
+        h("span", { class: "log-side" }, o.end ? duration(o.end - o.start) : "Still down"))))
+        : empty("Nothing has gone down in the last 30 days."),
+      h("p", { class: "meta" }, "The Windows PC, the movies drive, Plex and Homebridge, as the hub saw them.")),
     card("Services", {},
       h("ul", { class: "log" }, d.services.map((s) => {
         const [label, tone] = STATE[s.state] || [s.state, "warn"];

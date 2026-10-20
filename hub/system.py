@@ -166,3 +166,29 @@ def pc_copy():
         return {"ts": int(ts), "name": name}
     except (OSError, ValueError):
         return None
+
+
+OUTAGE_PAIRS = {"pc_down": ("pc_back", "Windows PC"), "drive_dropped": ("drive_back", "Movies drive"),
+                "plex_stopped": (None, "Plex"), "homebridge_stopped": (None, "Homebridge")}
+
+
+def outages(days=30):
+    """Downtime from the hub's own event log: what went down, when, and for how long."""
+    since = int(time.time()) - days * 86400
+    try:
+        evs = db.rows("SELECT ts, kind FROM events WHERE ts >= ? ORDER BY ts", since)
+    except Exception:  # noqa: BLE001 - the events table appears on first use
+        return []
+    out, open_ = [], {}
+    for e in evs:
+        if e["kind"] in OUTAGE_PAIRS:
+            open_[e["kind"]] = e["ts"]
+            out.append({"what": OUTAGE_PAIRS[e["kind"]][1], "start": e["ts"], "end": None})
+        for down, (up, _) in OUTAGE_PAIRS.items():
+            if up and e["kind"] == up and down in open_:
+                start = open_.pop(down)
+                for o in reversed(out):
+                    if o["start"] == start and o["end"] is None:
+                        o["end"] = e["ts"]
+                        break
+    return list(reversed(out))[:20]

@@ -470,3 +470,24 @@ body.wall .link-btn { display: none; }
   .setup-steps li { grid-template-columns: 0.6rem 1fr; row-gap: 0.05rem; }
   .setup-steps li .meta { grid-column: 2; font-size: 0.9rem; }
 }
+
+/* Lists: reminders and printing */
+.add .remind-toggle { grid-column: 1 / -1; }
+.remind-row { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; }
+.remind-row[hidden] { display: none; }
+.remind-row select, .use-form select { font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--acrylic-edge); border-radius: 12px; padding: 0.5rem 0.7rem; min-height: 44px; }
+.item label .due, .item .due { display: block; font-size: 0.82rem; color: var(--pei); margin-top: 0.1rem; }
+.list-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.list-actions:empty { display: none; }
+
+/* Movies: movie night */
+.mn-controls { display: flex; flex-wrap: wrap; gap: 0.8rem 1.4rem; align-items: center; margin-top: 0.3rem; }
+.mn-out:empty { display: none; }
+.mn-pick { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 1.1rem; margin-top: 0.9rem; align-items: start; }
+.mn-poster { width: 120px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; border: 1px solid var(--acrylic-edge); }
+.mn-title { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.mn-body .meta { margin: 0.25rem 0 0; }
+.mn-summary { margin: 0.6rem 0 0; line-height: 1.5; max-width: 60ch; }
+.mn-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.9rem; }
+.mn-actions .primary { text-decoration: none; display: inline-flex; align-items: center; }
+@media (max-width: 480px) { .mn-pick { grid-template-columns: 90px minmax(0, 1fr); } .mn-poster { width: 90px; } }

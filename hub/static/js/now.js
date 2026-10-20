@@ -130,6 +130,8 @@ export async function load(state) {
         row("Movies", "/movies", m.tone, mSay, playingNow),
         row("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
         row("Home", "/control", d.home.tone, hSay, favs.length ? h("div", { class: "tiles compact house-extra" }, favs.map((a) => tile(a, state))) : null),
+        d.reminders?.length ? row("To do today", "/lists", "warn",
+          d.reminders.map((r) => r.text).slice(0, 3).join(", ") + (d.reminders.length > 3 ? ` and ${d.reminders.length - 3} more` : "")) : null,
         row("Raspberry Pi", "/pi", p.tone, pSay, h("div", { class: "house-extra house-spark", "aria-hidden": "true" }, spark(p.temp_series, { max: 90 }))))),
     wifi.set ? h("section", { class: "wifi-panel", "aria-label": "Guest Wi-Fi" },
       h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 132, height: 132 }),

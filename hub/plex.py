@@ -115,12 +115,29 @@ def _library_stats():
         total_size += size
         if not m.get("viewCount") and not m.get("viewOffset"):
             unwatched.append({"key": str(m.get("ratingKey")), "title": (m.get("title") or "")[:90], "year": m.get("year"),
-                              "gb": round(size / 1e9, 1), "added": m.get("addedAt"), "thumb": m.get("thumb") if THUMB_PATH.match(m.get("thumb") or "") else None})
+                              "gb": round(size / 1e9, 1), "added": m.get("addedAt"), "thumb": m.get("thumb") if THUMB_PATH.match(m.get("thumb") or "") else None,
+                              "art": m.get("art") if THUMB_PATH.match(m.get("art") or "") else None,
+                              "minutes": round((m.get("duration") or 0) / 60000) or None, "summary": (m.get("summary") or "")[:400],
+                              "rating": m.get("audienceRating") or m.get("rating"), "content_rating": m.get("contentRating"),
+                              "genres": [g.get("tag") for g in m.get("Genre") or []][:3]})
             unwatched_size += size
     old = int(time.time()) - 180 * 86400
     stale = sorted((u for u in unwatched if (u["added"] or 0) < old), key=lambda u: -u["gb"])
     return {"movies": len(items), "watched": len(items) - len(unwatched), "total_gb": round(total_size / 1e9),
-            "unwatched": len(unwatched), "unwatched_gb": round(unwatched_size / 1e9), "never_watched_old": stale[:12]}
+            "unwatched": len(unwatched), "unwatched_gb": round(unwatched_size / 1e9), "never_watched_old": stale[:12],
+            "_unwatched": unwatched}
+
+
+def pick(kids=False, max_minutes=None, skip=()):
+    """Movie night: one unwatched movie at random, optionally family-friendly or short enough for tonight."""
+    import random
+    stats = library_stats() or {}
+    pool = [u for u in stats.get("_unwatched") or [] if u["key"] not in skip]
+    if kids:
+        pool = [u for u in pool if (u.get("content_rating") or "") in ("G", "PG", "TV-G", "TV-Y", "TV-Y7", "TV-PG")]
+    if max_minutes:
+        pool = [u for u in pool if u.get("minutes") and u["minutes"] <= max_minutes]
+    return random.choice(pool) if pool else None
 
 
 def library_stats():

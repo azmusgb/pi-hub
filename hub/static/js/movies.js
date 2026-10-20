@@ -68,6 +68,39 @@ function requestsCard(state, requests) {
       : empty("Nothing requested. Anyone can add a movie they'd like."));
 }
 
+// Movie night: one unwatched film at random, with the details that help decide.
+function movieNight(state) {
+  const kids = h("input", { type: "checkbox", id: "mn-kids" });
+  const short = h("input", { type: "checkbox", id: "mn-short" });
+  const out = h("div", { class: "mn-out", "aria-live": "polite" });
+  const seen = [];
+  const spin = async () => {
+    const q = new URLSearchParams({ kids: kids.checked, short: short.checked, skip: seen.join(",") });
+    try {
+      const { pick } = await api(`/api/movies/pick?${q}`);
+      if (!pick) { out.replaceChildren(h("p", { class: "empty" }, seen.length ? "That's every match. Untick a filter for more." : "Nothing unwatched matches. Untick a filter.")); return; }
+      seen.push(pick.key);
+      out.replaceChildren(h("article", { class: "mn-pick" },
+        pick.thumb ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(pick.thumb)}`, alt: "", class: "mn-poster" }) : null,
+        h("div", { class: "mn-body" },
+          h("h3", { class: "mn-title" }, pick.title),
+          h("p", { class: "meta" }, [pick.year, pick.minutes ? `${Math.floor(pick.minutes / 60)} h ${String(pick.minutes % 60).padStart(2, "0")} min` : null,
+            pick.content_rating, pick.rating ? `rated ${Number(pick.rating).toFixed(1)}` : null, ...(pick.genres || [])].filter(Boolean).join(", ")),
+          pick.summary ? h("p", { class: "mn-summary" }, pick.summary) : null,
+          h("div", { class: "mn-actions" },
+            h("a", { class: "primary", href: plexUrl(state.machine, pick.key), target: "_blank", rel: "noopener" }, "Watch in Plex"),
+            h("button", { class: "ghost", onclick: spin }, "Another one")))));
+    } catch (x) { out.replaceChildren(h("p", { class: "note" }, "Plex isn't answering, so there's nothing to pick from.")); }
+  };
+  return card("Movie night", { cls: "wide" },
+    h("p", { class: "meta" }, "Can't decide? The hub picks something nobody has watched yet."),
+    h("div", { class: "mn-controls" },
+      h("button", { class: "primary", onclick: () => { seen.length = 0; spin(); } }, "Pick a movie"),
+      h("label", { class: "check", for: "mn-kids" }, kids, "Family-friendly"),
+      h("label", { class: "check", for: "mn-short" }, short, "Under 1 h 45")),
+    out);
+}
+
 function statsCard(d) {
   const s = d.stats;
   if (!s) return null;
@@ -129,6 +162,7 @@ export async function load(state) {
         ? h("ul", { class: "timeline" }, d.drive_events.slice(0, 8).map((e) =>
           h("li", { dataset: { tone: e.kind === "dropped" ? "bad" : "ok" } }, h("span", {}, e.kind === "dropped" ? "Dropped out" : "Came back"), h("time", {}, when(e.ts)))))
         : null),
+    state.night || (state.night = movieNight(state)),
     requestsCard(state, d.requests),
     statsCard(d),
     h("a", { class: "action", href: "/drives", "data-link": true }, "Drive health and moving to a new drive"),
