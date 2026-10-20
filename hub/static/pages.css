@@ -466,3 +466,7 @@ body.wall .link-btn { display: none; }
 .settings-group .cards { margin: 0; }
 .setup-hint { display: inline-block; margin-top: 0.5rem; color: var(--pei); font-weight: 700; text-decoration: none; }
 .setup-hint:hover { text-decoration: underline; }
+@media (max-width: 520px) {
+  .setup-steps li { grid-template-columns: 0.6rem 1fr; row-gap: 0.05rem; }
+  .setup-steps li .meta { grid-column: 2; font-size: 0.9rem; }
+}
