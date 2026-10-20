@@ -4,7 +4,7 @@ import os
 import socket
 import urllib.request
 
-from . import sources
+from . import sources, system
 
 SOCKET = os.environ.get("HUB_HELPER_SOCKET", "/run/pi-hub-helper/helper.sock")
 
@@ -20,11 +20,15 @@ ACTIONS = {
 
 
 def helper(action, timeout=1900):
+    return helper_with(action, {}, timeout)
+
+
+def helper_with(action, extra, timeout=60):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.settimeout(timeout)
     try:
         s.connect(SOCKET)
-        s.sendall((json.dumps({"action": action}) + "\n").encode())
+        s.sendall((json.dumps({**extra, "action": action}) + "\n").encode())
         return json.loads(s.makefile().readline() or "{}")
     except OSError:
         return {"ok": False, "message": "The hub's helper isn't running."}
@@ -54,7 +58,7 @@ def run(name):
         sources._cache.clear()
         return {"ok": True, "message": done}
     detail = result.get("message") or "It didn't work."
-    if name == "remount:movies" and not os.path.exists("/sys/block/sda"):
+    if name == "remount:movies" and not system.movies_present():
         detail = "The drive isn't plugged in. Unplug it, wait 10 seconds and plug it back in, then try again."
     raise RuntimeError(f"{label} didn't work. {detail}")
 

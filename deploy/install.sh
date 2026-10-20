@@ -33,6 +33,8 @@ if ! cmp -s /opt/pi-hub/deploy/pi-status.py /usr/local/bin/pi-status.py; then
 fi
 sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
 
+command -v rsync >/dev/null && command -v smartctl >/dev/null || \
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq rsync smartmontools parted >/dev/null
 python3 -c "import qrcode, icalendar, recurring_ical_events" 2>/dev/null || \
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-qrcode python3-icalendar python3-recurring-ical-events >/dev/null
 

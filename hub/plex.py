@@ -1,6 +1,7 @@
 """Read-only Plex: recently added, continue watching, search, and poster images."""
 import json
 import re
+import time
 import urllib.parse
 import urllib.request
 
@@ -77,3 +78,48 @@ def thumb(path):
     with _request("/photo/:/transcode", {"url": path, "width": 300, "height": 450, "minSize": 1, "upscale": 1},
                   accept="image/jpeg", timeout=10) as r:
         return r.read(), r.headers.get("Content-Type", "image/jpeg")
+
+
+def _history():
+    data = _json("/status/sessions/history/all", {"sort": "viewedAt:desc", "X-Plex-Container-Size": 40})
+    accounts = {}
+    try:
+        for a in (_json("/accounts").get("MediaContainer") or {}).get("Account") or []:
+            accounts[a.get("id")] = a.get("name") or ""
+    except Exception:  # noqa: BLE001
+        pass
+    out = []
+    for m in (data.get("MediaContainer") or {}).get("Metadata") or []:
+        title = m.get("title") or ""
+        if m.get("type") == "episode" and m.get("grandparentTitle"):
+            title = f"{m['grandparentTitle']}: {title}"
+        out.append({"title": title[:90], "who": (accounts.get(m.get("accountID")) or "")[:40], "when": m.get("viewedAt")})
+    return out[:40]
+
+
+def history():
+    return sources.cached("plex-history", 300, _history)
+
+
+def _library_stats():
+    sections = (_json("/library/sections").get("MediaContainer") or {}).get("Directory") or []
+    movies = [s for s in sections if s.get("type") == "movie"]
+    if not movies:
+        return None
+    items = (_json(f"/library/sections/{movies[0]['key']}/all").get("MediaContainer") or {}).get("Metadata") or []
+    unwatched, total_size, unwatched_size = [], 0, 0
+    for m in items:
+        size = sum(p.get("size") or 0 for media in m.get("Media") or [] for p in media.get("Part") or [])
+        total_size += size
+        if not m.get("viewCount") and not m.get("viewOffset"):
+            unwatched.append({"key": str(m.get("ratingKey")), "title": (m.get("title") or "")[:90], "year": m.get("year"),
+                              "gb": round(size / 1e9, 1), "added": m.get("addedAt"), "thumb": m.get("thumb") if THUMB_PATH.match(m.get("thumb") or "") else None})
+            unwatched_size += size
+    old = int(time.time()) - 180 * 86400
+    stale = sorted((u for u in unwatched if (u["added"] or 0) < old), key=lambda u: -u["gb"])
+    return {"movies": len(items), "watched": len(items) - len(unwatched), "total_gb": round(total_size / 1e9),
+            "unwatched": len(unwatched), "unwatched_gb": round(unwatched_size / 1e9), "never_watched_old": stale[:12]}
+
+
+def library_stats():
+    return sources.cached("plex-stats", 1800, _library_stats)

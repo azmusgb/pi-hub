@@ -1,5 +1,5 @@
 // Movies: what's playing, continue watching, recently added, search, and the drive's health.
-import { api, card, empty, h, piLink, when } from "./core.js";
+import { api, card, empty, ensure, h, piLink, post, toast, when } from "./core.js";
 
 export const every = 30;
 
@@ -50,7 +50,43 @@ export function mount(state) {
     state.results, state.body);
 }
 
+function requestsCard(state, requests) {
+  const input = h("input", { type: "text", id: "req-new", maxlength: 200, placeholder: "A movie or show to get", autocomplete: "off" });
+  const open = requests.filter((r) => !r.done);
+  return card("Movie requests", { pill: open.length ? `${open.length} wanted` : null, tone: "warn" },
+    h("form", { class: "add", onsubmit: async (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      try { await post("/api/lists/requests", { text: input.value }); input.value = ""; state.force = true; load(state); }
+      catch (x) { toast(x.message, "bad"); }
+    } }, h("label", { for: "req-new", class: "sr" }, "Request a movie"), input, h("button", { type: "submit", class: "primary" }, "Request")),
+    requests.length ? h("ul", { class: "items" }, requests.map((r) => h("li", { class: `item ${r.done ? "done" : ""}` },
+      h("input", { type: "checkbox", id: `req-${r.id}`, checked: !!r.done, "aria-label": `Got ${r.text}`,
+        onchange: async () => { await post(`/api/lists/requests/${r.id}/toggle`); state.force = true; load(state); } }),
+      h("label", { for: `req-${r.id}` }, r.text),
+      h("button", { class: "ghost small", "aria-label": `Remove ${r.text}`, onclick: async () => { await post(`/api/lists/requests/${r.id}/delete`); state.force = true; load(state); } }, "Remove"))))
+      : empty("Nothing requested. Anyone can add a movie they'd like."));
+}
+
+function statsCard(d) {
+  const s = d.stats;
+  if (!s) return null;
+  const hist = d.history || [];
+  return card("Watching", { pill: `${s.watched} of ${s.movies} watched`, tone: "ok" },
+    h("dl", { class: "facts" },
+      h("div", {}, h("dt", {}, "Library size"), h("dd", {}, `${s.total_gb} GB`)),
+      h("div", {}, h("dt", {}, "Never watched"), h("dd", {}, `${s.unwatched} movies, ${s.unwatched_gb} GB`))),
+    hist.length ? [h("h3", { class: "sub" }, "Recently watched"), h("ul", { class: "log" }, hist.slice(0, 6).map((w) => h("li", { class: "log-row" },
+      h("span", { class: "dot", dataset: { tone: "ok" } }), h("span", { class: "log-main" }, h("strong", {}, w.title), w.who ? h("span", { class: "meta" }, w.who) : null),
+      h("span", { class: "log-side" }, w.when ? when(w.when) : ""))))] : null,
+    s.never_watched_old.length ? [h("h3", { class: "sub" }, "Never watched, added over 6 months ago"),
+      h("p", { class: "meta" }, "The biggest first, if you want to free up space."),
+      h("ul", { class: "pkg" }, s.never_watched_old.slice(0, 8).map((u) => h("li", {}, h("span", {}, `${u.title}${u.year ? ` (${u.year})` : ""}`), h("span", { class: "meta" }, `${u.gb} GB`))))] : null);
+}
+
 export async function load(state) {
+  if (!state.force && document.activeElement?.id === "req-new" && document.activeElement.value) return;
+  state.force = false;
   const d = await api("/api/movies");
   state.machine = d.machine;
   const drv = d.drive;
@@ -77,6 +113,9 @@ export async function load(state) {
         ? h("ul", { class: "timeline" }, d.drive_events.slice(0, 8).map((e) =>
           h("li", { dataset: { tone: e.kind === "dropped" ? "bad" : "ok" } }, h("span", {}, e.kind === "dropped" ? "Dropped out" : "Came back"), h("time", {}, when(e.ts)))))
         : null),
+    requestsCard(state, d.requests),
+    statsCard(d),
+    h("a", { class: "action", href: "/drives", "data-link": true }, "Drive health and moving to a new drive"),
     h("a", { class: "action", href: piLink(32400, "/web"), target: "_blank", rel: "noopener" }, "Open Plex"),
   ].filter(Boolean));
 }

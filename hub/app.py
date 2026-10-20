@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from . import actions, ask, auth, db, digest, events, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
-LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes"}
+LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
 sampler = sources.Sampler()
@@ -76,7 +76,50 @@ def api_movies():
         "drive": {"state": s.get("drive_state", "Unknown"), "free": s.get("drive_free"), "count": s.get("movies"),
                   "resets": s.get("drive_resets"), "errors": s.get("drive_errors")},
         "drive_events": system.drive_events(),
+        "history": plex.history(),
+        "stats": plex.library_stats(),
+        "requests": db.rows("SELECT id, text, done, created FROM items WHERE list = 'requests' AND (done = 0 OR done_at > ?) "
+                            "ORDER BY done, created DESC", int(time.time()) - 14 * 86400),
     })
+
+
+# ---- Drives: health, and moving the movies to a new drive ----
+
+@app.get("/api/drives")
+def api_drives():
+    report = actions.helper("drives:report", timeout=120)
+    move = actions.helper("move:status", timeout=10)
+    return fresh({"drives": report.get("drives") or [], "move": move, "ok": report.get("ok", False),
+                  "message": report.get("message")})
+
+
+@app.post("/api/drives/move")
+async def api_drives_move(request: Request):
+    role, device = need(request, "owner")
+    b = await request.json()
+    dev = str(b.get("device", ""))
+    if str(b.get("confirm", "")).strip().upper() != "ERASE":
+        raise HTTPException(400, "Type ERASE to confirm. Everything on the new drive is wiped.")
+    r = actions.helper_with("move:start", {"device": dev})
+    auth.log(role, device, "drives:move", r.get("message", ""))
+    if not r.get("ok"):
+        raise HTTPException(400, r.get("message") or "The move didn't start.")
+    return fresh(r)
+
+
+@app.post("/api/drives/switch")
+def api_drives_switch(request: Request):
+    role, device = need(request, "owner")
+    r = actions.helper("move:switch", timeout=180)
+    auth.log(role, device, "drives:switch", r.get("message", ""))
+    if not r.get("ok"):
+        raise HTTPException(400, r.get("message") or "The switch didn't work.")
+    sources._cache.clear()
+    try:
+        actions.run("rescan:plex")
+    except Exception:  # noqa: BLE001
+        pass
+    return fresh(r)
 
 
 @app.get("/api/movies/search")

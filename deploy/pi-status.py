@@ -84,8 +84,20 @@ def real_mount():
         return any(line.split()[1] == MOVIES and line.split()[2] == "ext4" for line in f)
 
 
+def movies_uuid():
+    try:
+        for line in open("/etc/fstab"):
+            parts = line.split()
+            if len(parts) > 1 and parts[1] == MOVIES and parts[0].startswith("UUID="):
+                return parts[0][5:]
+    except OSError:
+        pass
+    return None
+
+
 def drive():
-    present = os.path.exists("/sys/block/sda")
+    uuid = movies_uuid()
+    present = bool(uuid) and os.path.exists(f"/dev/disk/by-uuid/{uuid}")
     if present and not real_mount():
         try:
             os.listdir(MOVIES)  # touching it asks systemd to mount it again
@@ -97,8 +109,8 @@ def drive():
         "present": present,
         "mounted": mounted,
         "resets": log.count("reset SuperSpeed"),
-        "io_errors": log.count("I/O error, dev sda"),
-        "fs_errors": log.count("EXT4-fs error (device sda1)"),
+        "io_errors": log.count("I/O error, dev sd"),
+        "fs_errors": log.count("EXT4-fs error (device sd"),
         "free": "",
         "movies": None,
     }

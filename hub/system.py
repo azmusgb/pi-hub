@@ -122,3 +122,15 @@ def backups():
         st = os.stat(os.path.join(BACKUP_DIR, n))
         out.append({"name": n, "ts": int(st.st_mtime), "mb": round(st.st_size / 1e6, 1)})
     return out
+
+
+def movies_present():
+    """True when the drive that /etc/fstab mounts at /mnt/usb1 is plugged in."""
+    try:
+        for line in open("/etc/fstab"):
+            parts = line.split()
+            if len(parts) > 1 and parts[1] == "/mnt/usb1" and parts[0].startswith("UUID="):
+                return os.path.exists(f"/dev/disk/by-uuid/{parts[0][5:]}")
+    except OSError:
+        pass
+    return False
