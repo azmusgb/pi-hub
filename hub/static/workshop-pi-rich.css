@@ -1,0 +1,67 @@
+
+/* workshop-pi-rich.css — Final page refinements */
+
+/* Workshop */
+.cam-img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  display: block;
+  background: #000;
+  border: 1px solid var(--line);
+}
+.now-col-left .band { margin-bottom: 0; }
+.workshop-display-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+.workshop-display-link:hover { text-decoration: underline; }
+
+/* Pi Layout */
+.pi-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+.pi-bottom-grid .card {
+  margin: 0;
+}
+.pi-bottom-grid .log {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Fix it Buttons */
+.fix-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.fix-grid .btn {
+  flex: 1;
+  min-width: 140px;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+}
+.btn--danger {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+.btn--danger:hover {
+  background: color-mix(in srgb, var(--danger) 20%, var(--surface-2));
+  border-color: var(--danger);
+}
+
+/* Stat Cluster overrides for Pi */
+.stat-numbered .stat-value[data-tone="ok"] { color: var(--ok); }
+.stat-numbered .stat-value[data-tone="bad"] { color: var(--danger); }

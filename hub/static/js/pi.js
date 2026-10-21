@@ -45,13 +45,21 @@ export async function load(state) {
         chart("Processor", hist.map((p) => p.cpu), "%", 100, live.cpu_series?.at(-1)),
         chart("Memory used", hist.map((p) => p.mem), "%", 100, live.mem_series?.at(-1))),
       hist.length < 3 ? h("p", { class: "meta" }, "History builds up over the next hour.") : null,
-      h("dl", { class: "facts" },
-        h("div", {}, h("dt", {}, "Power"), h("dd", { dataset: { tone: d.health.power === "Good" ? "ok" : "bad" } }, d.health.power || "—")),
-        h("div", {}, h("dt", {}, "Running for"), h("dd", {}, d.health.uptime_h != null ? `${d.health.uptime_h} h` : "—")))),
+      h("div", { class: "stat-cluster" },
+        h("div", { class: "stat-numbered" },
+          h("span", { class: "stat-label" }, "Power"),
+          h("span", { class: "stat-value", dataset: { tone: d.health.power === "Good" ? "ok" : "bad" } }, d.health.power || "—")
+        ),
+        h("div", { class: "stat-numbered" },
+          h("span", { class: "stat-label" }, "Running for"),
+          h("span", { class: "stat-value" }, d.health.uptime_h != null ? d.health.uptime_h : "—", h("span", { class: "unit" }, "h"))
+        )
+      )),
     card("Fix it", { cls: "wide", pill: upd.state === "running" ? "Updates installing" : null, tone: "warn" },
       h("p", { class: "meta" }, "One tap. The first time on each device, it asks for the household PIN."),
       h("div", { class: "fix-grid" }, acts.actions.map((a) => h("button", {
-        class: "fix-tile", disabled: a.name === "updates:install" && upd.state === "running",
+        class: `btn ${a.name.includes('restart') ? 'btn--danger' : 'btn--primary'}`, 
+        disabled: a.name === "updates:install" && upd.state === "running",
         onclick: async () => { if (await fix(a.name, a.label, { confirmText: CONFIRM[a.name] })) load(state); },
       }, a.label))),
       upd.state === "failed" ? h("p", { class: "note" }, `The last update run didn't finish: ${upd.message}`) : null,
@@ -60,6 +68,7 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, l.device || "A device")),
           h("span", { class: "log-side" }, when(l.ts)))))] : null),
     selfcheckCard(d.selfcheck),
+    h("div", { class: "pi-bottom-grid" },
     card("Outages", { pill: d.outages.length ? `${d.outages.length} in 30 days` : "None", tone: d.outages.length ? "warn" : "ok" },
       d.outages.length ? h("ul", { class: "log" }, d.outages.slice(0, 10).map((o) => h("li", { class: "log-row" },
         h("span", { class: "dot", dataset: { tone: o.end ? "warn" : "bad" } }),
@@ -87,6 +96,7 @@ export async function load(state) {
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Name"), h("dd", {}, d.network.name)),
         h("div", {}, h("dt", {}, "Address"), h("dd", {}, d.network.ip || "—")),
-        h("div", {}, h("dt", {}, "Connection"), h("dd", {}, "Network cable")))),
+        h("div", {}, h("dt", {}, "Connection"), h("dd", {}, "Network cable"))))
+    )
   );
 }

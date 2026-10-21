@@ -9,8 +9,11 @@ const OUTCOME = { finished: ["Finished", "ok"], stopped: ["Stopped", "warn"], fa
 export function mount(state) {
   state.band = h("div");
   state.cam = h("div");
+  state.info = h("div", { class: "now-col-right" });
   state.body = h("div", { class: "cards" });
-  state.root.append(state.band, state.cam, state.body);
+  
+  const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
+  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body);
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");
@@ -114,12 +117,7 @@ export async function load(state) {
   const reload = () => { state.force = true; return load(state); };
   const prints = d.prints.map((p) => printRow(p, d.spools, reload));
   const m = d.filament_month;
-  state.body.replaceChildren(
-    card("Print history", { pill: `${d.week.finished} finished this week`, tone: "ok", cls: "wide" },
-      prints.length ? h("ul", { class: "log" }, prints) : empty("Prints show up here once the hub has seen one start."),
-      h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
-        (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : ""))),
-    shelf(d, reload),
+  state.info.replaceChildren(
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
@@ -130,6 +128,13 @@ export async function load(state) {
         : h("dl", { class: "facts" },
           h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None")),
           h("div", {}, h("dt", {}, "Jobs waiting"), h("dd", {}, String(d.ai.waiting ?? 0)))),
-      h("a", { class: "action", href: "https://10.0.0.21", target: "_blank", rel: "noopener" }, "Open Local AI")),
+      h("a", { class: "action", href: "https://10.0.0.21", target: "_blank", rel: "noopener" }, "Open Local AI"))
+  );
+  state.body.replaceChildren(
+    card("Print history", { pill: `${d.week.finished} finished this week`, tone: "ok", cls: "wide" },
+      prints.length ? h("ul", { class: "log" }, prints) : empty("Prints show up here once the hub has seen one start."),
+      h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
+        (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : ""))),
+    shelf(d, reload)
   );
 }
