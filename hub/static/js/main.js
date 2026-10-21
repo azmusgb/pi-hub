@@ -29,6 +29,32 @@ const PAGES = {
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
 };
 
+// Page-specific subtitles
+const subtitles = {
+  "/": "The Pi, the workshop and everything on the home network",
+  "/movies": "Plex library and playback",
+  "/control": "Smart home devices and scenes",
+  "/weather": "Current conditions and forecast",
+  "/workshop": "Bambu X2D and local AI",
+  "/print": "Send jobs to the HP DeskJet",
+  "/lists": "Shopping, to-dos, and notes",
+  "/pi": "System health and services",
+  "/rules": "Automations running on Pi Hub",
+  "/alerts": "Recent system and device events",
+  "/settings": "Configure your Pi Hub"
+};
+
+const updateSubtitle = () => {
+  const el = document.getElementById("page-subtitle");
+  if (el) {
+    const path = location.pathname;
+    el.textContent = subtitles[path] || "";
+  }
+};
+document.addEventListener("DOMContentLoaded", updateSubtitle);
+// Hook into pushState/popstate for SPA navigation
+window.addEventListener("popstate", updateSubtitle);
+
 const view = document.getElementById("view");
 const wall = new URLSearchParams(location.search).has("wall");
 let current = null;
@@ -116,6 +142,7 @@ async function show(path, { focus = false } = {}) {
   current = { ...page, state };
   document.title = page.key === "now" ? "Home" : `${page.title} · Home`;
   document.getElementById("page-title").textContent = page.title;
+  if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
     const here = a.dataset.page === page.key || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "drives", "weather", "more"].includes(page.key));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -152,28 +179,4 @@ setInterval(tick, 15000);
 show(location.pathname);
 stayAwake();
 
-// Page-specific subtitles
-const subtitles = {
-  "/": "The Pi, the workshop and everything on the home network",
-  "/movies": "Plex library and playback",
-  "/control": "Smart home devices and scenes",
-  "/weather": "Current conditions and forecast",
-  "/workshop": "Bambu X2D and local AI",
-  "/print": "Send jobs to the HP DeskJet",
-  "/lists": "Shopping, to-dos, and notes",
-  "/pi": "System health and services",
-  "/rules": "Automations running on Pi Hub",
-  "/alerts": "Recent system and device events",
-  "/settings": "Configure your Pi Hub"
-};
 
-const updateSubtitle = () => {
-  const el = document.getElementById("page-subtitle");
-  if (el) {
-    const path = location.pathname;
-    el.textContent = subtitles[path] || "";
-  }
-};
-document.addEventListener("DOMContentLoaded", updateSubtitle);
-// Hook into pushState/popstate for SPA navigation
-window.addEventListener("popstate", updateSubtitle);

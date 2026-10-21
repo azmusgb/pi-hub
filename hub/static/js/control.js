@@ -65,7 +65,11 @@ export function tile(a, state, { favourite } = {}) {
     const slider = h("input", { type: "range", min: 1, max: 100, value: a.brightness || 1, class: "tile-slider", "aria-label": `${getFriendlyName(a)} brightness` });
     slider.addEventListener("change", async () => {
       if (!(await ensure("kid"))) return;
-      try { await post(`/api/home/${a.id}`, { characteristic: "Brightness", value: Number(slider.value) }); }
+      try {
+        await post(`/api/home/${a.id}`, { characteristic: "Brightness", value: Number(slider.value) });
+        a.brightness = Number(slider.value);
+        stateEl.textContent = a.on ? `On, ${a.brightness}%` : "Off";
+      }
       catch (e) { toast(e.message, "bad"); }
     });
     kids.push(slider);

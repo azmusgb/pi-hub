@@ -47,10 +47,7 @@
   addEventListener("popstate", showProgress);
 
   // ---- Clock date line -------------------------------------------------
-  const clockPill = $(".clock");
-  if (clockPill && !$(".clock-date", clockPill)) {
-  };
-  tickDate();
+  // (removed — main.js already includes the weekday in the clock)
 
   // ---- Staggered reveal for direct children of #view ------------------
   const revealCards = () => {
