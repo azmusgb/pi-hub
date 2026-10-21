@@ -1,6 +1,6 @@
 // Keeps the page shell available when the Pi is briefly unreachable. Live data is never cached.
-const SHELL = "pi-hub-shell-v39";
-const FILES = ["/", "/static/app.css", "/static/pages.css", "/static/js/main.js", "/static/enhance.css", "/static/refine.css", "/static/js/enhance.js", "/static/js/core.js", "/static/js/now.js",
+const SHELL = "pi-hub-shell-v40";
+const FILES = ["/", "/static/app.css", "/static/pages.css", "/static/js/main.js", "/static/enhance.css", "/static/refine.css", "/static/enhance-audit.css", "/static/js/enhance.js", "/static/js/enhance-audit.js", "/static/js/core.js", "/static/js/now.js",
   "/static/js/movies.js", "/static/js/workshop.js", "/static/js/print.js", "/static/js/lists.js", "/static/js/pi.js",
   "/static/js/alerts.js", "/static/js/control.js", "/static/js/settings.js", "/static/js/more.js", "/static/js/rules.js", "/static/js/drives.js", "/static/js/weather.js", "/static/icon.svg", "/static/manifest.webmanifest"];
 

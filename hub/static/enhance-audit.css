@@ -1,0 +1,52 @@
+/* enhance-audit.css — audit fixes, additive, loaded last. */
+
+/* 1. Wall mode strips ALL interactive chrome */
+[data-wall] .palette,
+[data-wall] .shortcuts,
+[data-wall] .progress-top,
+[data-wall] .toast,
+[data-wall] .offline-banner { display: none !important; }
+
+/* 2. Print: guard poster + bento + tabs */
+@media print {
+  .poster-card { aspect-ratio: auto; background: none; box-shadow: none; break-inside: avoid; }
+  .poster-card::after, .poster-badge { display: none; }
+  .poster-meta { position: static; color: #000; margin-top: .35rem; }
+  .poster-title { color: #000; -webkit-line-clamp: unset; }
+  .poster-sub { color: #444; }
+  .poster-card img { max-height: 2.5in; object-fit: contain; }
+  .bento { display: block; }
+  .bento > * { grid-column: auto !important; grid-row: auto !important; }
+  .tabs, .chip, .eyebrow-count { display: none; }
+}
+
+/* 3. Drop the stuttering background transition */
+body::before { transition: none; }
+
+/* 4. Replace the SVG-filter grain with cheap radial-gradient noise */
+body::after {
+  background-image:
+    radial-gradient(rgba(20,15,8,.55) 1px, transparent 1.2px),
+    radial-gradient(rgba(20,15,8,.30) 1px, transparent 1.2px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1px 2px;
+  opacity: .03;
+  mix-blend-mode: multiply;
+}
+[data-theme="dark"] body::after {
+  background-image:
+    radial-gradient(rgba(255,255,255,.45) 1px, transparent 1.2px),
+    radial-gradient(rgba(255,255,255,.22) 1px, transparent 1.2px);
+  mix-blend-mode: screen;
+  opacity: .05;
+}
+
+/* 5. Tab bar height: room for iOS safe-area so labels don't clip */
+:root { --tabbar-h: 76px; }
+
+/* 6. Focus ring on the palette input itself */
+#palette-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
