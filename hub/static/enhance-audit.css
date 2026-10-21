@@ -30,7 +30,7 @@ body::after {
     radial-gradient(rgba(20,15,8,.30) 1px, transparent 1.2px);
   background-size: 3px 3px, 5px 5px;
   background-position: 0 0, 1px 2px;
-  opacity: .03;
+  opacity: .015;
   mix-blend-mode: multiply;
 }
 [data-theme="dark"] body::after {
@@ -38,7 +38,7 @@ body::after {
     radial-gradient(rgba(255,255,255,.45) 1px, transparent 1.2px),
     radial-gradient(rgba(255,255,255,.22) 1px, transparent 1.2px);
   mix-blend-mode: screen;
-  opacity: .05;
+  opacity: .02;
 }
 
 /* 5. Tab bar height: room for iOS safe-area so labels don't clip */
@@ -62,3 +62,16 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 860px) { .stage { padding-bottom: 0; } }
 
 input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
+
+/* Shared task-first page rhythm. */
+.more-group > h2, .help-start > h2 { margin: 0 0 .5rem; font-size: 1.25rem; }
+.more-group + .more-group { margin-top: .75rem; }
+.help-start, .system-details { width: 100%; max-width: 960px; margin-inline: auto; }
+.help-topics { display: grid; gap: .75rem; margin: 1.25rem 0; }
+.help-topic { padding: 0 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); }
+.help-topic summary, .system-details > summary { cursor: pointer; padding: 1rem 0; min-height: 48px; font-weight: 600; }
+.help-topic p { color: var(--text-2); line-height: 1.6; margin: 0 0 .75rem; }
+.help-topic .action { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: .5rem; }
+.system-details { border-top: 1px solid var(--line-strong); padding-top: .5rem; }
+.system-details .cards { display: grid; gap: 1.25rem; }
+.system-details .fix-grid .btn { box-shadow: none; }

@@ -105,7 +105,7 @@ function askBox() {
     h("div", { class: "ask-row" }, input, btn), 
     answer,
     h("div", { class: "ask-suggestions" },
-      h("button", { type: "button", class: "chip", onclick: () => { input.value = "Why is Movies offline?"; input.focus(); } }, "Why is Movies offline?"),
+      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What’s happening at home?"; input.focus(); } }, "What’s happening at home?"),
       h("button", { type: "button", class: "chip", onclick: () => { input.value = "What's using the Pi?"; input.focus(); } }, "What's using the Pi?"),
       h("button", { type: "button", class: "chip", onclick: () => { input.value = "Any alerts?"; input.focus(); } }, "Any alerts?")
     )
@@ -146,13 +146,12 @@ export function mount(state) {
   if (isWallMode()) {
     state.root.append(state.summary, state.outside, state.main);
   } else {
-    state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
-      state.eyebrow, state.summary, state.outside);
+    state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
     const tasks = h("nav", { class: "quick-tasks", "aria-label": "Everyday tasks" },
       h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
       h("a", { class: "chip", href: "/print", "data-link": true }, "Print a file"),
       h("a", { class: "chip", href: "/pi", "data-link": true }, "Get help"));
-    state.root.append(state.hero, tasks, state.main, state.ask);
+    state.root.append(state.issues, tasks, state.band, state.rightCol, state.hero, state.ask);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -176,6 +175,8 @@ export async function load(state) {
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
+  state.summary.hidden = !isWallMode() && d.issues.length > 0;
+  if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
   if (state.ask) state.ask.hidden = !d.status_available || d.workshop.ai === "Down";
@@ -220,7 +221,7 @@ export async function load(state) {
               h("strong", { class: "alert-title" }, i.what)
             ),
             h("div", { class: "alert-desc" }, i.say),
-            i.fix ? h("button", { class: "btn btn--sm", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : h("a", { class: "chip", href: i.href || "/pi", "data-link": true }, i.link_label || "Troubleshoot")
+            i.fix ? h("button", { class: "ghost", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : h("a", { class: "action", href: i.href || "/pi", "data-link": true }, i.link_label || "Troubleshoot")
           )
         ))
       )

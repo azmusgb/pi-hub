@@ -1,22 +1,22 @@
-// More: the pages that don't fit in the phone's bottom bar.
+// The phone's additional destinations, grouped by household purpose.
 import { h } from "./core.js";
-
 export const every = 600;
-
-const PAGES = [
-  ["/weather", "Weather", "The next hours, the week, air quality and warnings"],
-  ["/workshop", "Workshop", "The X2D, print history, the touchscreen and Local AI"],
-  ["/print", "Print", "Send a file to the HP DeskJet, see the queue and ink"],
-  ["/pi", "Help & system", "Fix common problems and check the hub’s health"],
-  ["/drives", "Drives", "Drive health, and moving the movies to a new drive"],
-  ["/rules", "Rules", "When something happens, do something: lights, alerts, fixes"],
-  ["/alerts", "Alerts", "Everything the Pi has sent to your phone"],
-  ["/settings", "Settings", "Owner settings: PIN, Homebridge, Wi-Fi, backups"],
+const GROUPS = [
+  ["Everyday", [
+    ["/print", "Print", "Print a file and check the queue"],
+    ["/workshop", "Workshop", "3D printer, camera, display and local AI"],
+    ["/weather", "Weather", "Forecast, air quality and weather warnings"],
+  ]],
+  ["Maintenance", [
+    ["/pi", "Help & system", "Solve a problem and check the hub"],
+    ["/alerts", "Alerts", "Recent events and warnings"],
+    ["/rules", "Automations", "Choose what happens automatically"],
+    ["/settings", "Settings", "Household access, connections and backups"],
+  ]],
 ];
-
 export function mount(state) {
-  state.root.append(h("ul", { class: "more" }, PAGES.map(([href, name, what]) =>
-    h("li", {}, h("a", { href, "data-link": true }, h("strong", {}, name), h("span", { class: "meta" }, what))))));
+  state.root.append(...GROUPS.map(([title, pages]) => h("section", { class: "more-group" },
+    h("h2", {}, title), h("ul", { class: "more" }, pages.map(([href, name, what]) =>
+      h("li", {}, h("a", { href, "data-link": true }, h("strong", {}, name), h("span", { class: "meta" }, what))))))));
 }
-
 export async function load() {}

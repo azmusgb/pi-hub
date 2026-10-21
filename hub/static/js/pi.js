@@ -8,7 +8,23 @@ const STATE = { active: ["Running", "ok"], inactive: ["Off", "warn"], failed: ["
 export function mount(state) {
   state.range = 24;
   state.body = h("div", { class: "cards" });
-  state.root.append(state.body);
+  state.diagnostic = h("p", { class: "meta", role: "status" }, "Checking system details…");
+  const guidance = [
+    ["Movies won’t play", "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.", "/movies", "Check Movies"],
+    ["Lights aren’t responding", "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, open System checks & advanced fixes below to check the smart-home service.", "/control", "Check Devices"],
+    ["Printer won’t print", "Turn on the HP DeskJet and check for paper or an error on its screen. Open Print to see its status and waiting jobs.", "/print", "Check the printer"],
+    ["3D printer or workshop problem", "Check the Bambu printer’s screen for errors. Workshop shows the camera, print status and local AI connection.", "/workshop", "Check Workshop"],
+  ];
+  state.root.append(
+    h("section", { class: "help-start", "aria-labelledby": "help-title" },
+      h("h2", { id: "help-title" }, "What isn’t working?"),
+      h("p", { class: "meta" }, "Start with the problem. These checks won’t restart or change anything."),
+      h("div", { class: "help-topics" }, guidance.map(([title, advice, href, label]) =>
+        h("details", { class: "help-topic" }, h("summary", {}, title),
+          h("p", {}, advice), h("a", { class: "action", href, "data-link": true }, label)))),
+      h("a", { class: "action", href: "/drives", "data-link": true }, "Check movie storage")),
+    h("details", { class: "system-details" }, h("summary", {}, "System checks & advanced fixes"), state.diagnostic,
+      h("p", { class: "meta" }, "Service restarts, updates, charts and diagnostics. Actions ask for confirmation and the household PIN."), state.body));
 }
 
 function chart(title, series, unit, max, current) {
@@ -26,7 +42,7 @@ function selfcheckCard(c) {
       h("span", { class: "log-main" }, h("strong", {}, x.name), h("span", { class: "meta" }, x.detail))))) : null);
 }
 
-export async function load(state) {
+async function loadDiagnostics(state) {
   const [d, acts] = await Promise.all([api(`/api/pi?hours=${state.range}`), api("/api/actions")]);
   const CONFIRM = {
     "restart:pi": "Restart the Pi? Plex, Homebridge and the hub go away for about a minute.",
@@ -56,9 +72,9 @@ export async function load(state) {
         )
       )),
     card("Fix it", { cls: "wide", pill: upd.state === "running" ? "Updates installing" : null, tone: "warn" },
-      h("p", { class: "meta" }, "One tap. The first time on each device, it asks for the household PIN."),
+      h("p", { class: "meta" }, "Choose a fix after checking the problem above. You’ll confirm before anything changes."),
       h("div", { class: "fix-grid" }, acts.actions.map((a) => h("button", {
-        class: `btn ${a.name.includes('restart') ? 'btn--danger' : 'btn--primary'}`, 
+        class: `btn ghost ${a.name === "restart:pi" ? "btn--danger" : ""}`,
         disabled: a.name === "updates:install" && upd.state === "running",
         onclick: async () => { if (await fix(a.name, a.label, { confirmText: CONFIRM[a.name] })) load(state); },
       }, a.label))),
@@ -99,4 +115,17 @@ export async function load(state) {
         h("div", {}, h("dt", {}, "Connection"), h("dd", {}, "Network cable"))))
     )
   );
+}
+
+// Household guides stay available even when the diagnostic service is down.
+export async function load(state) {
+  try {
+    await loadDiagnostics(state);
+    state.diagnostic.textContent = "System checks updated.";
+  } catch {
+    state.diagnostic.textContent = "System checks unavailable. The help guides above still work.";
+    state.body.replaceChildren(card("Couldn’t check the system", {},
+      h("p", { class: "meta" }, "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically."),
+      h("button", { type: "button", class: "ghost", onclick: () => load(state) }, "Retry system checks")));
+  }
 }

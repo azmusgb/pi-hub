@@ -294,15 +294,11 @@ body::before {
 .toast:not([hidden]) { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 
 @media (max-width: 1180px) and (min-width: 861px) {
-  .shell { grid-template-columns: var(--rail-w-compact) minmax(0, 1fr); }
-  .rail { padding: 1.25rem .75rem; align-items: center; }
-  .rail-brand { padding: .25rem; justify-content: center; }
-  .brand-text, .rail-label, .rail a[data-page] span { display: none; }
-  .rail ul { align-items: center; }
-  .rail a[data-page] { justify-content: center; width: 48px; height: 48px; padding: 0; border-radius: var(--r-md); }
-  .rail a[data-page][aria-current="page"]::before,
-  .rail a[data-page].is-active::before { display: none; }
-  .rail-group { align-items: center; }
+  .shell { grid-template-columns: 196px minmax(0, 1fr); }
+  .rail { padding: 1rem .65rem; gap: 1rem; }
+  .rail a[data-page] { gap: .6rem; font-size: .875rem; min-height: 44px; }
+  .rail-brand { gap: .6rem; }
+  .brand-sub { display: none; }
 }
 
 @media (max-width: 860px) {

@@ -275,3 +275,18 @@ body:not(.wall) .page-now { display: block; }
 }
 
 .ask-section[hidden] { display: none; }
+
+/* Read Home in task order: alerts, actions, device status, context, Ask. */
+.page-now > div:has(> .alerts-panel) { margin-bottom: 1.25rem; }
+.page-now > div:has(> .band) { margin-bottom: 1.25rem; }
+.home-context { border-top: 1px solid var(--line); margin-top: 1.5rem; padding-top: 1rem; }
+.home-context .summary { margin: 0 0 .5rem; font-size: 1rem; color: var(--text-2); }
+.home-context .summary[hidden] { display: none; }
+.home-context .outside { margin: 0; }
+.home-context .setup-hint { display: inline-flex; min-height: 44px; align-items: center; font-size: .875rem; }
+.page-now .house-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1181px) { .page-now .house-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.alert-desc { padding-left: 0; }
+.alert-item > .action { display: inline-flex; align-items: center; min-height: 44px; align-self: flex-start; }
+
+.home-context[hidden] { display: none; }

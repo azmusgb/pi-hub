@@ -46,7 +46,7 @@ def issues(s):
     svc = s.get("services") or {}
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
-                    "say": "It dropped out. Unplug it, wait 10 seconds, plug it back in.",
+                    "say": "Movies may not play because the storage drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
                     "href": "/drives", "link_label": "Check movie storage"})
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",

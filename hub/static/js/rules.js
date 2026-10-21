@@ -20,7 +20,7 @@ function builder(state, d) {
     const v = Object.fromEntries(new FormData(form));
     try {
       await post("/api/rules", { trigger: v.trigger, action: v.action, target: v.target || null });
-      toast("Rule added.");
+      toast("Automation added.");
       state.force = true;
       load(state);
     } catch (x) { toast(x.message, "bad"); }
@@ -36,7 +36,7 @@ function builder(state, d) {
   };
   action.querySelector("select").addEventListener("change", sync);
   form.append(select("trigger", "When", d.triggers.map((t) => ({ key: t.key, label: t.label })), "print_finished"),
-    action, target, h("button", { type: "submit", class: "primary" }, "Add rule"));
+    action, target, h("button", { type: "submit", class: "primary" }, "Add automation"));
   queueMicrotask(sync);
   return form;
 }
@@ -57,14 +57,14 @@ export async function load(state) {
       r.last_run ? h("span", { class: "meta" }, `Last ran ${when(r.last_run)}: ${r.last_result}`) : h("span", { class: "meta" }, "Hasn't run yet.")),
     h("button", { class: "ghost small rule-remove", "aria-label": `Remove: ${r.text}`, onclick: async () => {
       if (!(await ensure("household"))) return;
-      if (!confirm(`Remove rule "${r.text}"?`)) return;
-      await post(`/api/rules/${r.id}/delete`); toast("Rule removed."); load(state);
+      if (!confirm(`Remove automation "${r.text}"?`)) return;
+      await post(`/api/rules/${r.id}/delete`); toast("Automation removed."); load(state);
     } }, "✕")));
   state.body.replaceChildren(
-    card("Your rules", { cls: "wide", pill: `${d.rules.filter((r) => r.enabled).length} on` , tone: "ok" },
-      rules.length ? h("ul", { class: "rules" }, rules) : empty("No rules yet. Add one below."),
+    card("Your automations", { cls: "wide", pill: `${d.rules.filter((r) => r.enabled).length} on` , tone: "ok" },
+      rules.length ? h("ul", { class: "rules" }, rules) : empty("No automations yet. Add one below."),
       d.alerts_ready ? null : h("p", { class: "note" }, "Phone alerts aren't set up on this Pi, so “send a phone alert” won't reach anyone.")),
-    card("Add a rule", {}, builder(state, d)),
+    card("Add an automation", {}, builder(state, d)),
     card("What the hub noticed", { pill: d.events.length ? `${d.events.length} recent` : null },
       d.events.length
         ? h("ul", { class: "log" }, d.events.slice(0, 15).map((e) => h("li", { class: "log-row" },

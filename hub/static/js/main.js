@@ -22,11 +22,11 @@ const PAGES = {
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/control": { key: "control", title: "Control", mod: controlPage },
+  "/control": { key: "control", title: "Devices", mod: controlPage },
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
-  "/rules": { key: "rules", title: "Rules", mod: rulesPage },
-  "/drives": { key: "drives", title: "Drives", mod: drivesPage },
+  "/rules": { key: "rules", title: "Automations", mod: rulesPage },
+  "/drives": { key: "drives", title: "Movie storage", mod: drivesPage },
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
 };
 
@@ -40,7 +40,7 @@ const subtitles = {
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
   "/pi": "Fix common problems and check the hub",
-  "/rules": "Automations running on Pi Hub",
+  "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub"
 };
@@ -134,6 +134,7 @@ async function refresh() {
     page.state.root.classList.remove("offline");
   } catch (e) {
     if (page !== current) return;
+    console.error("Unable to refresh page", e);
     page.error = true;
     page.state.root.classList.add("offline");
     page.mod.failed?.(page.state, e);
@@ -167,7 +168,7 @@ async function show(path, { focus = false } = {}) {
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === page.key || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "drives", "weather", "more"].includes(page.key));
+    const here = a.dataset.page === page.key || (a.dataset.page === "movies" && page.key === "drives") || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "weather", "more"].includes(page.key));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);
