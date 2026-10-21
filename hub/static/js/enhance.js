@@ -49,17 +49,8 @@
   // ---- Clock date line -------------------------------------------------
   const clockPill = $(".clock");
   if (clockPill && !$(".clock-date", clockPill)) {
-    const span = document.createElement("span");
-    span.className = "clock-date";
-    clockPill.appendChild(span);
-  }
-  const tickDate = () => {
-    const span = $(".clock-date");
-    if (!span) return;
-    span.textContent = new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   };
   tickDate();
-  setInterval(tickDate, 60_000);
 
   // ---- Staggered reveal for direct children of #view ------------------
   const revealCards = () => {

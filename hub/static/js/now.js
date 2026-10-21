@@ -1,4 +1,4 @@
-// Now: the greeting, the printer, what needs a look, and one card per area.
+// Now: the one-line answer, the print band, what needs a look, and a card per area.
 import { api, clockTime, ensure, fix, h, post, spark, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 
@@ -41,10 +41,10 @@ export function band(p) {
 }
 
 function askBox() {
-  const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house, like “Why did Plex stop?”", autocomplete: "off", enterkeyhint: "send" });
+  const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house…", autocomplete: "off", enterkeyhint: "send" });
   const answer = h("div", { class: "ask-answer", "aria-live": "polite" });
   const btn = h("button", { type: "submit", class: "primary" }, "Ask");
-  return h("form", { class: "ask card card--paper", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
+  return h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
     e.preventDefault();
     const q = input.value.trim();
     if (!q || !(await ensure("household"))) return;
@@ -56,7 +56,16 @@ function askBox() {
       input.value = "";
     } catch (x) { answer.replaceChildren(h("p", { class: "note" }, x.message)); }
     btn.disabled = false;
-  } }, h("label", { for: "ask-input", class: "sr" }, "Ask about the house"), h("div", { class: "ask-row" }, input, btn), answer);
+  } }, 
+    h("label", { for: "ask-input", class: "sr" }, "Ask about the house"), 
+    h("div", { class: "ask-row" }, input, btn), 
+    answer,
+    h("div", { class: "ask-suggestions" },
+      h("button", { type: "button", class: "chip", onclick: () => { input.value = "Why is Movies offline?"; input.focus(); } }, "Why is Movies offline?"),
+      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What's using CPU?"; input.focus(); } }, "What's using CPU?"),
+      h("button", { type: "button", class: "chip", onclick: () => { input.value = "Any alerts?"; input.focus(); } }, "Any alerts?")
+    )
+  );
 }
 
 function outsideLine(o) {
@@ -77,21 +86,25 @@ export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
   state.outside = h("div", { class: "outside-wrap" });
   state.eyebrow = h("p", { class: "hero-eyebrow" }, eyebrowLabel());
+  
   state.band = h("div");
   state.issues = h("div");
   state.ask = isWallMode() ? "" : askBox();
-  state.cards = h("div", { class: "now-side" });
-  state.main = h("div", { class: "now-main" }, state.band, state.issues, state.ask);
+  
+  // Left column
+  state.leftCol = h("div", { class: "now-col-left" }, state.band, state.issues, state.ask);
+  
+  // Right column
+  state.rightCol = h("div", { class: "now-col-right" });
+  
+  state.main = h("div", { class: "now-layout" }, state.leftCol, state.rightCol);
 
   if (isWallMode()) {
-    // pages.css: body.wall .page-now > .summary { grid-area: sum }
-    // Keep .summary/.outside as direct children in wall mode so the grid
-    // fills its "sum" slot — do not nest them in .hero here.
-    state.root.append(state.summary, state.outside, state.main, state.cards);
+    state.root.append(state.summary, state.outside, state.main);
   } else {
     state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
       state.eyebrow, state.summary, state.outside);
-    state.root.append(state.hero, state.main, state.cards);
+    state.root.append(state.hero, state.main);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -107,105 +120,82 @@ export async function load(state) {
     api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
     api("/api/wifi").catch(() => ({ set: false })),
   ]);
+  
   state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !isWallMode()
-    ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} left in Settings`) : null].filter(Boolean));
+    ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} remaining →`) : null].filter(Boolean));
 
   const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
-  state.band.replaceChildren(band(d.printer));
+  
+  // Printer band goes above alerts if printing, otherwise hide it
+  if (d.printer.state === "printing" || d.printer.state === "paused") {
+    state.band.replaceChildren(band(d.printer));
+  } else {
+    state.band.replaceChildren();
+  }
 
+  // Consolidated Alerts
   const issuesIsBad = d.issues.some((i) => i.tone === "bad");
-  state.issues.replaceChildren(d.issues.length
-    ? h("section", {
-        class: `issues card${issuesIsBad ? " card--accent" : ""}`,
-        "aria-label": "Needs a look",
-      },
-      h("h2", { class: "section-title" }, "Needs a look"),
-      h("ul", {}, d.issues.map((i) => h("li", { class: "issue", dataset: { tone: i.tone } },
-        h("span", { class: "dot" }), h("strong", {}, i.what), h("span", { class: "say" }, i.say),
-        i.fix ? h("button", { class: "ghost fix-btn", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : null))))
-    : "");
+  if (d.issues.length > 0) {
+    state.issues.replaceChildren(
+      h("section", { class: `alerts-panel ${issuesIsBad ? "is-critical" : ""}`, "aria-label": "Needs attention" },
+        h("h2", { class: "section-title" }, `Needs attention (${d.issues.length})`),
+        h("ul", {}, d.issues.map((i) => 
+          h("li", { class: "alert-item", dataset: { tone: i.tone } },
+            h("div", { class: "alert-header" },
+              h("span", { class: "dot" }), 
+              h("strong", { class: "alert-title" }, i.what)
+            ),
+            h("div", { class: "alert-desc" }, i.say),
+            i.fix ? h("button", { class: "btn btn--sm", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : null
+          )
+        ))
+      )
+    );
+  } else {
+    state.issues.replaceChildren();
+  }
 
   const m = d.movies;
-  const playing = m.playing === null ? [h("li", { class: "empty" }, "Plex isn't answering.")]
-    : !m.playing.length ? [h("li", { class: "empty" }, "Nothing playing.")]
-      : m.playing.map((s) => h("li", {},
-        h("span", { class: "t" }, s.title),
-        h("span", { class: "w" }, [s.state === "paused" ? "Paused" : "", [s.who, s.device].filter(Boolean).join(" on "),
-          s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(", ")),
-        h("span", { class: "bar" }, h("i", { style: `width:${s.progress}%` }))));
-
-  if (isWallMode()) { wallView(state, d, home, wifi, out); return; }
-
   const p = d.pi;
-  const cpu = p.cpu_series?.at(-1);
   const w = d.workshop;
+  const cpu = p.cpu_series?.at(-1);
 
-  const row = (name, href, tone, say, extra) => h("li", { class: "house-item" },
-    h("a", { class: "house-row", href, "data-link": true },
-      h("span", { class: "house-name" }, name),
-      h("span", { class: "dot", dataset: { tone } }),
-      h("span", { class: "house-say" }, say),
-      h("span", { class: "chev", "aria-hidden": "true" }, "›")),
-    extra || null);
-  const mSay = !m.plex_running ? "Plex has stopped"
-    : m.drive === "Connected" ? `${m.count ?? "Your"} movies, ${m.free} free` : "The movies drive is missing";
-  const wSay = [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`,
-    w.ai === "Down" ? "Local AI down" : `Local AI ${w.ai.toLowerCase()}`].join(", ");
-  const hSay = !d.home.homebridge_running ? "Homebridge has stopped"
-    : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} favourites on`
-      : home.connected ? "Star lights and plugs on Control to see them here" : "Connect Homebridge in Settings to switch lights here";
-  const pSay = [p.temp != null ? `${Math.round(p.temp)} °C` : null, cpu != null ? `${Math.round(cpu)}% busy` : null,
-    p.power === "Good" ? "power good" : p.power ? `power: ${p.power.toLowerCase()}` : null,
-    p.updates ? `${p.updates} update${p.updates > 1 ? "s" : ""} waiting` : null].filter(Boolean).join(", ");
-  const playingNow = m.playing?.length ? h("ul", { class: "playing house-extra" }, playing) : null;
-
-  state.cards.replaceChildren(...[
-    h("section", { class: "house", "aria-labelledby": "house-title" },
-      h("h2", { class: "section-title", id: "house-title" }, "The house"),
-      h("ul", { class: "house-list" },
-        row("Movies", "/movies", m.tone, mSay, playingNow),
-        row("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
-        row("Home", "/control", d.home.tone, hSay, favs.length ? h("div", { class: "tiles compact house-extra" }, favs.map((a) => tile(a, state))) : null),
-        d.reminders?.length ? row("To do today", "/lists", "warn",
-          d.reminders.map((r) => r.text).slice(0, 3).join(", ") + (d.reminders.length > 3 ? ` and ${d.reminders.length - 3} more` : "")) : null,
-        row("Raspberry Pi", "/pi", p.tone, pSay, h("div", { class: "house-extra house-spark", "aria-hidden": "true" }, spark(p.temp_series, { max: 90 }))))),
-    wifi.set ? h("section", { class: "wifi-panel", "aria-label": "Guest Wi-Fi" },
-      h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 132, height: 132 }),
-      h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid), h("p", { class: "meta" }, "Guests: point a phone camera at the code to join."),
-        wifi.password ? h("p", { class: "meta" }, "Password ", h("strong", { class: "secret" }, wifi.password)) : null)) : null,
-  ].filter(Boolean));
-}
-
-function wallView(state, d, home, wifi, out) {
-  const now = new Date();
-  const dim = now.getHours() >= 22 || now.getHours() < 6;
-  document.body.classList.toggle("night", dim);
-  const w = out?.weather;
-  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 0);
-  const agenda = (out?.calendar || []).filter((e) => e.start * 1000 <= todayEnd.getTime() + 86400000).slice(0, 4);
-  state.cards.replaceChildren(
-    h("section", { class: "wall-head" },
-      h("div", { class: "wall-clock" },
-        h("p", { class: "wall-time display-1 num" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "")),
-        h("p", { class: "wall-date" }, now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))),
-      w ? h("div", { class: "wall-weather" }, weatherIcon(w.now.icon, w.now.sky),
-        h("p", { class: "wall-temp" }, `${w.now.temp}°`),
-        h("p", { class: "wall-sky" }, `${w.now.sky}, high ${w.days[0].high}°`),
-        w.alerts?.length ? h("p", { class: "out-alert wall-note" }, w.alerts[0].event) : w.soon ? h("p", { class: "wall-note" }, w.soon) : null,
-        h("ol", { class: "wall-hours" }, w.hours.slice(1, 7).map((x) => h("li", {}, h("span", {}, x.label), weatherIcon(x.icon), h("strong", {}, `${x.temp}°`)))))
-        : h("p", { class: "meta wall-weather" }, "Set your town in Settings to see the weather here.")),
-    h("section", { class: "wall-side" },
-      h("div", { class: "wall-agenda" }, h("h2", { class: "section-title" }, "Coming up"),
-        agenda.length ? h("ul", {}, agenda.map((e) => h("li", {},
-          h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))
-          : h("p", { class: "meta" }, out?.calendar_set ? "Nothing on the calendar today." : "Connect a calendar in Settings to see the day here.")),
-      wifi.set ? h("div", { class: "wall-wifi" }, h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr" }),
-        h("p", {}, "Guest Wi-Fi ", h("strong", {}, wifi.ssid))) : null),
+  // 2x2 House Grid
+  const houseCard = (name, href, tone, say) => h("a", { class: "house-card", href, "data-link": true },
+    h("div", { class: "house-header" },
+      h("h3", { class: "house-name" }, name),
+      h("span", { class: "dot", dataset: { tone } })
+    ),
+    h("p", { class: "house-say" }, say)
   );
+
+  const mSay = !m.plex_running ? "Plex has stopped" : m.drive === "Connected" ? `${m.count ?? "Your"} movies` : "Drive missing";
+  const wSay = [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`, w.ai === "Down" ? "AI down" : `AI ready`].join(" · ");
+  const hSay = !d.home.homebridge_running ? "Homebridge stopped" : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} on` : "No favourites";
+  const pSay = [p.temp != null ? `${Math.round(p.temp)}°C` : null, cpu != null ? `${Math.round(cpu)}% CPU` : null].filter(Boolean).join(" · ");
+
+  state.rightCol.replaceChildren(...[
+    h("section", { class: "house-section" },
+      h("h2", { class: "section-title" }, "The house"),
+      h("div", { class: "house-grid" },
+        houseCard("Movies", "/movies", m.tone, mSay),
+        houseCard("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
+        houseCard("Devices", "/control", d.home.tone, hSay),
+        houseCard("Raspberry Pi", "/pi", p.tone, pSay)
+      )
+    ),
+    wifi.set ? h("section", { class: "wifi-panel" },
+      h("div", { class: "wifi-header" }, "Guest Wi-Fi"),
+      h("div", { class: "wifi-content" },
+        h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 96, height: 96 }),
+        h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid), h("p", { class: "meta" }, "Scan to join"))
+      )
+    ) : null,
+  ].filter(Boolean));
 }
 
 export function failed(state) {
