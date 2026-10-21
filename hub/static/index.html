@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Home</title>
+  <title>Home · Pi Hub</title>
   <meta name="description" content="The Pi, the workshop and everything on the home network">
-  <meta name="theme-color" content="#1b1f22">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0c0f" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon-180.png">
@@ -14,50 +16,117 @@
   <meta name="apple-mobile-web-app-title" content="Home">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap">
   <script>
     try {
+      const params = new URLSearchParams(location.search);
+      const wall = params.has("wall");
+      if (wall) document.documentElement.dataset.wall = "1";
       const p = localStorage.getItem("hub-theme") || "auto";
-      const wall = new URLSearchParams(location.search).has("wall");
-      if (!wall) document.documentElement.dataset.theme = p === "auto" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : p;
+      if (!wall) {
+        document.documentElement.dataset.theme =
+          p === "auto"
+            ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+            : p;
+      }
     } catch {}
   </script>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/pages.css">
 </head>
 <body>
-  <a class="skip" href="#view">Skip to the page</a>
+  <a class="skip" href="#view">Skip to content</a>
   <div class="shell">
-    <nav class="rail" aria-label="Pages">
-      <a class="rail-brand" href="/" data-link>Home</a>
-      <ul>
-        <li><a href="/" data-link data-page="now"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg><span>Now</span></a></li>
-        <li><a href="/movies" data-link data-page="movies"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg><span>Movies</span></a></li>
-        <li><a href="/control" data-link data-page="control"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><span>Control</span></a></li>
-        <li class="extra"><a href="/weather" data-link data-page="weather"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 18.5h10.2a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1A4.3 4.3 0 0 0 7 18.5z"/></svg><span>Weather</span></a></li>
-        <li class="extra"><a href="/workshop" data-link data-page="workshop"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v4H5zM8 8v6l4 3 4-3V8M12 17v3"/></svg><span>Workshop</span></a></li>
-        <li class="extra"><a href="/print" data-link data-page="print"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v6H7z"/></svg><span>Print</span></a></li>
-        <li><a href="/lists" data-link data-page="lists"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Lists</span></a></li>
-        <li class="extra"><a href="/pi" data-link data-page="pi"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg><span>Pi</span></a></li>
-        <li class="extra"><a href="/rules" data-link data-page="rules"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg><span>Rules</span></a></li>
-        <li class="extra"><a href="/alerts" data-link data-page="alerts"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></svg><span>Alerts</span></a></li>
-        <li class="extra"><a href="/settings" data-link data-page="settings"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></a></li>
-        <li class="phone-only"><a href="/more" data-link data-page="more"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>More</span></a></li>
-      </ul>
+    <nav class="rail" aria-label="Primary">
+      <a class="rail-brand" href="/" data-link>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 9h16M8.5 9v10M15.5 9v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="12" cy="4.4" r="1.5" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Pi Hub</span>
+          <span class="brand-sub">Home network</span>
+        </span>
+      </a>
+
+      <div class="rail-group">
+        <p class="rail-label">Dashboard</p>
+        <ul>
+          <li><a href="/" data-link data-page="now" aria-current="page">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg><span>Now</span>
+          </a></li>
+          <li><a href="/movies" data-link data-page="movies">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg><span>Movies</span>
+          </a></li>
+          <li><a href="/control" data-link data-page="control">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><span>Control</span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="rail-group">
+        <p class="rail-label">Home</p>
+        <ul>
+          <li class="extra"><a href="/weather" data-link data-page="weather">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 18.5h10.2a3.8 3.8 0 0 0 .4-7.6 5.3 5.3 0 0 0-10.2-1A4.3 4.3 0 0 0 7 18.5z"/></svg><span>Weather</span>
+          </a></li>
+          <li class="extra"><a href="/workshop" data-link data-page="workshop">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v4H5zM8 8v6l4 3 4-3V8M12 17v3"/></svg><span>Workshop</span>
+          </a></li>
+          <li class="extra"><a href="/print" data-link data-page="print">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v6H7z"/></svg><span>Print</span>
+          </a></li>
+          <li><a href="/lists" data-link data-page="lists">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Lists</span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="rail-group">
+        <p class="rail-label">System</p>
+        <ul>
+          <li class="extra"><a href="/pi" data-link data-page="pi">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg><span>Pi</span>
+          </a></li>
+          <li class="extra"><a href="/rules" data-link data-page="rules">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg><span>Rules</span>
+          </a></li>
+          <li class="extra"><a href="/alerts" data-link data-page="alerts">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></svg><span>Alerts</span>
+          </a></li>
+          <li class="extra"><a href="/settings" data-link data-page="settings">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span>
+          </a></li>
+          <li class="phone-only"><a href="/more" data-link data-page="more">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>More</span>
+          </a></li>
+        </ul>
+      </div>
     </nav>
+
     <div class="stage">
       <header class="top">
-        <h1 class="brand" id="page-title">Home</h1>
-        <p class="clock"><time id="clock"></time></p>
+        <div class="top-lead">
+          <h1 class="brand" id="page-title">Home</h1>
+          <p class="top-sub">The Pi, the workshop and everything on the home network</p>
+        </div>
+        <p class="clock"><time id="clock" datetime=""></time></p>
       </header>
+
       <main id="view" tabindex="-1"></main>
+
       <footer class="foot">
         <p id="updated">Not updated yet</p>
-        <span class="foot-links"><button type="button" class="link-btn" id="theme-btn">Theme: Auto</button>
-        <a href="/?wall=1" id="wall-link">Wall display</a></span>
+        <span class="foot-links">
+          <button type="button" class="link-btn" id="theme-btn">Theme: Auto</button>
+          <a href="/?wall=1" id="wall-link">Wall display</a>
+        </span>
       </footer>
     </div>
   </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="/static/js/main.js"></script>
 </body>
