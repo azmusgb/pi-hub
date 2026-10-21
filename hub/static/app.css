@@ -477,3 +477,40 @@ body::before {
   --rain-ink:   #7fc3e8;
   --shade-rgb:  0, 0, 0;
 }
+
+
+/* ---- Global Refinements from Design Audit ---- */
+
+/* Quieter, smaller page titles */
+.brand#page-title {
+  font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.25rem) !important;
+  letter-spacing: -.03em;
+}
+
+/* Quieter clock */
+.clock {
+  font-size: 0.875rem !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: var(--text-3) !important;
+  font-weight: 500;
+}
+
+/* Subdue the top orange divider/curve */
+.hero::before {
+  opacity: 0.25 !important; /* Fades the repeating gradient pattern */
+}
+
+/* Systematize severity colors across the app */
+:root {
+  --state-ok: var(--ok);          /* Green */
+  --state-warn: var(--warn);      /* Amber */
+  --state-error: var(--danger);   /* Red/Coral */
+  --state-unknown: var(--text-3); /* Gray */
+}
+
+/* Make subtitles optional/dynamic */
+.top-sub:empty {
+  display: none;
+}

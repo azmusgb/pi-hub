@@ -151,3 +151,29 @@ tick();
 setInterval(tick, 15000);
 show(location.pathname);
 stayAwake();
+
+// Page-specific subtitles
+const subtitles = {
+  "/": "The Pi, the workshop and everything on the home network",
+  "/movies": "Plex library and playback",
+  "/control": "Smart home devices and scenes",
+  "/weather": "Current conditions and forecast",
+  "/workshop": "Bambu X2D and local AI",
+  "/print": "Send jobs to the HP DeskJet",
+  "/lists": "Shopping, to-dos, and notes",
+  "/pi": "System health and services",
+  "/rules": "Automations running on Pi Hub",
+  "/alerts": "Recent system and device events",
+  "/settings": "Configure your Pi Hub"
+};
+
+const updateSubtitle = () => {
+  const el = document.getElementById("page-subtitle");
+  if (el) {
+    const path = location.pathname;
+    el.textContent = subtitles[path] || "";
+  }
+};
+document.addEventListener("DOMContentLoaded", updateSubtitle);
+// Hook into pushState/popstate for SPA navigation
+window.addEventListener("popstate", updateSubtitle);
