@@ -39,21 +39,33 @@ function render(state) {
       at.value = new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
   });
-  const items = list.items.map((i) => h("li", { class: `item ${i.done ? "done" : ""}` },
-    notes ? null : h("input", {
-      type: "checkbox", id: `item-${i.id}`, checked: !!i.done,
-      onchange: async () => { await post(`/api/lists/${key}/${i.id}/toggle`); refresh(state); },
-    }),
-    h(notes ? "p" : "label", notes ? { class: "note-text" } : { for: `item-${i.id}` }, i.text,
-      i.due ? h("span", { class: "due" }, `${i.repeat === "daily" ? "Every day, next " : i.repeat === "weekly" ? "Every week, next " : "Reminds "}${when(i.due)}`) : null),
-    h("button", {
-      class: "ghost small", "aria-label": `Remove ${i.text}`,
-      onclick: async () => { await post(`/api/lists/${key}/${i.id}/delete`); refresh(state); },
-    }, "Remove")));
+  const items = list.items.map((i) => {
+    if (notes) {
+      return h("li", { class: "note-card" },
+        h("p", { class: "note-text" }, i.text),
+        h("button", {
+          class: "ghost small note-remove", "aria-label": `Remove note`,
+          onclick: async () => { await post(`/api/lists/${key}/${i.id}/delete`); refresh(state); },
+        }, "✕")
+      );
+    }
+    return h("li", { class: `item ${i.done ? "done" : ""}` },
+      h("input", {
+        type: "checkbox", id: `item-${i.id}`, checked: !!i.done,
+        onchange: async () => { await post(`/api/lists/${key}/${i.id}/toggle`); refresh(state); },
+      }),
+      h("label", { for: `item-${i.id}` }, i.text,
+        i.due ? h("span", { class: "due" }, `${i.repeat === "daily" ? "Every day, next " : i.repeat === "weekly" ? "Every week, next " : "Reminds "}${when(i.due)}`) : null),
+      h("button", {
+        class: "ghost small remove-btn", "aria-label": `Remove ${i.text}`,
+        onclick: async () => { await post(`/api/lists/${key}/${i.id}/delete`); refresh(state); },
+      }, "✕")
+    );
+  });
   const anyDone = list.items.some((i) => i.done);
   state.panel.setAttribute("aria-labelledby", `tab-${key}`);
   state.panel.replaceChildren(
-    h("form", { class: "add", onsubmit: async (e) => {
+    h("form", { class: "add-bar", onsubmit: async (e) => {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
@@ -64,7 +76,10 @@ function render(state) {
       remindable ? h("label", { class: "check remind-toggle", for: "remind-on" }, remind, "Remind me") : null,
       remindable ? remindRow : null),
     items.length ? h("ul", { class: "items" }, items)
-      : h("p", { class: "empty" }, notes ? "No notes yet. Leave one for the house." : "Nothing on this list."),
+      : h("div", { class: "empty-state" },
+          h("p", { class: "empty-title" }, notes ? "No notes yet" : `This ${list.name.toLowerCase()} is empty`),
+          h("p", { class: "meta" }, notes ? "Write a note above to share it with the house." : "Add the first item above.")
+        ),
     h("div", { class: "list-actions" },
       anyDone && !notes ? h("button", { class: "ghost", onclick: async () => { await post(`/api/lists/${key}/clear-done`); refresh(state); } }, "Clear ticked items") : null,
       !notes && list.items.some((i) => !i.done) ? h("button", { class: "ghost", onclick: async () => {
