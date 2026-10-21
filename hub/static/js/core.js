@@ -15,7 +15,8 @@ export function h(tag, attrs = {}, ...kids) {
 }
 
 export async function api(path, opts = {}) {
-  const r = await fetch(path, { cache: "no-store", signal: !opts.method || opts.method === "GET" ? AbortSignal.timeout(30000) : undefined, ...opts });
+  const timeout = path.startsWith("/api/drives") ? 150000 : 30000;
+  const r = await fetch(path, { cache: "no-store", signal: !opts.method || opts.method === "GET" ? AbortSignal.timeout(timeout) : undefined, ...opts });
   let body = null;
   try { body = await r.json(); } catch {}
   if (!r.ok) throw new Error(body?.detail || body?.error || `The hub answered ${r.status}.`);

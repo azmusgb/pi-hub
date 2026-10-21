@@ -81,3 +81,10 @@ def test_missing_status_does_not_claim_devices_are_offline():
     assert d["issues"][0]["href"] == "/pi"
     assert "Restart" not in d["issues"][0]["say"]
     assert now.build(HEALTHY, [], {}, 12)["status_available"] is True
+
+
+def test_printer_error_links_to_workshop_instead_of_system_restart():
+    issue = next(i for i in now.issues(dict(HEALTHY, x2d_state="Error")) if i["what"] == "Bambu X2D")
+    assert issue["href"] == "/workshop"
+    assert "screen" in issue["say"]
+    assert "fix" not in issue

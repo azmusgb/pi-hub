@@ -46,7 +46,8 @@ def issues(s):
     svc = s.get("services") or {}
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
-                    "say": "It dropped out. Unplug it, wait 10 seconds, plug it back in."})
+                    "say": "It dropped out. Unplug it, wait 10 seconds, plug it back in.",
+                    "href": "/drives", "link_label": "Check movie storage"})
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",
                     "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
@@ -57,15 +58,18 @@ def issues(s):
                         "fix": f"restart:{key}", "fix_label": "Restart movie service" if key == "plex" else "Restart smart-home service"})
     if s.get("ai_state") == "Down":
         out.append({"tone": "bad", "what": "Windows PC",
-                    "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped."})
+                    "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped.",
+                    "href": "/workshop", "link_label": "Check the workshop"})
     if s.get("display_state") == "Offline":
-        out.append({"tone": "warn", "what": "Workshop display", "say": "The touchscreen is offline."})
+        out.append({"tone": "warn", "what": "Workshop display", "say": "The touchscreen is offline.",
+                    "href": "/workshop", "link_label": "Check the workshop"})
     if (s.get("pi_temp") or 0) >= 80:
         out.append({"tone": "warn", "what": "Raspberry Pi", "say": f"Running hot at {s['pi_temp']:.0f} °C."})
     if s.get("pi_power") not in (None, "Good"):
         out.append({"tone": "warn", "what": "Raspberry Pi power", "say": s["pi_power"] + "."})
     if s.get("x2d_state") == "Error":
-        out.append({"tone": "bad", "what": "Bambu X2D", "say": "The printer needs attention."})
+        out.append({"tone": "bad", "what": "Bambu X2D", "say": "Check the printer’s screen for the error and recovery steps.",
+                    "href": "/workshop", "link_label": "Check the printer"})
     return out
 
 
