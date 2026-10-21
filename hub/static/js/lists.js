@@ -7,19 +7,33 @@ const ORDER = ["shopping", "todo", "notes"];
 const PLACEHOLDER = { shopping: "Add something to buy", todo: "Add a job", notes: "Write a note for the house" };
 
 export function mount(state) {
-  state.active = sessionStorage.getItem("hub-list") || "shopping";
+  state.active = "shopping";
+  try { const saved = sessionStorage.getItem("hub-list"); if (ORDER.includes(saved)) state.active = saved; } catch {}
   state.tabs = h("div", { class: "tabs", role: "tablist", "aria-label": "Lists" });
-  state.panel = h("section", { class: "card list-card", role: "tabpanel" });
+  state.panel = h("section", { class: "card list-card", role: "tabpanel", id: "list-panel" });
   state.root.append(state.tabs, state.panel);
 }
 
 function render(state) {
   const data = state.data;
+  const select = (key) => {
+    state.active = key;
+    try { sessionStorage.setItem("hub-list", key); } catch {}
+    render(state);
+    state.tabs.querySelector(`#tab-${key}`).focus();
+  };
   state.tabs.replaceChildren(...ORDER.map((key) => {
     const open = data[key].items.filter((i) => !i.done).length;
     return h("button", {
-      role: "tab", class: "tab", "aria-selected": String(key === state.active), id: `tab-${key}`,
-      onclick: () => { state.active = key; try { sessionStorage.setItem("hub-list", key); } catch {} render(state); },
+      role: "tab", class: "tab", "aria-selected": String(key === state.active), "aria-controls": "list-panel", tabindex: key === state.active ? 0 : -1, id: `tab-${key}`,
+      onclick: () => select(key),
+      onkeydown: (e) => {
+        const index = ORDER.indexOf(key);
+        const next = e.key === "ArrowRight" ? ORDER[(index + 1) % ORDER.length]
+          : e.key === "ArrowLeft" ? ORDER[(index + ORDER.length - 1) % ORDER.length]
+          : e.key === "Home" ? ORDER[0] : e.key === "End" ? ORDER.at(-1) : null;
+        if (next) { e.preventDefault(); select(next); }
+      },
     }, data[key].name, open ? h("span", { class: "count" }, String(open)) : null);
   }));
   const key = state.active;
@@ -77,7 +91,7 @@ function render(state) {
       remindable ? remindRow : null),
     items.length ? h("ul", { class: "items" }, items)
       : h("div", { class: "empty-state" },
-          h("p", { class: "empty-title" }, notes ? "No notes yet" : `This ${list.name.toLowerCase()} is empty`),
+          h("p", { class: "empty-title" }, notes ? "No notes yet" : key === "shopping" ? "Your shopping list is empty" : "Nothing to do yet"),
           h("p", { class: "meta" }, notes ? "Write a note above to share it with the house." : "Add the first item above.")
         ),
     h("div", { class: "list-actions" },
@@ -98,6 +112,8 @@ async function refresh(state) {
 export async function load(state) {
   // Don't redraw under someone who's typing.
   const a = document.activeElement;
+  if (a && state.tabs.contains(a)) return;
+  if (state.panel.querySelector("#remind-on:checked")) return;
   if (a && state.panel.contains(a) && (a.id === "list-new" ? a.value : ["INPUT", "SELECT"].includes(a.tagName) && a.type !== "checkbox")) return;
   await refresh(state);
 }

@@ -58,7 +58,7 @@
   font-weight: 700;
   color: var(--text);
 }
-.drop input[type="file"] { display: none; }
+.drop input[type="file"] { display: block; position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
 /* Print — compact options row */
 .print-options {

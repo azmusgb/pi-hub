@@ -151,11 +151,8 @@
 
 
 /* ---- Design Audit Refinements ---- */
-:root {
-  /* 1. Increase text contrast for secondary/muted text */
-  --text-2: #a3acb9;
-  --text-3: #7a8494;
-}
+:root[data-theme="light"] { --text-3: #625d53; }
+:root[data-theme="dark"] { --text-2: #b0b8c4; --text-3: #9ca6b4; }
 
 /* 2. Shrink Hero & Remove accidental Pi shape */
 .hero {
@@ -254,3 +251,27 @@
 .wifi-panel {
   margin-top: 0;
 }
+
+/* The home page owns its columns; old page-level grids must not split the hero. */
+body:not(.wall) .page-now { display: block; }
+.page-now .hero { margin-bottom: 1rem; }
+.quick-tasks { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
+.quick-tasks .chip { min-height: 44px; font-size: .875rem; }
+.page-now > .ask-section { margin-top: 1.5rem; max-width: 800px; }
+.ask-answer:empty { display: none; }
+.ask-suggestions .chip { min-height: 44px; font-size: .875rem; }
+.ask-row input { min-width: 0; }
+.now-col-left:has(> div:empty):not(:has(.band, .alerts-panel)) { display: none; }
+.now-layout:not(:has(.band, .alerts-panel)) { grid-template-columns: 1fr; }
+@media (max-width: 600px) {
+  .hero { padding: 1rem; }
+  .quick-tasks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-tasks .chip { justify-content: center; padding: .5rem; font-size: .8125rem; }
+  .hero .summary { font-size: 1.25rem; }
+  .now-layout { gap: 1rem; }
+  .now-col-left { gap: 1rem; }
+  .house-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .house-card { padding: .875rem; }
+}
+
+.ask-section[hidden] { display: none; }

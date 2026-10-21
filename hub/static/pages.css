@@ -1,65 +1,6 @@
 /* Navigation, shared controls, and the pages beyond Now. Uses the tokens in app.css. */
 
-/* Shell. Three forms, chosen by the space there is, not by device name:
-   - a bar along the bottom: phones held upright;
-   - a slim icon rail: tablets upright, phones turned sideways, small windows;
-   - a full rail with labels: wide and tall screens. */
-.shell { display: block; }
-.stage { min-width: 0; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
-.rail {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-  background: var(--rail-bg); border-top: 1px solid var(--acrylic-edge);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.rail .rail-brand { display: none; }
-.rail ul { list-style: none; margin: 0; padding: 0 4px; display: flex; justify-content: space-between; overflow-x: auto; scrollbar-width: none; }
-.rail li { flex: 1 0 auto; }
-.rail a {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  min-width: 52px; padding: 8px 4px 7px; color: var(--muted); text-decoration: none; font-size: 0.72rem; font-weight: 500;
-}
-.rail svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.rail a[aria-current="page"] { color: var(--pei); }
-.rail a[aria-current="page"] svg { stroke-width: 2.1; }
-.rail li.extra { display: none; }
-
-/* Slim icon rail */
-@media (min-width: 700px), (orientation: landscape) and (max-height: 520px) {
-  .shell { display: grid; grid-template-columns: 84px minmax(0, 1fr); }
-  .stage { padding-bottom: env(safe-area-inset-bottom); }
-  .rail {
-    position: sticky; top: 0; height: 100vh; height: 100dvh; border-top: 0; border-right: 1px solid var(--acrylic-edge);
-    background: var(--rail-desk-bg); padding: max(14px, env(safe-area-inset-top)) 8px 14px max(8px, env(safe-area-inset-left));
-    overflow-y: auto; scrollbar-width: none;
-  }
-  .rail ul { flex-direction: column; gap: 2px; padding: 0; overflow: visible; }
-  .rail li.extra { display: block; }
-  .rail li.phone-only { display: none; }
-  .rail a { padding: 9px 2px 8px; border-radius: 12px; font-size: 0.68rem; }
-  .rail a[aria-current="page"] { background: rgb(var(--pei-rgb) / 0.12); color: var(--ink); }
-  .rail a[aria-current="page"] svg { color: var(--pei); }
-  .toast { bottom: 24px; }
-}
-/* Phones sideways: as little chrome as possible. */
-@media (orientation: landscape) and (max-height: 520px) {
-  .shell { grid-template-columns: 64px minmax(0, 1fr); }
-  .rail a span { display: none; }
-  .rail a { padding: 10px 0; }
-  .top { padding-top: 10px; }
-  .brand { font-size: 1.4rem; }
-}
-/* Full rail with labels */
-@media (min-width: 1200px) and (min-height: 620px) {
-  .shell { grid-template-columns: 228px minmax(0, 1fr); }
-  .rail { padding: 28px 14px; }
-  .rail .rail-brand { display: block; margin: 0 10px 22px; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; color: var(--ink); text-decoration: none; }
-  .rail a { flex-direction: row; gap: 12px; padding: 10px 12px; font-size: 1rem; }
-  .top .brand { font-size: 1.9rem; }
-}
-@media (hover: hover) {
-  .rail a:hover { background: var(--acrylic); color: var(--ink); }
-}
+/* Navigation is owned by app.css so its breakpoints stay consistent. */
 
 /* Content width grows with the screen; very wide screens get room for a third column of cards. */
 .stage .top, .stage main, .stage .foot { max-width: 1120px; }
@@ -71,7 +12,7 @@ body.wall .stage { padding-bottom: 0; }
 
 .page { display: grid; gap: 1.25rem; padding-bottom: 1rem; }
 .page > *, .stack > *, .cards > *, .card > * { min-width: 0; }
-.page.offline { opacity: 0.6; }
+.page.offline { opacity: 1; }
 .page > .cards { margin: 0; }
 .card.wide { grid-column: 1 / -1; }
 .stack { display: grid; gap: 1.5rem; }
@@ -90,7 +31,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--pei); color: var(--on-pei); font-weight: 800;
 }
 .primary:hover { background: #dcbd80; }
-.primary:disabled { opacity: 0.6; cursor: progress; }
+.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .ghost { border: 1px solid var(--acrylic-edge); background: transparent; border-radius: 10px; padding: 0.45rem 0.8rem; min-height: 40px; color: var(--ink); }
 .ghost:hover { background: var(--acrylic); }
 .ghost.small { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.85rem; color: var(--muted); }

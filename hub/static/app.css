@@ -212,6 +212,7 @@ body::before {
 }
 
 .phone-only { display: none; }
+@media (min-width: 861px) { .rail li.extra { display: block; } }
 
 .stage { display: flex; flex-direction: column; min-width: 0; min-height: 100dvh; }
 
@@ -322,11 +323,12 @@ body::before {
   .rail-group { display: contents; }
   .rail-label { display: none; }
   .rail ul { display: contents; }
+  .rail li { min-width: 0; }
   .rail li { flex: 1; display: flex; }
   .rail li.extra { display: none; }
   .rail li.phone-only { display: flex; }
   .rail a[data-page] {
-    flex: 1; flex-direction: column; gap: .2rem;
+    flex: 1; min-width: 0; min-height: 56px; flex-direction: column; gap: .2rem;
     padding: .45rem .25rem; font-size: .6875rem; font-weight: 600;
     text-align: center; border-radius: var(--r-sm);
   }

@@ -136,7 +136,7 @@ export function mount(state) {
   state.ask = isWallMode() ? "" : askBox();
   
   // Left column
-  state.leftCol = h("div", { class: "now-col-left" }, state.band, state.issues, state.ask);
+  state.leftCol = h("div", { class: "now-col-left" }, state.band, state.issues);
   
   // Right column
   state.rightCol = h("div", { class: "now-col-right" });
@@ -148,7 +148,11 @@ export function mount(state) {
   } else {
     state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
       state.eyebrow, state.summary, state.outside);
-    state.root.append(state.hero, state.main);
+    const tasks = h("nav", { class: "quick-tasks", "aria-label": "Everyday tasks" },
+      h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
+      h("a", { class: "chip", href: "/print", "data-link": true }, "Print a file"),
+      h("a", { class: "chip", href: "/pi", "data-link": true }, "Get help"));
+    state.root.append(state.hero, tasks, state.main, state.ask);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -174,8 +178,10 @@ export async function load(state) {
   state.summary.dataset.tone = worst;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
+  if (state.ask) state.ask.hidden = !d.status_available || d.workshop.ai === "Down";
+
   // Progressive enhancement: when the house is quiet, let it write a note.
-  if (d.issues.length === 0 && !isWallMode()) {
+  if (d.issues.length === 0 && d.workshop.ai !== "Down" && !isWallMode()) {
     const cached = cachedNarration();
     if (cached) {
       state.summary.textContent = cached;
@@ -214,7 +220,7 @@ export async function load(state) {
               h("strong", { class: "alert-title" }, i.what)
             ),
             h("div", { class: "alert-desc" }, i.say),
-            i.fix ? h("button", { class: "btn btn--sm", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : null
+            i.fix ? h("button", { class: "btn btn--sm", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : h("a", { class: "chip", href: i.href || "/pi", "data-link": true }, i.link_label || "Troubleshoot")
           )
         ))
       )
@@ -237,10 +243,10 @@ export async function load(state) {
     h("p", { class: "house-say" }, say)
   );
 
-  const mSay = !m.plex_running ? "Plex has stopped" : m.drive === "Connected" ? `${m.count ?? "Your"} movies` : "Drive missing";
-  const wSay = [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`, w.ai === "Down" ? "AI down" : `AI ready`].join(" · ");
-  const hSay = !d.home.homebridge_running ? "Homebridge stopped" : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} on` : "No favourites";
-  const pSay = [p.temp != null ? `${Math.round(p.temp)}°C` : null, cpu != null ? `${Math.round(cpu)}% CPU` : null].filter(Boolean).join(" · ");
+  const mSay = !d.status_available ? "Status unavailable" : !m.plex_running ? "Movie playback unavailable" : m.drive === "Connected" ? `${m.count ?? "Your"} movies` : "Drive missing";
+  const wSay = !d.status_available ? "Status unavailable" : [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`, w.ai === "Down" ? "AI down" : `AI ready`].join(" · ");
+  const hSay = !d.status_available ? "Status unavailable" : !d.home.homebridge_running ? "Smart-home controls unavailable" : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} on` : "No favourites";
+  const pSay = [p.temp != null ? `${Math.round(p.temp)}°C` : null, cpu != null ? `${Math.round(cpu)}% CPU` : null].filter(Boolean).join(" · ") || "Status unavailable";
 
   state.rightCol.replaceChildren(...[
     h("section", { class: "house-section" },
@@ -249,7 +255,7 @@ export async function load(state) {
         houseCard("Movies", "/movies", m.tone, mSay),
         houseCard("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
         houseCard("Devices", "/control", d.home.tone, hSay),
-        houseCard("Raspberry Pi", "/pi", p.tone, pSay)
+        houseCard("Help & system", "/pi", p.tone, pSay)
       )
     ),
     wifi.set ? h("section", { class: "wifi-panel" },

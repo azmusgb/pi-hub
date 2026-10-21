@@ -39,8 +39,9 @@ def printer(s):
 def issues(s):
     """Things that need a person, most urgent first."""
     if s is None:
-        return [{"tone": "bad", "what": "Status service",
-                 "say": "The Pi's status service isn't answering. Restart the Pi if this lasts."}]
+        return [{"tone": "bad", "what": "Home status unavailable",
+                 "say": "The hub can’t check your devices right now. Open Help & system to check the hub and find recovery options.",
+                 "href": "/pi", "link_label": "Check the hub"}]
     out = []
     svc = s.get("services") or {}
     if s.get("drive_state") == "Missing":
@@ -49,10 +50,11 @@ def issues(s):
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",
                     "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
-    for key, name in (("plex", "Plex"), ("homebridge", "Homebridge")):
+    for key, name, impact in (("plex", "Movies", "Movie playback is unavailable."),
+                              ("homebridge", "Smart-home controls", "Lights and plugs may not respond from the hub.")):
         if not svc.get(key):
-            out.append({"tone": "bad", "what": name, "say": f"{name} has stopped.",
-                        "fix": f"restart:{key}", "fix_label": f"Restart {name}"})
+            out.append({"tone": "bad", "what": name, "say": impact,
+                        "fix": f"restart:{key}", "fix_label": "Restart movie service" if key == "plex" else "Restart smart-home service"})
     if s.get("ai_state") == "Down":
         out.append({"tone": "bad", "what": "Windows PC",
                     "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped."})
@@ -71,8 +73,10 @@ def summary(found):
     bad = [i for i in found if i["tone"] == "bad"]
     if not found:
         return "Everything's running"
+    if len(found) == 1 and found[0]["what"] == "Home status unavailable":
+        return "Home status is unavailable"
     if len(found) == 1:
-        return f"{found[0]['what']} needs a look"
+        return "Movies need a look" if found[0]["what"] == "Movies" else f"{found[0]['what']} needs a look"
     return f"{len(found)} things need a look" if bad else f"{len(found)} small things to check"
 
 
@@ -82,6 +86,7 @@ def build(s, sessions, sampler, disk_free):
     drive_ok = (s or {}).get("drive_state") == "Connected"
     movies = (s or {}).get("movies")
     return {
+        "status_available": s is not None,
         "summary": summary(found),
         "issues": found,
         "printer": printer(s),

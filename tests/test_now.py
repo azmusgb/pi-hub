@@ -40,14 +40,14 @@ def test_missing_drive_and_down_pc_are_issues_with_instructions():
 def test_stopped_service_is_named():
     s = dict(HEALTHY, services={"plex": False, "homebridge": True})
     d = now.build(s, [], {}, 12.0)
-    assert d["summary"] == "Plex needs a look"
+    assert d["summary"] == "Movies need a look"
     assert d["movies"]["tone"] == "bad"
 
 
 def test_no_status_service_still_builds_a_page():
     d = now.build(None, None, {}, None)
     assert d["printer"]["state"] == "none"
-    assert d["issues"][0]["what"] == "Status service"
+    assert d["issues"][0]["what"] == "Home status unavailable"
     assert d["movies"]["playing"] is None
 
 
@@ -73,3 +73,11 @@ def test_api_now_and_pages(monkeypatch):
     assert c.get("/sw.js").headers["content-type"].startswith("text/javascript")
     assert c.get("/static/manifest.webmanifest").status_code == 200
     assert c.get("/healthz").json() == {"ok": True}
+
+
+def test_missing_status_does_not_claim_devices_are_offline():
+    d = now.build(None, None, {}, None)
+    assert d["status_available"] is False
+    assert d["issues"][0]["href"] == "/pi"
+    assert "Restart" not in d["issues"][0]["say"]
+    assert now.build(HEALTHY, [], {}, 12)["status_available"] is True

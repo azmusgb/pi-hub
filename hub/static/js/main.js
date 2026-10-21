@@ -1,4 +1,5 @@
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
+import { h } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
@@ -19,7 +20,7 @@ const PAGES = {
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/pi": { key: "pi", title: "Raspberry Pi", mod: piPage },
+  "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
   "/control": { key: "control", title: "Control", mod: controlPage },
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
@@ -31,14 +32,14 @@ const PAGES = {
 
 // Page-specific subtitles
 const subtitles = {
-  "/": "The Pi, the workshop and everything on the home network",
+  "/": "Your home at a glance",
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "Bambu X2D and local AI",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
-  "/pi": "System health and services",
+  "/pi": "Fix common problems and check the hub",
   "/rules": "Automations running on Pi Hub",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub"
@@ -59,7 +60,6 @@ const view = document.getElementById("view");
 const wall = new URLSearchParams(location.search).has("wall");
 let current = null;
 let timer = null;
-let lastOk = 0;
 
 if (wall) document.body.classList.add("wall");
 
@@ -110,23 +110,43 @@ function tick() {
   const c = document.getElementById("clock");
   c.textContent = d.toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" });
   c.dateTime = d.toISOString();
-  if (lastOk) {
-    const s = Math.round((Date.now() - lastOk) / 1000);
-    document.getElementById("updated").textContent = s < 30 ? "Up to date" : `Last updated ${Math.max(1, Math.round(s / 60))} min ago`;
-  }
+  const updated = document.getElementById("updated");
+  if (current?.error) updated.textContent = current.lastOk ? "Couldn’t refresh · showing earlier information" : "Page unavailable · retrying automatically";
+  else if (current?.lastOk) {
+    const s = Math.round((Date.now() - current.lastOk) / 1000);
+    updated.textContent = s < 30 ? "Page checked just now" : `Page checked ${Math.max(1, Math.round(s / 60))} min ago`;
+  } else updated.textContent = "Checking this page…";
 }
 
 async function refresh() {
-  if (!current?.mod.load) return;
+  const page = current;
+  if (!page?.mod.load || page.loading) return;
+  page.loading = true;
+  page.state.root.setAttribute("aria-busy", "true");
+  const retry = page.notice.querySelector("button");
+  if (retry) { retry.disabled = true; retry.textContent = "Checking…"; }
   try {
-    await current.mod.load(current.state);
-    lastOk = Date.now();
-    current.state.root.classList.remove("offline");
+    await page.mod.load(page.state);
+    if (page !== current) return;
+    page.lastOk = Date.now();
+    page.error = false;
+    page.notice.hidden = true;
+    page.state.root.classList.remove("offline");
   } catch (e) {
-    current.state.root.classList.add("offline");
-    current.mod.failed?.(current.state, e);
+    if (page !== current) return;
+    page.error = true;
+    page.state.root.classList.add("offline");
+    page.mod.failed?.(page.state, e);
+    page.notice.hidden = false;
+    page.notice.replaceChildren(
+      h("h2", {}, page.lastOk ? "This page couldn’t refresh" : `Couldn’t load ${page.title.toLowerCase()}`),
+      h("p", {}, page.lastOk ? "Earlier information is still shown. We’ll keep trying." : "The hub or one of its services didn’t answer. Check your home network or Tailscale connection, then retry."),
+      h("button", { class: "ghost", type: "button", onclick: () => refresh() }, "Retry now"));
+  } finally {
+    page.loading = false;
+    page.state.root.setAttribute("aria-busy", "false");
+    if (page === current) tick();
   }
-  tick();
 }
 
 async function show(path, { focus = false } = {}) {
@@ -137,9 +157,12 @@ async function show(path, { focus = false } = {}) {
   view.replaceChildren();
   const root = document.createElement("div");
   root.className = `page page-${page.key}`;
-  view.append(root);
+  const notice = h("section", { class: "page-notice", role: "status" }, h("p", {}, `Loading ${page.title.toLowerCase()}…`));
+  view.append(notice, root);
   const state = { root };
-  current = { ...page, state };
+  current = { ...page, state, notice, lastOk: 0 };
+  const shown = current;
+  tick();
   document.title = page.key === "now" ? "Home" : `${page.title} · Home`;
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
@@ -149,6 +172,7 @@ async function show(path, { focus = false } = {}) {
   }
   page.mod.mount(state);
   await refresh();
+  if (shown !== current) return;
   timer = setInterval(refresh, (page.mod.every || 15) * 1000);
   if (focus) view.focus({ preventScroll: true });
 }

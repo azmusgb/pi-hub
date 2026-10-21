@@ -50,3 +50,15 @@ body::after {
   outline-offset: 4px;
   border-radius: 4px;
 }
+
+/* Explicit feedback remains readable when a page or service is unavailable. */
+.page-notice { padding: 1rem 1.25rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface-2); }
+.page-notice[hidden] { display: none; }
+.page-notice h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.page-notice p { margin: 0 0 .75rem; color: var(--text-2); }
+#updated::before { background: currentColor; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 860px) { .stage { padding-bottom: 0; } }
+
+input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }

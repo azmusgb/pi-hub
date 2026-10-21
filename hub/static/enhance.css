@@ -113,7 +113,7 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
   transition: transform .4s var(--spring);
   pointer-events: none;
 }
-.offline-banner[hidden] { display: inline-flex; }
+.offline-banner[hidden] { display: none; }
 .offline-banner:not([hidden]) { transform: translateX(-50%) translateY(0); }
 .offline-banner::before {
   content: ""; width: 8px; height: 8px; border-radius: 50%;

@@ -1,6 +1,7 @@
 
 /* lists-rich.css — Utility layout for shared lists */
 .list-card {
+  width: 100%;
   max-width: 800px;
   margin: 0 auto;
   padding: 1.5rem;
@@ -10,7 +11,7 @@
 }
 
 /* Refined Tabs */
-.list-card .tabs {
+.page-lists > .tabs {
   margin-bottom: 1.5rem;
   display: inline-flex;
   background: var(--surface-3);
@@ -20,7 +21,7 @@
   width: 100%;
   gap: 2px;
 }
-.list-card .tab {
+.page-lists > .tabs .tab {
   flex: 1;
   padding: 0.5rem;
   font-size: 0.875rem;
@@ -36,16 +37,16 @@
   align-items: center;
   gap: 0.5rem;
 }
-.list-card .tab:hover {
+.page-lists > .tabs .tab:hover {
   color: var(--text);
   background: var(--surface-2);
 }
-.list-card .tab[aria-selected="true"] {
+.page-lists > .tabs .tab[aria-selected="true"] {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
-.list-card .tab .count {
+.page-lists > .tabs .tab .count {
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-size: 0.75rem;
@@ -55,7 +56,8 @@
 
 /* Add Bar */
 .add-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
@@ -168,3 +170,7 @@
   color: var(--text-2);
   margin: 0 0 0.25rem;
 }
+
+.page-lists > .tabs { max-width: 800px; margin: 0 auto; }
+.add-bar .remind-toggle, .add-bar .remind-row { grid-column: 1 / -1; }
+.list-card .remove-btn, .list-card .note-remove { opacity: 1; min-width: 44px; min-height: 44px; }
