@@ -1,0 +1,45 @@
+
+/* settings-rich.css — Information Architecture and Grid */
+.auth-box {
+  max-width: 440px;
+  margin: 4rem auto;
+}
+
+.settings-group {
+  margin-top: 2.5rem;
+}
+.group-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+}
+.settings-group .cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+.settings-group .cards > .card {
+  margin: 0;
+}
+/* Ensure wide cards span full width */
+.settings-group .cards > .wide {
+  grid-column: 1 / -1;
+}
+/* Fix the jump nav chips */
+.jump {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+}
+.jump .chip {
+  background: var(--surface-3);
+  padding: 0.5rem 1rem;
+}

@@ -87,7 +87,7 @@ export function mount(state) {
 }
 
 function setup(state) {
-  return card("Set up the hub", { cls: "wide" },
+  return h("div", { class: "auth-box" }, card("Set up the hub", {},
     h("p", {}, "Choose an owner password (for these settings) and a 6-digit household PIN (for everyone who should be able to restart things and switch lights)."),
     h("p", { class: "meta" }, "The setup code is on the Pi. On the Mac, run: ssh pi sudo cat /etc/pi-hub/setup-code"),
     form(async (v) => {
@@ -101,18 +101,18 @@ function setup(state) {
     field("code", "Setup code", { name: "code", required: true, autocomplete: "off", autocapitalize: "characters" }),
     field("owner_password", "Owner password", { name: "owner_password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }),
     field("pin", "Household PIN (6 digits)", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }),
-    field("pin2", "Household PIN again", { name: "pin2", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" })));
+    field("pin2", "Household PIN again", { name: "pin2", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))));
 }
 
 function signIn(state, role) {
-  return card("Owner sign-in", { cls: "wide" },
+  return h("div", { class: "auth-box" }, card("Owner sign-in", {},
     h("p", {}, role === "household" ? "This device has the household PIN. Settings need the owner password." : "Settings need the owner password."),
     form(async (v) => {
       await post("/api/signin", { password: v.password });
       forgetMe();
       state.force = true;
       load(state);
-    }, "Sign in", field("owner-pw", "Owner password", { name: "password", type: "password", required: true, autocomplete: "current-password" })));
+    }, "Sign in", field("owner-pw", "Owner password", { name: "password", type: "password", required: true, autocomplete: "current-password" }))));
 }
 
 export async function load(state) {
@@ -209,8 +209,18 @@ export async function load(state) {
           h("span", { class: "log-side" }, when(l.ts)))))
         : empty("Nothing yet. Every restart, fix and settings change is listed here.")),
   ];
-  const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
+  
+  const appearanceCard = card("Appearance", {},
+    h("p", { class: "meta" }, "Theme and display settings."),
+    h("div", { class: "row" },
+      h("button", { class: "btn", onclick: () => document.getElementById('theme-btn').click() }, "Toggle Theme"),
+      h("a", { href: "/?wall=1", class: "btn btn--ghost", target: "_blank" }, "Open Wall Display")
+    )
+  );
+  parts.unshift(appearanceCard);
+const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
   const GROUPS = [
+    ["general", "General", ["Appearance"]],
     ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
