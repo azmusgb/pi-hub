@@ -26,12 +26,15 @@ export async function load(state) {
   state.body.replaceChildren(...[
     ...(w.alerts || []).map((a) => h("section", { class: "wx-alert", role: "alert" },
       h("strong", {}, a.event), h("p", {}, a.headline), a.advice ? h("details", {}, h("summary", {}, "What to do"), h("p", {}, a.advice)) : null)),
-    h("section", { class: "wx-now" },
-      weatherIcon(w.now.icon, w.now.sky),
-      h("div", {},
-        h("p", { class: "wx-temp" }, `${w.now.temp}°`),
-        h("p", { class: "wx-sky" }, `${w.now.sky}. Feels like ${w.now.feels}°.`),
-        h("p", { class: "meta" }, w.place)),
+    h("section", { class: "wx-now card" },
+      h("div", { class: "wx-now-main" },
+        weatherIcon(w.now.icon, w.now.sky),
+        h("div", {},
+          h("p", { class: "wx-temp" }, `${w.now.temp}°`),
+          h("p", { class: "wx-sky" }, `${w.now.sky}. Feels like ${w.now.feels}°.`),
+          h("p", { class: "meta" }, w.place)
+        )
+      ),
       h("dl", { class: "facts wx-facts" },
         h("div", {}, h("dt", {}, "High and low"), h("dd", {}, `${w.days[0].high}° / ${w.days[0].low}°`)),
         h("div", {}, h("dt", {}, "Wind"), h("dd", {}, `${w.now.wind} ${speed}${w.now.gusts > w.now.wind + 5 ? `, gusts ${w.now.gusts}` : ""}`)),
