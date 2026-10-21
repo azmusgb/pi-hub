@@ -1,0 +1,103 @@
+/* now-rich.css — Now page enhancements. Loaded last. */
+
+/* ---- Hero composition ---- */
+.hero .summary {
+  font-size: clamp(1.25rem, 1rem + 1.4vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -.015em;
+  margin: .5rem 0 0;
+  max-width: 60ch;
+  color: var(--text);
+  text-wrap: balance;
+}
+.hero .summary[data-tone="warn"]  { color: color-mix(in srgb, var(--warn) 92%, var(--text)); }
+.hero .summary[data-tone="bad"]   { color: color-mix(in srgb, var(--danger) 92%, var(--text)); }
+.hero .summary[data-tone="none"]  { color: var(--text-2); }
+
+.hero .outside-wrap { margin-top: 1rem; }
+.hero .outside {
+  margin: 0;
+  font-size: .9375rem;
+  color: var(--text-2);
+  display: flex; flex-wrap: wrap; gap: .35rem .9rem; align-items: center;
+}
+.hero .outside a {
+  color: var(--text-2); text-decoration: none;
+  border-bottom: 1px dotted var(--line-strong);
+  padding-bottom: 1px;
+  transition: color .2s var(--smooth), border-color .2s var(--smooth);
+}
+.hero .outside a:hover { color: var(--text); border-bottom-color: var(--accent); }
+
+.hero .setup-hint {
+  display: inline-block;
+  margin-top: .5rem;
+  font-size: .8125rem;
+  color: var(--accent-strong);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.hero .setup-hint:hover { border-bottom-color: var(--accent); }
+
+/* ---- Printer band emphasis while printing ---- */
+.band.is-printing {
+  position: relative;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 14px 36px -18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.band.is-printing::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  border-radius: inherit inherit 0 0;
+  background: linear-gradient(90deg,
+    var(--accent) 0,
+    var(--accent) 40px,
+    transparent 40px);
+}
+
+/* ---- Issues card ---- */
+.issues.card { padding: 1rem 1.15rem; }
+.issues.card .section-title { margin: 0 0 .65rem; }
+
+/* ---- Ask form ---- */
+.ask.card { padding: 1rem; }
+.ask .ask-answer { margin-top: .75rem; }
+.ask .ask-q { font-weight: 600; color: var(--text-2); margin: 0 0 .35rem; font-size: .875rem; }
+.ask .ask-a {
+  margin: 0;
+  padding: .85rem 1rem;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, #5b8cff 6%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, #5b8cff 22%, transparent);
+  color: var(--text);
+  font-size: .9375rem;
+  line-height: 1.55;
+}
+
+/* ---- Wall clock typography ---- */
+.wall-time {
+  font-size: clamp(4rem, 13vw, 10rem);
+  font-weight: 800;
+  letter-spacing: -.055em;
+  line-height: .88;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
+  color: var(--text);
+}
+.wall-date {
+  font-size: clamp(.875rem, 1.2vw, 1.125rem);
+  color: var(--text-3);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-top: .5rem;
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .hero .summary { text-wrap: wrap; }
+}

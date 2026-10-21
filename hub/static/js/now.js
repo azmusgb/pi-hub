@@ -1,4 +1,4 @@
-// Now: the one-line answer, the print band, what needs a look, and a card per area.
+// Now: the greeting, the printer, what needs a look, and one card per area.
 import { api, clockTime, ensure, fix, h, post, spark, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 
@@ -6,12 +6,31 @@ export const every = 15;
 
 const finishAt = (m) => Number.isFinite(m) ? new Date(Date.now() + m * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
 
+function greeting(now = new Date()) {
+  const hr = now.getHours();
+  if (hr < 5) return "Late night";
+  if (hr < 12) return "Good morning";
+  if (hr < 17) return "Good afternoon";
+  if (hr < 21) return "Good evening";
+  return "Good night";
+}
+
+function eyebrowLabel(now = new Date()) {
+  const day = now.toLocaleDateString([], { weekday: "long" });
+  return `${greeting(now)} · ${day}`;
+}
+
+function isWallMode() {
+  return document.body.classList.contains("wall") || document.documentElement.dataset.wall === "1";
+}
+
 export function band(p) {
   const pct = p.progress || 0;
   const detail = p.state === "printing" && p.left
     ? ["Done in about ", h("strong", {}, p.left), finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
     : [p.detail || ""];
-  return h("section", { class: "band", dataset: { state: p.state }, "aria-label": "Bambu X2D" },
+  const cls = p.state === "printing" ? "band is-printing" : "band";
+  return h("section", { class: cls, dataset: { state: p.state }, "aria-label": "Bambu X2D" },
     h("p", { class: "band-name" }, "Bambu X2D"),
     h("h2", { class: "band-headline" }, p.headline),
     h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
@@ -25,7 +44,7 @@ function askBox() {
   const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house, like “Why did Plex stop?”", autocomplete: "off", enterkeyhint: "send" });
   const answer = h("div", { class: "ask-answer", "aria-live": "polite" });
   const btn = h("button", { type: "submit", class: "primary" }, "Ask");
-  return h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
+  return h("form", { class: "ask card card--paper", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
     e.preventDefault();
     const q = input.value.trim();
     if (!q || !(await ensure("household"))) return;
@@ -56,13 +75,26 @@ function outsideLine(o) {
 
 export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
-  state.outside = h("div");
+  state.outside = h("div", { class: "outside-wrap" });
+  state.eyebrow = h("p", { class: "hero-eyebrow" }, eyebrowLabel());
+  state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
+    state.eyebrow, state.summary, state.outside);
   state.band = h("div");
   state.issues = h("div");
-  state.ask = document.body.classList.contains("wall") ? "" : askBox();
+  state.ask = isWallMode() ? "" : askBox();
   state.cards = h("div", { class: "now-side" });
   state.main = h("div", { class: "now-main" }, state.band, state.issues, state.ask);
-  state.root.append(state.summary, state.outside, state.main, state.cards);
+
+  if (isWallMode()) {
+    state.root.append(state.main, state.cards);
+  } else {
+    state.root.append(state.hero, state.main, state.cards);
+  }
+
+  if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
+  state._eyebrowTimer = setInterval(() => {
+    if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
+  }, 15 * 60 * 1000);
 }
 
 export async function load(state) {
@@ -72,16 +104,22 @@ export async function load(state) {
     api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
     api("/api/wifi").catch(() => ({ set: false })),
   ]);
-  state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !document.body.classList.contains("wall")
+  state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !isWallMode()
     ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} left in Settings`) : null].filter(Boolean));
+
   const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
+  if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
   state.band.replaceChildren(band(d.printer));
 
+  const issuesIsBad = d.issues.some((i) => i.tone === "bad");
   state.issues.replaceChildren(d.issues.length
-    ? h("section", { class: "issues", "aria-label": "Needs a look" },
+    ? h("section", {
+        class: `issues card${issuesIsBad ? " card--accent" : ""}`,
+        "aria-label": "Needs a look",
+      },
       h("h2", { class: "section-title" }, "Needs a look"),
       h("ul", {}, d.issues.map((i) => h("li", { class: "issue", dataset: { tone: i.tone } },
         h("span", { class: "dot" }), h("strong", {}, i.what), h("span", { class: "say" }, i.say),
@@ -97,13 +135,12 @@ export async function load(state) {
           s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(", ")),
         h("span", { class: "bar" }, h("i", { style: `width:${s.progress}%` }))));
 
-  if (document.body.classList.contains("wall")) { wallView(state, d, home, wifi, out); return; }
+  if (isWallMode()) { wallView(state, d, home, wifi, out); return; }
 
   const p = d.pi;
   const cpu = p.cpu_series?.at(-1);
   const w = d.workshop;
 
-  // The house: one quiet panel, a row per area. The whole row opens its page; status is a dot plus words.
   const row = (name, href, tone, say, extra) => h("li", { class: "house-item" },
     h("a", { class: "house-row", href, "data-link": true },
       h("span", { class: "house-name" }, name),
@@ -141,18 +178,16 @@ export async function load(state) {
 }
 
 function wallView(state, d, home, wifi, out) {
-  // The wall: read from across the room. Big time, the day ahead, the printer, and only what needs a person.
   const now = new Date();
   const dim = now.getHours() >= 22 || now.getHours() < 6;
   document.body.classList.toggle("night", dim);
   const w = out?.weather;
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 0);
   const agenda = (out?.calendar || []).filter((e) => e.start * 1000 <= todayEnd.getTime() + 86400000).slice(0, 4);
-  // Top: the time, as big as the screen allows, with the weather beside it. Below: the printer and the day.
   state.cards.replaceChildren(
     h("section", { class: "wall-head" },
       h("div", { class: "wall-clock" },
-        h("p", { class: "wall-time" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "")),
+        h("p", { class: "wall-time display-1 num" }, now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "")),
         h("p", { class: "wall-date" }, now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))),
       w ? h("div", { class: "wall-weather" }, weatherIcon(w.now.icon, w.now.sky),
         h("p", { class: "wall-temp" }, `${w.now.temp}°`),
