@@ -77,8 +77,6 @@ export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
   state.outside = h("div", { class: "outside-wrap" });
   state.eyebrow = h("p", { class: "hero-eyebrow" }, eyebrowLabel());
-  state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
-    state.eyebrow, state.summary, state.outside);
   state.band = h("div");
   state.issues = h("div");
   state.ask = isWallMode() ? "" : askBox();
