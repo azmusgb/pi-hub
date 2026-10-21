@@ -1,5 +1,5 @@
 // Now: the one-line answer, the print band, what needs a look, and a card per area.
-import { api, clockTime, ensure, fix, h, post, spark, weatherIcon } from "./core.js";
+import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from "./core.js";
 import { tile } from "./control.js";
 
 export const every = 15;
@@ -22,6 +22,48 @@ function eyebrowLabel(now = new Date()) {
 
 function isWallMode() {
   return document.body.classList.contains("wall") || document.documentElement.dataset.wall === "1";
+}
+
+function cachedNarration() {
+  const hour = new Date().getHours();
+  try {
+    const cached = JSON.parse(sessionStorage.getItem("hub-narration-" + hour) || "null");
+    if (cached && Date.now() - cached.ts < 30 * 60 * 1000) return cached.text;
+  } catch {}
+  return null;
+}
+
+async function generateNarration(d, out) {
+  try {
+    const me = await whoami();
+    if (me.role === "none") return null;
+  } catch { return null; }
+  const hour = new Date().getHours();
+  const snapshot = {
+    timeOfDay: hour < 6 ? "night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night",
+    weather: out?.weather ? out.weather.now.temp + " degrees, " + out.weather.now.sky.toLowerCase() : null,
+    printer: d.printer.state === "printing" ? "printing" : "idle",
+    moviesNow: d.movies.playing ? d.movies.playing.map((s) => s.title) : [],
+  };
+  const prompt = `You are the voice of a home writing a brief note to its owner. Given this snapshot, write ONE short sentence (occasionally two short ones) in plain, warm English describing how the house is right now. Speak as the house itself, never in the first person. Be specific: mention weather, movies, or the printer only if they are actually notable. Otherwise just be present. Never invent details.
+
+Examples of good output:
+- A quiet Sunday afternoon. The workshop windows are shut against the rain.
+- The printer is warm from a job that just finished. Everything else is still.
+- Evening, cool and clear. Two movies playing in the living room.
+
+Snapshot: ${JSON.stringify(snapshot)}
+
+Your note:`;
+  try {
+    const r = await post("/api/ask", { question: prompt });
+    const text = (r.answer || "").trim().replace(/^["']|["']$/g, "");
+    if (text && text.length > 10 && text.length < 200) {
+      sessionStorage.setItem("hub-narration-" + hour, JSON.stringify({ text, ts: Date.now() }));
+      return text;
+    }
+  } catch {}
+  return null;
 }
 
 export function band(p) {
@@ -131,6 +173,26 @@ export async function load(state) {
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
+
+  // Progressive enhancement: when the house is quiet, let it write a note.
+  if (d.issues.length === 0 && !isWallMode()) {
+    const cached = cachedNarration();
+    if (cached) {
+      state.summary.textContent = cached;
+    } else {
+      generateNarration(d, out).then((text) => {
+        if (text && state.summary.textContent === d.summary) {
+          state.summary.textContent = text;
+          if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            state.summary.animate(
+              [{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "translateY(0)" }],
+              { duration: 400, easing: "cubic-bezier(.16, 1, .3, 1)" }
+            );
+          }
+        }
+      });
+    }
+  }
   
   // Printer band goes above alerts if printing, otherwise hide it
   if (d.printer.state === "printing" || d.printer.state === "paused") {
