@@ -44,7 +44,9 @@ function askBox() {
   const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house…", autocomplete: "off", enterkeyhint: "send" });
   const answer = h("div", { class: "ask-answer", "aria-live": "polite" });
   const btn = h("button", { type: "submit", class: "primary" }, "Ask");
-  return h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
+  return h("section", { class: "ask-section" },
+    h("h2", { class: "section-title" }, "Ask Pi Hub"),
+    h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
     e.preventDefault();
     const q = input.value.trim();
     if (!q || !(await ensure("household"))) return;
@@ -62,10 +64,10 @@ function askBox() {
     answer,
     h("div", { class: "ask-suggestions" },
       h("button", { type: "button", class: "chip", onclick: () => { input.value = "Why is Movies offline?"; input.focus(); } }, "Why is Movies offline?"),
-      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What's using CPU?"; input.focus(); } }, "What's using CPU?"),
+      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What's using the Pi?"; input.focus(); } }, "What's using the Pi?"),
       h("button", { type: "button", class: "chip", onclick: () => { input.value = "Any alerts?"; input.focus(); } }, "Any alerts?")
     )
-  );
+  ));
 }
 
 function outsideLine(o) {
