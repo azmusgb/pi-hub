@@ -13,9 +13,13 @@ function poster(item, machine) {
   const img = item.thumb
     ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`, alt: "", loading: "lazy", decoding: "async" })
     : h("div", { class: "poster-blank", "aria-hidden": "true" }, item.title.slice(0, 1));
+  const left = item.minutes && item.progress ? Math.round(item.minutes * (1 - item.progress / 100)) : null;
   return h("li", { class: "poster" },
     h("a", { href: plexUrl(machine, item.key), target: "_blank", rel: "noopener" },
-      h("div", { class: "poster-art" }, img, item.progress ? h("span", { class: "poster-bar" }, h("i", { style: `width:${item.progress}%` })) : null),
+      h("div", { class: "poster-art" },
+        img,
+        item.progress ? h("span", { class: "poster-bar" }, h("i", { style: `width:${item.progress}%` })) : null,
+        left ? h("span", { class: "poster-left" }, `${left}m left`) : null),
       h("span", { class: "poster-title" }, item.title),
       h("span", { class: "poster-meta" }, [item.year, item.minutes ? `${item.minutes} min` : null].filter(Boolean).join(", "))));
 }

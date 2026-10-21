@@ -73,7 +73,7 @@ export async function load(state) {
     card("HP DeskJet 4200", { pill: d.printer.state, tone: d.printer.state === "Ready" || d.printer.state === "Printing" ? "ok" : "bad" },
       ink.length
         ? h("div", { class: "ink" }, ink.map((i) => h("div", { class: "ink-row" },
-          h("span", {}, i.name),
+          h("span", {}, ({ "Colour": "Tri-color", "Color": "Tri-color", "Black": "Black" })[i.name] || i.name),
           h("span", { class: "ink-bar", role: "meter", "aria-label": `${i.name} ink`, "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": i.level },
             h("i", { style: `width:${i.level}%`, dataset: { tone: i.level < 15 ? "bad" : i.level < 30 ? "warn" : "ok", ink: i.name.toLowerCase() } })),
           h("span", { class: "ink-pct" }, `${i.level}%`))))

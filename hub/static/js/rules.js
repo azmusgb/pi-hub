@@ -25,7 +25,7 @@ function builder(state, d) {
       load(state);
     } catch (x) { toast(x.message, "bad"); }
   } });
-  const target = h("label", { class: "field", for: "target" }, h("span", {}, "Which one"),
+  const target = h("label", { class: "field", for: "target" }, h("span", {}, "Which light or plug"),
     d.accessories.length
       ? h("select", { id: "target", name: "target" }, d.accessories.map((a) => h("option", { value: a.id }, a.name)))
       : h("p", { class: "meta" }, "Connect Homebridge in Settings to pick a light or plug."));
@@ -55,10 +55,11 @@ export async function load(state) {
       h("span", { class: "switch-track", "aria-hidden": "true" })),
     h("span", { class: "rule-main" }, h("strong", {}, r.text),
       r.last_run ? h("span", { class: "meta" }, `Last ran ${when(r.last_run)}: ${r.last_result}`) : h("span", { class: "meta" }, "Hasn't run yet.")),
-    h("button", { class: "ghost small", "aria-label": `Remove: ${r.text}`, onclick: async () => {
+    h("button", { class: "ghost small rule-remove", "aria-label": `Remove: ${r.text}`, onclick: async () => {
       if (!(await ensure("household"))) return;
+      if (!confirm(`Remove rule "${r.text}"?`)) return;
       await post(`/api/rules/${r.id}/delete`); toast("Rule removed."); load(state);
-    } }, "Remove")));
+    } }, "✕")));
   state.body.replaceChildren(
     card("Your rules", { cls: "wide", pill: `${d.rules.filter((r) => r.enabled).length} on` , tone: "ok" },
       rules.length ? h("ul", { class: "rules" }, rules) : empty("No rules yet. Add one below."),
