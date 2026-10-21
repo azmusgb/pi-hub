@@ -86,8 +86,13 @@ export function mount(state) {
   state.main = h("div", { class: "now-main" }, state.band, state.issues, state.ask);
 
   if (isWallMode()) {
-    state.root.append(state.main, state.cards);
+    // pages.css: body.wall .page-now > .summary { grid-area: sum }
+    // Keep .summary/.outside as direct children in wall mode so the grid
+    // fills its "sum" slot — do not nest them in .hero here.
+    state.root.append(state.summary, state.outside, state.main, state.cards);
   } else {
+    state.hero = h("section", { class: "hero", "aria-label": "At a glance" },
+      state.eyebrow, state.summary, state.outside);
     state.root.append(state.hero, state.main, state.cards);
   }
 
