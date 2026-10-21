@@ -3,6 +3,24 @@ import { api, card, ensure, h, post, toast } from "./core.js";
 
 export const every = 10;
 
+// Presentation layer: map raw hardware IDs and entity names to human concepts.
+const FRIENDLY_NAMES = {
+  "2CB1D23234351E0D": "Workshop Light",
+  "3AA1F02111023E1F": "Living Room Plug",
+  
+  // Dishwasher entities mapped to a cleaner UX
+  "Dishwasher Active Program": "Dishwasher (Active)",
+  "Dishwasher Power": "Dishwasher (Power)",
+  "Auto": "Dishwasher: Auto Program",
+  "Delicate": "Dishwasher: Delicate Program",
+  "Heavy": "Dishwasher: Heavy Program",
+  "Machine Care": "Dishwasher: Machine Care",
+};
+
+function getFriendlyName(a) {
+  return FRIENDLY_NAMES[a.id] || FRIENDLY_NAMES[a.name] || a.name;
+}
+
 const PATHS = {
   light: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z",
   plug: "M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4",
@@ -39,12 +57,12 @@ export function tile(a, state, { favourite } = {}) {
     },
   },
   h("span", { class: "tile-icon" }, icon(a.kind)),
-  h("span", { class: "tile-name" }, a.name),
+  h("span", { class: "tile-name", title: a.name }, getFriendlyName(a)),
   stateEl);
 
   const kids = [toggle];
   if (a.brightness != null) {
-    const slider = h("input", { type: "range", min: 1, max: 100, value: a.brightness || 1, class: "tile-slider", "aria-label": `${a.name} brightness` });
+    const slider = h("input", { type: "range", min: 1, max: 100, value: a.brightness || 1, class: "tile-slider", "aria-label": `${getFriendlyName(a)} brightness` });
     slider.addEventListener("change", async () => {
       if (!(await ensure("kid"))) return;
       try { await post(`/api/home/${a.id}`, { characteristic: "Brightness", value: Number(slider.value) }); }
@@ -54,7 +72,7 @@ export function tile(a, state, { favourite } = {}) {
   }
   if (favourite !== undefined) {
     kids.push(h("button", {
-      class: "tile-fav", "aria-pressed": String(favourite), "aria-label": favourite ? `Remove ${a.name} from Now` : `Show ${a.name} on Now`,
+      class: "tile-fav", "aria-pressed": String(favourite), "aria-label": favourite ? `Remove ${getFriendlyName(a)} from Now` : `Show ${getFriendlyName(a)} on Now`,
       onclick: async () => {
         if (!(await ensure("household"))) return;
         await post(`/api/home/${a.id}/favourite`);
