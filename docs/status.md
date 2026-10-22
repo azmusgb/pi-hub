@@ -36,11 +36,15 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 - New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.
 - The local Mac cannot supply Pi system diagnostics; the Help guides remain available when that API fails.
 
-The latest application changes have not been deployed or verified against live Pi services during the 22 October work recorded here. Earlier live-verification notes apply to their earlier releases.
+Application commit `0dbc712a85` was deployed to the Pi on 22 October 2026. The Pi ran all 82 Python tests and all 8 JavaScript tests before activation; the release gate passed, and the subsequent full operational self-check passed **37 of 37** checks. The installed app, helper and camera failover services are active.
+
+Live browser checks at `http://10.0.0.30` confirmed that source-response readings render, there is no horizontal overflow at 390px/1024px/1440px, and recovery verification requires authentication. No browser console errors were reported. The test browser could not resolve `pi.local`; the Mac's HTTP client could reach it.
+
+All six configured sources reported current responses during verification. Calendar is not configured. No live restart/remount, document print, movie playback or physical device-control test was performed as part of deployment.
 
 ## Needs live verification or household input
 
-1. Deploy the committed release using the [operations guide](operations.md), verify its running SHA and run the full self-check.
+1. Monitor the deployed release using the [operations guide](operations.md); deployment and its initial self-check are complete.
 2. Run a household acceptance session: shopping item, movie, document print and a symptom guide; include keyboard and screen-reader use.
 3. Restore an off-Pi backup into an isolated environment and verify the household data.
 4. Submit one real print and confirm camera operation with the Mac asleep.

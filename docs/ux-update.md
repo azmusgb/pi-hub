@@ -57,3 +57,8 @@ Validation: 73 Python tests and 3 JavaScript tests passed locally. Browser check
 - Advance the offline shell to v62 and include the freshness/recovery modules.
 
 Local validation: 82 Python tests and 8 JavaScript tests pass. Mocked browser checks exercise a failed mount check followed by recovery, check-only retry without a POST, retained source summaries, and no horizontal overflow at 390px, 1024px and 1440px. These checks do not replace live Pi and household acceptance.
+
+
+## 22 October 2026 — live deployment
+
+Deployed application commit `0dbc712a85`. The Pi's Python/JavaScript tests and release gate passed; the full operational self-check passed 37/37 checks. Live browser validation confirmed source-response rendering, authentication on the recovery-check endpoint, no horizontal overflow at 390px/1024px/1440px and no console errors. Six sources were current; Calendar was not configured. This deployment did not perform a live recovery action or a physical printing/playback/device-control test.
