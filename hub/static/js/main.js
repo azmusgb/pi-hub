@@ -1,4 +1,5 @@
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
+import { updateNavigation } from "./navigation.js";
 import { h } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
@@ -152,7 +153,7 @@ async function refresh() {
 
 async function show(path, { focus = false } = {}) {
   const page = PAGES[path] || PAGES["/"];
-  shownPath = path;
+  shownPath = location.pathname + location.search;
   clearInterval(timer);
   current?.mod.leave?.(current.state);
   view.replaceChildren();
@@ -160,7 +161,15 @@ async function show(path, { focus = false } = {}) {
   root.className = `page page-${page.key}`;
   const notice = h("section", { class: "page-notice", role: "status" }, h("p", {}, `Loading ${page.title.toLowerCase()}…`));
   view.append(notice, root);
-  const state = { root };
+  const context = new URLSearchParams(location.search);
+  const state = { root, context };
+  const parents = page.key === "drives" ? [["/movies", "Movies"]]
+    : page.key === "pi" ? [["/", "Home"]]
+    : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]]
+    : ["print", "workshop", "weather", "rules", "alerts", "settings"].includes(page.key) ? [["/more", "More"]] : [];
+  if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
+    ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),
+    h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, page.title)));
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
@@ -184,14 +193,22 @@ document.addEventListener("click", (e) => {
   const url = new URL(a.href);
   if (url.origin !== location.origin) return;
   e.preventDefault();
-  if (url.pathname !== location.pathname) history.pushState({}, "", url.pathname + (wall ? "?wall=1" : ""));
+  if (url.pathname === location.pathname && url.search === location.search && url.hash) {
+    history.pushState({}, "", url.pathname + url.search + url.hash);
+    document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
+    return;
+  }
+  const query = new URLSearchParams(url.search);
+  if (wall) query.set("wall", "1");
+  const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
+  if (destination !== location.pathname + location.search + location.hash) history.pushState({}, "", destination);
   show(url.pathname, { focus: true });
   window.scrollTo({ top: 0 });
 });
 
 // Jumping to a section (#group-…) is also a history step; only a new page address re-renders.
-let shownPath = location.pathname;
-window.addEventListener("popstate", () => { if (location.pathname !== shownPath) show(location.pathname); });
+let shownPath = location.pathname + location.search;
+window.addEventListener("popstate", () => { if (location.pathname + location.search !== shownPath) show(location.pathname); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); stayAwake(); } });
 
 async function stayAwake() {
@@ -202,6 +219,9 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 tick();
 setInterval(tick, 15000);
 show(location.pathname);
+updateNavigation();
+setInterval(updateNavigation, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
 
 

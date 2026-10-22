@@ -16,7 +16,14 @@ set -euo pipefail
 id pi-hub >/dev/null 2>&1 || sudo useradd --system --no-create-home --shell /usr/sbin/nologin pi-hub
 sudo mkdir -p /opt/pi-hub/releases /etc/pi-hub/secrets
 sudo install -d -m 755 /usr/local/lib/pi-hub
-sudo install -m 755 /tmp/pi-hub-release /usr/local/lib/pi-hub/pi-hub-release && rm -f /tmp/pi-hub-release
+# Bootstrap once. Thereafter invoke the incoming runner without replacing the old
+# installed runner until its transaction has snapshotted it.
+if [ ! -x /usr/local/lib/pi-hub/pi-hub-release ]; then
+  sudo install -m 755 /tmp/pi-hub-release /usr/local/lib/pi-hub/pi-hub-release
+fi
+sudo install -m 755 /tmp/pi-hub-release /usr/local/lib/pi-hub/pi-hub-release-incoming.new
+sudo mv -f /usr/local/lib/pi-hub/pi-hub-release-incoming.new /usr/local/lib/pi-hub/pi-hub-release-incoming
+rm -f /tmp/pi-hub-release
 
 # Plex key: readable by the hub only.
 if [ -s /opt/homepage/secrets/plex_token ] && [ ! -s /etc/pi-hub/secrets/plex_token ]; then
@@ -34,7 +41,7 @@ sudo chown root:pi-hub /etc/pi-hub/setup-code && sudo chmod 640 /etc/pi-hub/setu
 # What the hub, its tests and its helpers need.
 need=""
 for p in librsvg2-bin rsync smartmontools parted python3-qrcode python3-icalendar python3-recurring-ical-events \
-         python3-pytest python3-httpx git; do dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"; done
+         python3-pytest python3-httpx git nodejs; do dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"; done
 [ -z "$need" ] || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $need >/dev/null
 sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
 
@@ -46,7 +53,7 @@ fi
 cat > /srv/pi-hub.git/hooks/post-receive <<'HOOK'
 #!/bin/sh
 while read old new ref; do
-  [ "$ref" = refs/heads/main ] && sudo /usr/local/lib/pi-hub/pi-hub-release "$new"
+  [ "$ref" = refs/heads/main ] && sudo /usr/local/lib/pi-hub/pi-hub-release-incoming "$new"
 done
 HOOK
 chmod 755 /srv/pi-hub.git/hooks/post-receive
@@ -55,6 +62,14 @@ EOF
 git remote get-url pi >/dev/null 2>&1 || git remote add pi pi:/srv/pi-hub.git
 git push pi main 2>&1 | grep -E "pi-hub:|failed:|^ !|rejected|Everything up-to-date" | sed 's/^remote: //'
 
-ssh -o BatchMode=yes pi 'sudo systemctl enable pi-hub pi-hub-helper x2d-camera-failover >/dev/null 2>&1
+# post-receive failures do not reject a git push; verify the actual running SHA.
+EXPECTED=$(git rev-parse main)
+ssh -o BatchMode=yes pi bash -s -- "$EXPECTED" <<'EOF' 2>&1 | quiet
+set -euo pipefail
+expected="${1:0:10}"
+running=$(basename "$(readlink -f /opt/pi-hub/current)")
+echo "running: $running"
+[ "$running" = "$expected" ] || { echo "Release did not become live; inspect Settings → Versions."; exit 1; }
+sudo systemctl enable pi-hub pi-hub-helper x2d-camera-failover >/dev/null 2>&1
 sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer >/dev/null 2>&1
-readlink /opt/pi-hub/current | xargs basename' 2>&1 | quiet | sed 's/^/running: /'
+EOF

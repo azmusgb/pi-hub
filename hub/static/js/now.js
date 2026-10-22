@@ -1,5 +1,6 @@
 // Now: the one-line answer, the print band, what needs a look, and a card per area.
 import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from "./core.js";
+import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
 
 export const every = 15;
@@ -208,27 +209,7 @@ export async function load(state) {
     state.band.replaceChildren();
   }
 
-  // Consolidated Alerts
-  const issuesIsBad = d.issues.some((i) => i.tone === "bad");
-  if (d.issues.length > 0) {
-    state.issues.replaceChildren(
-      h("section", { class: `alerts-panel ${issuesIsBad ? "is-critical" : ""}`, "aria-label": "Needs attention" },
-        h("h2", { class: "section-title" }, `Needs attention (${d.issues.length})`),
-        h("ul", {}, d.issues.map((i) => 
-          h("li", { class: "alert-item", dataset: { tone: i.tone } },
-            h("div", { class: "alert-header" },
-              h("span", { class: "dot" }), 
-              h("strong", { class: "alert-title" }, i.what)
-            ),
-            h("div", { class: "alert-desc" }, i.say),
-            i.fix ? h("button", { class: "ghost", onclick: async () => { if (await fix(i.fix, i.fix_label)) load(state); } }, i.fix_label) : h("a", { class: "action", href: i.href || "/pi", "data-link": true }, i.link_label || "Troubleshoot")
-          )
-        ))
-      )
-    );
-  } else {
-    state.issues.replaceChildren();
-  }
+  renderIssues(state, d.issues);
 
   const m = d.movies;
   const p = d.pi;
@@ -236,29 +217,35 @@ export async function load(state) {
   const cpu = p.cpu_series?.at(-1);
 
   // 2x2 House Grid
-  const houseCard = (name, href, tone, say) => h("a", { class: "house-card", href, "data-link": true },
+  const houseCard = (name, href, tone, say, action) => h("a", { class: "house-card", href, "data-link": true },
     h("div", { class: "house-header" },
       h("h3", { class: "house-name" }, name),
       h("span", { class: "dot", dataset: { tone } })
     ),
-    h("p", { class: "house-say" }, say)
+    h("p", { class: "house-say" }, say),
+    h("span", { class: "house-action" }, action)
   );
 
-  const mSay = !d.status_available ? "Status unavailable" : !m.plex_running ? "Movie playback unavailable" : m.drive === "Connected" ? `${m.count ?? "Your"} movies` : "Drive missing";
-  const wSay = !d.status_available ? "Status unavailable" : [w.display === "Online" ? "Display online" : `Display ${String(w.display).toLowerCase()}`, w.ai === "Down" ? "AI down" : `AI ready`].join(" · ");
-  const hSay = !d.status_available ? "Status unavailable" : !d.home.homebridge_running ? "Smart-home controls unavailable" : favs.length ? `${favs.filter((a) => a.on).length} of ${favs.length} on` : "No favourites";
-  const pSay = [p.temp != null ? `${Math.round(p.temp)}°C` : null, cpu != null ? `${Math.round(cpu)}% CPU` : null].filter(Boolean).join(" · ") || "Status unavailable";
+  const movieReady = d.status_available && m.plex_running && m.drive === "Connected";
+  const mSay = !d.status_available ? "Status unavailable" : movieReady ? "Ready to watch" : "Playback needs attention";
+  const wSay = !d.status_available ? "Status unavailable" : d.printer.state === "printing" ? `Printing, ${d.printer.progress}%`
+    : d.printer.state === "paused" ? "Print paused" : d.printer.state === "error" ? "Printer needs attention" : "Printer and workshop status";
+  const hSay = !d.status_available ? "Status unavailable" : !d.home.homebridge_running ? "Controls need attention"
+    : !home.connected ? "Connect your smart-home controls" : favs.length ? `${favs.filter(a => a.on).length} of ${favs.length} favourites on` : "Lights, plugs and switches";
 
   state.rightCol.replaceChildren(...[
     h("section", { class: "house-section" },
       h("h2", { class: "section-title" }, "The house"),
       h("div", { class: "house-grid" },
-        houseCard("Movies", "/movies", m.tone, mSay),
-        houseCard("Workshop", "/workshop", w.display === "Online" && w.ai !== "Down" ? "ok" : "warn", wSay),
-        houseCard("Devices", "/control", d.home.tone, hSay),
-        houseCard("Help & system", "/pi", p.tone, pSay)
+        houseCard("Movies", movieReady ? "/movies?from=home" : "/pi?help=movies&from=home", m.tone, mSay, movieReady ? "Watch movies" : "Fix movie playback"),
+        houseCard("Devices", "/control?from=home", d.home.tone, hSay, "Control devices"),
+        houseCard("Workshop", "/workshop?from=home", d.printer.state === "error" ? "bad" : d.status_available && ["printing", "idle"].includes(d.printer.state) ? "ok" : "warn", wSay, "Check the printer"),
+        houseCard("Help", "/pi?from=home", "none", "Guides for common household problems", "Solve a problem")
       )
     ),
+    favs.length ? h("section", { class: "home-favourites" },
+      h("h2", { class: "section-title" }, "Favourite controls"),
+      h("div", { class: "tiles" }, favs.map(a => tile(a, state)))) : null,
     wifi.set ? h("section", { class: "wifi-panel" },
       h("div", { class: "wifi-header" }, "Guest Wi-Fi"),
       h("div", { class: "wifi-content" },
@@ -273,3 +260,21 @@ export function failed(state) {
   state.summary.textContent = "Can't reach the Pi Hub right now. It will keep trying.";
   state.summary.dataset.tone = "bad";
 }
+
+function renderIssues(state, issues) {
+  const key = JSON.stringify(issues);
+  if (state.issueKey !== key) { state.issueKey = key; state.issuesExpanded = false; }
+  if (!issues.length) { state.issues.replaceChildren(); return; }
+  const { shown, remaining } = splitIssues(issues);
+  const item = i => h("li", { class: "alert-item", dataset: { tone: i.tone } },
+    h("strong", { class: "alert-title" }, i.what), h("p", { class: "alert-desc" }, i.say),
+    h("a", { class: "action", href: `/pi?help=${issueTopic(i)}&from=home`, "data-link": true }, "Get help"));
+  const more = remaining ? h("details", { class: "issue-overflow", open: state.issuesExpanded,
+    ontoggle: e => { state.issuesExpanded = e.currentTarget.open; } },
+    h("summary", {}, `View all ${issues.length} issues`), h("ul", {}, issues.slice(shown.length).map(item))) : null;
+  state.issues.replaceChildren(h("section", { class: `alerts-panel ${issues.some(i => i.tone === "bad") ? "is-critical" : ""}`, "aria-label": "Needs attention" },
+    h("h2", { class: "section-title" }, `${issues.length} ${issues.length === 1 ? "thing needs" : "things need"} attention`),
+    h("ul", {}, shown.map(item)), more));
+}
+
+export function leave(state) { clearInterval(state._eyebrowTimer); }

@@ -1,4 +1,5 @@
 // Alerts: everything the Pi has pushed to your phone, newest first.
+import { markAlertsSeen } from "./navigation.js";
 import { api, card, empty, h, when } from "./core.js";
 
 export const every = 30;
@@ -7,13 +8,15 @@ const TONE = { white_check_mark: "ok", tada: "ok", warning: "warn", fire: "warn"
 
 export function mount(state) {
   state.filter = "all";
+  state.intro = h("p", { class: "page-intro", role: "status" }, "Checking recent alerts…");
   state.tabs = h("div", { class: "tabs alerts-tabs", role: "tablist", "aria-label": "Filter alerts" });
   state.body = h("div", { class: "cards" });
-  state.root.append(state.tabs, state.body);
+  state.root.append(state.intro, state.tabs, state.body);
 }
 
 export async function load(state) {
   const d = await api("/api/alerts");
+  if (state.root.isConnected) markAlertsSeen(d.alerts);
 
   // Collapse identical titles that repeat within 15 minutes
   const collapsed = [];
@@ -29,6 +32,8 @@ export async function load(state) {
   const isOk = (a) => TONE[a.tag] === "ok";
   const problemCount = collapsed.filter((a) => !isOk(a)).length;
   const recoveryCount = collapsed.filter(isOk).length;
+
+  state.intro.textContent = `${problemCount} problem alerts and ${recoveryCount} recovery alerts in recent history.`;
 
   const filters = [
     ["all", "All", collapsed.length],

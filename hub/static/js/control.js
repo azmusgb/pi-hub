@@ -76,7 +76,7 @@ export function tile(a, state, { favourite } = {}) {
   }
   if (favourite !== undefined) {
     kids.push(h("button", {
-      class: "tile-fav", "aria-pressed": String(favourite), "aria-label": favourite ? `Remove ${getFriendlyName(a)} from Now` : `Show ${getFriendlyName(a)} on Now`,
+      class: "tile-fav", "aria-pressed": String(favourite), "aria-label": favourite ? `Remove ${getFriendlyName(a)} from favourites` : `Show ${getFriendlyName(a)} in favourites`,
       onclick: async () => {
         if (!(await ensure("household"))) return;
         await post(`/api/home/${a.id}/favourite`);
@@ -104,12 +104,17 @@ export async function load(state) {
   }
   const favs = new Set(d.favourites);
   const groups = [["light", "Lights"], ["plug", "Plugs"], ["switch", "Switches"], ["fan", "Fans"]];
+  const favouriteItems = d.accessories.filter(a => favs.has(a.id));
   const sections = groups.map(([kind, title]) => {
-    const list = d.accessories.filter((a) => a.kind === kind);
+    const list = d.accessories.filter((a) => a.kind === kind && !favs.has(a.id));
     return list.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, title),
       h("div", { class: "tiles" }, list.map((a) => tile(a, state, { favourite: favs.has(a.id) })))) : null;
   }).filter(Boolean);
-  state.body.replaceChildren(...(sections.length ? sections
-    : [card("Nothing to control", { cls: "wide" }, h("p", { class: "meta" }, "Homebridge has no lights, plugs or switches the hub can control."))]),
-  h("p", { class: "meta" }, "Tap the star to put something on the Now page."));
+  state.body.replaceChildren(...[
+    h("p", { class: "page-intro" }, favouriteItems.length ? "Your favourites are ready below. Tap a device to switch it." : "Tap a device to switch it. Use its star to keep it in favourites and on Home."),
+    favouriteItems.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Favourites"),
+      h("div", { class: "tiles" }, favouriteItems.map(a => tile(a, state, { favourite: true })))) : null,
+    ...(sections.length ? sections
+    : favouriteItems.length ? [] : [card("Nothing to control", { cls: "wide" }, h("p", { class: "meta" }, "Homebridge has no lights, plugs or switches the hub can control."))]),
+  h("p", { class: "meta" }, "Favourites also appear on Home.")].filter(Boolean));
 }

@@ -1,5 +1,7 @@
 # Pi Hub: evolution roadmap (20 Oct 2026)
 
+For the current checklist, see [status.md](status.md). This document preserves the original plan and delivery history.
+
 Where the hub goes after the seven pages: from *showing* the house, to *fixing* it, to *running* it.
 
 ## Stage 1: Self-service (next, about 3 sessions)

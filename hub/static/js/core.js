@@ -144,16 +144,18 @@ function pinSheet() {
 }
 
 // Runs a Fix-it action after a confirm, and says what happened.
-export async function fix(name, label, { confirmText } = {}) {
+export async function fix(name, label, { confirmText, onResult } = {}) {
   if (!(await ensure("household"))) return false;
-  if (confirmText && !confirm(confirmText)) return false;
+  if (!confirm(confirmText || `${label}?`)) return false;
   toast(`${label}…`, "warn");
   try {
     const r = await post(`/api/actions/${encodeURIComponent(name)}`);
     toast(r.message);
+    onResult?.({ ok: true, message: r.message });
     return true;
   } catch (e) {
     toast(e.message, "bad");
+    onResult?.({ ok: false, message: e.message });
     return false;
   }
 }

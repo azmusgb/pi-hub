@@ -160,15 +160,19 @@ export async function load(state) {
   const drv = d.drive;
   const drops = d.drive_events.filter((e) => e.kind === "dropped").length;
   state.body.replaceChildren(...[
+    hero(d.continue?.[0], d.machine),
     d.playing?.length ? card("Playing now", {}, h("ul", { class: "playing" }, d.playing.map((s) => h("li", {},
       h("span", { class: "t" }, s.title),
       h("span", { class: "w" }, [[s.who, s.device].filter(Boolean).join(" on "), s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(", ")),
       h("span", { class: "bar" }, h("i", { style: `width:${s.progress}%` })))))) : null,
-    hero(d.continue?.[0], d.machine),
     d.continue?.length > 1 ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Also half-watched"),
       shelf(d.continue.slice(1), d.machine, "")) : null,
     h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Recently added"),
       shelf(d.recent, d.machine, drv.state === "Connected" ? "Nothing new lately." : "The movies drive is missing, so Plex can't list new movies.")),
+    state.night || (state.night = movieNight(state)),
+    h("details", { class: "supporting-details", open: state.detailsOpen,
+      ontoggle: e => { state.detailsOpen = e.currentTarget.open; } }, h("summary", {}, "Movie requests, library & storage details"),
+      requestsCard(state, d.requests), statsCard(d),
     card("Movies drive", { pill: drv.state, tone: drv.state === "Connected" ? (drv.errors ? "warn" : "ok") : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Movies"), h("dd", {}, drv.count ?? "—")),
@@ -182,10 +186,7 @@ export async function load(state) {
         ? h("ul", { class: "timeline" }, d.drive_events.slice(0, 8).map((e) =>
           h("li", { dataset: { tone: e.kind === "dropped" ? "bad" : "ok" } }, h("span", {}, e.kind === "dropped" ? "Dropped out" : "Came back"), h("time", {}, when(e.ts)))))
         : null),
-    state.night || (state.night = movieNight(state)),
-    requestsCard(state, d.requests),
-    statsCard(d),
-    h("a", { class: "action", href: "/drives", "data-link": true }, "Drive health and moving to a new drive"),
+      h("a", { class: "action", href: "/drives", "data-link": true }, "Check movie storage")),
     h("a", { class: "action", href: piLink(32400, "/web"), target: "_blank", rel: "noopener" }, "Open Plex"),
   ].filter(Boolean));
 }

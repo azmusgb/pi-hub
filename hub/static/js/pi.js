@@ -9,21 +9,23 @@ export function mount(state) {
   state.range = 24;
   state.body = h("div", { class: "cards" });
   state.diagnostic = h("p", { class: "meta", role: "status" }, "Checking system details…");
+  state.result = h("section", { class: "fix-result", role: "status", hidden: true });
+  const topic = state.context?.get("help");
   const guidance = [
-    ["Movies won’t play", "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.", "/movies", "Check Movies"],
-    ["Lights aren’t responding", "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, open System checks & advanced fixes below to check the smart-home service.", "/control", "Check Devices"],
-    ["Printer won’t print", "Turn on the HP DeskJet and check for paper or an error on its screen. Open Print to see its status and waiting jobs.", "/print", "Check the printer"],
-    ["3D printer or workshop problem", "Check the Bambu printer’s screen for errors. Workshop shows the camera, print status and local AI connection.", "/workshop", "Check Workshop"],
+    ["movies", "Movies won’t play", "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.", "/movies", "Check Movies"],
+    ["devices", "Lights aren’t responding", "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, open System checks & advanced fixes below to check the smart-home service.", "/control", "Check Devices"],
+    ["print", "Printer won’t print", "Turn on the HP DeskJet and check for paper or an error on its screen. Open Print to see its status and waiting jobs.", "/print", "Check the printer"],
+    ["workshop", "3D printer or workshop problem", "Check the Bambu printer’s screen for errors. Workshop shows the camera, print status and local AI connection.", "/workshop", "Check Workshop"],
   ];
-  state.root.append(
+  state.root.append(state.result,
     h("section", { class: "help-start", "aria-labelledby": "help-title" },
       h("h2", { id: "help-title" }, "What isn’t working?"),
       h("p", { class: "meta" }, "Start with the problem. These checks won’t restart or change anything."),
-      h("div", { class: "help-topics" }, guidance.map(([title, advice, href, label]) =>
-        h("details", { class: "help-topic" }, h("summary", {}, title),
+      h("div", { class: "help-topics" }, guidance.sort((a, b) => Number(b[0] === topic) - Number(a[0] === topic)).map(([key, title, advice, href, label]) =>
+        h("details", { class: "help-topic", id: `help-${key}`, open: topic === key }, h("summary", {}, title),
           h("p", {}, advice), h("a", { class: "action", href, "data-link": true }, label)))),
       h("a", { class: "action", href: "/drives", "data-link": true }, "Check movie storage")),
-    h("details", { class: "system-details" }, h("summary", {}, "System checks & advanced fixes"), state.diagnostic,
+    h("details", { class: "system-details", open: topic === "system" }, h("summary", {}, "System checks & advanced fixes"), state.diagnostic,
       h("p", { class: "meta" }, "Service restarts, updates, charts and diagnostics. Actions ask for confirmation and the household PIN."), state.body));
 }
 
@@ -76,7 +78,7 @@ async function loadDiagnostics(state) {
       h("div", { class: "fix-grid" }, acts.actions.map((a) => h("button", {
         class: `btn ghost ${a.name === "restart:pi" ? "btn--danger" : ""}`,
         disabled: a.name === "updates:install" && upd.state === "running",
-        onclick: async () => { if (await fix(a.name, a.label, { confirmText: CONFIRM[a.name] })) load(state); },
+        onclick: () => runFix(state, a.name, a.label, CONFIRM[a.name]),
       }, a.label))),
       upd.state === "failed" ? h("p", { class: "note" }, `The last update run didn't finish: ${upd.message}`) : null,
       acts.log.length ? [h("h3", { class: "sub" }, "Recent fixes"), h("ul", { class: "log" }, acts.log.slice(0, 5).map((l) =>
@@ -107,7 +109,7 @@ async function loadDiagnostics(state) {
     card("Updates", { pill: d.updates?.length ? `${d.updates.length} waiting` : "Up to date", tone: d.updates?.length ? "warn" : "ok" },
       d.updates?.length ? h("ul", { class: "pkg" }, d.updates.slice(0, 12).map((u) => h("li", {}, h("strong", {}, u.name), h("span", { class: "meta" }, u.version))))
         : empty("Everything's up to date. Security fixes install by themselves each day."),
-      d.updates?.length ? h("button", { class: "ghost", onclick: async () => { if (await fix("updates:install", "Install updates", { confirmText: CONFIRM["updates:install"] })) load(state); } }, "Install them now") : null),
+      d.updates?.length ? h("button", { class: "ghost", onclick: () => runFix(state, "updates:install", "Install updates", CONFIRM["updates:install"]) }, "Install them now") : null),
     card("Network", {},
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Name"), h("dd", {}, d.network.name)),
@@ -128,4 +130,21 @@ export async function load(state) {
       h("p", { class: "meta" }, "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically."),
       h("button", { type: "button", class: "ghost", onclick: () => load(state) }, "Retry system checks")));
   }
+}
+
+async function runFix(state, name, label, confirmText) {
+  if (state.running) return;
+  state.running = true;
+  try {
+    const ok = await fix(name, label, { confirmText, onResult: result => {
+      state.result.hidden = false;
+      state.result.dataset.tone = result.ok ? "ok" : "bad";
+      state.result.replaceChildren(h("h2", {}, result.ok ? "Action completed" : "The fix didn’t finish"),
+        h("p", {}, result.message), h("p", { class: "meta" }, result.ok
+          ? "Try the original task again. If it still fails, continue with the relevant guide below."
+          : "Check the connection and the relevant guide below before trying again."));
+      state.result.scrollIntoView({ block: "nearest" });
+    } });
+    if (ok) await load(state);
+  } finally { state.running = false; }
 }

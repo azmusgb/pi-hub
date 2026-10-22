@@ -68,7 +68,8 @@ export function mount(state) {
   if (matchMedia("(hover: hover)").matches) drop.querySelector(".drop-title").textContent = "Choose a file, or drop one here";
   state.printer = h("div", { class: "cards" });
   state.status = h("div", { class: "cards" });
-  state.root.append(state.printer, card("Print something", { cls: "wide" }, form), state.status);
+  state.root.append(state.printer, card("Print something", { cls: "wide" }, form),
+    h("details", { class: "supporting-details", open: false }, h("summary", {}, "Print queue & recent jobs"), state.status));
 }
 
 function job(j, cancellable, state) {
@@ -86,6 +87,9 @@ function job(j, cancellable, state) {
 export async function load(state) {
   const d = await api("/api/print");
   const ink = d.ink || [];
+  const queue = state.status.parentElement;
+  if (!state.hadWaiting && d.jobs.waiting.length) queue.open = true;
+  state.hadWaiting = d.jobs.waiting.length > 0;
   state.ready = ["Ready", "Printing"].includes(d.printer.state);
   state.updateButton();
   state.printer.replaceChildren(

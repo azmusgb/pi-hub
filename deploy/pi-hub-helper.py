@@ -237,15 +237,15 @@ def rollback(to):
         return {"ok": False, "message": "That version isn't on the Pi any more."}
     if os.path.realpath(CURRENT) == os.path.realpath(os.path.join(RELEASES, to)):
         return {"ok": True, "message": "That version is already running."}
-    tmp = CURRENT + ".new"
-    if os.path.lexists(tmp):
-        os.unlink(tmp)
-    os.symlink(os.path.join(RELEASES, to), tmp)
-    os.replace(tmp, CURRENT)
-    # Restart after answering, so the hub gets the reply before it goes away.
-    subprocess.Popen(["sh", "-c", "sleep 1 && systemctl restart pi-hub"], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return {"ok": True, "message": f"Going back to version {to}. The hub restarts in a few seconds."}
+    # A separate systemd unit survives the helper's own restart during release.
+    result = subprocess.run([
+        "systemd-run", "--unit=pi-hub-rollback", "--collect", "--on-active=2s",
+        "/usr/local/lib/pi-hub/pi-hub-release", to,
+    ], capture_output=True, text=True, timeout=10)
+    if result.returncode:
+        return {"ok": False, "message": "Couldn't schedule that release. Another rollback may already be running."}
+    return {"ok": True, "message": f"Checking version {to} before switching. See Versions for the result."}
+
 
 
 def handle(conn):

@@ -75,3 +75,23 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .system-details { border-top: 1px solid var(--line-strong); padding-top: .5rem; }
 .system-details .cards { display: grid; gap: 1.25rem; }
 .system-details .fix-grid .btn { box-shadow: none; }
+
+/* Keep the task prominent; use dividers for supporting information. */
+.page-intro { margin: 0; color: var(--text-2); line-height: 1.6; }
+.page-trail { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 1rem; color: var(--text-2); font-size: .875rem; }
+.page-trail a { display: inline-flex; align-items: center; min-height: 44px; }
+.supporting-details { border-top: 1px solid var(--line-strong); margin-top: 1rem; padding-top: .5rem; }
+.supporting-details > summary, .issue-overflow > summary { cursor: pointer; min-height: 44px; padding: .75rem 0; font-weight: 600; }
+.supporting-details > .card { background: transparent; border: 0; box-shadow: none; border-bottom: 1px solid var(--line); padding: 1.25rem 0; border-radius: 0; }
+.help-topic { background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; padding: 0; }
+.more a { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: .875rem 0; }
+.more a .meta { color: var(--text-2); }
+.fix-result { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
+.fix-result[hidden] { display: none; }
+.fix-result h2 { margin: 0 0 .5rem; font-size: 1.125rem; }
+.fix-result[data-tone="bad"] { border-color: var(--danger); }
+.fix-result p { margin: .5rem 0 0; }
+.rail a[data-page] .nav-badge { margin-left: auto; border-radius: 999px; background: var(--accent-soft); color: var(--text); padding: .1rem .35rem; font-size: .6875rem; white-space: nowrap; }
+@media (max-width: 860px) {
+  .rail a[data-page] .nav-badge { position: absolute; top: 0; right: 4px; margin: 0; font-size: .625rem; padding: 0 .25rem; }
+}

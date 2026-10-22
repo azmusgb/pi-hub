@@ -1,5 +1,7 @@
 # Pi Hub: home hub and self-service, round 1 plan (20 Oct 2026)
 
+For the current checklist, see [status.md](status.md). This document preserves the original plan and delivery history.
+
 **Goal:** one place on the home network, on a phone, iPad or Mac, where anyone in the house can see what's going on and fix the usual problems themselves, without SSH or asking Claude.
 
 **Today:** the Homepage dashboard (`:3000`) is display-only. The Pi also has:
