@@ -4,7 +4,7 @@ import os
 import socket
 import urllib.request
 
-from . import sources, system
+from . import sources, system, homecontrol, freshness
 
 SOCKET = os.environ.get("HUB_HELPER_SOCKET", "/run/pi-hub-helper/helper.sock")
 
@@ -72,3 +72,36 @@ def available(role):
     from .auth import allowed
     return [{"name": n, "label": a[0], "allowed": allowed(role, a[2])} for n, a in ACTIONS.items()]
 
+
+
+VERIFIABLE = {"restart:plex", "remount:movies", "restart:homebridge"}
+
+
+def verify(name):
+    """Read the affected integration directly; never repeat the fix or trust a cache."""
+    if name not in ACTIONS:
+        raise ValueError("Unknown action.")
+    if name not in VERIFIABLE:
+        return {"state": "not_supported", "message": "This action needs its own completion check.",
+                "next_step": "Check its progress in System checks & advanced fixes."}
+    try:
+        if name == "restart:homebridge":
+            devices = homecontrol.accessories()
+            if not devices:
+                return {"state": "needs_attention", "message": "Homebridge responds, but no controllable devices were returned.",
+                        "next_step": "Check the Homebridge configuration and the Devices page before trying the light again."}
+            return {"state": "recovered", "message": f"Smart-home controls responded with {len(devices)} devices.",
+                    "next_step": "Try the light or plug again; this check does not switch a device."}
+        if not system.movies_mounted():
+            return {"state": "needs_attention", "message": "The movies drive is still not mounted.",
+                    "next_step": "Check its cable and power, then open movie storage before trying another fix."}
+        sessions = freshness.observe("plex", 15, sources._plex_sessions)
+        if sessions is None:
+            raise OSError("No Plex response")
+        return {"state": "recovered", "message": "Plex responds and the movies drive is mounted.",
+                "next_step": "Try the movie again; playback on the TV still needs checking."}
+    except homecontrol.NotConnected as e:
+        return {"state": "needs_setup", "message": "Smart-home controls need setup.", "next_step": str(e)}
+    except Exception:
+        return {"state": "unavailable", "message": "The hub could not confirm recovery yet.",
+                "next_step": "Check the connection and follow the relevant guide. You can check again without repeating the fix."}

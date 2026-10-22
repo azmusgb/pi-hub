@@ -1,5 +1,5 @@
 // Raspberry Pi: health and history, every service, updates, storage and network.
-import { api, card, duration, empty, fix, h, piLink, spark, when } from "./core.js";
+import { api, card, duration, empty, fix, verifyFix, h, piLink, spark, when } from "./core.js";
 
 export const every = 20;
 
@@ -77,7 +77,7 @@ async function loadDiagnostics(state) {
       h("p", { class: "meta" }, "Choose a fix after checking the problem above. You’ll confirm before anything changes."),
       h("div", { class: "fix-grid" }, acts.actions.map((a) => h("button", {
         class: `btn ghost ${a.name === "restart:pi" ? "btn--danger" : ""}`,
-        disabled: a.name === "updates:install" && upd.state === "running",
+        disabled: state.running || a.name === "updates:install" && upd.state === "running",
         onclick: () => runFix(state, a.name, a.label, CONFIRM[a.name]),
       }, a.label))),
       upd.state === "failed" ? h("p", { class: "note" }, `The last update run didn't finish: ${upd.message}`) : null,
@@ -132,19 +132,34 @@ export async function load(state) {
   }
 }
 
-async function runFix(state, name, label, confirmText) {
+function showFixResult(state, name, result) {
+  if (!state.root.isConnected) return;
+  const status = result.verification?.state;
+  const title = !result.ok ? "The fix didn’t finish" : status === "checking" ? "Checking recovery…"
+    : status === "recovered" ? "Recovery check passed" : status === "not_supported" ? "Action requested"
+    : "Recovery is not confirmed";
+  state.result.hidden = false;
+  state.result.dataset.tone = !result.ok ? "bad" : status === "recovered" ? "ok" : "warn";
+  state.result.replaceChildren(h("h2", {}, title), h("p", {}, result.message),
+    h("p", { class: "meta" }, result.verification?.next_step || (result.ok
+      ? "Waiting for a fresh response; the fix won’t be repeated."
+      : "Check the connection and the relevant guide before trying again.")));
+  if (result.ok && !["checking", "not_supported"].includes(status)) {
+    state.result.append(h("button", { type: "button", class: "ghost", onclick: () => runFix(state, name, "", "", true) }, "Check recovery again"));
+  }
+  state.result.scrollIntoView({ block: "nearest" });
+}
+
+async function runFix(state, name, label, confirmText, checkOnly = false) {
   if (state.running) return;
   state.running = true;
+  state.root.querySelectorAll(".fix-grid button, .fix-result button").forEach(button => { button.disabled = true; });
+  const options = { isCurrent: () => state.root.isConnected, onResult: result => showFixResult(state, name, result) };
   try {
-    const ok = await fix(name, label, { confirmText, onResult: result => {
-      state.result.hidden = false;
-      state.result.dataset.tone = result.ok ? "ok" : "bad";
-      state.result.replaceChildren(h("h2", {}, result.ok ? "Action completed" : "The fix didn’t finish"),
-        h("p", {}, result.message), h("p", { class: "meta" }, result.ok
-          ? "Try the original task again. If it still fails, continue with the relevant guide below."
-          : "Check the connection and the relevant guide below before trying again."));
-      state.result.scrollIntoView({ block: "nearest" });
-    } });
-    if (ok) await load(state);
-  } finally { state.running = false; }
+    if (checkOnly) await verifyFix(name, options);
+    else await fix(name, label, { ...options, confirmText });
+  } finally {
+    state.running = false;
+    if (state.root.isConnected) await load(state);
+  }
 }

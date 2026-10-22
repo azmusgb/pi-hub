@@ -1,3 +1,4 @@
+import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
 import { updateNavigation } from "./navigation.js";
 import { h } from "./core.js";
@@ -107,6 +108,7 @@ if (wall) {
 applyTheme();
 
 function tick() {
+  if (current) renderFreshness(current);
   const d = new Date();
   const c = document.getElementById("clock");
   c.textContent = d.toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" });
@@ -147,7 +149,7 @@ async function refresh() {
   } finally {
     page.loading = false;
     page.state.root.setAttribute("aria-busy", "false");
-    if (page === current) tick();
+    if (page === current) { tick(); refreshFreshness(page); }
   }
 }
 
@@ -181,6 +183,8 @@ async function show(path, { focus = false } = {}) {
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);
+  current.freshness = mountFreshness(page.key);
+  if (current.freshness) view.append(current.freshness);
   await refresh();
   if (shown !== current) return;
   timer = setInterval(refresh, (page.mod.every || 15) * 1000);

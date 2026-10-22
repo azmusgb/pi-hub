@@ -11,6 +11,8 @@ import time
 import urllib.request
 from collections import deque
 
+from . import freshness
+
 PI_STATUS_URL = os.environ.get("HUB_PI_STATUS_URL", "http://127.0.0.1:8099/status")
 PLEX_URL = os.environ.get("HUB_PLEX_URL", "http://127.0.0.1:32400")
 PLEX_TOKEN_FILE = os.environ.get("HUB_PLEX_TOKEN_FILE", "/etc/pi-hub/secrets/plex_token")
@@ -29,8 +31,9 @@ def cached(key, ttl, fn):
         value = fn()
     except Exception:
         value = None
+    freshness.record(key, ttl, value)
     with _lock:
-        _cache[key] = (now, value)
+        _cache[key] = (time.time(), value)
     return value
 
 
@@ -67,8 +70,11 @@ def _plex_token():
 
 def _plex_sessions():
     data = _get_json(f"{PLEX_URL}/status/sessions", {"X-Plex-Token": _plex_token()})
+    container = data.get("MediaContainer")
+    if not isinstance(container, dict):
+        raise ValueError("Plex returned no session container")
     out = []
-    for m in (data.get("MediaContainer") or {}).get("Metadata") or []:
+    for m in container.get("Metadata") or []:
         duration = m.get("duration") or 0
         offset = m.get("viewOffset") or 0
         title = m.get("title") or "Something"

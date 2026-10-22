@@ -1,3 +1,4 @@
+import { VERIFIABLE, verifyRecovery } from "./recovery.js";
 // Shared helpers for every page: building elements, talking to the hub, and small formatters.
 
 export function h(tag, attrs = {}, ...kids) {
@@ -144,20 +145,39 @@ function pinSheet() {
 }
 
 // Runs a Fix-it action after a confirm, and says what happened.
-export async function fix(name, label, { confirmText, onResult } = {}) {
-  if (!(await ensure("household"))) return false;
+export async function fix(name, label, { confirmText, onResult, isCurrent = () => true } = {}) {
+  if (!(await ensure("household")) || !isCurrent()) return false;
   if (!confirm(confirmText || `${label}?`)) return false;
   toast(`${label}…`, "warn");
   try {
     const r = await post(`/api/actions/${encodeURIComponent(name)}`);
-    toast(r.message);
-    onResult?.({ ok: true, message: r.message });
+    if (!isCurrent()) return true;
+    if (VERIFIABLE.has(name)) {
+      await verifyFix(name, { onResult, isCurrent });
+    } else {
+      toast(r.message);
+      onResult?.({ ok: true, message: r.message, verification: { state: "not_supported",
+        next_step: "Check the action’s progress and try the original task again." } });
+    }
     return true;
   } catch (e) {
-    toast(e.message, "bad");
-    onResult?.({ ok: false, message: e.message });
+    if (isCurrent()) {
+      toast(e.message, "bad");
+      onResult?.({ ok: false, message: e.message });
+    }
     return false;
   }
+}
+
+export async function verifyFix(name, { onResult, isCurrent = () => true } = {}) {
+  onResult?.({ ok: true, message: "Checking the affected service…", verification: { state: "checking" } });
+  const verification = await verifyRecovery(name, {
+    active: isCurrent,
+    check: key => api(`/api/actions/${encodeURIComponent(key)}/verification`, { signal: AbortSignal.timeout(15000) }),
+  });
+  if (!isCurrent() || verification.state === "cancelled") return;
+  toast(verification.message, verification.state === "recovered" ? "ok" : "warn");
+  onResult?.({ ok: true, message: verification.message, verification });
 }
 
 // ---- Weather icons: a small drawn set, coloured by the stylesheet ----

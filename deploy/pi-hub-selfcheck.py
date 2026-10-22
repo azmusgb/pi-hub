@@ -11,7 +11,7 @@ HUB = "http://127.0.0.1"
 OUT = "/var/lib/pi-hub-selfcheck/last.json"
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
 PAGES = ["/", "/movies", "/control", "/lists", "/workshop", "/print", "/pi", "/rules", "/alerts", "/drives", "/settings", "/more"]
-APIS = ["/api/now", "/api/movies", "/api/workshop", "/api/print", "/api/lists", "/api/pi", "/api/alerts",
+APIS = ["/api/freshness", "/api/now", "/api/movies", "/api/workshop", "/api/print", "/api/lists", "/api/pi", "/api/alerts",
         "/api/rules", "/api/outside", "/api/drives", "/api/camera", "/api/home", "/api/me"]
 SERVICES = {"plexmediaserver": "Plex", "homebridge": "Homebridge", "pi-hub": "Pi Hub", "pi-hub-helper": "Pi Hub helper",
             "pi-status": "Status and alerts", "cups": "Printing", "x2d-camera-failover": "Camera address"}

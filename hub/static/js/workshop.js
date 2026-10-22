@@ -118,12 +118,13 @@ export async function load(state) {
   const prints = d.prints.map((p) => printRow(p, d.spools, reload));
   const m = d.filament_month;
   state.info.replaceChildren(
-    card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : "bad" },
+    card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
       h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page")),
-    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : "ok" },
-      d.ai.state === "Down"
+    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : d.ai.state === "Unknown" ? "warn" : "ok" },
+      d.ai.state === "Unknown" ? h("p", { class: "meta" }, "The hub couldn’t check Local AI. Its current state is unconfirmed.")
+      : d.ai.state === "Down"
         ? h("p", { class: "meta" }, "The Windows PC isn't answering. It may be off, or the room's breaker tripped.")
         : h("dl", { class: "facts" },
           h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None")),

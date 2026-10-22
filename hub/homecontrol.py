@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import auth
+from . import auth, freshness
 
 HB_URL = os.environ.get("HUB_HOMEBRIDGE_URL", "http://127.0.0.1:8581")
 CONTROLLABLE = {"Lightbulb", "Switch", "Outlet", "Fan", "Fanv2"}
@@ -67,6 +67,10 @@ def _value(svc, kind):
 
 
 def accessories():
+    return freshness.observe("home", 20, _accessories)
+
+
+def _accessories():
     token = _login()
     try:
         items = _call("GET", "/api/accessories", token=token, timeout=12) or []

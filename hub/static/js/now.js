@@ -180,7 +180,7 @@ export async function load(state) {
   if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
-  if (state.ask) state.ask.hidden = !d.status_available || d.workshop.ai === "Down";
+  if (state.ask) state.ask.hidden = !d.status_available || ["Down", "Unknown"].includes(d.workshop.ai);
 
   // Progressive enhancement: when the house is quiet, let it write a note.
   if (d.issues.length === 0 && d.workshop.ai !== "Down" && !isWallMode()) {
@@ -227,17 +227,17 @@ export async function load(state) {
   );
 
   const movieReady = d.status_available && m.plex_running && m.drive === "Connected";
-  const mSay = !d.status_available ? "Status unavailable" : movieReady ? "Ready to watch" : "Playback needs attention";
+  const mSay = !m.status_known ? "Status unavailable" : movieReady ? "Ready to watch" : "Playback needs attention";
   const wSay = !d.status_available ? "Status unavailable" : d.printer.state === "printing" ? `Printing, ${d.printer.progress}%`
     : d.printer.state === "paused" ? "Print paused" : d.printer.state === "error" ? "Printer needs attention" : "Printer and workshop status";
-  const hSay = !d.status_available ? "Status unavailable" : !d.home.homebridge_running ? "Controls need attention"
+  const hSay = !d.home.status_known ? "Status unavailable" : !d.home.homebridge_running ? "Controls need attention"
     : !home.connected ? "Connect your smart-home controls" : favs.length ? `${favs.filter(a => a.on).length} of ${favs.length} favourites on` : "Lights, plugs and switches";
 
   state.rightCol.replaceChildren(...[
     h("section", { class: "house-section" },
       h("h2", { class: "section-title" }, "The house"),
       h("div", { class: "house-grid" },
-        houseCard("Movies", movieReady ? "/movies?from=home" : "/pi?help=movies&from=home", m.tone, mSay, movieReady ? "Watch movies" : "Fix movie playback"),
+        houseCard("Movies", movieReady ? "/movies?from=home" : "/pi?help=movies&from=home", m.tone, mSay, movieReady ? "Watch movies" : m.status_known ? "Fix movie playback" : "Check movie status"),
         houseCard("Devices", "/control?from=home", d.home.tone, hSay, "Control devices"),
         houseCard("Workshop", "/workshop?from=home", d.printer.state === "error" ? "bad" : d.status_available && ["printing", "idle"].includes(d.printer.state) ? "ok" : "warn", wSay, "Check the printer"),
         houseCard("Help", "/pi?from=home", "none", "Guides for common household problems", "Solve a problem")

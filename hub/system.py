@@ -137,6 +137,13 @@ def movies_present():
     return False
 
 
+def movies_mounted():
+    """An actual filesystem, rather than just the automount, is mounted here."""
+    with open("/proc/mounts") as mounts:
+        return any(len(parts) > 2 and parts[1] == "/mnt/usb1" and parts[2] != "autofs"
+                   for parts in (line.split() for line in mounts))
+
+
 def selfcheck():
     try:
         with open("/var/lib/pi-hub-selfcheck/last.json") as f:

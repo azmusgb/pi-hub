@@ -8,6 +8,15 @@ Home, Movies, Devices, Lists, Print, Workshop, Weather, symptom guides, alerts, 
 
 Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devices and Home, device-local alert badges, compact issue summaries, and expandable movie/print details. Fix actions ask for confirmation and show a persistent outcome on Help. Expanded movie details remain open across refreshes.
 
+## Freshness and recovery follow-up — 22 October
+
+- Source-response panels on Home, Movies, Devices, Workshop, Print, Weather and Help show successful response ages, unavailable checks, expired readings and missing setup separately.
+- Seven sources are tracked: house status, Plex playback, Local AI, smart-home controls, document printer, weather and calendar. Only selected display summaries are retained after failures, in memory until app restart. No raw credentials are retained by the freshness tracker.
+- Missing telemetry no longer implies that Plex/Homebridge has stopped or Local AI is down. Unknown device state is presented separately from a confirmed failure.
+- Plex restart and movie-drive remount are checked against a real filesystem mount and a direct Plex response. Homebridge restart is checked through its accessories API; an empty device list does not count as recovered controls.
+- Verification retries are bounded to three read-only checks. Help distinguishes command completion from recovery, offers a check-only retry, and stops follow-up checks when the user leaves the page. Updates, Pi reboot, scans and self-checks retain their action-specific completion messages without a generic recovery claim.
+- The full self-check/release gate includes the new freshness endpoint; the offline shell is v62.
+
 ## Release behaviour in `bfd3468`
 
 - Python tests and JavaScript tests run before installing a release. JavaScript modules declare their module type so the tests do not depend on Node's automatic detection.
@@ -21,12 +30,13 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 
 ## Verified locally
 
-- 73 Python tests and 3 JavaScript tests pass.
+- 82 Python tests and 8 JavaScript tests pass.
 - Release simulations cover failed JavaScript tests, partial installation, failed post-install checks, successful installation and repeat installation. Separate tests check manual rollback scheduling and refusal of invalid targets.
 - Browser checks use a temporary local database. Contextual movie help opens correctly; phone (390px), tablet (1024px) and desktop (1440px) layouts were inspected. Phone and tablet checks found no horizontal overflow. The Devices empty state and movie-details refresh were checked with mocked device responses.
+- New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.
 - The local Mac cannot supply Pi system diagnostics; the Help guides remain available when that API fails.
 
-Deployment of `bfd3468` has not been performed or verified during the 22 October work recorded here. Earlier live-verification notes apply to their earlier releases.
+The latest application changes have not been deployed or verified against live Pi services during the 22 October work recorded here. Earlier live-verification notes apply to their earlier releases.
 
 ## Needs live verification or household input
 

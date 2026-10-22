@@ -44,6 +44,10 @@ def issues(s):
                  "href": "/pi", "link_label": "Check the hub"}]
     out = []
     svc = s.get("services") or {}
+    if s.get("drive_state") not in ("Connected", "Missing", "Not mounted") or any(not isinstance(svc.get(key), bool) for key in ("plex", "homebridge")):
+        out.append({"tone": "warn", "what": "Some device status unavailable",
+                    "say": "Some checks returned no reading. This does not confirm that those devices are offline.",
+                    "href": "/pi", "link_label": "Check source responses"})
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
                     "say": "Movies may not play because the storage drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
@@ -53,7 +57,7 @@ def issues(s):
                     "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
     for key, name, impact in (("plex", "Movies", "Movie playback is unavailable."),
                               ("homebridge", "Smart-home controls", "Lights and plugs may not respond from the hub.")):
-        if not svc.get(key):
+        if svc.get(key) is False:
             out.append({"tone": "bad", "what": name, "say": impact,
                         "fix": f"restart:{key}", "fix_label": "Restart movie service" if key == "plex" else "Restart smart-home service"})
     if s.get("ai_state") == "Down":
@@ -89,13 +93,16 @@ def build(s, sessions, sampler, disk_free):
     svc = (s or {}).get("services") or {}
     drive_ok = (s or {}).get("drive_state") == "Connected"
     movies = (s or {}).get("movies")
+    movie_known = isinstance(svc.get("plex"), bool) and (s or {}).get("drive_state") in ("Connected", "Missing", "Not mounted")
+    home_known = isinstance(svc.get("homebridge"), bool)
     return {
         "status_available": s is not None,
         "summary": summary(found),
         "issues": found,
         "printer": printer(s),
         "movies": {
-            "tone": _tone(svc.get("plex") and drive_ok, warn=svc.get("plex")),
+            "tone": _tone(svc.get("plex") and drive_ok, warn=svc.get("plex")) if movie_known else "warn",
+            "status_known": movie_known,
             "plex_running": bool(svc.get("plex")),
             "drive": (s or {}).get("drive_state", "Unknown"),
             "count": movies,
@@ -103,11 +110,12 @@ def build(s, sessions, sampler, disk_free):
             "resets": (s or {}).get("drive_resets"),
             "playing": [{k: v for k, v in x.items() if not k.startswith("_")} for x in sessions] if sessions is not None else None,
         },
-        "home": {"tone": _tone(svc.get("homebridge")), "homebridge_running": bool(svc.get("homebridge"))},
+        "home": {"tone": _tone(svc.get("homebridge")) if home_known else "warn",
+                 "status_known": home_known, "homebridge_running": bool(svc.get("homebridge"))},
         "workshop": {
             "display": (s or {}).get("display_state", "Unknown"),
             "display_firmware": (s or {}).get("display_firmware") or "",
-            "ai": (s or {}).get("ai_state", "Down"),
+            "ai": (s or {}).get("ai_state", "Unknown"),
             "ai_models": (s or {}).get("ai_models"),
             "ai_waiting": (s or {}).get("ai_waiting"),
         },

@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -57,6 +57,13 @@ def _say(fn, *args):
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
+
+
+@app.get("/api/freshness")
+def api_freshness():
+    return fresh(freshness.snapshot({"home": bool(auth.get("homebridge_login")),
+                                     "weather": bool(auth.get("place")),
+                                     "calendar": bool(auth.get("calendar_url"))}))
 
 
 # ---- Now ----
@@ -200,7 +207,7 @@ def api_workshop():
         "materials": filament.MATERIALS,
         "low_at": filament.low_at(),
         "filament_month": filament.summary(30),
-        "ai": {"state": (s or {}).get("ai_state", "Down"),
+        "ai": {"state": (s or {}).get("ai_state", "Unknown"),
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],
                "waiting": ((models.get("queue") or {}).get("waiting"))},
     })
@@ -468,6 +475,12 @@ def api_actions(request: Request):
     role, _ = who(request)
     return fresh({"actions": actions.available(role), "updates": actions.updates_status(),
                   "log": auth.recent_actions(12) if auth.allowed(role, "household") else []})
+
+
+@app.get("/api/actions/{name}/verification")
+def api_action_verification(name: str, request: Request):
+    need(request, "household")
+    return fresh(_say(actions.verify, name))
 
 
 @app.post("/api/actions/{name}")

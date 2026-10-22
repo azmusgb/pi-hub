@@ -39,3 +39,10 @@ git diff --check
 JavaScript tests use Node's built-in test runner. The browser modules declare `type: module` in `hub/static/js/package.json`. Release tests simulate the Pi filesystem and commands in temporary directories; they do not deploy to a real Pi.
 
 For interface changes, also check phone, tablet and desktop layouts, keyboard navigation, unavailable-service feedback and refresh behaviour. The release gate checks HTTP responses; it does not replace browser or hardware acceptance checks.
+
+
+## Freshness and recovery
+
+Home and the integration pages show **Source responses**, including the age of the last successful response and an explicitly labelled earlier summary when a check fails or ages beyond its cache window. Times describe the hub's response from a source, whose own device readings may be cached. Display history is held in memory and resets when the app restarts; automation still receives missing data on failed reads.
+
+After restarting Plex/Homebridge or remounting movie storage, Help checks the affected integration directly. It retries the read-only check up to three times, reports what it verified, and offers **Check recovery again** without repeating the command. Movie playback and physical device operation still require the household to try the original task.

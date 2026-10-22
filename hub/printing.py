@@ -4,7 +4,7 @@ import re
 import subprocess
 import tempfile
 
-from . import sources
+from . import sources, freshness
 
 PRINTER = os.environ.get("HUB_PRINTER", "HP_DeskJet_4200_series_8D1A40_")
 ALLOWED = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
@@ -18,6 +18,10 @@ def _run(*cmd, timeout=20):
 
 
 def printer_state():
+    return freshness.observe("printer", 20, _printer_state)
+
+
+def _printer_state():
     out = _run("lpstat", "-p", PRINTER).stdout.strip()
     if not out:
         return {"name": "HP DeskJet 4200", "state": "Not found"}

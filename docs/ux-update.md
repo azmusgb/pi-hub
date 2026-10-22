@@ -47,3 +47,13 @@ Follow-up validation: all 68 Python tests pass. Browser checks confirm the Home/
 - Update the offline shell to v61 and include the new experience/navigation modules.
 
 Validation: 73 Python tests and 3 JavaScript tests passed locally. Browser checks covered contextual help, phone/tablet/desktop layouts, the Devices empty state and movie-details refresh. Hardware responses for the last two checks were mocked. Pi diagnostics were unavailable on the local Mac; symptom guides remained usable. Full screen-reader validation, household acceptance and live deployment of this commit remain outstanding.
+
+
+## 22 October 2026 — freshness and verified recovery
+
+- Add source-response ages and retained display summaries with explicit current-state uncertainty. Source failures and missing setup are distinct from confirmed device failures.
+- Add recovery progress, confirmed/unconfirmed results and a concrete next step after Plex/Homebridge restart or storage remount. Rechecking recovery never repeats the command.
+- Keep action buttons guarded while recovery checks run, cancel follow-up checks on navigation, and retain action-specific messages for operations without a recovery probe.
+- Advance the offline shell to v62 and include the freshness/recovery modules.
+
+Local validation: 82 Python tests and 8 JavaScript tests pass. Mocked browser checks exercise a failed mount check followed by recovery, check-only retry without a POST, retained source summaries, and no horizontal overflow at 390px, 1024px and 1440px. These checks do not replace live Pi and household acceptance.
