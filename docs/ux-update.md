@@ -62,3 +62,10 @@ Local validation: 82 Python tests and 8 JavaScript tests pass. Mocked browser ch
 ## 22 October 2026 — live deployment
 
 Deployed application commit `0dbc712a85`. The Pi's Python/JavaScript tests and release gate passed; the full operational self-check passed 37/37 checks. Live browser validation confirmed source-response rendering, authentication on the recovery-check endpoint, no horizontal overflow at 390px/1024px/1440px and no console errors. Six sources were current; Calendar was not configured. This deployment did not perform a live recovery action or a physical printing/playback/device-control test.
+
+
+## 22 October 2026 — household features
+
+Movie night gains a shared shortlist, explained time/ratings matches, voting and a chosen film. Workshop gains a responsive project board with model attachments, planning estimates and filament warnings, while keeping live printer status first. Automations gain nonexecuting previews, explicit Add & enable, durable outcomes and a Needs a look filter. The new UI shares the existing typography, surfaces and gold accent; the offline shell advances to v63.
+
+Local browser checks use isolated demo data for votes, project stages, model-file upload/download, unsaved drafts, previews and history filters. [The feature guide](household-features.md) documents permissions, limits and backup/restore behaviour.

@@ -37,8 +37,7 @@ _tries_lock = threading.Lock()
 
 def _ready():
     db.conn().executescript(SCHEMA)
-    if "person_id" not in {r["name"] for r in db.rows("PRAGMA table_info(sessions)")}:
-        db.conn().execute("ALTER TABLE sessions ADD COLUMN person_id INTEGER")
+    db.ensure_columns("sessions", {"person_id": "INTEGER"})
 
 
 def get(key, default=None):
@@ -197,7 +196,7 @@ def session(token):
     if not token:
         return None
     _ready()
-    row = db.one("SELECT role, device, expires FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
+    row = db.one("SELECT role, device, expires, person_id FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
     if not row or row["expires"] < time.time():
         return None
     return row

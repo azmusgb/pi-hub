@@ -7,10 +7,7 @@ STEP = {"daily": 86400, "weekly": 7 * 86400}
 
 
 def ready():
-    have = {r["name"] for r in db.rows("PRAGMA table_info(items)")}
-    for col, kind in (("due", "INTEGER"), ("repeat", "TEXT"), ("reminded", "INTEGER")):
-        if col not in have:
-            db.conn().execute(f"ALTER TABLE items ADD COLUMN {col} {kind}")
+    db.ensure_columns("items", {"due": "INTEGER", "repeat": "TEXT", "reminded": "INTEGER"})
 
 
 def tick(now=None):

@@ -1,3 +1,4 @@
+import { mountProjects, refreshProjects } from "./project-board.js";
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
 import { api, card, duration, empty, ensure, h, post, toast, when } from "./core.js";
 import { band } from "./now.js";
@@ -13,7 +14,8 @@ export function mount(state) {
   state.body = h("div", { class: "cards" });
   
   const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
-  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body);
+  state.projects = mountProjects(state);
+  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.projects, state.body);
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");
@@ -106,6 +108,7 @@ function shelf(d, reload) {
 }
 
 export async function load(state) {
+  refreshProjects(state);
   const [d, cam] = await Promise.all([api("/api/workshop"), api("/api/camera").catch(() => ({ ok: false }))]);
   state.band.replaceChildren(band(d.printer));
   if (state.camOk !== cam.ok || state.camSource !== cam.source) {

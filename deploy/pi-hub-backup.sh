@@ -8,20 +8,42 @@ trap 'rm -rf "$WORK"' EXIT
 
 mkdir -p "$DEST" && chmod 755 "$DEST"
 # A consistent copy of the hub database, taken with SQLite's own backup.
-python3 - "$WORK/hub.db" <<'PY'
-import sqlite3, sys
-src = sqlite3.connect("file:/var/lib/pi-hub/hub.db?mode=ro", uri=True)
-dst = sqlite3.connect(sys.argv[1])
-src.backup(dst)
-dst.close()
-PY
+python3 - "$WORK/hub.db" <<'PYBACKUP'
+import pathlib, shutil, sqlite3, sys
+out = pathlib.Path(sys.argv[1])
+# File mutations commit through SQLite transactions. Hold the writer lock while
+# snapshotting both the database and its referenced project files.
+lock = sqlite3.connect("/var/lib/pi-hub/hub.db", timeout=30, isolation_level=None)
+lock.execute("BEGIN IMMEDIATE")
+try:
+    src = sqlite3.connect("file:/var/lib/pi-hub/hub.db?mode=ro", uri=True)
+    dst = sqlite3.connect(out)
+    src.backup(dst)
+    dst.close()
+    src.close()
+    files = out.parent / "var/lib/pi-hub/project-files"
+    files.mkdir(parents=True)
+    if lock.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_files'").fetchone():
+        for (name,) in lock.execute("SELECT stored_name FROM project_files"):
+            if pathlib.Path(name).name != name:
+                raise ValueError("Invalid project file path in database")
+            shutil.copy2(pathlib.Path("/var/lib/pi-hub/project-files") / name, files / name)
+finally:
+    lock.rollback()
+    lock.close()
+PYBACKUP
 
+# Optional legacy services may be absent; errors archiving existing files must
+# fail the backup instead of publishing a silently incomplete archive.
+SOURCES=()
+for source in etc/fstab etc/samba etc/avahi etc/systemd/system etc/pi-status etc/pi-hub \
+              var/lib/homebridge opt/homepage/config usr/local/bin; do
+  if [ -e "/$source" ]; then SOURCES+=("$source"); fi
+done
 tar -czf "$WORK/backup.tgz" \
   --exclude='var/lib/homebridge/node_modules' --exclude='var/lib/homebridge/*.log' \
   --exclude='var/lib/homebridge/backups' --exclude='*/.venv.old-armhf' \
-  -C / etc/fstab etc/samba etc/avahi etc/systemd/system etc/pi-status etc/pi-hub \
-       var/lib/homebridge opt/homepage/config usr/local/bin \
-  -C "$WORK" hub.db 2>/dev/null || true
+  -C / "${SOURCES[@]}" -C "$WORK" hub.db var/lib/pi-hub/project-files
 
 install -m 640 -o root -g pi-backup "$WORK/backup.tgz" "$DEST/pi-$STAMP.tgz"
 ls -1t "$DEST"/pi-*.tgz | tail -n +15 | xargs -r rm -f

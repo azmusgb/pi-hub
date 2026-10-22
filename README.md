@@ -9,6 +9,7 @@ The app uses FastAPI, SQLite and browser JavaScript modules, with no frontend bu
 - [Current status and remaining checks](docs/status.md)
 - [Deployment, verification and rollback](docs/operations.md)
 - [Household interface changes](docs/ux-update.md)
+- [Movie nights, Workshop projects and automation previews](docs/household-features.md)
 - [Workshop camera setup](docs/camera.md)
 - [Original plan](docs/plan.md) and [roadmap history](docs/roadmap.md)
 
@@ -46,3 +47,12 @@ For interface changes, also check phone, tablet and desktop layouts, keyboard na
 Home and the integration pages show **Source responses**, including the age of the last successful response and an explicitly labelled earlier summary when a check fails or ages beyond its cache window. Times describe the hub's response from a source, whose own device readings may be cached. Display history is held in memory and resets when the app restarts; automation still receives missing data on failed reads.
 
 After restarting Plex/Homebridge or remounting movie storage, Help checks the affected integration directly. It retries the read-only check up to three times, reports what it verified, and offers **Check recovery again** without repeating the command. Movie playback and physical device operation still require the household to try the original task.
+
+
+## More to do together
+
+- **Movies:** make a shared Movie night shortlist, filter unwatched suggestions by time and rating, vote, and choose tonight's pick.
+- **Workshop:** keep a project board with model files, notes, spool estimates and filament warnings alongside live printer status.
+- **Automations:** preview a rule without running it, then inspect durable outcomes from real household events.
+
+See the [household feature guide](docs/household-features.md) for permissions, limits and backup behaviour.

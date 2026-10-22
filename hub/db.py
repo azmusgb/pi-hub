@@ -2,6 +2,7 @@
 import os
 import sqlite3
 import threading
+from contextlib import contextmanager
 
 _local = threading.local()
 
@@ -44,3 +45,28 @@ def one(sql, *args):
 
 def run(sql, *args):
     return conn().execute(sql, args)
+
+
+@contextmanager
+def transaction():
+    """Serialize related writes on the calling thread's connection."""
+    connection = conn()
+    connection.execute('BEGIN IMMEDIATE')
+    try:
+        yield connection
+        connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+
+
+def ensure_columns(table, columns):
+    """Add known internal columns safely when several first requests arrive together."""
+    have = {r['name'] for r in rows(f'PRAGMA table_info({table})')}
+    if all(name in have for name in columns):
+        return
+    with transaction() as connection:
+        have = {r['name'] for r in rows(f'PRAGMA table_info({table})')}
+        for name, kind in columns.items():
+            if name not in have:
+                connection.execute(f'ALTER TABLE {table} ADD COLUMN {name} {kind}')

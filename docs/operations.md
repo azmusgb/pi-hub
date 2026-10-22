@@ -85,10 +85,11 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 | Household database | `/var/lib/pi-hub/hub.db` |
 | Plex secret directory | `/etc/pi-hub/secrets` |
 | Installed helpers | `/usr/local/lib/pi-hub` |
+| Project model files | `/var/lib/pi-hub/project-files` |
 | Nightly backup archives | `/var/backups/pi-hub` |
 | Last full self-check | `/var/lib/pi-hub-selfcheck/last.json` |
 
-The nightly backup script takes a consistent SQLite copy and archives selected Pi settings. The Windows pull script is `deploy/windows-pull-backups.ps1`; historical deployment notes record copies in `C:\LocalAI\pi-backups`. Confirm freshness in Settings and the self-check rather than assuming that scheduled copies succeeded.
+The nightly backup script takes a consistent SQLite copy plus its referenced project model files, then archives selected Pi settings. A SQLite writer lock protects the database/file snapshot; mutations may briefly wait during this step. See the [household feature guide](household-features.md) for attachment limits and restore expectations. The Windows pull script is `deploy/windows-pull-backups.ps1`; historical deployment notes record copies in `C:\LocalAI\pi-backups`. Confirm freshness in Settings and the self-check rather than assuming that scheduled copies succeeded.
 
 Application rollback does not restore SQLite data or undo schema migrations. The release mechanism does not guarantee recovery across power loss. A database restore drill and a schema migration strategy remain outstanding; use [the status checklist](status.md) to track them.
 

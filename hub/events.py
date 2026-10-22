@@ -11,6 +11,12 @@ from . import auth, db, sources
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (ts INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT);
+CREATE TABLE IF NOT EXISTS rule_runs (
+  id INTEGER PRIMARY KEY, rule_id INTEGER, rule_text TEXT NOT NULL, trigger TEXT NOT NULL,
+  action TEXT NOT NULL, ts INTEGER NOT NULL, status TEXT NOT NULL, message TEXT NOT NULL,
+  elapsed_ms INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS rule_runs_time ON rule_runs(ts);
 CREATE TABLE IF NOT EXISTS rules (
   id INTEGER PRIMARY KEY, trigger TEXT NOT NULL, action TEXT NOT NULL, target TEXT,
   label TEXT, enabled INTEGER NOT NULL DEFAULT 1, last_run INTEGER, last_result TEXT
@@ -127,12 +133,7 @@ def describe(rule, names=None):
 
 
 def add_rule(trigger, action, target=None):
-    if trigger not in TRIGGERS:
-        raise ValueError("Choose what should start the rule.")
-    if action not in ACTIONS:
-        raise ValueError("Choose what the rule should do.")
-    if ACTIONS[action][1] and not target:
-        raise ValueError("Choose which light or plug.")
+    validate_rule(trigger, action, target)
     ready()
     if db.one("SELECT COUNT(*) AS n FROM rules")["n"] >= 40:
         raise ValueError("That's the most rules the hub keeps. Remove one first.")
@@ -140,36 +141,102 @@ def add_rule(trigger, action, target=None):
                   trigger, action, target if ACTIONS[action][1] else None).lastrowid
 
 
-def run_action(rule, kind, detail=""):
+def policy(rule, kind, stamp=None, names=None, alerts_ready=None):
+    if not rule.get("enabled", 1):
+        return {"status": "skipped", "message": "Automation is turned off."}
+    if rule["action"] == "notify":
+        if kind != "weather_alert" and quiet_now(stamp):
+            return {"status": "skipped", "message": "Phone alert held back for quiet hours."}
+        if alerts_ready is False:
+            return {"status": "blocked", "message": "No phone alert topic is configured."}
+    if ACTIONS[rule["action"]][1] and names is not None and rule.get("target") not in names:
+        return {"status": "blocked", "message": "The selected accessory is not currently available."}
+    return {"status": "would_run", "message": "Would " + describe(rule, names).split(", ", 1)[1]}
+
+
+def preview(b, names=None):
+    if not isinstance(b, dict):
+        raise ValueError("Supply the automation fields as an object.")
+    if not isinstance(b.get("enabled", True), (bool, int)) or b.get("enabled", True) not in (0, 1):
+        raise ValueError("Choose whether the automation is enabled.")
+    trigger, action = str(b.get("trigger", "")), str(b.get("action", ""))
+    validate_rule(trigger, action, b.get("target"))
+    rule = {"trigger": trigger, "action": action, "target": b.get("target"), "enabled": b.get("enabled", True)}
+    db.conn().executescript(SCHEMA)
+    since = int(time.time()) - 30 * 86400
+    matches = db.rows("SELECT ts, detail FROM events WHERE kind = ? AND ts >= ? ORDER BY ts DESC, rowid DESC LIMIT 100", trigger, since)
+    alert_ready = topic_ready()
+    samples = [{**event, **policy(rule, trigger, event["ts"], names, alert_ready)} for event in matches]
+    return {"text": describe(rule, names), "days": 30, "matches": len(samples), "capped": len(samples) == 100,
+            "would_run": sum(e["status"] == "would_run" for e in samples),
+            "would_skip": sum(e["status"] == "skipped" for e in samples),
+            "blocked": sum(e["status"] == "blocked" for e in samples), "samples": samples[:10],
+            "now": policy(rule, trigger, names=names, alerts_ready=alert_ready),
+            "note": "Preview only. Current settings and accessory availability are applied to recorded event times. No action was run."}
+
+
+def validate_rule(trigger, action, target=None):
+    if trigger not in TRIGGERS:
+        raise ValueError("Choose what should start the rule.")
+    if action not in ACTIONS:
+        raise ValueError("Choose what the rule should do.")
+    if ACTIONS[action][1] and (not isinstance(target, str) or not target or len(target) > 80):
+        raise ValueError("Choose which light or plug.")
+
+
+def execute(rule, kind, detail=""):
     from . import actions, homecontrol
+    decision = policy(rule, kind)
+    if decision["status"] != "would_run":
+        return decision
     act = rule["action"]
     try:
         if act == "notify":
             title, body = MESSAGES.get(kind, (TRIGGERS.get(kind, kind), ""))
             text = f"{detail.rstrip('.')}. {body}".strip() if detail else body
-            return push(title, text, "warning" if kind == "weather_alert" else "bell", urgent=kind == "weather_alert")
+            message = push(title, text, "warning" if kind == "weather_alert" else "bell", urgent=kind == "weather_alert")
+            status = "succeeded" if message == "Sent." else "skipped" if message == "Held back for quiet hours." else "failed"
+            return {"status": status, "message": message}
         if act in ("turn_on", "turn_off"):
             items = {a["id"]: a for a in homecontrol.accessories()}
             a = items.get(rule["target"])
             if not a or not a["control"]:
-                return "That accessory isn't in Homebridge any more."
+                return {"status": "blocked", "message": "That accessory isn't in Homebridge any more."}
             homecontrol.set_value(a["id"], a["control"], act == "turn_on")
-            return f"Turned {'on' if act == 'turn_on' else 'off'} {a['name']}."
+            return {"status": "succeeded", "message": f"Turned {'on' if act == 'turn_on' else 'off'} {a['name']}."}
         name = {"rescan_plex": "rescan:plex", "restart_plex": "restart:plex", "restart_homebridge": "restart:homebridge"}[act]
-        return actions.run(name)["message"]
-    except Exception as e:  # noqa: BLE001
-        return str(e)[:200] or "It didn't work."
+        return {"status": "succeeded", "message": actions.run(name)["message"]}
+    except Exception as e:
+        return {"status": "failed", "message": str(e)[:200] or "It didn't work."}
+
+
+def run_action(rule, kind, detail=""):
+    return execute(rule, kind, detail)["message"]
 
 
 def fire(kind, detail=""):
     ready()
-    now = int(time.time())
-    db.run("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", now, kind, detail[:200])
-    db.run("DELETE FROM events WHERE ts < ?", now - 30 * 86400)
-    for rule in db.rows("SELECT * FROM rules WHERE enabled = 1 AND trigger = ?", kind):
-        result = run_action(rule, kind, detail)
-        db.run("UPDATE rules SET last_run = ?, last_result = ? WHERE id = ?", now, result[:200], rule["id"])
-        auth.log("rule", "Rules", f"rule:{rule['id']}", result)
+    stamp = int(time.time())
+    db.run("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", stamp, kind, detail[:200])
+    db.run("DELETE FROM events WHERE ts < ?", stamp - 30 * 86400)
+    db.run("DELETE FROM rule_runs WHERE ts < ?", stamp - 30 * 86400)
+    for rule in db.rows("SELECT * FROM rules WHERE trigger = ?", kind):
+        text = describe(rule)
+        run_id = db.run("INSERT INTO rule_runs (rule_id, rule_text, trigger, action, ts, status, message) "
+                        "VALUES (?, ?, ?, ?, ?, 'running', 'Started; no completion recorded yet.')",
+                        rule["id"], text, kind, rule["action"], stamp).lastrowid
+        start = time.monotonic()
+        result = execute(rule, kind, detail)
+        db.run("UPDATE rule_runs SET status = ?, message = ?, elapsed_ms = ? WHERE id = ?",
+               result["status"], result["message"][:200], int((time.monotonic() - start) * 1000), run_id)
+        db.run("UPDATE rules SET last_run = ?, last_result = ? WHERE id = ?", stamp, result["message"][:200], rule["id"])
+        auth.log("rule", "Automations", f"rule:{rule['id']}", result["message"])
+
+
+def history(limit=60):
+    ready()
+    return db.rows("SELECT * FROM rule_runs WHERE ts >= ? ORDER BY id DESC LIMIT ?",
+                   int(time.time()) - 30 * 86400, min(100, max(1, limit)))
 
 
 def recent(limit=40):
@@ -211,16 +278,27 @@ class Watcher:
         if s is None:
             return
         svc = s.get("services") or {}
-        if self._steady("drive", s.get("drive_state") == "Connected"):
-            fire("drive_back" if self.seen["drive"] else "drive_dropped")
+        if s.get("drive_state") in ("Connected", "Missing", "Not mounted"):
+            if self._steady("drive", s["drive_state"] == "Connected"):
+                fire("drive_back" if self.seen["drive"] else "drive_dropped")
+        else:
+            self.pending.pop("drive", None)
         for key in ("plex", "homebridge"):
-            if self._steady(key, bool(svc.get(key))) and not self.seen[key]:
-                fire(f"{key}_stopped")
-        if self._steady("hot", (s.get("pi_temp") or 0) > 75) and self.seen["hot"]:
-            fire("pi_hot", f"{s.get('pi_temp')} °C")
+            if isinstance(svc.get(key), bool):
+                if self._steady(key, svc[key]) and not self.seen[key]:
+                    fire(f"{key}_stopped")
+            else:
+                self.pending.pop(key, None)
+        if s.get("pi_temp") is not None:
+            if self._steady("hot", s["pi_temp"] > 75) and self.seen["hot"]:
+                fire("pi_hot", f"{s['pi_temp']} °C")
+        else:
+            self.pending.pop("hot", None)
 
-        pc_up = s.get("ai_state") != "Down"
-        if pc_up:
+        pc_up = s.get("ai_state") in ("Ready", "Busy")
+        if s.get("ai_state") not in ("Ready", "Busy", "Down"):
+            self.pc_down_since = None
+        elif pc_up:
             self.pc_down_since = None
             if self.pc_reported is False:
                 fire("pc_back")
@@ -236,12 +314,12 @@ class Watcher:
             if self.last_print not in ("Printing", "Paused"):
                 fire("print_started")
             self.last_progress = s.get("x2d_progress") or 0
-        elif self.last_print in ("Printing", "Paused") and state != "Paused":
+        elif self.last_print in ("Printing", "Paused") and state in ("Idle", "Stopped", "Error"):
             if state == "Error" or (state in ("Stopped", "Idle", "No status") and self.last_progress < 97):
                 fire("print_failed", f"at {self.last_progress}%")
             else:
                 fire("print_finished")
-        if state != "No status" or self.last_print not in ("Printing", "Paused"):
+        if state in ("Printing", "Paused", "Idle", "Stopped", "Error"):
             self.last_print = state
 
     def check_weather(self, w, now=None):

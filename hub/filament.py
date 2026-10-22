@@ -19,10 +19,7 @@ PRINT_COLUMNS = {"spool_id": "INTEGER", "grams": "INTEGER", "cost": "REAL", "err
 def ready():
     c = db.conn()
     c.executescript(SCHEMA)
-    have = {r["name"] for r in db.rows("PRAGMA table_info(prints)")}
-    for col, kind in PRINT_COLUMNS.items():
-        if col not in have:
-            c.execute(f"ALTER TABLE prints ADD COLUMN {col} {kind}")
+    db.ensure_columns("prints", PRINT_COLUMNS)
 
 
 def low_at():

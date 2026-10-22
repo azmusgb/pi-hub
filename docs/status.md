@@ -17,6 +17,14 @@ Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devic
 - Verification retries are bounded to three read-only checks. Help distinguishes command completion from recovery, offers a check-only retry, and stops follow-up checks when the user leaves the page. Updates, Pi reboot, scans and self-checks retain their action-specific completion messages without a generic recovery claim.
 - The full self-check/release gate includes the new freshness endpoint; the offline shell is v62.
 
+## Household features follow-up — 22 October
+
+- Movie night now has a persistent shortlist, named-person/session votes, time and ratings filters, explained suggestions and a shared pick.
+- Workshop has a four-stage planning board with notes, reference links, downloadable model files, estimates and spool shortage/overcommit warnings. Existing live printer status remains first.
+- Automations have safe previews against recent events, durable run outcomes and a Needs a look filter. Missing telemetry is excluded from event transitions.
+- Backups include a consistent snapshot of both the database and referenced project files. Parallel first-request column initialization is serialized.
+- See the [feature guide](household-features.md) for exact behaviour, permissions and limits. These additions are pending their release gate and live deployment verification.
+
 ## Release behaviour in `bfd3468`
 
 - Python tests and JavaScript tests run before installing a release. JavaScript modules declare their module type so the tests do not depend on Node's automatic detection.
@@ -30,7 +38,7 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 
 ## Verified locally
 
-- 82 Python tests and 8 JavaScript tests pass.
+- 103 Python tests and 8 JavaScript tests pass.
 - Release simulations cover failed JavaScript tests, partial installation, failed post-install checks, successful installation and repeat installation. Separate tests check manual rollback scheduling and refusal of invalid targets.
 - Browser checks use a temporary local database. Contextual movie help opens correctly; phone (390px), tablet (1024px) and desktop (1440px) layouts were inspected. Phone and tablet checks found no horizontal overflow. The Devices empty state and movie-details refresh were checked with mocked device responses.
 - New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.

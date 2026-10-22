@@ -1,6 +1,7 @@
 """Pi Hub: the home hub web app."""
 import os
 import re
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -10,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, projects, freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -182,6 +183,99 @@ def api_thumb(path: str, wide: bool = False):
         raise HTTPException(404, "No picture")
     data, kind = got
     return Response(data, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})
+
+
+# ---- Movie night: shared shortlist and votes ----
+
+@app.get("/api/movie-night")
+def api_movie_night(request: Request, minutes: int = 0, kids: bool = False):
+    return fresh(_say(movie_night.view, movie_night.voter(request.cookies.get(auth.COOKIE)), minutes, kids))
+
+
+@app.post("/api/movie-night")
+async def api_movie_nominate(request: Request):
+    need(request, "kid")
+    body = await request.json()
+    return fresh(_say(movie_night.add, str(body.get("key", ""))))
+
+
+@app.post("/api/movie-night/{key}/{op}")
+async def api_movie_vote(key: str, op: str, request: Request):
+    need(request, "kid" if op == "vote" else "household")
+    if op == "vote":
+        body = await request.json()
+        _say(movie_night.vote, key, movie_night.voter(request.cookies.get(auth.COOKIE)), body.get("vote"))
+    elif op == "choose":
+        _say(movie_night.choose, key)
+    elif op == "remove":
+        movie_night.remove(key)
+    else:
+        raise HTTPException(404, "Unknown change")
+    return fresh({"ok": True})
+
+
+# ---- Workshop projects: planning only, never printer commands ----
+
+@app.get("/api/projects")
+def api_projects():
+    return fresh(projects.view())
+
+
+@app.post("/api/projects")
+async def api_project_add(request: Request):
+    need(request, "household")
+    return fresh({"id": _say(projects.add, await request.json())})
+
+
+@app.post("/api/projects/{project_id}")
+async def api_project_update(project_id: int, request: Request):
+    need(request, "household")
+    _say(projects.update, project_id, await request.json())
+    return fresh({"ok": True})
+
+
+@app.post("/api/projects/{project_id}/delete")
+def api_project_delete(project_id: int, request: Request):
+    need(request, "household")
+    _say(projects.delete, project_id)
+    return fresh({"ok": True})
+
+
+@app.post("/api/projects/{project_id}/files")
+async def api_project_upload(project_id: int, request: Request, filename: str):
+    need(request, "household")
+    projects.ready()
+    _say(projects.exists, project_id)
+    projects.folder().mkdir(parents=True, exist_ok=True)
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=projects.folder(), prefix=".upload-", delete=False) as upload:
+            path = Path(upload.name)
+            size = 0
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > projects.MAX_FILE:
+                    raise HTTPException(413, "Project files must be 25 MB or smaller.")
+                upload.write(chunk)
+        return fresh({"id": _say(projects.attach, project_id, filename, path, size)})
+    finally:
+        if path:
+            path.unlink(missing_ok=True)
+
+
+@app.get("/api/project-files/{file_id}")
+def api_project_download(file_id: int, request: Request):
+    need(request, "kid")
+    item, path = _say(projects.file, file_id)
+    return FileResponse(path, filename=item["name"], media_type="application/octet-stream",
+                        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/project-files/{file_id}/delete")
+def api_project_file_delete(file_id: int, request: Request):
+    need(request, "household")
+    _say(projects.remove_file, file_id)
+    return fresh({"ok": True})
 
 
 # ---- Workshop ----
@@ -407,7 +501,7 @@ def need(request: Request, role):
     have, device = who(request)
     if not auth.allowed(have, role):
         if have == "kid":
-            raise HTTPException(403, "Kids' PINs can switch lights and tick lists. Ask a grown-up for this one.")
+            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
         raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
     return have, device
 
@@ -675,7 +769,14 @@ def api_rules():
         "accessories": [{"id": k, "name": v} for k, v in names.items()],
         "events": [{**e, "text": events.TRIGGERS.get(e["kind"], e["kind"])} for e in events.recent(30)],
         "alerts_ready": events.topic_ready(),
+        "runs": events.history(),
     })
+
+
+@app.post("/api/rules/preview")
+async def api_rules_preview(request: Request):
+    need(request, "household")
+    return fresh(_say(events.preview, await request.json(), _accessory_names()))
 
 
 @app.post("/api/rules")

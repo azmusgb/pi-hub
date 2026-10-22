@@ -1,3 +1,4 @@
+import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
 // Movies: what's playing, continue watching, recently added, search, and the drive's health.
 import { api, card, empty, ensure, h, piLink, post, toast, when } from "./core.js";
 
@@ -48,10 +49,12 @@ export function mount(state) {
     }, 300);
   });
   state.body = h("div", { class: "stack" });
+  state.resume = h("div");
+  state.night = mountMovieNight(state);
   state.root.append(
     h("form", { class: "search", role: "search", onsubmit: (e) => e.preventDefault() },
       h("label", { for: "movie-search", class: "sr" }, "Search the library"), input),
-    state.results, state.body);
+    state.results, state.resume, state.night, state.body);
 }
 
 function requestsCard(state, requests) {
@@ -70,39 +73,6 @@ function requestsCard(state, requests) {
       h("label", { for: `req-${r.id}` }, r.text),
       h("button", { class: "ghost small", "aria-label": `Remove ${r.text}`, onclick: async () => { await post(`/api/lists/requests/${r.id}/delete`); state.force = true; load(state); } }, "Remove"))))
       : empty("Nothing requested. Anyone can add a movie they'd like."));
-}
-
-// Movie night: one unwatched film at random, with the details that help decide.
-function movieNight(state) {
-  const kids = h("input", { type: "checkbox", id: "mn-kids" });
-  const short = h("input", { type: "checkbox", id: "mn-short" });
-  const out = h("div", { class: "mn-out", "aria-live": "polite" });
-  const seen = [];
-  const spin = async () => {
-    const q = new URLSearchParams({ kids: kids.checked, short: short.checked, skip: seen.join(",") });
-    try {
-      const { pick } = await api(`/api/movies/pick?${q}`);
-      if (!pick) { out.replaceChildren(h("p", { class: "empty" }, seen.length ? "That's every match. Untick a filter for more." : "Nothing unwatched matches. Untick a filter.")); return; }
-      seen.push(pick.key);
-      out.replaceChildren(h("article", { class: "mn-pick" },
-        pick.thumb ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(pick.thumb)}`, alt: "", class: "mn-poster" }) : null,
-        h("div", { class: "mn-body" },
-          h("h3", { class: "mn-title" }, pick.title),
-          h("p", { class: "meta" }, [pick.year, pick.minutes ? `${Math.floor(pick.minutes / 60)} h ${String(pick.minutes % 60).padStart(2, "0")} min` : null,
-            pick.content_rating, pick.rating ? `rated ${Number(pick.rating).toFixed(1)}` : null, ...(pick.genres || [])].filter(Boolean).join(", ")),
-          pick.summary ? h("p", { class: "mn-summary" }, pick.summary) : null,
-          h("div", { class: "mn-actions" },
-            h("a", { class: "primary", href: plexUrl(state.machine, pick.key), target: "_blank", rel: "noopener" }, "Watch in Plex"),
-            h("button", { class: "ghost", onclick: spin }, "Another one")))));
-    } catch (x) { out.replaceChildren(h("p", { class: "note" }, "Plex isn't answering, so there's nothing to pick from.")); }
-  };
-  return card("Movie night", { cls: "wide" },
-    h("p", { class: "meta" }, "Can't decide? The hub picks something nobody has watched yet."),
-    h("div", { class: "mn-controls" },
-      h("button", { class: "primary", onclick: () => { seen.length = 0; spin(); } }, "Pick a movie"),
-      h("label", { class: "check", for: "mn-kids" }, kids, "Family-friendly"),
-      h("label", { class: "check", for: "mn-short" }, short, "Under 1 h 45")),
-    out);
 }
 
 function watchingNow(w) {
@@ -153,14 +123,15 @@ function hero(item, machine) {
 }
 
 export async function load(state) {
+  refreshMovieNight(state);
   if (!state.force && document.activeElement?.id === "req-new" && document.activeElement.value) return;
   state.force = false;
   const d = await api("/api/movies");
   state.machine = d.machine;
   const drv = d.drive;
   const drops = d.drive_events.filter((e) => e.kind === "dropped").length;
+  state.resume.replaceChildren(...[hero(d.continue?.[0], d.machine)].filter(Boolean));
   state.body.replaceChildren(...[
-    hero(d.continue?.[0], d.machine),
     d.playing?.length ? card("Playing now", {}, h("ul", { class: "playing" }, d.playing.map((s) => h("li", {},
       h("span", { class: "t" }, s.title),
       h("span", { class: "w" }, [[s.who, s.device].filter(Boolean).join(" on "), s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(", ")),
@@ -169,7 +140,6 @@ export async function load(state) {
       shelf(d.continue.slice(1), d.machine, "")) : null,
     h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Recently added"),
       shelf(d.recent, d.machine, drv.state === "Connected" ? "Nothing new lately." : "The movies drive is missing, so Plex can't list new movies.")),
-    state.night || (state.night = movieNight(state)),
     h("details", { class: "supporting-details", open: state.detailsOpen,
       ontoggle: e => { state.detailsOpen = e.currentTarget.open; } }, h("summary", {}, "Movie requests, library & storage details"),
       requestsCard(state, d.requests), statsCard(d),

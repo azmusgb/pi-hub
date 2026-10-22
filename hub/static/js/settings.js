@@ -170,7 +170,7 @@ export async function load(state) {
         field("cal-url", "Calendar address", { name: "url", type: "url", placeholder: "https://…/basic.ics", required: true, autocomplete: "off" })),
       d.calendar_set ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/calendar", { clear: true }); toast("Calendar removed."); state.force = true; load(state); } }, "Remove calendar") : null),
     card("People", { pill: d.people.length ? `${d.people.length}` : null, cls: "wide" },
-      h("p", { class: "meta" }, "Give each person their own PIN so the activity log shows who did what. Adults can do everything the household PIN can; kids can switch lights and plugs and tick lists, but can't restart things, change rules or ask Local AI."),
+      h("p", { class: "meta" }, "Give each person their own PIN so the activity log shows who did what. Adults can do everything the household PIN can; kids can switch lights and plugs, use lists, and nominate or vote for movies. Adults manage Workshop projects, automations and system fixes."),
       d.people.length ? h("ul", { class: "log" }, d.people.map((p) => h("li", { class: "log-row" },
         h("span", { class: "dot", dataset: { tone: "ok" } }),
         h("span", { class: "log-main" }, h("strong", {}, p.name), h("span", { class: "meta" }, p.kind === "kid" ? "Kid" : "Adult")),
