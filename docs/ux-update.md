@@ -69,3 +69,10 @@ Deployed application commit `0dbc712a85`. The Pi's Python/JavaScript tests and r
 Movie night gains a shared shortlist, explained time/ratings matches, voting and a chosen film. Workshop gains a responsive project board with model attachments, planning estimates and filament warnings, while keeping live printer status first. Automations gain nonexecuting previews, explicit Add & enable, durable outcomes and a Needs a look filter. The new UI shares the existing typography, surfaces and gold accent; the offline shell advances to v64.
 
 Local browser checks use isolated demo data for votes, project stages, model-file upload/download, unsaved drafts, previews and history filters. [The feature guide](household-features.md) documents permissions, limits and backup/restore behaviour.
+
+
+## 22 October 2026 — household feature deployment verified
+
+Released `820d20cde7`, then `2be5dcc9eb` with search-to-shortlist nomination for previously watched films. Final validation: 104 Python tests and 8 JavaScript tests passed on the Pi; the release gate and 39/39 operational checks passed. All three live pages passed browser checks at 390px/1024px/1440px with no horizontal overflow or console errors. A fresh backup completed and includes the database and project-file directory.
+
+Live verification also found that Plex's configured movie section contains zero indexed movies and that a metadata check of `/mnt/usb1/Movies` stalled in filesystem I/O. This catalogue/storage condition needs separate attention; no sample films, votes, projects or events were added to the household database.

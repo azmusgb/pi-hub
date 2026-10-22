@@ -23,9 +23,9 @@ Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devic
 - Workshop has a four-stage planning board with notes, reference links, downloadable model files, estimates and spool shortage/overcommit warnings. Existing live printer status remains first.
 - Automations have safe previews against recent events, durable run outcomes and a Needs a look filter. Missing telemetry is excluded from event transitions.
 - Backups include a consistent snapshot of both the database and referenced project files. Parallel first-request column initialization is serialized.
-- See the [feature guide](household-features.md) for exact behaviour, permissions and limits. These additions are pending their release gate and live deployment verification.
+- See the [feature guide](household-features.md) for exact behaviour, permissions and limits. These additions are deployed in application release `2be5dcc9eb`, including search-to-shortlist nomination and offline shell v64.
 
-## Release behaviour in `bfd3468`
+## Release and backup behaviour
 
 - Python tests and JavaScript tests run before installing a release. JavaScript modules declare their module type so the tests do not depend on Node's automatic detection.
 - One release can run at a time. Releasing the active SHA is a no-op.
@@ -44,15 +44,21 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 - New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.
 - The local Mac cannot supply Pi system diagnostics; the Help guides remain available when that API fails.
 
-Application commit `0dbc712a85` was deployed to the Pi on 22 October 2026. The Pi ran all 82 Python tests and all 8 JavaScript tests before activation; the release gate passed, and the subsequent full operational self-check passed **37 of 37** checks. The installed app, helper and camera failover services are active.
+Application commit `2be5dcc9eb` was deployed to the Pi on 22 October 2026. The Pi ran all **104 Python tests and 8 JavaScript tests** before activation. The page/API release gate passed and the subsequent full self-check passed **39 of 39** checks.
 
-Live browser checks at `http://10.0.0.30` confirmed that source-response readings render, there is no horizontal overflow at 390px/1024px/1440px, and recovery verification requires authentication. No browser console errors were reported. The test browser could not resolve `pi.local`; the Mac's HTTP client could reach it.
+Live browser verification covered Movies/Movie night, Workshop projects and Automations at 390px, 1024px and 1440px with no horizontal overflow or console errors. Local flow tests additionally covered votes, a chosen film, search nomination, project/file changes, draft retention and nonexecuting previews. Demo data stayed in an isolated local database; installation seeds no demo projects, votes or run outcomes.
 
-All six configured sources reported current responses during verification. Calendar is not configured. No live restart/remount, document print, movie playback or physical device-control test was performed as part of deployment.
+A fresh live backup completed successfully (`pi-20261022-1331.tgz`) and its archive was verified to contain `hub.db` and `var/lib/pi-hub/project-files`. The automated isolated restore test confirms a referenced model's bytes are included with its project row. A full restore drill of the household's off-Pi backup is still outstanding.
+
+### Movie catalogue needs attention
+
+Plex reports one movie section, configured at `/mnt/usb1/Movies`, with **zero indexed movies**. A direct folder metadata check stalled in kernel filesystem I/O and was terminated. This is separate from the feature release; the API/service self-check does not prove individual movie-folder access or playback. Movie night suggestions and library search need a readable, indexed Plex catalogue. The new search nomination path supports previously watched films once they are searchable.
+
+No live recovery action or physical printing/playback/device-control test was performed during this feature deployment.
 
 ## Needs live verification or household input
 
-1. Monitor the deployed release using the [operations guide](operations.md); deployment and its initial self-check are complete.
+1. Investigate movie-folder access and restore the Plex catalogue before relying on Movie night suggestions or playback. Deployment, live page checks and the initial operational self-check are complete.
 2. Run a household acceptance session: shopping item, movie, document print and a symptom guide; include keyboard and screen-reader use.
 3. Restore an off-Pi backup into an isolated environment and verify the household data.
 4. Submit one real print and confirm camera operation with the Mac asleep.
