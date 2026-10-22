@@ -4,7 +4,7 @@ These features extend Movies, Workshop and Automations. There are no additional 
 
 ## Movie night
 
-Open **Movies → Movie night**. Add contenders from the unwatched library, vote for the films you would enjoy, and use **Choose for tonight** to select a shared pick. The watch link opens Plex; it does not start playback automatically.
+Open **Movies → Movie night**. Add contenders from the unwatched suggestions, or use **Add to Movie night** on a movie in library search results. Vote for the films you would enjoy, and use **Choose for tonight** to select a shared pick. The watch link opens Plex; it does not start playback automatically.
 
 - **Time available** filters suggestions to films with a known runtime that fits. **Family-friendly ratings** limits suggestions to the listed family-oriented ratings. This is a discovery filter, not parental access control or a guarantee of suitability.
 - Each suggestion explains its fit. Filters affect suggestions; existing shortlist entries remain visible with their votes.

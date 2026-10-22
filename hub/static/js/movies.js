@@ -10,7 +10,7 @@ function plexUrl(machine, key) {
     : piLink(32400, "/web");
 }
 
-function poster(item, machine) {
+function poster(item, machine, state) {
   const img = item.thumb
     ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`, alt: "", loading: "lazy", decoding: "async" })
     : h("div", { class: "poster-blank", "aria-hidden": "true" }, item.title.slice(0, 1));
@@ -22,7 +22,14 @@ function poster(item, machine) {
         item.progress ? h("span", { class: "poster-bar" }, h("i", { style: `width:${item.progress}%` })) : null,
         left ? h("span", { class: "poster-left" }, `${left}m left`) : null),
       h("span", { class: "poster-title" }, item.title),
-      h("span", { class: "poster-meta" }, [item.year, item.minutes ? `${item.minutes} min` : null].filter(Boolean).join(", "))));
+      h("span", { class: "poster-meta" }, [item.year, item.minutes ? `${item.minutes} min` : null].filter(Boolean).join(", "))),
+    state && item.kind === "movie" ? h("button", {type:"button", class:"ghost small poster-nominate", "aria-label":`Add ${item.title} to Movie night`, onclick:async e=>{
+      const button=e.currentTarget;
+      if(!(await ensure("kid"))) return;
+      button.disabled=true;
+      try {await post("/api/movie-night",{key:item.key});await refreshMovieNight(state,true);toast(`${item.title} added to Movie night.`);}
+      catch(x){toast(x.message,"bad");}finally{button.disabled=false;}
+    }}, "Add to Movie night") : null);
 }
 
 const shelf = (items, machine, none) => items?.length
@@ -41,7 +48,7 @@ export function mount(state) {
       try {
         const r = await api(`/api/movies/search?q=${encodeURIComponent(q)}`);
         state.results.replaceChildren(r.results.length
-          ? h("ul", { class: "shelf" }, r.results.map((i) => poster(i, state.machine)))
+          ? h("ul", { class: "shelf" }, r.results.map((i) => poster(i, state.machine, state)))
           : empty(`Nothing in the library matches “${q}”.`));
       } catch (e) {
         state.results.replaceChildren(empty("Search isn't available while Plex is down."));

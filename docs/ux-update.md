@@ -66,6 +66,6 @@ Deployed application commit `0dbc712a85`. The Pi's Python/JavaScript tests and r
 
 ## 22 October 2026 — household features
 
-Movie night gains a shared shortlist, explained time/ratings matches, voting and a chosen film. Workshop gains a responsive project board with model attachments, planning estimates and filament warnings, while keeping live printer status first. Automations gain nonexecuting previews, explicit Add & enable, durable outcomes and a Needs a look filter. The new UI shares the existing typography, surfaces and gold accent; the offline shell advances to v63.
+Movie night gains a shared shortlist, explained time/ratings matches, voting and a chosen film. Workshop gains a responsive project board with model attachments, planning estimates and filament warnings, while keeping live printer status first. Automations gain nonexecuting previews, explicit Add & enable, durable outcomes and a Needs a look filter. The new UI shares the existing typography, surfaces and gold accent; the offline shell advances to v64.
 
 Local browser checks use isolated demo data for votes, project stages, model-file upload/download, unsaved drafts, previews and history filters. [The feature guide](household-features.md) documents permissions, limits and backup/restore behaviour.

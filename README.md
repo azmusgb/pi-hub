@@ -51,7 +51,7 @@ After restarting Plex/Homebridge or remounting movie storage, Help checks the af
 
 ## More to do together
 
-- **Movies:** make a shared Movie night shortlist, filter unwatched suggestions by time and rating, vote, and choose tonight's pick.
+- **Movies:** make a shared Movie night shortlist, filter unwatched suggestions by time and rating, nominate a film from library search, vote, and choose tonight's pick.
 - **Workshop:** keep a project board with model files, notes, spool estimates and filament warnings alongside live printer status.
 - **Automations:** preview a rule without running it, then inspect durable outcomes from real household events.
 

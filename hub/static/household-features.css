@@ -99,3 +99,4 @@
  .page-rules .rule .switch { margin-top:.2rem; }
  .page-rules .rule .feature-actions { grid-column:2; margin-left:0; }
 }
+.poster-nominate { width:100%; min-height:44px; margin-top:.5rem; white-space:normal; }

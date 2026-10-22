@@ -72,7 +72,7 @@ export async function refreshMovieNight(state, force=false) {
       h('div',{class:'night-art'},art(item)),h('div',{class:'night-copy'},h('h4',{},item.title),h('p',{class:'meta'},meta(item)),
         h('p',{class:'match-reason'},item.reasons.join(' · ')),
         h('button',{type:'button',class:'ghost','data-focus':`add:${item.key}`,onclick:()=>change(state,'kid',()=>post('/api/movie-night',{key:item.key}))},'Add to shortlist'))))
-      : [h('p',{class:'feature-empty'},d.library_available ? 'No more unwatched films match. Try more time or turn off the ratings filter.' : 'Plex isn’t returning the library right now. Your shortlist and votes are still available.')]));
+      : [h('p',{class:'feature-empty'},d.library_available ? 'No unwatched films match. Try another filter, or search the library above to add any movie to the shortlist.' : 'Plex isn’t returning the library right now. Your shortlist and votes are still available.')]));
     if (focus) {
       const key = focus.startsWith('add:') ? focus.replace('add:', 'vote:') : focus;
       [...ui.root.querySelectorAll('[data-focus]')].find(node=>node.dataset.focus===key)?.focus({preventScroll:true});

@@ -230,3 +230,15 @@ def test_unknown_device_readings_do_not_trigger_automations(monkeypatch):
     assert watcher.last_print=='Printing'
     watcher.check({**good,'x2d_state':'Idle'},2030)
     assert fired==['print_failed']
+
+
+def test_search_nomination_can_add_an_already_watched_movie(monkeypatch):
+    paths=[]
+    def metadata(path):
+        paths.append(path)
+        return {'MediaContainer':{'Metadata':[{'ratingKey':'99','type':'movie','title':'A film to revisit','duration':5400000,'contentRating':'PG'}]}}
+    monkeypatch.setattr(plex,'_json',metadata)
+    item=movie_night.add('99')
+    assert item['title']=='A film to revisit' and item['minutes']==90
+    assert paths==['/library/metadata/99']
+    assert movie_night.view()['shortlist'][0]['key']=='99'
