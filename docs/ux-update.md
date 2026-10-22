@@ -1,4 +1,8 @@
-# Household usability update — 21 October 2026
+# Household usability updates
+
+See [current status](status.md) for deployment and acceptance checks. The validation notes below are dated records.
+
+## 21 October 2026
 
 - Unify navigation breakpoints in app.css: a single bottom row on phones, a compact rail on tablets, a labeled rail on desktop.
 - Keep list forms full width, place reminder controls on their own row, improve empty-state wording, and support arrow keys/Home/End in list tabs.
@@ -30,3 +34,16 @@ Implemented the next recommendations:
 Recommendations to revisit after household use: observe which three tasks people perform most often before adding personal shortcuts; test the symptom guides with someone unfamiliar with the Pi; extend the same task-first pattern to pages where real use reveals friction. Full screen-reader validation remains outstanding.
 
 Follow-up validation: all 68 Python tests pass. Browser checks confirm the Home/Movies/Devices/Lists/More order on a single row at 390px, no horizontal overflow, labeled navigation at 1024px, grouped More links, expandable symptom guides, and preserved movie-storage URLs. The diagnostic controls remain behind the existing PIN and confirmation flow.
+
+
+## 22 October 2026 — committed as `bfd3468`
+
+- Route Home issues to the relevant symptom guide, preserve query context through navigation and browser history, and show breadcrumbs back to Home, Movies or More.
+- Group favourite devices ahead of other controls and show favourites on Home. Empty device lists do not render stray null text.
+- Show device-local unread-alert counts and active/paused 3D-print indicators in navigation. Opening Alerts marks its fetched history as seen on that browser.
+- Keep small issue sets visible; put additional issues in an expandable section when there are more than two.
+- Put movie requests and storage details in an expandable section that remains open across refreshes. Keep the print queue under expandable details and open it when waiting jobs appear.
+- Require confirmation for Fix-it actions and retain the action outcome in Help after the transient toast disappears.
+- Update the offline shell to v61 and include the new experience/navigation modules.
+
+Validation: 73 Python tests and 3 JavaScript tests passed locally. Browser checks covered contextual help, phone/tablet/desktop layouts, the Devices empty state and movie-details refresh. Hardware responses for the last two checks were mocked. Pi diagnostics were unavailable on the local Mac; symptom guides remained usable. Full screen-reader validation, household acceptance and live deployment of this commit remain outstanding.

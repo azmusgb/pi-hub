@@ -129,6 +129,6 @@ Homepage can't run actions, keep household data, or take uploads, so self-servic
 - New movie drive and a move-the-movies helper.
 - Per-person accounts if the household PIN isn't enough.
 
-## Status (20 Oct 2026)
+## Early status snapshot (20 Oct 2026; superseded)
 - Shipped: Now, Movies (posters, continue watching, recently added, search, drive health), Workshop (print history, display, Local AI), Print (upload, copies, black and white, queue, cancel, ink levels), Lists (shopping, to do, notes), Pi (24 h/week charts, services, storage, updates, network), Alerts (history from pi-status). Phone bottom bar, desktop side rail, wall mode.
 - Not yet: PIN and Fix-it buttons (step 2), home control (step 5), Wi-Fi QR (step 6), nightly backup (step 7), Tailscale (step 8). The first real print from the hub is untested.

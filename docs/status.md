@@ -1,14 +1,14 @@
 # Pi Hub status — 22 October 2026
 
-This is the current checklist. `plan.md` is the original proposal; `roadmap.md` records delivery history. Neither is a live equipment inventory.
+This is the current checklist. See the [README](../README.md) for local checks and the [operations guide](operations.md) for deployment and rollback. [The original plan](plan.md) and [roadmap](roadmap.md) preserve delivery history; neither is a live equipment inventory.
 
 ## Built
 
 Home, Movies, Devices, Lists, Print, Workshop, Weather, symptom guides, alerts, automations, owner/household/child access, backups and off-Pi copy reporting, Siri Shortcuts, release checks and owner-requested rollback.
 
-The current local changes add contextual help links and breadcrumbs, favourites on Devices and Home, device-local alert badges, compact issue summaries, and expandable movie/print details. Fix actions ask for confirmation and show a persistent outcome on Help. Expanded movie details remain open across refreshes.
+Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devices and Home, device-local alert badges, compact issue summaries, and expandable movie/print details. Fix actions ask for confirmation and show a persistent outcome on Help. Expanded movie details remain open across refreshes.
 
-## Release hardening in this change
+## Release behaviour in `bfd3468`
 
 - Python tests and JavaScript tests run before installing a release. JavaScript modules declare their module type so the tests do not depend on Node's automatic detection.
 - One release can run at a time. Releasing the active SHA is a no-op.
@@ -26,13 +26,14 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 - Browser checks use a temporary local database. Contextual movie help opens correctly; phone (390px), tablet (1024px) and desktop (1440px) layouts were inspected. Phone and tablet checks found no horizontal overflow. The Devices empty state and movie-details refresh were checked with mocked device responses.
 - The local Mac cannot supply Pi system diagnostics; the Help guides remain available when that API fails.
 
-These changes have not been deployed or validated against live Pi services in this session.
+Deployment of `bfd3468` has not been performed or verified during the 22 October work recorded here. Earlier live-verification notes apply to their earlier releases.
 
 ## Needs live verification or household input
 
-1. Run a household acceptance session: shopping item, movie, document print and a symptom guide; include keyboard and screen-reader use.
-2. Restore an off-Pi backup into an isolated environment and verify the household data.
-3. Submit one real print and confirm camera operation with the Mac asleep.
-4. Confirm current Homebridge, Wi-Fi, calendar, Tailscale and Local AI setup in Settings; historical notes do not establish current connectivity.
-5. Test drive migration with the replacement drive. The roadmap records that the complete migration was unverified.
-6. Consider workshop display firmware integration, UPS/power reporting and device modules only after the above checks.
+1. Deploy the committed release using the [operations guide](operations.md), verify its running SHA and run the full self-check.
+2. Run a household acceptance session: shopping item, movie, document print and a symptom guide; include keyboard and screen-reader use.
+3. Restore an off-Pi backup into an isolated environment and verify the household data.
+4. Submit one real print and confirm camera operation with the Mac asleep.
+5. Confirm current Homebridge, Wi-Fi, calendar, Tailscale and Local AI setup in Settings; historical notes do not establish current connectivity.
+6. Test drive migration with the replacement drive. The roadmap records that the complete migration was unverified.
+7. Consider workshop display firmware integration, UPS/power reporting and device modules only after the above checks.

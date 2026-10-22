@@ -59,7 +59,9 @@ The hub notices and acts, not just reports.
 - **Stage 4:** an OK to move the camera bridge to the Pi.
 - **Stage 5:** a UPS for the PC (recommended anyway, given the breaker trips); smart plugs if you want power use.
 
-## Status
+## Delivery history
+
+Entries below are chronological snapshots; later entries can resolve earlier “not yet” notes. Use [current status](status.md) for outstanding work.
 - 20 Oct 2026, Stage 1 shipped: setup code, owner password and household PIN (scrypt, 30-day device sessions, lockout after 5 wrong tries); Fix-it buttons through a root helper on a Unix socket with a fixed action list; one-tap fixes in Needs a look; Control page and favourites on Now (needs the Homebridge login); guest Wi-Fi QR; nightly backup on the Pi at 03:30, 14 kept; Tailscale installed, waiting for the owner to approve the Pi.
 - Not yet: copying backups off the Pi (to the PC) — needs a decision on where and how.
 - 20 Oct 2026, Stage 2 shipped: event watcher (changes must hold a minute; PC down 5 min) and Rules page (10 triggers, 6 actions, default "drive back → rescan Plex"); morning digest (default 08:00, test button); quiet hours for rule alerts; weather by town (Open-Meteo, °F) and calendar by iCal link on Now and the wall; wall display 2 (big clock, agenda, Wi-Fi QR, dims 22:00–06:00); Ask Local AI on Now through Local AI's /api/chat with the hub's facts. Ask will need a Local AI key once its sign-in is enforced.
@@ -72,3 +74,5 @@ The hub notices and acts, not just reports.
 - 20 Oct 2026: weather town set from Local AI's saved home (Lake Wylie, SC); quiet hours on, 22:00–07:00.
 - 20 Oct 2026, more household features: Movie night (a random unwatched film, family-friendly and under-1 h 45 filters, "Another one"); reminders on to-do items (once, daily or weekly; phone message when due, held during quiet hours; repeating chores reopen); "Print this list" sends a list to the HP DeskJet; "To do today" on Now; an Outages card on the Pi page from the hub's own event log.
 - 20 Oct 2026: Siri Shortcuts. Settings → People and access → Siri and Shortcuts makes a key per phone (shown once, stored as a hash, revocable). Plain-text endpoints Siri reads out: POST /api/shortcut/add (text, list), GET /api/shortcut/list, GET /api/shortcut/status, POST /api/shortcut/ask. Step-by-step setup is in the card.
+
+- 22 Oct 2026, commit `bfd3468`: household task-flow follow-up and release recovery improvements. Local validation: 73 Python and 3 JavaScript tests pass; simulated failed releases restore supporting files and the app. Deployment and current hardware state have not been verified for this commit. See [operations](operations.md) for the release procedure and its recovery boundaries.

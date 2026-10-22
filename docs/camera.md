@@ -8,3 +8,8 @@
 - The Pi bridge needs "LAN Only Liveview" on at the printer, and the access code set with `install_x2d_bridge_pi.sh --set-code`.
 - The WS350 firmware's camera URL is built in at compile time. The display's own builds use `X2D_BRIDGE_URL=http://10.0.0.30:8091/x2d/frame.jpg`
   (agreed with the display session on 20 Oct 2026); Pi Hub doesn't install display firmware.
+
+
+## Verification status
+
+The addresses above describe the configured topology, last documented on 20 October 2026. Camera operation with the Mac asleep still needs live acceptance verification; see [current status](status.md). The release process reinstalls the Pi bridge drop-in when the bridge unit exists, restarts that bridge, and includes the drop-in in failure recovery. See [operations](operations.md) for deployment and rollback.
