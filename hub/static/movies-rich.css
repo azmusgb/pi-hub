@@ -1,0 +1,188 @@
+/* movies-rich.css — Movies page refinement */
+
+/* Search — constrained */
+.movie-search {
+  max-width: 720px;
+  margin: 0 auto 1.5rem;
+}
+.movie-search input[type="search"] {
+  width: 100%;
+  font-size: 1rem;
+  padding: .75rem 1rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+}
+.movie-search-results:not(:empty) {
+  margin-bottom: 1.5rem;
+}
+
+/* Section wrappers */
+.movie-section { margin-bottom: 2rem; }
+.movie-section .eyebrow-section { margin-top: 0; }
+
+/* Poster shelf — grid */
+.poster-shelf {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+.poster-shelf .poster-card { aspect-ratio: 2 / 3; }
+.poster-blank {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: 2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Hero movie — image with gradient overlay */
+.movie-hero {
+  position: relative;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  min-height: 360px;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: var(--sh-2);
+  isolation: isolate;
+  color: #fff;
+  margin-bottom: 2rem;
+}
+.movie-hero-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.movie-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    rgba(0,0,0,.85) 0%,
+    rgba(0,0,0,.62) 40%,
+    rgba(0,0,0,.1) 80%);
+  z-index: 1;
+  pointer-events: none;
+}
+.movie-hero-body {
+  position: relative;
+  z-index: 2;
+  padding: 1.75rem 2rem;
+  max-width: 60%;
+}
+.movie-hero-kicker {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.7);
+  margin: 0 0 .5rem;
+}
+.movie-hero-title {
+  font-size: clamp(1.75rem, 1.5rem + 2vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.05;
+  margin: 0 0 .5rem;
+}
+.movie-hero-meta {
+  font-size: .9375rem;
+  color: rgba(255,255,255,.8);
+  margin: 0 0 .75rem;
+}
+.movie-hero-bar {
+  height: 4px;
+  background: rgba(255,255,255,.2);
+  border-radius: 999px;
+  overflow: hidden;
+  max-width: 280px;
+  margin: 0 0 1rem;
+}
+.movie-hero-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+@media (max-width: 720px) {
+  .movie-hero { min-height: 240px; }
+  .movie-hero-body { max-width: 100%; padding: 1.25rem; }
+}
+
+/* Movie night */
+.mn-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+.mn-pick {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+}
+@media (max-width: 540px) { .mn-pick { grid-template-columns: 1fr; } }
+.mn-poster { width: 100%; border-radius: var(--r-sm); }
+.mn-title { margin: 0 0 .25rem; font-size: 1.125rem; font-weight: 700; }
+.mn-summary { margin: .75rem 0; font-size: .875rem; line-height: 1.5; color: var(--text-2); }
+.mn-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+
+/* Watching stats — small bars */
+.nights {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 60px;
+  margin: .75rem 0;
+}
+.nights .night {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.nights .night > i {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  border-radius: 3px 3px 0 0;
+}
+.nights .night > b {
+  font-size: .6875rem;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.people-bars {
+  list-style: none;
+  padding: 0;
+  margin: .75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.people-bars > li {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .8125rem;
+}
