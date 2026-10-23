@@ -76,11 +76,25 @@ devices:
     name: "Bambu P1S 3D Printer"
     role: "Fabrication & 3D Print"
     model: "Bambu Lab P1S"
+    ip: "10.0.0.136"
+    monitored:
+      icmp: true
+      icmp_interval: "30s"
+      mqtt: 8883
+      ftps: 990
+      camera: 6000
+    notes: "Workshop 3D printer, active monitoring in Pi Hub and Uptime Kuma"
+
+  workshop_display:
+    name: "Workshop OS Smart Display"
+    role: "Ambient Workshop Kiosk"
+    model: "WS350 Smart Display"
     ip: "10.0.0.124"
     monitored:
       icmp: true
       icmp_interval: "30s"
-    notes: "Workshop 3D printer, active monitoring in Pi Hub and Uptime Kuma"
+      http: 80
+    notes: "Physical workshop companion display and portal access"
 
   # External Public WAN Anycast
   cloudflare_wan:
