@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT = 8099
 WORLD_URL = "https://10.0.0.21/api/world"
 MOVIES = "/mnt/usb1"
+WINDOWS_MOVIES = "/mnt/windows-movies"
 SERVICES = {"plex": "plexmediaserver", "homebridge": "homebridge",
             "docker": "docker", "cockpit": "cockpit.socket"}
 
@@ -96,6 +97,31 @@ def movies_uuid():
 
 
 def drive():
+    # If the Windows CIFS movies share is mounted, treat it as the primary movies storage
+    win_mounted = os.path.ismount(WINDOWS_MOVIES)
+    if win_mounted:
+        try:
+            st = os.statvfs(WINDOWS_MOVIES)
+            movies_count = len([f for f in os.listdir(WINDOWS_MOVIES) if not f.startswith(".")])
+            free_b = st.f_bavail * st.f_frsize
+            total_b = st.f_blocks * st.f_frsize
+            used_b = total_b - free_b
+            return {
+                "source": "Windows PC (//10.0.0.21/Movies)",
+                "present": True,
+                "mounted": True,
+                "state": "Connected",
+                "free": human_bytes(free_b),
+                "used": human_bytes(used_b),
+                "total": human_bytes(total_b),
+                "movies": movies_count,
+                "resets": 0,
+                "io_errors": 0,
+                "fs_errors": 0,
+            }
+        except OSError:
+            pass
+
     uuid = movies_uuid()
     present = bool(uuid) and os.path.exists(f"/dev/disk/by-uuid/{uuid}")
     if present and not real_mount():
@@ -106,6 +132,7 @@ def drive():
     mounted = real_mount()
     log = run("dmesg")
     out = {
+        "source": "Local USB (/mnt/usb1)",
         "present": present,
         "mounted": mounted,
         "resets": log.count("reset SuperSpeed"),
@@ -118,13 +145,12 @@ def drive():
         st = os.statvfs(MOVIES)
         out["free"] = human_bytes(st.f_bavail * st.f_frsize)
         total_movies = 0
-        for mdir in (os.path.join(MOVIES, "Movies"), "/mnt/windows-movies"):
+        for mdir in (os.path.join(MOVIES, "Movies"), WINDOW_MOVIES):
             try:
                 total_movies += len([f for f in os.listdir(mdir) if not f.startswith(".")])
             except OSError:
                 pass
         out["movies"] = total_movies
-    if mounted:
         out["state"] = "Connected"
     elif present:
         out["state"] = "Not mounted"
@@ -201,8 +227,11 @@ def status():
         "ai_state": ai_state,
         "ai_models": len(loaded),
         "ai_waiting": queue.get("waiting", 0),
+        "drive_source": d.get("source", "Windows PC (//10.0.0.21/Movies)"),
         "drive_state": d.get("state", "Unknown"),
         "drive_free": d.get("free", ""),
+        "drive_used": d.get("used", ""),
+        "drive_total": d.get("total", ""),
         "drive_resets": d.get("resets", 0),
         "drive_errors": d.get("io_errors", 0) + d.get("fs_errors", 0),
         "movies": d.get("movies"),

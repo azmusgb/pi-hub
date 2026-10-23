@@ -123,4 +123,31 @@ def test_movies_api_accepts_section_filter(c, monkeypatch):
     data_sec = r_sec.json()
     assert data_sec["active_section"] == "2"
     assert data_sec["recent"][0]["title"] == "Recent-2"
+    assert "drive" in data_all
+    assert "genres" in data_all
+
+
+def test_movies_catalog_and_pick_genre(c, monkeypatch):
+    from hub import plex
+    mock_catalog = [
+        {"key": "1", "title": "Spider-Man", "year": 2026, "genres": ["Action", "Adventure"], "rating": 9.5, "watched": True},
+        {"key": "2", "title": "Superbad", "year": 2007, "genres": ["Comedy"], "rating": 8.0, "watched": False},
+        {"key": "3", "title": "Toy Story", "year": 1995, "genres": ["Animation", "Family"], "rating": 8.5, "watched": False, "content_rating": "G"},
+    ]
+    monkeypatch.setattr(plex, "catalog", lambda section=None: mock_catalog)
+    monkeypatch.setattr(plex, "genres", lambda section=None: ["Action", "Adventure", "Animation", "Comedy", "Family"])
+
+    r = c.get("/api/movies/catalog")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data["movies"]) == 3
+    assert "Comedy" in data["genres"]
+
+    # Test pick with genre
+    monkeypatch.setattr(plex, "pick", lambda kids=False, max_minutes=None, skip=(), section=None, genre=None:
+                        next((m for m in mock_catalog if genre in m["genres"]), None))
+    r_pick = c.get("/api/movies/pick?genre=Comedy")
+    assert r_pick.status_code == 200
+    assert r_pick.json()["pick"]["title"] == "Superbad"
+
 

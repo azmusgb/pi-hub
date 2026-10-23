@@ -44,6 +44,8 @@ def _item(m):
         "art": next((a for a in (m.get("art"), m.get("grandparentArt")) if a and THUMB_PATH.match(a)), None),
         "summary": (m.get("summary") or "")[:280],
         "rating": m.get("audienceRating") or m.get("rating"),
+        "content_rating": m.get("contentRating"),
+        "genres": [g.get("tag") for g in m.get("Genre") or [] if g.get("tag")][:3],
         "added": m.get("addedAt"),
     }
 
@@ -167,6 +169,28 @@ def history():
     return sources.cached("plex-history", 300, _history)
 
 
+def _catalog_item(m):
+    duration = m.get("duration") or 0
+    offset = m.get("viewOffset") or 0
+    size = sum(p.get("size") or 0 for media in m.get("Media") or [] for p in media.get("Part") or [])
+    return {
+        "key": str(m.get("ratingKey") or ""),
+        "title": (m.get("title") or "")[:90],
+        "year": m.get("year"),
+        "minutes": round(duration / 60000) if duration else None,
+        "progress": round(offset * 100 / duration) if duration and offset else 0,
+        "watched": bool(m.get("viewCount")),
+        "rating": m.get("audienceRating") or m.get("rating"),
+        "content_rating": m.get("contentRating"),
+        "genres": [g.get("tag") for g in m.get("Genre") or [] if g.get("tag")][:4],
+        "thumb": m.get("thumb") if m.get("thumb") and THUMB_PATH.match(m["thumb"]) else None,
+        "art": next((a for a in (m.get("art"), m.get("grandparentArt")) if a and THUMB_PATH.match(a)), None),
+        "summary": (m.get("summary") or "")[:350],
+        "added": m.get("addedAt"),
+        "gb": round(size / 1e9, 1),
+    }
+
+
 def _library_stats(section=None):
     dirs = (_json("/library/sections").get("MediaContainer") or {}).get("Directory") or []
     movie_secs = [s for s in dirs if s.get("type") == "movie"]
@@ -193,24 +217,36 @@ def _library_stats(section=None):
         except Exception:
             continue
 
+    catalog_items = [_catalog_item(m) for m in items]
+    genre_set = set()
+    for it in catalog_items:
+        for g in it.get("genres") or []:
+            genre_set.add(g)
+    genres_sorted = sorted(genre_set)
+
     unwatched, total_size, unwatched_size, every = [], 0, 0, []
-    for m in items:
-        every.append({"key": str(m.get("ratingKey")), "minutes": round((m.get("duration") or 0) / 60000) or None})
-        size = sum(p.get("size") or 0 for media in m.get("Media") or [] for p in media.get("Part") or [])
+    for it in catalog_items:
+        every.append({"key": it["key"], "minutes": it["minutes"]})
+        size = int((it.get("gb") or 0) * 1e9)
         total_size += size
-        if not m.get("viewCount") and not m.get("viewOffset"):
-            unwatched.append({"key": str(m.get("ratingKey")), "title": (m.get("title") or "")[:90], "year": m.get("year"),
-                              "gb": round(size / 1e9, 1), "added": m.get("addedAt"), "thumb": m.get("thumb") if THUMB_PATH.match(m.get("thumb") or "") else None,
-                              "art": m.get("art") if THUMB_PATH.match(m.get("art") or "") else None,
-                              "minutes": round((m.get("duration") or 0) / 60000) or None, "summary": (m.get("summary") or "")[:400],
-                              "rating": m.get("audienceRating") or m.get("rating"), "content_rating": m.get("contentRating"),
-                              "genres": [g.get("tag") for g in m.get("Genre") or []][:3]})
+        if not it["watched"] and not it["progress"]:
+            unwatched.append(it)
             unwatched_size += size
+
     old = int(time.time()) - 180 * 86400
     stale = sorted((u for u in unwatched if (u["added"] or 0) < old), key=lambda u: -u["gb"])
-    return {"movies": len(items), "watched": len(items) - len(unwatched), "total_gb": round(total_size / 1e9),
-            "unwatched": len(unwatched), "unwatched_gb": round(unwatched_size / 1e9), "never_watched_old": stale[:12],
-            "_unwatched": unwatched, "_all": every}
+    return {
+        "movies": len(catalog_items),
+        "watched": len(catalog_items) - len(unwatched),
+        "total_gb": round(total_size / 1e9),
+        "unwatched": len(unwatched),
+        "unwatched_gb": round(unwatched_size / 1e9),
+        "never_watched_old": stale[:12],
+        "_unwatched": unwatched,
+        "_catalog": catalog_items,
+        "_genres": genres_sorted,
+        "_all": every,
+    }
 
 
 def library_stats(section=None):
@@ -218,7 +254,17 @@ def library_stats(section=None):
     return sources.cached(key, 1800, lambda: _library_stats(section))
 
 
-def pick(kids=False, max_minutes=None, skip=(), section=None):
+def catalog(section=None):
+    stats = library_stats(section) or {}
+    return stats.get("_catalog") or []
+
+
+def genres(section=None):
+    stats = library_stats(section) or {}
+    return stats.get("_genres") or []
+
+
+def pick(kids=False, max_minutes=None, skip=(), section=None, genre=None):
     """Movie night: one unwatched movie at random, optionally family-friendly or short enough for tonight."""
     import random
     try:
@@ -231,4 +277,7 @@ def pick(kids=False, max_minutes=None, skip=(), section=None):
         pool = [u for u in pool if (u.get("content_rating") or "") in ("G", "PG", "TV-G", "TV-Y", "TV-Y7", "TV-PG")]
     if max_minutes:
         pool = [u for u in pool if u.get("minutes") and u["minutes"] <= max_minutes]
+    if genre and genre.strip().lower() not in ("all", "any", ""):
+        g_target = genre.strip().lower()
+        pool = [u for u in pool if any(g.lower() == g_target for g in u.get("genres") or [])]
     return random.choice(pool) if pool else None

@@ -94,14 +94,31 @@ def api_movies(section: str = "all"):
         "playing": sources.plex_sessions(),
         "continue": plex.on_deck(),
         "recent": plex.recently_added(section),
-        "drive": {"state": s.get("drive_state", "Unknown"), "free": s.get("drive_free"), "count": s.get("movies"),
-                  "resets": s.get("drive_resets"), "errors": s.get("drive_errors")},
+        "drive": {
+            "source": s.get("drive_source", "Windows PC (//10.0.0.21/Movies)"),
+            "state": s.get("drive_state", "Unknown"),
+            "free": s.get("drive_free"),
+            "used": s.get("drive_used", ""),
+            "total": s.get("drive_total", ""),
+            "count": s.get("movies"),
+            "resets": s.get("drive_resets", 0),
+            "errors": s.get("drive_errors", 0),
+        },
         "drive_events": system.drive_events(),
         "history": plex.history(),
         "watching": sources.cached("plex-watching", 600, lambda: plex.watch_stats(90)),
         "stats": {k: v for k, v in ((plex.library_stats(section) if section else plex.library_stats()) or {}).items() if not k.startswith("_")} or None,
         "requests": db.rows("SELECT id, text, done, created FROM items WHERE list = 'requests' AND (done = 0 OR done_at > ?) "
                             "ORDER BY done, created DESC", int(time.time()) - 14 * 86400),
+        "genres": plex.genres(section),
+    })
+
+
+@app.get("/api/movies/catalog")
+def api_movies_catalog(section: str = "all"):
+    return fresh({
+        "movies": plex.catalog(section),
+        "genres": plex.genres(section),
     })
 
 
@@ -164,8 +181,8 @@ def api_now_poster(n: int):
 
 
 @app.get("/api/movies/pick")
-def api_movies_pick(kids: bool = False, short: bool = False, skip: str = "", section: str = "all"):
-    choice = plex.pick(kids, 105 if short else None, tuple(skip.split(",")[:30]), section=section)
+def api_movies_pick(kids: bool = False, short: bool = False, skip: str = "", section: str = "all", genre: str = ""):
+    choice = plex.pick(kids, 105 if short else None, tuple(skip.split(",")[:30]), section=section, genre=genre)
     return fresh({"pick": choice})
 
 

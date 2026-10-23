@@ -59,6 +59,9 @@ function poster(item, machine) {
   const title = item?.title || "Untitled";
   const progress = clampPercent(item?.progress);
   const left = remainingMinutes(item);
+  const rawRating = Number(item?.rating);
+  const rating = Number.isFinite(rawRating) && rawRating > 0 ? rawRating : null;
+  const cert = item?.content_rating || null;
 
   const subtitle = [
     item?.year,
@@ -83,6 +86,32 @@ function poster(item, machine) {
         title.slice(0, 1).toUpperCase(),
       );
 
+  const badges = [];
+  if (rating) {
+    badges.push(
+      h(
+        "span",
+        {
+          class: "poster-badge poster-rating",
+          "aria-label": `Rated ${rating.toFixed(1)}`,
+        },
+        `★ ${rating.toFixed(1)}`,
+      ),
+    );
+  }
+  if (cert) {
+    badges.push(
+      h(
+        "span",
+        {
+          class: "poster-badge poster-cert",
+          "aria-label": `Advisory: ${cert}`,
+        },
+        cert,
+      ),
+    );
+  }
+
   return h(
     "li",
     {},
@@ -96,6 +125,17 @@ function poster(item, machine) {
         "aria-label": subtitle ? `${title}, ${subtitle}` : title,
       },
       h("div", { class: "poster-art" }, art),
+
+      badges.length
+        ? h(
+            "div",
+            {
+              class: "poster-badges",
+              "aria-hidden": "true",
+            },
+            ...badges,
+          )
+        : null,
 
       progress > 0
         ? h(
@@ -564,7 +604,7 @@ function requestsCard(state, requests) {
   );
 }
 
-function movieNight(state) {
+function movieNight(state, genres) {
   const kids = h("input", {
     type: "checkbox",
     id: "mn-kids",
@@ -574,6 +614,17 @@ function movieNight(state) {
     type: "checkbox",
     id: "mn-short",
   });
+
+  const genreSelect = h(
+    "select",
+    {
+      id: "mn-genre",
+      class: "mn-genre-select",
+      "aria-label": "Filter by genre",
+    },
+    h("option", { value: "" }, "Any genre"),
+    ...asArray(genres).map((g) => h("option", { value: g }, g)),
+  );
 
   const out = h("div", {
     class: "mn-out",
@@ -617,6 +668,10 @@ function movieNight(state) {
       skip: seen.join(","),
     });
 
+    if (genreSelect.value) {
+      query.set("genre", genreSelect.value);
+    }
+
     if (state.section && state.section !== "all") {
       query.set("section", state.section);
     }
@@ -646,19 +701,15 @@ function movieNight(state) {
         seen.push(pick.key);
       }
 
+      const rawRating = Number(pick.rating);
+      const rating = Number.isFinite(rawRating) && rawRating > 0 ? rawRating : null;
+      const cert = pick.content_rating || null;
+
       const metadata = [
         pick.year,
         formatRuntime(pick.minutes),
-        pick.content_rating,
-
-        Number.isFinite(
-          Number(pick.rating),
-        )
-          ? `rated ${Number(
-              pick.rating,
-            ).toFixed(1)}`
-          : null,
-
+        cert,
+        rating ? `★ ${rating.toFixed(1)}` : null,
         ...asArray(pick.genres),
       ]
         .filter(Boolean)
@@ -798,6 +849,13 @@ function movieNight(state) {
     },
   );
 
+  genreSelect.addEventListener(
+    "change",
+    () => {
+      seen.length = 0;
+    },
+  );
+
   return card(
     "Movie night",
     {
@@ -819,6 +877,7 @@ function movieNight(state) {
       },
 
       pickButton,
+      genreSelect,
 
       h(
         "label",
@@ -1512,26 +1571,43 @@ function driveCard(
   const drv =
     drive || {};
 
+  const isWindows =
+    (drv.source || "").includes("Windows");
+
   const events =
     asArray(driveEvents);
 
   const drops =
-    events.filter(
-      (event) =>
-        event.kind === "dropped",
-    ).length;
+    isWindows
+      ? 0
+      : events.filter(
+          (event) =>
+            event.kind === "dropped",
+        ).length;
 
   const connected =
     drv.state === "Connected";
 
   const hasErrors =
-    Number(drv.errors) > 0;
+    isWindows
+      ? false
+      : Number(drv.errors) > 0;
+
+  const freeDetail = [
+    drv.free,
+    drv.total ? `of ${drv.total}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return card(
-    "Movies drive",
+    "Movie storage",
     {
-      pill:
-        drv.state || "Unknown",
+      pill: connected
+        ? isWindows
+          ? "Windows Share"
+          : "Connected"
+        : drv.state || "Unknown",
 
       tone: connected
         ? hasErrors || drops
@@ -1549,7 +1625,14 @@ function driveCard(
       h(
         "div",
         {},
-        h("dt", {}, "Movies"),
+        h("dt", {}, "Storage backend"),
+        h("dd", {}, isWindows ? "Windows PC (SMB)" : (drv.source || "Local USB")),
+      ),
+
+      h(
+        "div",
+        {},
+        h("dt", {}, "Movies in library"),
         h(
           "dd",
           {},
@@ -1563,12 +1646,12 @@ function driveCard(
         h(
           "dt",
           {},
-          "Free space",
+          "Available space",
         ),
         h(
           "dd",
           {},
-          drv.free || "—",
+          freeDetail || "—",
         ),
       ),
 
@@ -1578,59 +1661,46 @@ function driveCard(
         h(
           "dt",
           {},
-          "Dropouts this week",
+          "Share health",
         ),
 
         h(
           "dd",
           {
             dataset: {
-              tone: drops
-                ? "bad"
-                : "ok",
+              tone: connected
+                ? "ok"
+                : "bad",
             },
           },
-          String(drops),
-        ),
-      ),
-
-      h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Errors since the Pi started",
-        ),
-
-        h(
-          "dd",
-          {
-            dataset: {
-              tone: hasErrors
-                ? "bad"
-                : "ok",
-            },
-          },
-
-          String(
-            drv.errors ?? "—",
-          ),
+          connected
+            ? "Active & Reachable"
+            : (drv.state || "Disconnected"),
         ),
       ),
     ),
 
-    drops || hasErrors
+    !connected
       ? h(
           "p",
           {
             class: "note",
           },
-          "The movies drive has reported reliability problems. Back up anything important and review drive health before relying on it.",
+          isWindows
+            ? "The Windows PC movie share is currently unreachable. Verify that your Windows workstation (10.0.0.21) is awake and connected to the network."
+            : "The movies drive is disconnected. Review drive health and connections.",
+        )
+      : hasErrors || drops
+      ? h(
+          "p",
+          {
+            class: "note",
+          },
+          "The local movies drive has reported reliability problems. Back up anything important and review drive health before relying on it.",
         )
       : null,
 
-    events.length
+    !isWindows && events.length
       ? h(
           "ul",
           {
@@ -1678,6 +1748,228 @@ function driveCard(
   );
 }
 
+function filterAndSortCatalog(movies, q, genre, unwatchedOnly, sortBy) {
+  let list = asArray(movies);
+  if (q) {
+    const query = q.trim().toLowerCase();
+    list = list.filter((m) =>
+      (m.title || "").toLowerCase().includes(query) ||
+      String(m.year || "").includes(query),
+    );
+  }
+  if (genre && genre !== "all") {
+    const gLower = genre.toLowerCase();
+    list = list.filter((m) =>
+      asArray(m.genres).some((g) => (g || "").toLowerCase() === gLower),
+    );
+  }
+  if (unwatchedOnly) {
+    list = list.filter((m) => !m.watched && !m.progress);
+  }
+
+  return [...list].sort((a, b) => {
+    switch (sortBy) {
+      case "title_asc":
+        return (a.title || "").localeCompare(b.title || "");
+      case "title_desc":
+        return (b.title || "").localeCompare(a.title || "");
+      case "rating_desc":
+        return (Number(b.rating) || 0) - (Number(a.rating) || 0);
+      case "year_desc":
+        return (Number(b.year) || 0) - (Number(a.year) || 0);
+      case "year_asc":
+        return (Number(a.year) || 0) - (Number(b.year) || 0);
+      case "duration_asc":
+        return (Number(a.minutes) || 9999) - (Number(b.minutes) || 9999);
+      case "added_desc":
+      default:
+        return (Number(b.added) || 0) - (Number(a.added) || 0);
+    }
+  });
+}
+
+function catalogSection(state, allMovies, genres) {
+  const list = asArray(allMovies);
+  if (!list.length) {
+    return null;
+  }
+
+  if (!state.catalog) {
+    state.catalog = {
+      q: "",
+      genre: "all",
+      unwatchedOnly: false,
+      sortBy: "title_asc",
+      expanded: false,
+    };
+  }
+
+  const cState = state.catalog;
+  const section = h("section", {
+    class: "movie-section movie-catalog",
+    "aria-labelledby": "movie-catalog-heading",
+  });
+
+  const countBadge = h("span", { class: "catalog-count" });
+  const gridContainer = h("div", { class: "catalog-grid-wrap" });
+
+  const renderGrid = () => {
+    const filtered = filterAndSortCatalog(
+      list,
+      cState.q,
+      cState.genre,
+      cState.unwatchedOnly,
+      cState.sortBy,
+    );
+
+    const totalFiltered = filtered.length;
+    countBadge.textContent =
+      totalFiltered === list.length
+        ? `${list.length} movies`
+        : `${totalFiltered} of ${list.length} movies`;
+
+    const displayLimit = cState.expanded ? totalFiltered : 24;
+    const visible = filtered.slice(0, displayLimit);
+
+    gridContainer.replaceChildren();
+
+    if (!visible.length) {
+      gridContainer.append(
+        empty(
+          cState.q
+            ? `No movies match “${cState.q}”.`
+            : "No movies match the selected filters.",
+        ),
+      );
+      return;
+    }
+
+    const shelfEl = h(
+      "ul",
+      { class: "poster-shelf" },
+      visible.map((m) => poster(m, state.machine)),
+    );
+    gridContainer.append(shelfEl);
+
+    if (totalFiltered > 24) {
+      const moreBtn = h(
+        "button",
+        {
+          type: "button",
+          class: `btn ${cState.expanded ? "ghost" : "btn--primary"} catalog-more-btn`,
+          onclick: () => {
+            cState.expanded = !cState.expanded;
+            renderGrid();
+          },
+        },
+        cState.expanded
+          ? "Show fewer movies"
+          : `Show all ${totalFiltered} movies (+${totalFiltered - 24})`,
+      );
+      gridContainer.append(h("div", { class: "catalog-actions" }, moreBtn));
+    }
+  };
+
+  const genreCounts = {};
+  for (const m of list) {
+    for (const g of asArray(m.genres)) {
+      genreCounts[g] = (genreCounts[g] || 0) + 1;
+    }
+  }
+
+  const genreSelect = h(
+    "select",
+    {
+      class: "catalog-select",
+      "aria-label": "Filter catalog by genre",
+      onchange: (e) => {
+        cState.genre = e.target.value;
+        renderGrid();
+      },
+    },
+    h(
+      "option",
+      { value: "all", selected: cState.genre === "all" },
+      `All Genres (${list.length})`,
+    ),
+    ...asArray(genres).map((g) =>
+      h(
+        "option",
+        { value: g, selected: cState.genre === g },
+        `${g} (${genreCounts[g] || 0})`,
+      ),
+    ),
+  );
+
+  const sortSelect = h(
+    "select",
+    {
+      class: "catalog-select",
+      "aria-label": "Sort catalog",
+      onchange: (e) => {
+        cState.sortBy = e.target.value;
+        renderGrid();
+      },
+    },
+    h("option", { value: "title_asc", selected: cState.sortBy === "title_asc" }, "Title (A → Z)"),
+    h("option", { value: "title_desc", selected: cState.sortBy === "title_desc" }, "Title (Z → A)"),
+    h("option", { value: "rating_desc", selected: cState.sortBy === "rating_desc" }, "Highest Rated (★)"),
+    h("option", { value: "year_desc", selected: cState.sortBy === "year_desc" }, "Release Year (Newest)"),
+    h("option", { value: "year_asc", selected: cState.sortBy === "year_asc" }, "Release Year (Oldest)"),
+    h("option", { value: "added_desc", selected: cState.sortBy === "added_desc" }, "Recently Added"),
+    h("option", { value: "duration_asc", selected: cState.sortBy === "duration_asc" }, "Shortest First"),
+  );
+
+  const filterInput = h("input", {
+    type: "search",
+    class: "catalog-filter-input",
+    placeholder: "Quick filter collection...",
+    value: cState.q,
+    autocomplete: "off",
+  });
+  filterInput.addEventListener("input", () => {
+    cState.q = filterInput.value;
+    renderGrid();
+  });
+
+  const unwatchedBtn = h(
+    "button",
+    {
+      type: "button",
+      class: `chip ${cState.unwatchedOnly ? "is-active" : ""}`,
+      onclick: () => {
+        cState.unwatchedOnly = !cState.unwatchedOnly;
+        unwatchedBtn.classList.toggle("is-active", cState.unwatchedOnly);
+        renderGrid();
+      },
+    },
+    "Unwatched only",
+  );
+
+  const toolbar = h(
+    "div",
+    { class: "catalog-toolbar" },
+    h("div", { class: "catalog-search-wrap" }, filterInput),
+    genreSelect,
+    sortSelect,
+    unwatchedBtn,
+    countBadge,
+  );
+
+  section.append(
+    h(
+      "div",
+      { class: "eyebrow-section" },
+      h("h2", { id: "movie-catalog-heading" }, "Browse Library"),
+    ),
+    toolbar,
+    gridContainer,
+  );
+
+  renderGrid();
+  return section;
+}
+
 export async function load(
   state,
 ) {
@@ -1697,10 +1989,10 @@ export async function load(
       params.set("section", state.section);
     }
     const qs = params.toString();
-    const data =
-      await api(
-        `/api/movies${qs ? `?${qs}` : ""}`,
-      );
+    const [data, catalogData] = await Promise.all([
+      api(`/api/movies${qs ? `?${qs}` : ""}`),
+      api(`/api/movies/catalog${qs ? `?${qs}` : ""}`).catch(() => ({ movies: [], genres: [] })),
+    ]);
 
     if (data?.active_section) {
       state.section = data.active_section;
@@ -1721,6 +2013,9 @@ export async function load(
       asArray(
         data?.continue,
       );
+
+    const catalogMovies = asArray(catalogData?.movies);
+    const genres = asArray(catalogData?.genres || data?.genres);
 
     const activeSec = asArray(data?.sections).find(
       (s) => String(s.key) === String(state.section),
@@ -1778,14 +2073,14 @@ export async function load(
           recentEmptyMessage,
         ),
 
+        catalogSection(state, catalogMovies, genres),
+
+        movieNight(state, genres),
+
         driveCard(
           drive,
           driveEvents,
         ),
-
-        state.night ||
-          (state.night =
-            movieNight(state)),
 
         requestsCard(
           state,

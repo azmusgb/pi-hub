@@ -516,3 +516,112 @@
   gap: .5rem;
 }
 
+/* ---------- Catalog Browser & Controls ---------- */
+.movie-catalog {
+  margin-top: 2rem;
+}
+
+.catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: 1.25rem;
+  padding: .75rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.catalog-search-wrap {
+  flex: 1 1 200px;
+  position: relative;
+}
+
+.catalog-filter-input {
+  width: 100%;
+  font-size: .875rem;
+  padding: .5rem .85rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-1);
+  color: inherit;
+}
+
+.catalog-select {
+  font-size: .8125rem;
+  font-weight: 500;
+  padding: .5rem .85rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-1);
+  color: inherit;
+  cursor: pointer;
+}
+
+.catalog-count {
+  font-size: .8125rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.catalog-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.75rem;
+}
+
+.catalog-more-btn {
+  min-width: 200px;
+}
+
+/* Movie night genre selector */
+.mn-genre-select {
+  font-size: .8125rem;
+  padding: .45rem .75rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Poster badges */
+.poster-badges {
+  position: absolute;
+  top: .6rem;
+  left: .6rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.poster-badges .poster-badge {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: .2rem .5rem;
+}
+
+.poster-badge.poster-rating {
+  color: #facc15;
+  font-weight: 800;
+}
+
+.poster-badge.poster-cert {
+  color: #f8fafc;
+  font-size: .625rem;
+  padding: .15rem .45rem;
+  text-transform: uppercase;
+}
+
