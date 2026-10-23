@@ -351,6 +351,92 @@
           }
         }
       }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 103,
+      "title": "Windows Desktop Host Health (10.0.0.21)",
+      "type": "row"
+    },
+    {
+      "id": 16,
+      "title": "Windows CPU Utilization",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 29 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "100 - (avg(irate(windows_cpu_time_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "CPU %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Windows Available RAM",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 29 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "windows_memory_available_bytes",
+          "legendFormat": "Available"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 4000000000 },
+              { "color": "green", "value": 8000000000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Windows C: Drive Free",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 29 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "windows_logical_disk_free_bytes{volume=\"C:\"}",
+          "legendFormat": "C: Free"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 20000000000 }
+            ]
+          }
+        }
+      }
     }
   ],
   "refresh": "10s",
@@ -361,5 +447,5 @@
   "timezone": "browser",
   "title": "Home Network Diagnostics & Latency",
   "uid": "netmon-overview",
-  "version": 2
+  "version": 3
 }
