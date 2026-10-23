@@ -135,7 +135,7 @@ function networkPanel(net) {
     h("div", {},
       h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "LAN Endpoints & Services"),
       h("div", { style: "display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;" },
-        nodePill("🖥️", "Windows 11 PC", win, getTone(win)),
+        nodePill("🖥️", "Windows 11 Workstation", win, getTone(win)),
         printer ? nodePill("🖨️", "Bambu Printer", printer, getTone(printer)) : null,
         nodePill("🔍", "DNS Resolution", dns, getTone(dns))
       )
