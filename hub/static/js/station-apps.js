@@ -172,7 +172,7 @@ function renderEmbedded(service) {
 
 export function mount(state) {
   const path = location.pathname.replace(/\/$/, "");
-  const match = SERVICES.find((s) => `/apps/${s.id}` === path);
+  const match = SERVICES.find((s) => `/apps/${s.id}` === path || `/${s.id}` === path);
 
   state.root.replaceChildren();
 

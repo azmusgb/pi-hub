@@ -36,6 +36,9 @@ const PAGES = {
   "/apps/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
   "/apps/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
   "/apps/status": { key: "apps", title: "Service Status", mod: appsPage },
+  "/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
+  "/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
+  "/status": { key: "apps", title: "Service Status", mod: appsPage },
 };
 
 // Page-specific subtitles
