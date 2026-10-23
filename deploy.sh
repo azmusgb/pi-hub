@@ -26,8 +26,8 @@ sudo chown -R 472:472 /mnt/usb1/netmon/grafana
 echo "Configuring systemd services..."
 sudo cp /opt/netmon/systemd/*.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable netmon.service orbi-exporter.service
-sudo systemctl restart orbi-exporter.service
+sudo systemctl enable netmon.service orbi-exporter.service iperf3.service
+sudo systemctl restart orbi-exporter.service iperf3.service
 
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
