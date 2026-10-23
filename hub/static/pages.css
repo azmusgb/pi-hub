@@ -536,14 +536,36 @@ body.wall .link-btn { display: none; }
 
 #view > * + * { margin-top: 1.25rem; }
 
-#view h2 { margin: 0 0 .25rem; font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
-#view h3 { margin: 0 0 .25rem; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
-#view p  { margin: 0; color: var(--text-2); line-height: 1.6; }
-#view a  { color: var(--accent-strong); text-underline-offset: 2px; }
-#view small { color: var(--text-3); }
-#view strong { color: var(--text); font-weight: 600; }
+:where(#view) h2 {
+  margin: 0 0 .25rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
 
-.stack { display: flex; flex-direction: column; gap: 1rem; }
+:where(#view) h3 {
+  margin: 0 0 .25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+:where(#view) p {
+  line-height: 1.6;
+}
+
+:where(#view) a {
+  text-underline-offset: 2px;
+}
+
+:where(#view) small {
+  color: var(--text-3, var(--muted));
+}
+
+:where(#view) strong {
+  font-weight: 600;
+}
+
 .row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .spacer { flex: 1; }
 
@@ -566,10 +588,26 @@ body.wall .link-btn { display: none; }
   border-radius: var(--r-lg); border: 1px solid var(--line);
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
   box-shadow: var(--shadow-1);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  transition:
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
-a.card { display: block; color: inherit; text-decoration: none; }
-.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--line-strong); }
+
+a.card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+a.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--line-strong);
+}
 .card--accent { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
 .card--accent::after {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
@@ -647,27 +685,45 @@ a.card { display: block; color: inherit; text-decoration: none; }
 .table td { border-bottom: 1px solid var(--line); }
 .table tr:last-child td { border-bottom: 0; }
 
-.field { display: flex; flex-direction: column; gap: .35rem; }
 .field label { font-size: .8125rem; font-weight: 600; color: var(--text-2); }
 
-input, select, textarea {
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea
+) {
   width: 100%; font: inherit; font-size: .9375rem;
-  color: var(--text); background: var(--surface-2);
-  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  color: var(--text, var(--ink));
+  background: var(--surface-2, var(--field));
+  border: 1px solid var(--line-strong, var(--acrylic-edge));
+  border-radius: var(--r-sm, 12px);
   padding: .55rem .7rem;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-input:focus, select:focus, textarea:focus {
-  outline: none; border-color: var(--accent); box-shadow: var(--ring);
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea
+):focus-visible {
+  outline: 2px solid var(--accent, var(--pei));
+  outline-offset: 1px;
+  border-color: var(--accent, var(--pei));
+  box-shadow: var(--ring, none);
 }
 
-.empty {
+.empty-state {
   display: grid; place-items: center; gap: .5rem;
   padding: 3rem 1.5rem; text-align: center;
   border: 1px dashed var(--line-strong); border-radius: var(--r-lg);
   color: var(--text-3);
 }
-.empty svg { width: 32px; height: 32px; opacity: .7; }
+
+.empty-state svg {
+  width: 32px;
+  height: 32px;
+  opacity: .7;
+}
 
 .skeleton {
   border-radius: var(--r-sm);
@@ -683,4 +739,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 #view img, #view video { max-width: 100%; height: auto; border-radius: var(--r-md); }
-.poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+.media-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .btn,
+  .skeleton {
+    transition: none;
+    animation: none;
+  }
+}
