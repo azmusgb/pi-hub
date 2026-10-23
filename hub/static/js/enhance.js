@@ -109,13 +109,19 @@
   const openPalette = () => {
     if (!palette) return;
     palette.hidden = false;
+    input?.setAttribute("aria-expanded", "true");
     if (input) input.value = "";
     filtered = items;
     activeIdx = 0;
     renderResults();
     requestAnimationFrame(() => input?.focus());
   };
-  const closePalette = () => { if (palette) palette.hidden = true; };
+
+  const closePalette = () => {
+    if (!palette) return;
+    palette.hidden = true;
+    input?.setAttribute("aria-expanded", "false");
+  };
 
   input?.addEventListener("input", () => {
     const q = input.value.trim().toLowerCase();
@@ -132,6 +138,8 @@
   palette?.addEventListener("click", (e) => {
     if (e.target.classList.contains("palette-backdrop")) closePalette();
   });
+
+  document.querySelector("[data-palette-close]")?.addEventListener("click", closePalette);
 
   // ---- Shortcuts dialog -----------------------------------------------
   const shortcuts = $("#shortcuts");
