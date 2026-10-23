@@ -1,0 +1,13 @@
+[Unit]
+Description=Automated Netmon and Pi Hub Nightly Backup (Spec § 37)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/netmon-backup.sh
+Nice=15
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

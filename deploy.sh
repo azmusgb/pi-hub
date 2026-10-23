@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+cd "$(dirname "$0")"
 
 PI_HOST="${1:-pi}"
 
@@ -19,15 +20,16 @@ echo "Installing CLI diagnostic shortcuts to /usr/local/bin..."
 sudo install -m 755 /opt/netmon/scripts/* /usr/local/bin/
 
 echo "Ensuring persistent storage directories on SSD (/mnt/usb1/netmon)..."
-sudo mkdir -p /mnt/usb1/netmon/{prometheus,grafana,uptime-kuma}
+sudo mkdir -p /mnt/usb1/netmon/{prometheus,grafana,uptime-kuma,backups}
 sudo chown -R 65534:65534 /mnt/usb1/netmon/prometheus
 sudo chown -R 472:472 /mnt/usb1/netmon/grafana
 
-echo "Configuring systemd services..."
-sudo cp /opt/netmon/systemd/*.service /etc/systemd/system/
+echo "Configuring systemd services and timers..."
+sudo cp /opt/netmon/systemd/* /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable netmon.service orbi-exporter.service iperf3.service
-sudo systemctl restart orbi-exporter.service iperf3.service
+sudo systemctl enable netmon.service orbi-exporter.service iperf3.service netmon-backup.timer
+sudo systemctl restart orbi-exporter.service iperf3.service netmon-backup.timer
+sudo ln -sf /usr/local/bin/netmon-backup.sh /etc/cron.daily/netmon-backup
 
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
