@@ -34,8 +34,12 @@ function camera(c) {
     return card("Camera", { cls: "wide", pill: "No picture", tone: "warn" },
       h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the printer right now."));
   }
+  const hint = c.source === "MacBook"
+    ? h("p", { class: "meta", style: "margin-top: .5rem;" }, "Streaming via MacBook bridge. For direct streaming without the Mac, enable LAN Only Liveview on the printer screen.")
+    : null;
   return card("Camera", { cls: "wide", pill: src, tone: c.source === "Pi" ? "ok" : "warn" },
-    h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }));
+    h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }),
+    hint);
 }
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.

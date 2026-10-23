@@ -147,48 +147,87 @@ function networkPanel(net) {
   );
 }
 
-export function band(p) {
+export function band(p, cam = null) {
   const pct = p.progress || 0;
   const detail = p.state === "printing" && p.left
     ? ["Done in about ", h("strong", {}, p.left), finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
     : [p.detail || ""];
   const cls = p.state === "printing" ? "band is-printing" : "band";
+
+  const camElement = (cam && cam.ok) ? h("a", {
+    href: "/workshop?from=home",
+    "data-link": true,
+    class: "band-cam",
+    title: "Open Workshop camera"
+  },
+    h("img", {
+      class: "band-cam-img",
+      src: `/api/camera.jpg?t=${Date.now()}`,
+      alt: "Bambu X2D live camera",
+      width: 140,
+      height: 79
+    }),
+    h("span", { class: "band-cam-live" }, "● LIVE")
+  ) : null;
+
   return h("section", { class: cls, dataset: { state: p.state }, "aria-label": "Bambu X2D" },
-    h("p", { class: "band-name" }, "Bambu X2D"),
-    h("h2", { class: "band-headline" }, p.headline),
-    h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
-      h("div", { class: "line-track" }),
-      h("div", { class: "line-bead", style: `width:${pct}%` }),
-      h("div", { class: "line-nozzle", style: `left:${pct}%` })),
-    h("p", { class: "band-detail" }, ...detail));
+    h("div", { class: "band-content" },
+      h("div", { class: "band-info" },
+        h("p", { class: "band-name" }, "Bambu X2D"),
+        h("h2", { class: "band-headline" }, p.headline),
+        h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+          h("div", { class: "line-track" }),
+          h("div", { class: "line-bead", style: `width:${pct}%` }),
+          h("div", { class: "line-nozzle", style: `left:${pct}%` })),
+        h("p", { class: "band-detail" }, ...detail)
+      ),
+      camElement
+    )
+  );
 }
 
 function askBox() {
   const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house…", autocomplete: "off", enterkeyhint: "send" });
   const answer = h("div", { class: "ask-answer", "aria-live": "polite" });
   const btn = h("button", { type: "submit", class: "primary" }, "Ask");
-  return h("section", { class: "ask-section" },
-    h("h2", { class: "section-title" }, "Ask Pi Hub"),
-    h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: async (e) => {
-    e.preventDefault();
-    const q = input.value.trim();
+
+  const submitQuery = async (queryText) => {
+    const q = (queryText !== undefined ? queryText : input.value || "").trim();
     if (!q || !(await ensure("household"))) return;
+    input.value = q;
     btn.disabled = true;
     answer.replaceChildren(h("p", { class: "meta" }, "Asking Local AI…"));
     try {
       const r = await post("/api/ask", { question: q });
       answer.replaceChildren(h("p", { class: "ask-q" }, q), h("p", { class: "ask-a" }, r.answer));
       input.value = "";
-    } catch (x) { answer.replaceChildren(h("p", { class: "note" }, x.message)); }
+    } catch (x) {
+      answer.replaceChildren(h("p", { class: "note" }, x.message));
+    }
     btn.disabled = false;
-  } }, 
-    h("label", { for: "ask-input", class: "sr" }, "Ask about the house"), 
-    h("div", { class: "ask-row" }, input, btn), 
+  };
+
+  const chip = (label) => h("button", {
+    type: "button",
+    class: "chip ask-chip",
+    onclick: () => submitQuery(label)
+  }, label);
+
+  return h("section", { class: "ask-section" },
+    h("h2", { class: "section-title" }, "Ask Pi Hub"),
+    h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: (e) => {
+      e.preventDefault();
+      submitQuery();
+    } },
+    h("label", { for: "ask-input", class: "sr" }, "Ask about the house"),
+    h("div", { class: "ask-row" }, input, btn),
     answer,
-    h("div", { class: "ask-suggestions" },
-      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What’s happening at home?"; input.focus(); } }, "What’s happening at home?"),
-      h("button", { type: "button", class: "chip", onclick: () => { input.value = "What's using the Pi?"; input.focus(); } }, "What's using the Pi?"),
-      h("button", { type: "button", class: "chip", onclick: () => { input.value = "Any alerts?"; input.focus(); } }, "Any alerts?")
+    h("div", { class: "ask-suggestions", role: "group", "aria-label": "Suggested questions" },
+      chip("How is the internet running?"),
+      chip("What movies are unwatched?"),
+      chip("Is the 3D printer ready?"),
+      chip("Are backups working?"),
+      chip("What’s happening at home?")
     )
   ));
 }
@@ -239,20 +278,42 @@ export function mount(state) {
   state._eyebrowTimer = setInterval(() => {
     if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
   }, 15 * 60 * 1000);
+
+  if (state._camTimer) clearInterval(state._camTimer);
+  state._camTimer = setInterval(() => {
+    const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img");
+    if (imgs.length && !document.hidden) {
+      const ts = Date.now();
+      imgs.forEach(img => { img.src = `/api/camera.jpg?t=${ts}`; });
+    }
+  }, 3000);
 }
 
 export async function load(state) {
-  const [d, out, home, wifi] = await Promise.all([
+  const [d, out, home, wifi, cam] = await Promise.all([
     api("/api/now"),
     api("/api/outside").catch(() => null),
     api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
     api("/api/wifi").catch(() => ({ set: false })),
+    api("/api/camera").catch(() => ({ ok: false })),
   ]);
   
   state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !isWallMode()
     ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} remaining →`) : null].filter(Boolean));
 
   const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
+  const sortedAccessories = [...home.accessories].sort((a, b) => {
+    const score = (x) => {
+      if (x.kind === "light") return 1;
+      if (x.kind === "plug") return 2;
+      if (x.name && x.name.toLowerCase().includes("power")) return 3;
+      return 4;
+    };
+    return score(a) - score(b);
+  });
+  const displayAccessories = favs.length ? favs : (home.connected ? sortedAccessories.slice(0, 3) : []);
+  const controlsTitle = favs.length ? "Favourite controls" : "Quick controls";
+
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
@@ -284,7 +345,7 @@ export async function load(state) {
   
   // Printer band goes above alerts if printing, otherwise hide it
   if (d.printer.state === "printing" || d.printer.state === "paused") {
-    state.band.replaceChildren(band(d.printer));
+    state.band.replaceChildren(band(d.printer, cam));
   } else {
     state.band.replaceChildren();
   }
@@ -297,14 +358,20 @@ export async function load(state) {
   const cpu = p.cpu_series?.at(-1);
 
   // 2x2 House Grid
-  const houseCard = (name, href, tone, say, action) => h("a", { class: "house-card", href, "data-link": true },
+  const houseCard = (name, href, tone, say, action, extra = null) => h("a", { class: "house-card", href, "data-link": true },
     h("div", { class: "house-header" },
       h("h3", { class: "house-name" }, name),
       h("span", { class: "dot", dataset: { tone } })
     ),
     h("p", { class: "house-say" }, say),
+    extra,
     h("span", { class: "house-action" }, action)
   );
+
+  const camPreview = (cam && cam.ok) ? h("div", { class: "house-cam-wrap" },
+    h("img", { class: "house-cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "Workshop live camera preview", loading: "lazy" }),
+    h("span", { class: "house-cam-badge" }, "● LIVE")
+  ) : null;
 
   const movieReady = d.status_available && m.plex_running && m.drive === "Connected";
   const mSay = !m.status_known ? "Status unavailable" : movieReady ? "Ready to watch" : "Playback needs attention";
@@ -319,14 +386,17 @@ export async function load(state) {
       h("div", { class: "house-grid" },
         houseCard("Movies", movieReady ? "/movies?from=home" : "/pi?help=movies&from=home", m.tone, mSay, movieReady ? "Watch movies" : m.status_known ? "Fix movie playback" : "Check movie status"),
         houseCard("Devices", "/control?from=home", d.home.tone, hSay, "Control devices"),
-        houseCard("Workshop", "/workshop?from=home", d.printer.state === "error" ? "bad" : d.status_available && ["printing", "idle"].includes(d.printer.state) ? "ok" : "warn", wSay, "Check the printer"),
+        houseCard("Workshop", "/workshop?from=home", d.printer.state === "error" ? "bad" : d.status_available && ["printing", "idle"].includes(d.printer.state) ? "ok" : "warn", wSay, "Check the printer", camPreview),
         houseCard("Help", "/pi?from=home", "none", "Guides for common household problems", "Solve a problem")
       )
     ),
     networkPanel(d.network),
-    favs.length ? h("section", { class: "home-favourites" },
-      h("h2", { class: "section-title" }, "Favourite controls"),
-      h("div", { class: "tiles" }, favs.map(a => tile(a, state)))) : null,
+    displayAccessories.length ? h("section", { class: "home-favourites" },
+      h("div", { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5rem;" },
+        h("h2", { class: "section-title", style: "margin: 0;" }, controlsTitle),
+        h("a", { href: "/control?from=home", "data-link": true, style: "font-size: .8125rem; color: var(--accent); text-decoration: none; font-weight: 500;" }, "All devices →")
+      ),
+      h("div", { class: "tiles" }, displayAccessories.map(a => tile(a, state)))) : null,
     wifi.set ? h("section", { class: "wifi-panel" },
       h("div", { class: "wifi-header" }, "Guest Wi-Fi"),
       h("div", { class: "wifi-content" },
@@ -358,4 +428,7 @@ function renderIssues(state, issues) {
     h("ul", {}, shown.map(item)), more));
 }
 
-export function leave(state) { clearInterval(state._eyebrowTimer); }
+export function leave(state) {
+  clearInterval(state._eyebrowTimer);
+  clearInterval(state._camTimer);
+}
