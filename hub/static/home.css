@@ -81,6 +81,8 @@
 
 /* ---- Ask Box ---- */
 .ask {
+  display: grid;
+  gap: .6rem;
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
@@ -133,6 +135,10 @@
 
 /* ---- Wi-Fi Panel ---- */
 .wifi-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -141,8 +147,8 @@
 }
 .wifi-header { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-3); margin-bottom: .75rem; font-weight: 700; }
 .wifi-content { display: flex; align-items: center; gap: 1rem; }
-.wifi-qr { border-radius: 4px; background: #fff; padding: 4px; }
-.wifi-name { font-weight: 700; margin: 0; font-size: 1rem; }
+.wifi-qr { width: 168px; height: 168px; border-radius: 4px; background: #fff; padding: 4px; }
+.wifi-name { font-weight: 700; margin: 0; font-size: 1rem; letter-spacing: -.02em; }
 .wifi-panel .meta { margin: .25rem 0 0; font-size: .8125rem; color: var(--text-3); }
 
 /* ---- Printer Band emphasis ---- */
@@ -338,6 +344,7 @@ body:not(.wall) .page-now { display: block; }
 }
 .wx-facts {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   margin: 0;
