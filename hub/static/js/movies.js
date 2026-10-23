@@ -1,203 +1,1762 @@
-// Movies: what's playing, continue watching, recently added, search, and the drive's health.
-import { api, card, empty, ensure, h, piLink, post, toast, when } from "./core.js";
+// Movies: what's playing, continue watching, recently added, search, requests, and drive health.
+import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
 
 export const every = 30;
 
+const SEARCH_DEBOUNCE_MS = 300;
+const REQUEST_MAX_LENGTH = 200;
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function clampPercent(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
+
+function formatRuntime(minutes) {
+  const total = Number(minutes);
+  if (!Number.isFinite(total) || total <= 0) return null;
+
+  const rounded = Math.round(total);
+
+  if (rounded < 60) {
+    return `${rounded} min`;
+  }
+
+  const hours = Math.floor(rounded / 60);
+  const mins = rounded % 60;
+
+  return mins
+    ? `${hours} h ${String(mins).padStart(2, "0")} min`
+    : `${hours} h`;
+}
+
+function remainingMinutes(item) {
+  const minutes = Number(item?.minutes);
+  const progress = clampPercent(item?.progress);
+
+  if (!Number.isFinite(minutes) || minutes <= 0 || progress <= 0) {
+    return null;
+  }
+
+  return Math.max(0, Math.round(minutes * (1 - progress / 100)));
+}
+
 function plexUrl(machine, key) {
   return machine && key
-    ? piLink(32400, `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}`)
+    ? piLink(
+        32400,
+        `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(
+          `/library/metadata/${key}`,
+        )}`,
+      )
     : piLink(32400, "/web");
 }
 
 function poster(item, machine) {
-  const img = item.thumb
-    ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`, alt: "", loading: "lazy", decoding: "async" })
-    : h("div", { class: "poster-blank", "aria-hidden": "true" }, item.title.slice(0, 1));
-  const left = item.minutes && item.progress ? Math.round(item.minutes * (1 - item.progress / 100)) : null;
-  return h("li", {},
-    h("a", { class: "poster-card", href: plexUrl(machine, item.key), target: "_blank", rel: "noopener" },
-      h("div", { class: "poster-art" }, img),
-      item.progress ? h("span", { class: "poster-bar" }, h("i", { style: `width:${item.progress}%` })) : null,
-      left ? h("span", { class: "poster-left" }, `${left}m left`) : null,
-      h("div", { class: "poster-meta" },
-        h("span", { class: "poster-title" }, item.title),
-        h("span", { class: "poster-sub" }, [item.year, item.minutes ? `${item.minutes} min` : null].filter(Boolean).join(" · ")))));
+  const title = item?.title || "Untitled";
+  const progress = clampPercent(item?.progress);
+  const left = remainingMinutes(item);
+
+  const subtitle = [
+    item?.year,
+    formatRuntime(item?.minutes),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const art = item?.thumb
+    ? h("img", {
+        src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`,
+        alt: "",
+        loading: "lazy",
+        decoding: "async",
+      })
+    : h(
+        "div",
+        {
+          class: "poster-blank",
+          "aria-hidden": "true",
+        },
+        title.slice(0, 1).toUpperCase(),
+      );
+
+  return h(
+    "li",
+    {},
+    h(
+      "a",
+      {
+        class: "poster-card",
+        href: plexUrl(machine, item?.key),
+        target: "_blank",
+        rel: "noopener noreferrer",
+        "aria-label": subtitle ? `${title}, ${subtitle}` : title,
+      },
+      h("div", { class: "poster-art" }, art),
+
+      progress > 0
+        ? h(
+            "span",
+            {
+              class: "poster-bar",
+              "aria-hidden": "true",
+            },
+            h("i", {
+              style: `width:${progress}%`,
+            }),
+          )
+        : null,
+
+      left !== null && left > 0
+        ? h(
+            "span",
+            {
+              class: "poster-left",
+            },
+            `${left}m left`,
+          )
+        : null,
+
+      h(
+        "div",
+        {
+          class: "poster-meta",
+        },
+        h(
+          "span",
+          {
+            class: "poster-title",
+          },
+          title,
+        ),
+
+        subtitle
+          ? h(
+              "span",
+              {
+                class: "poster-sub",
+              },
+              subtitle,
+            )
+          : null,
+      ),
+    ),
+  );
 }
 
-const shelf = (items, machine) => items?.length
-  ? h("ul", { class: "poster-shelf" }, items.map((i) => poster(i, machine)))
-  : null;
+function shelf(items, machine) {
+  const list = asArray(items);
 
-const shelfSection = (title, items, machine, none) => items?.length
-  ? h("section", { class: "movie-section" },
-      h("div", { class: "eyebrow-section" }, h("h2", {}, title)),
-      shelf(items, machine))
-  : (none ? h("p", { class: "meta" }, none) : null);
+  return list.length
+    ? h(
+        "ul",
+        {
+          class: "poster-shelf",
+        },
+        list.map((item) => poster(item, machine)),
+      )
+    : null;
+}
+
+function sectionId(title) {
+  return `section-${title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
+}
+
+function shelfSection(title, items, machine, none) {
+  const list = asArray(items);
+
+  if (!list.length) {
+    return none
+      ? h(
+          "p",
+          {
+            class: "meta",
+          },
+          none,
+        )
+      : null;
+  }
+
+  const id = sectionId(title);
+
+  return h(
+    "section",
+    {
+      class: "movie-section",
+      "aria-labelledby": id,
+    },
+
+    h(
+      "div",
+      {
+        class: "eyebrow-section",
+      },
+      h(
+        "h2",
+        {
+          id,
+        },
+        title,
+      ),
+    ),
+
+    shelf(list, machine),
+  );
+}
 
 export function mount(state) {
-  const input = h("input", { type: "search", id: "movie-search", placeholder: "Search movies and shows", autocomplete: "off", enterkeyhint: "search" });
-  state.results = h("div", { class: "movie-search-results", "aria-live": "polite" });
-  let t;
-  input.addEventListener("input", () => {
-    clearTimeout(t);
-    t = setTimeout(async () => {
-      const q = input.value.trim();
-      if (!q) { state.results.replaceChildren(); return; }
-      try {
-        const r = await api(`/api/movies/search?q=${encodeURIComponent(q)}`);
-        state.results.replaceChildren(r.results.length
-          ? h("ul", { class: "poster-shelf" }, r.results.map((i) => poster(i, state.machine)))
-          : empty(`Nothing in the library matches "${q}".`));
-      } catch (e) {
-        state.results.replaceChildren(empty("Search isn't available while Plex is down."));
-      }
-    }, 300);
+  const input = h("input", {
+    type: "search",
+    id: "movie-search",
+    placeholder: "Search movies and shows",
+    autocomplete: "off",
+    enterkeyhint: "search",
   });
-  state.body = h("div", { class: "stack" });
+
+  state.results = h("div", {
+    class: "movie-search-results",
+    "aria-live": "polite",
+    "aria-busy": "false",
+  });
+
+  let timer = null;
+  let searchGeneration = 0;
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+
+    const generation = ++searchGeneration;
+    const q = input.value.trim();
+
+    if (!q) {
+      state.results.setAttribute("aria-busy", "false");
+      state.results.replaceChildren();
+      return;
+    }
+
+    timer = setTimeout(async () => {
+      state.results.setAttribute("aria-busy", "true");
+
+      try {
+        const response = await api(
+          `/api/movies/search?q=${encodeURIComponent(q)}`,
+        );
+
+        // Prevent an older request from overwriting newer search results.
+        if (generation !== searchGeneration) {
+          return;
+        }
+
+        const results = asArray(response?.results);
+
+        state.results.replaceChildren(
+          results.length
+            ? h(
+                "ul",
+                {
+                  class: "poster-shelf",
+                },
+                results.map((item) => poster(item, state.machine)),
+              )
+            : empty(`Nothing in the library matches “${q}”.`),
+        );
+      } catch {
+        if (generation !== searchGeneration) {
+          return;
+        }
+
+        state.results.replaceChildren(
+          empty("Search isn't available while Plex is down."),
+        );
+      } finally {
+        if (generation === searchGeneration) {
+          state.results.setAttribute("aria-busy", "false");
+        }
+      }
+    }, SEARCH_DEBOUNCE_MS);
+  });
+
+  state.body = h("div", {
+    class: "stack",
+  });
+
   state.root.append(
-    h("form", { class: "movie-search", role: "search", onsubmit: (e) => e.preventDefault() },
-      h("label", { for: "movie-search", class: "sr" }, "Search the library"), input),
-    state.results, state.body);
+    h(
+      "form",
+      {
+        class: "movie-search",
+        role: "search",
+        onsubmit: (event) => event.preventDefault(),
+      },
+
+      h(
+        "label",
+        {
+          for: "movie-search",
+          class: "sr",
+        },
+        "Search the library",
+      ),
+
+      input,
+    ),
+
+    state.results,
+    state.body,
+  );
 }
 
 function requestsCard(state, requests) {
-  const input = h("input", { type: "text", id: "req-new", maxlength: 200, placeholder: "A movie or show to get", autocomplete: "off" });
-  const open = requests.filter((r) => !r.done);
-  return card("Movie requests", { pill: open.length ? `${open.length} wanted` : null, tone: "warn" },
-    h("form", { class: "add-bar", onsubmit: async (e) => {
-      e.preventDefault();
-      if (!input.value.trim()) return;
-      try { await post("/api/lists/requests", { text: input.value }); input.value = ""; state.force = true; load(state); }
-      catch (x) { toast(x.message, "bad"); }
-    } }, h("label", { for: "req-new", class: "sr" }, "Request a movie"), input, h("button", { type: "submit", class: "btn btn--primary" }, "Request")),
-    requests.length ? h("ul", { class: "items" }, requests.map((r) => h("li", { class: `item ${r.done ? "done" : ""}` },
-      h("input", { type: "checkbox", id: `req-${r.id}`, checked: !!r.done, "aria-label": `Got ${r.text}`,
-        onchange: async () => { await post(`/api/lists/requests/${r.id}/toggle`); state.force = true; load(state); } }),
-      h("label", { for: `req-${r.id}` }, r.text),
-      h("button", { class: "ghost small remove-btn", "aria-label": `Remove ${r.text}`, onclick: async () => { await post(`/api/lists/requests/${r.id}/delete`); state.force = true; load(state); } }, "✕"))))
-      : empty("Nothing requested. Anyone can add a movie they'd like."));
+  const list = asArray(requests);
+  const open = list.filter((request) => !request.done);
+
+  const input = h("input", {
+    type: "text",
+    id: "req-new",
+    maxlength: REQUEST_MAX_LENGTH,
+    placeholder: "A movie or show to get",
+    autocomplete: "off",
+    value: state.requestDraft || "",
+  });
+
+  const submit = h(
+    "button",
+    {
+      type: "submit",
+      class: "btn btn--primary",
+    },
+    "Request",
+  );
+
+  input.addEventListener("input", () => {
+    state.requestDraft = input.value;
+  });
+
+  const mutate = async (action, failureMessage) => {
+    try {
+      await action();
+
+      state.force = true;
+      await load(state);
+    } catch (error) {
+      toast(
+        error?.message || failureMessage,
+        "bad",
+      );
+    }
+  };
+
+  return card(
+    "Movie requests",
+    {
+      pill: open.length
+        ? `${open.length} wanted`
+        : null,
+
+      tone: open.length
+        ? "warn"
+        : "ok",
+    },
+
+    h(
+      "form",
+      {
+        class: "add-bar",
+
+        onsubmit: async (event) => {
+          event.preventDefault();
+
+          const text = input.value.trim();
+
+          if (!text) {
+            return;
+          }
+
+          input.disabled = true;
+          submit.disabled = true;
+
+          try {
+            await post(
+              "/api/lists/requests",
+              {
+                text,
+              },
+            );
+
+            state.requestDraft = "";
+            input.value = "";
+            state.force = true;
+
+            await load(state);
+          } catch (error) {
+            toast(
+              error?.message ||
+                "Couldn't add that request.",
+              "bad",
+            );
+          } finally {
+            input.disabled = false;
+            submit.disabled = false;
+          }
+        },
+      },
+
+      h(
+        "label",
+        {
+          for: "req-new",
+          class: "sr",
+        },
+        "Request a movie or show",
+      ),
+
+      input,
+      submit,
+    ),
+
+    list.length
+      ? h(
+          "ul",
+          {
+            class: "items",
+          },
+
+          list.map((request) => {
+            const id = `req-${request.id}`;
+
+            return h(
+              "li",
+              {
+                class: `item ${
+                  request.done
+                    ? "done"
+                    : ""
+                }`,
+              },
+
+              h("input", {
+                type: "checkbox",
+                id,
+                checked: !!request.done,
+
+                "aria-label": `${
+                  request.done
+                    ? "Mark as wanted"
+                    : "Mark as acquired"
+                }: ${request.text}`,
+
+                onchange: (event) => {
+                  event.currentTarget.disabled = true;
+
+                  mutate(
+                    () =>
+                      post(
+                        `/api/lists/requests/${request.id}/toggle`,
+                      ),
+
+                    "Couldn't update that request.",
+                  );
+                },
+              }),
+
+              h(
+                "label",
+                {
+                  for: id,
+                },
+                request.text,
+              ),
+
+              h(
+                "button",
+                {
+                  type: "button",
+                  class: "ghost small remove-btn",
+                  "aria-label": `Remove ${request.text}`,
+
+                  onclick: (event) => {
+                    event.currentTarget.disabled = true;
+
+                    mutate(
+                      () =>
+                        post(
+                          `/api/lists/requests/${request.id}/delete`,
+                        ),
+
+                      "Couldn't remove that request.",
+                    );
+                  },
+                },
+                "✕",
+              ),
+            );
+          }),
+        )
+      : empty(
+          "Nothing requested. Anyone can add a movie or show they'd like.",
+        ),
+  );
 }
 
 function movieNight(state) {
-  const kids = h("input", { type: "checkbox", id: "mn-kids" });
-  const short = h("input", { type: "checkbox", id: "mn-short" });
-  const out = h("div", { class: "mn-out", "aria-live": "polite" });
+  const kids = h("input", {
+    type: "checkbox",
+    id: "mn-kids",
+  });
+
+  const short = h("input", {
+    type: "checkbox",
+    id: "mn-short",
+  });
+
+  const out = h("div", {
+    class: "mn-out",
+    "aria-live": "polite",
+    "aria-busy": "false",
+  });
+
+  const pickButton = h(
+    "button",
+    {
+      type: "button",
+      class: "btn btn--primary",
+    },
+    "Pick a movie",
+  );
+
   const seen = [];
-  const spin = async () => {
-    const q = new URLSearchParams({ kids: kids.checked, short: short.checked, skip: seen.join(",") });
+  let picking = false;
+
+  const spin = async ({
+    reset = false,
+  } = {}) => {
+    if (picking) {
+      return;
+    }
+
+    if (reset) {
+      seen.length = 0;
+    }
+
+    picking = true;
+    pickButton.disabled = true;
+    out.setAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    const query = new URLSearchParams({
+      kids: String(kids.checked),
+      short: String(short.checked),
+      skip: seen.join(","),
+    });
+
     try {
-      const { pick } = await api(`/api/movies/pick?${q}`);
-      if (!pick) { out.replaceChildren(h("p", { class: "empty" }, seen.length ? "That's every match. Untick a filter for more." : "Nothing unwatched matches. Untick a filter.")); return; }
-      seen.push(pick.key);
-      out.replaceChildren(h("article", { class: "mn-pick" },
-        pick.thumb ? h("img", { src: `/api/plex/thumb?path=${encodeURIComponent(pick.thumb)}`, alt: "", class: "mn-poster" }) : null,
-        h("div", { class: "mn-body" },
-          h("h3", { class: "mn-title" }, pick.title),
-          h("p", { class: "meta" }, [pick.year, pick.minutes ? `${Math.floor(pick.minutes / 60)} h ${String(pick.minutes % 60).padStart(2, "0")} min` : null,
-            pick.content_rating, pick.rating ? `rated ${Number(pick.rating).toFixed(1)}` : null, ...(pick.genres || [])].filter(Boolean).join(", ")),
-          pick.summary ? h("p", { class: "mn-summary" }, pick.summary) : null,
-          h("div", { class: "mn-actions" },
-            h("a", { class: "btn btn--primary", href: plexUrl(state.machine, pick.key), target: "_blank", rel: "noopener" }, "Watch in Plex"),
-            h("button", { class: "btn", onclick: spin }, "Another one")))));
-    } catch (x) { out.replaceChildren(h("p", { class: "note" }, "Plex isn't answering, so there's nothing to pick from.")); }
+      const { pick } = await api(
+        `/api/movies/pick?${query}`,
+      );
+
+      if (!pick) {
+        out.replaceChildren(
+          h(
+            "p",
+            {
+              class: "empty",
+            },
+            seen.length
+              ? "That's every match. Change a filter to see more."
+              : "Nothing unwatched matches those filters.",
+          ),
+        );
+
+        return;
+      }
+
+      if (pick.key) {
+        seen.push(pick.key);
+      }
+
+      const metadata = [
+        pick.year,
+        formatRuntime(pick.minutes),
+        pick.content_rating,
+
+        Number.isFinite(
+          Number(pick.rating),
+        )
+          ? `rated ${Number(
+              pick.rating,
+            ).toFixed(1)}`
+          : null,
+
+        ...asArray(pick.genres),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      out.replaceChildren(
+        h(
+          "article",
+          {
+            class: "mn-pick",
+          },
+
+          pick.thumb
+            ? h("img", {
+                src: `/api/plex/thumb?path=${encodeURIComponent(
+                  pick.thumb,
+                )}`,
+                alt: "",
+                class: "mn-poster",
+                loading: "lazy",
+                decoding: "async",
+              })
+            : null,
+
+          h(
+            "div",
+            {
+              class: "mn-body",
+            },
+
+            h(
+              "h3",
+              {
+                class: "mn-title",
+              },
+              pick.title ||
+                "Untitled",
+            ),
+
+            metadata
+              ? h(
+                  "p",
+                  {
+                    class: "meta",
+                  },
+                  metadata,
+                )
+              : null,
+
+            pick.summary
+              ? h(
+                  "p",
+                  {
+                    class: "mn-summary",
+                  },
+                  pick.summary,
+                )
+              : null,
+
+            h(
+              "div",
+              {
+                class: "mn-actions",
+              },
+
+              h(
+                "a",
+                {
+                  class:
+                    "btn btn--primary",
+
+                  href: plexUrl(
+                    state.machine,
+                    pick.key,
+                  ),
+
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                },
+                "Watch in Plex",
+              ),
+
+              h(
+                "button",
+                {
+                  type: "button",
+                  class: "btn",
+                  onclick: () =>
+                    spin(),
+                },
+                "Another one",
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch {
+      out.replaceChildren(
+        h(
+          "p",
+          {
+            class: "note",
+          },
+          "Plex isn't answering, so there’s nothing to pick from right now.",
+        ),
+      );
+    } finally {
+      picking = false;
+      pickButton.disabled = false;
+
+      out.setAttribute(
+        "aria-busy",
+        "false",
+      );
+    }
   };
-  return card("Movie night", { cls: "wide" },
-    h("p", { class: "meta" }, "Can't decide? The hub picks something nobody has watched yet."),
-    h("div", { class: "mn-controls" },
-      h("button", { class: "btn btn--primary", onclick: () => { seen.length = 0; spin(); } }, "Pick a movie"),
-      h("label", { class: "check", for: "mn-kids" }, kids, "Family-friendly"),
-      h("label", { class: "check", for: "mn-short" }, short, "Under 1 h 45")),
-    out);
+
+  pickButton.addEventListener(
+    "click",
+    () =>
+      spin({
+        reset: true,
+      }),
+  );
+
+  kids.addEventListener(
+    "change",
+    () => {
+      seen.length = 0;
+    },
+  );
+
+  short.addEventListener(
+    "change",
+    () => {
+      seen.length = 0;
+    },
+  );
+
+  return card(
+    "Movie night",
+    {
+      cls: "wide",
+    },
+
+    h(
+      "p",
+      {
+        class: "meta",
+      },
+      "Can't decide? The hub picks something nobody has watched yet.",
+    ),
+
+    h(
+      "div",
+      {
+        class: "mn-controls",
+      },
+
+      pickButton,
+
+      h(
+        "label",
+        {
+          class: "check",
+          for: "mn-kids",
+        },
+        kids,
+        "Family-friendly",
+      ),
+
+      h(
+        "label",
+        {
+          class: "check",
+          for: "mn-short",
+        },
+        short,
+        "Under 1 h 45",
+      ),
+    ),
+
+    out,
+  );
 }
 
-function watchingNow(w) {
-  if (!w) return null;
-  const top = Math.max(1, ...w.nights.map((n) => n.count));
-  const most = Math.max(1, ...w.people.map((p) => p.count));
-  return h("div", { class: "watching" },
-    h("p", { class: "watch-sum" }, h("strong", {}, `${w.watched} watched`), ` in the last ${w.days} days, about ${w.hours} hours.`,
-      w.busiest ? ` ${w.busiest} are movie night.` : ""),
-    h("div", { class: "nights", role: "img", "aria-label": `Watching by day of the week: ${w.nights.map((n) => `${n.day} ${n.count}`).join(", ")}` },
-      w.nights.map((n) => h("span", { class: "night" }, h("i", { style: `height:${Math.round((n.count / top) * 100)}%` }), h("b", {}, n.day.slice(0, 2))))),
-    w.people.length > 1 ? h("ul", { class: "people-bars" }, w.people.map((p) => h("li", {},
-      h("span", {}, p.name), h("span", { class: "progress", style: "flex:1" }, h("span", { style: `width:${Math.round((p.count / most) * 100)}%` })),
-      h("span", { class: "meta" }, String(p.count))))) : null,
-    w.again.length ? h("p", { class: "meta" }, "Watched more than once: " + w.again.map((a) => `${a.title} (${a.count})`).join(", ") + ".") : null);
+function watchingNow(watching) {
+  if (!watching) {
+    return null;
+  }
+
+  const nights =
+    asArray(watching.nights);
+
+  const people =
+    asArray(watching.people);
+
+  const repeated =
+    asArray(watching.again);
+
+  const top = Math.max(
+    1,
+    ...nights.map(
+      (night) =>
+        Number(night.count) || 0,
+    ),
+  );
+
+  const most = Math.max(
+    1,
+    ...people.map(
+      (person) =>
+        Number(person.count) || 0,
+    ),
+  );
+
+  return h(
+    "div",
+    {
+      class: "watching",
+    },
+
+    h(
+      "p",
+      {
+        class: "watch-sum",
+      },
+
+      h(
+        "strong",
+        {},
+        `${watching.watched ?? 0} watched`,
+      ),
+
+      ` in the last ${
+        watching.days ?? 0
+      } days, about ${
+        watching.hours ?? 0
+      } hours.`,
+
+      watching.busiest
+        ? ` ${watching.busiest} are movie night.`
+        : "",
+    ),
+
+    nights.length
+      ? h(
+          "div",
+          {
+            class: "nights",
+            role: "img",
+
+            "aria-label":
+              `Watching by day of the week: ${nights
+                .map(
+                  (night) =>
+                    `${night.day} ${night.count}`,
+                )
+                .join(", ")}`,
+          },
+
+          nights.map(
+            (night) =>
+              h(
+                "span",
+                {
+                  class: "night",
+                },
+
+                h("i", {
+                  style:
+                    `height:${Math.round(
+                      ((Number(
+                        night.count,
+                      ) || 0) /
+                        top) *
+                        100,
+                    )}%`,
+
+                  "aria-hidden":
+                    "true",
+                }),
+
+                h(
+                  "b",
+                  {},
+                  String(
+                    night.day || "",
+                  ).slice(0, 2),
+                ),
+              ),
+          ),
+        )
+      : null,
+
+    people.length > 1
+      ? h(
+          "ul",
+          {
+            class: "people-bars",
+          },
+
+          people.map(
+            (person) =>
+              h(
+                "li",
+                {},
+
+                h(
+                  "span",
+                  {},
+                  person.name ||
+                    "Unknown",
+                ),
+
+                h(
+                  "span",
+                  {
+                    class: "progress",
+                    style: "flex:1",
+                    "aria-hidden":
+                      "true",
+                  },
+
+                  h("span", {
+                    style:
+                      `width:${Math.round(
+                        ((Number(
+                          person.count,
+                        ) || 0) /
+                          most) *
+                          100,
+                      )}%`,
+                  }),
+                ),
+
+                h(
+                  "span",
+                  {
+                    class: "meta",
+                  },
+                  String(
+                    person.count ??
+                      0,
+                  ),
+                ),
+              ),
+          ),
+        )
+      : null,
+
+    repeated.length
+      ? h(
+          "p",
+          {
+            class: "meta",
+          },
+          `Watched more than once: ${repeated
+            .map(
+              (item) =>
+                `${item.title} (${item.count})`,
+            )
+            .join(", ")}.`,
+        )
+      : null,
+  );
 }
 
-function statsCard(d) {
-  const s = d.stats;
-  if (!s) return null;
-  const hist = d.history || [];
-  return card("Watching", { pill: `${s.watched} of ${s.movies} watched`, tone: "ok" },
-    watchingNow(d.watching),
-    h("dl", { class: "facts" },
-      h("div", {}, h("dt", {}, "Library size"), h("dd", {}, `${s.total_gb} GB`)),
-      h("div", {}, h("dt", {}, "Never watched"), h("dd", {}, `${s.unwatched} movies, ${s.unwatched_gb} GB`))),
-    hist.length ? [
-      h("div", { class: "eyebrow-section" }, h("h3", {}, "Recently watched")),
-      h("ul", { class: "log" }, hist.slice(0, 6).map((w) => h("li", { class: "log-row" },
-        h("span", { class: "dot", dataset: { tone: "ok" } }),
-        h("span", { class: "log-main" }, h("strong", {}, w.title), w.who ? h("span", { class: "meta" }, w.who) : null),
-        h("span", { class: "log-side" }, w.when ? when(w.when) : ""))))
-    ] : null,
-    s.never_watched_old.length ? [
-      h("div", { class: "eyebrow-section" }, h("h3", {}, "Never watched, added over 6 months ago")),
-      h("p", { class: "meta" }, "The biggest first, if you want to free up space."),
-      h("ul", { class: "pkg" }, s.never_watched_old.slice(0, 8).map((u) => h("li", {}, h("span", {}, `${u.title}${u.year ? ` (${u.year})` : ""}`), h("span", { class: "meta" }, `${u.gb} GB`))))
-    ] : null);
+function statsCard(data) {
+  const stats = data?.stats;
+
+  if (!stats) {
+    return null;
+  }
+
+  const history =
+    asArray(data.history);
+
+  const oldUnwatched =
+    asArray(
+      stats.never_watched_old,
+    );
+
+  return card(
+    "Watching",
+    {
+      pill:
+        `${stats.watched ?? 0} of ${
+          stats.movies ?? 0
+        } watched`,
+      tone: "ok",
+    },
+
+    watchingNow(
+      data.watching,
+    ),
+
+    h(
+      "dl",
+      {
+        class: "facts",
+      },
+
+      h(
+        "div",
+        {},
+        h(
+          "dt",
+          {},
+          "Library size",
+        ),
+        h(
+          "dd",
+          {},
+          `${stats.total_gb ?? 0} GB`,
+        ),
+      ),
+
+      h(
+        "div",
+        {},
+        h(
+          "dt",
+          {},
+          "Never watched",
+        ),
+        h(
+          "dd",
+          {},
+          `${stats.unwatched ?? 0} movies, ${
+            stats.unwatched_gb ??
+            0
+          } GB`,
+        ),
+      ),
+    ),
+
+    history.length
+      ? [
+          h(
+            "div",
+            {
+              class:
+                "eyebrow-section",
+            },
+            h(
+              "h3",
+              {},
+              "Recently watched",
+            ),
+          ),
+
+          h(
+            "ul",
+            {
+              class: "log",
+            },
+
+            history
+              .slice(0, 6)
+              .map(
+                (item) =>
+                  h(
+                    "li",
+                    {
+                      class:
+                        "log-row",
+                    },
+
+                    h("span", {
+                      class: "dot",
+                      dataset: {
+                        tone: "ok",
+                      },
+                      "aria-hidden":
+                        "true",
+                    }),
+
+                    h(
+                      "span",
+                      {
+                        class:
+                          "log-main",
+                      },
+
+                      h(
+                        "strong",
+                        {},
+                        item.title ||
+                          "Untitled",
+                      ),
+
+                      item.who
+                        ? h(
+                            "span",
+                            {
+                              class:
+                                "meta",
+                            },
+                            item.who,
+                          )
+                        : null,
+                    ),
+
+                    h(
+                      "span",
+                      {
+                        class:
+                          "log-side",
+                      },
+
+                      item.when
+                        ? when(
+                            item.when,
+                          )
+                        : "",
+                    ),
+                  ),
+              ),
+          ),
+        ]
+      : null,
+
+    oldUnwatched.length
+      ? [
+          h(
+            "div",
+            {
+              class:
+                "eyebrow-section",
+            },
+
+            h(
+              "h3",
+              {},
+              "Never watched, added over 6 months ago",
+            ),
+          ),
+
+          h(
+            "p",
+            {
+              class: "meta",
+            },
+            "Largest files first, if you want to free up space.",
+          ),
+
+          h(
+            "ul",
+            {
+              class: "pkg",
+            },
+
+            oldUnwatched
+              .slice(0, 8)
+              .map(
+                (item) =>
+                  h(
+                    "li",
+                    {},
+
+                    h(
+                      "span",
+                      {},
+                      `${item.title || "Untitled"}${
+                        item.year
+                          ? ` (${item.year})`
+                          : ""
+                      }`,
+                    ),
+
+                    h(
+                      "span",
+                      {
+                        class:
+                          "meta",
+                      },
+                      `${item.gb ?? 0} GB`,
+                    ),
+                  ),
+              ),
+          ),
+        ]
+      : null,
+  );
 }
 
 function hero(item, machine) {
-  if (!item) return null;
-  const art = item.art || item.thumb;
-  const left = item.minutes && item.progress ? Math.round(item.minutes * (1 - item.progress / 100)) : null;
-  return h("section", { class: "movie-hero", "aria-label": "Pick up where you left off" },
-    art ? h("img", { class: "movie-hero-bg", src: `/api/plex/thumb?wide=${item.art ? 1 : 0}&path=${encodeURIComponent(art)}`, alt: "", decoding: "async" }) : null,
-    h("div", { class: "movie-hero-body" },
-      h("p", { class: "movie-hero-kicker" }, "Pick up where you left off"),
-      h("h2", { class: "movie-hero-title" }, item.title),
-      h("p", { class: "movie-hero-meta" }, [item.year, left != null ? `${left} min left` : null].filter(Boolean).join(" · ")),
-      item.progress ? h("div", { class: "movie-hero-bar" }, h("i", { style: `width:${item.progress}%` })) : null,
-      h("a", { class: "btn btn--primary movie-hero-go", href: plexUrl(machine, item.key), target: "_blank", rel: "noopener" }, "Resume in Plex")));
+  if (!item) {
+    return null;
+  }
+
+  const art =
+    item.art || item.thumb;
+
+  const progress =
+    clampPercent(
+      item.progress,
+    );
+
+  const left =
+    remainingMinutes(item);
+
+  const title =
+    item.title || "Untitled";
+
+  return h(
+    "section",
+    {
+      class: "movie-hero",
+      "aria-label":
+        "Pick up where you left off",
+    },
+
+    art
+      ? h("img", {
+          class:
+            "movie-hero-bg",
+
+          src:
+            `/api/plex/thumb?wide=${
+              item.art ? 1 : 0
+            }&path=${encodeURIComponent(
+              art,
+            )}`,
+
+          alt: "",
+          decoding: "async",
+        })
+      : null,
+
+    h(
+      "div",
+      {
+        class:
+          "movie-hero-body",
+      },
+
+      h(
+        "p",
+        {
+          class:
+            "movie-hero-kicker",
+        },
+        "Pick up where you left off",
+      ),
+
+      h(
+        "h2",
+        {
+          class:
+            "movie-hero-title",
+        },
+        title,
+      ),
+
+      h(
+        "p",
+        {
+          class:
+            "movie-hero-meta",
+        },
+
+        [
+          item.year,
+          left !== null
+            ? `${left} min left`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ),
+
+      progress > 0
+        ? h(
+            "div",
+            {
+              class:
+                "movie-hero-bar",
+
+              role: "progressbar",
+
+              "aria-label":
+                `${title} progress`,
+
+              "aria-valuemin":
+                "0",
+
+              "aria-valuemax":
+                "100",
+
+              "aria-valuenow":
+                String(progress),
+            },
+
+            h("i", {
+              style:
+                `width:${progress}%`,
+            }),
+          )
+        : null,
+
+      h(
+        "a",
+        {
+          class:
+            "btn btn--primary movie-hero-go",
+
+          href: plexUrl(
+            machine,
+            item.key,
+          ),
+
+          target: "_blank",
+
+          rel:
+            "noopener noreferrer",
+        },
+        "Resume in Plex",
+      ),
+    ),
+  );
 }
 
-export async function load(state) {
-  if (!state.force && document.activeElement?.id === "req-new" && document.activeElement.value) return;
+function playingNowCard(
+  playing,
+) {
+  const sessions =
+    asArray(playing);
+
+  if (!sessions.length) {
+    return null;
+  }
+
+  return card(
+    "Playing now",
+    {},
+
+    h(
+      "ul",
+      {
+        class: "log",
+      },
+
+      sessions.map(
+        (session) => {
+          const progress =
+            clampPercent(
+              session.progress,
+            );
+
+          const details = [
+            [
+              session.who,
+              session.device,
+            ]
+              .filter(Boolean)
+              .join(" on "),
+
+            session.minutes_left !=
+            null
+              ? `${session.minutes_left} min left`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+
+          return h(
+            "li",
+            {
+              class: "log-row",
+            },
+
+            h(
+              "span",
+              {
+                class:
+                  "log-main",
+              },
+
+              h(
+                "strong",
+                {},
+                session.title ||
+                  "Untitled",
+              ),
+
+              details
+                ? h(
+                    "span",
+                    {
+                      class:
+                        "meta",
+                    },
+                    details,
+                  )
+                : null,
+            ),
+
+            h(
+              "div",
+              {
+                class:
+                  "progress",
+
+                style:
+                  "width:120px",
+
+                role:
+                  "progressbar",
+
+                "aria-label":
+                  `${
+                    session.title ||
+                    "Playback"
+                  } progress`,
+
+                "aria-valuemin":
+                  "0",
+
+                "aria-valuemax":
+                  "100",
+
+                "aria-valuenow":
+                  String(
+                    progress,
+                  ),
+              },
+
+              h("span", {
+                style:
+                  `width:${progress}%`,
+              }),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+function driveCard(
+  drive,
+  driveEvents,
+) {
+  const drv =
+    drive || {};
+
+  const events =
+    asArray(driveEvents);
+
+  const drops =
+    events.filter(
+      (event) =>
+        event.kind === "dropped",
+    ).length;
+
+  const connected =
+    drv.state === "Connected";
+
+  const hasErrors =
+    Number(drv.errors) > 0;
+
+  return card(
+    "Movies drive",
+    {
+      pill:
+        drv.state || "Unknown",
+
+      tone: connected
+        ? hasErrors || drops
+          ? "warn"
+          : "ok"
+        : "bad",
+    },
+
+    h(
+      "dl",
+      {
+        class: "facts",
+      },
+
+      h(
+        "div",
+        {},
+        h("dt", {}, "Movies"),
+        h(
+          "dd",
+          {},
+          drv.count ?? "—",
+        ),
+      ),
+
+      h(
+        "div",
+        {},
+        h(
+          "dt",
+          {},
+          "Free space",
+        ),
+        h(
+          "dd",
+          {},
+          drv.free || "—",
+        ),
+      ),
+
+      h(
+        "div",
+        {},
+        h(
+          "dt",
+          {},
+          "Dropouts this week",
+        ),
+
+        h(
+          "dd",
+          {
+            dataset: {
+              tone: drops
+                ? "bad"
+                : "ok",
+            },
+          },
+          String(drops),
+        ),
+      ),
+
+      h(
+        "div",
+        {},
+        h(
+          "dt",
+          {},
+          "Errors since the Pi started",
+        ),
+
+        h(
+          "dd",
+          {
+            dataset: {
+              tone: hasErrors
+                ? "bad"
+                : "ok",
+            },
+          },
+
+          String(
+            drv.errors ?? "—",
+          ),
+        ),
+      ),
+    ),
+
+    drops || hasErrors
+      ? h(
+          "p",
+          {
+            class: "note",
+          },
+          "The movies drive has reported reliability problems. Back up anything important and review drive health before relying on it.",
+        )
+      : null,
+
+    events.length
+      ? h(
+          "ul",
+          {
+            class: "timeline",
+          },
+
+          events
+            .slice(0, 8)
+            .map((event) => {
+              const dropped =
+                event.kind ===
+                "dropped";
+
+              return h(
+                "li",
+                {
+                  dataset: {
+                    tone: dropped
+                      ? "bad"
+                      : "ok",
+                  },
+                },
+
+                h(
+                  "span",
+                  {},
+                  dropped
+                    ? "Dropped out"
+                    : "Came back",
+                ),
+
+                h(
+                  "time",
+                  {},
+                  event.ts
+                    ? when(
+                        event.ts,
+                      )
+                    : "",
+                ),
+              );
+            }),
+        )
+      : null,
+  );
+}
+
+export async function load(
+  state,
+) {
   state.force = false;
-  const d = await api("/api/movies");
-  state.machine = d.machine;
-  const drv = d.drive;
-  const drops = d.drive_events.filter((e) => e.kind === "dropped").length;
-  state.body.replaceChildren(...[
-    d.playing?.length ? card("Playing now", {},
-      h("ul", { class: "log" }, d.playing.map((s) => h("li", { class: "log-row" },
-        h("span", { class: "log-main" },
-          h("strong", {}, s.title),
-          h("span", { class: "meta" }, [[s.who, s.device].filter(Boolean).join(" on "), s.minutes_left != null ? `${s.minutes_left} min left` : ""].filter(Boolean).join(" · "))),
-        h("div", { class: "progress", style: "width:120px" }, h("span", { style: `width:${s.progress}%` }))))))
-      ) : null,
-    hero(d.continue?.[0], d.machine),
-    shelfSection("Also half-watched", d.continue?.slice(1), d.machine),
-    shelfSection("Recently added", d.recent, d.machine, drv.state === "Connected" ? "Nothing new lately." : "The movies drive is missing, so Plex can't list new movies."),
-    card("Movies drive", { pill: drv.state, tone: drv.state === "Connected" ? (drv.errors ? "warn" : "ok") : "bad" },
-      h("dl", { class: "facts" },
-        h("div", {}, h("dt", {}, "Movies"), h("dd", {}, drv.count ?? "—")),
-        h("div", {}, h("dt", {}, "Free space"), h("dd", {}, drv.free || "—")),
-        h("div", {}, h("dt", {}, "Dropouts this week"), h("dd", { dataset: { tone: drops ? "bad" : "ok" } }, String(drops))),
-        h("div", {}, h("dt", {}, "Errors since the Pi started"), h("dd", {}, String(drv.errors ?? "—")))),
-      drops
-        ? h("p", { class: "note" }, "This drive keeps dropping out and its filesystem has errors. Replace it soon, and copy the movies across while it still reads.")
-        : null,
-      d.drive_events.length
-        ? h("ul", { class: "timeline" }, d.drive_events.slice(0, 8).map((e) =>
-          h("li", { dataset: { tone: e.kind === "dropped" ? "bad" : "ok" } }, h("span", {}, e.kind === "dropped" ? "Dropped out" : "Came back"), h("time", {}, when(e.ts)))))
-        : null),
-    state.night || (state.night = movieNight(state)),
-    requestsCard(state, d.requests),
-    statsCard(d),
-    h("div", { class: "row" },
-      h("a", { class: "btn", href: "/drives", "data-link": true }, "Drive health and moving to a new drive"),
-      h("a", { class: "btn", href: piLink(32400, "/web"), target: "_blank", rel: "noopener" }, "Open Plex")),
-  ].filter(Boolean));
+
+  try {
+    const data =
+      await api(
+        "/api/movies",
+      );
+
+    state.machine =
+      data?.machine || null;
+
+    const drive =
+      data?.drive || {};
+
+    const driveEvents =
+      asArray(
+        data?.drive_events,
+      );
+
+    const continueWatching =
+      asArray(
+        data?.continue,
+      );
+
+    const recentEmptyMessage =
+      drive.state ===
+      "Connected"
+        ? "Nothing new lately."
+        : "The movies drive is missing, so Plex can't list new movies.";
+
+    state.body.replaceChildren(
+      ...[
+        playingNowCard(
+          data?.playing,
+        ),
+
+        hero(
+          continueWatching[0],
+          state.machine,
+        ),
+
+        shelfSection(
+          "Also half-watched",
+          continueWatching.slice(
+            1,
+          ),
+          state.machine,
+        ),
+
+        shelfSection(
+          "Recently added",
+          data?.recent,
+          state.machine,
+          recentEmptyMessage,
+        ),
+
+        driveCard(
+          drive,
+          driveEvents,
+        ),
+
+        state.night ||
+          (state.night =
+            movieNight(state)),
+
+        requestsCard(
+          state,
+          data?.requests,
+        ),
+
+        statsCard(data),
+
+        h(
+          "div",
+          {
+            class: "row",
+          },
+
+          h(
+            "a",
+            {
+              class: "btn",
+              href: "/drives",
+              "data-link":
+                true,
+            },
+            "Drive health and moving to a new drive",
+          ),
+
+          h(
+            "a",
+            {
+              class: "btn",
+
+              href: piLink(
+                32400,
+                "/web",
+              ),
+
+              target:
+                "_blank",
+
+              rel:
+                "noopener noreferrer",
+            },
+            "Open Plex",
+          ),
+        ),
+      ].filter(Boolean),
+    );
+  } catch (error) {
+    state.body.replaceChildren(
+      card(
+        "Movies unavailable",
+        {
+          tone: "bad",
+        },
+
+        h(
+          "p",
+          {
+            class: "note",
+          },
+          "The movies dashboard couldn't load. Plex or the hub API may be unavailable.",
+        ),
+
+        h(
+          "button",
+          {
+            type: "button",
+            class:
+              "btn btn--primary",
+
+            onclick: () =>
+              load(state),
+          },
+          "Try again",
+        ),
+      ),
+    );
+
+    toast(
+      error?.message ||
+        "Couldn't load movies.",
+      "bad",
+    );
+  }
 }
