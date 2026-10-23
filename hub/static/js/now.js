@@ -84,35 +84,38 @@ function networkPanel(net) {
     return "ok";
   };
 
-  const nodePill = (icon, label, val, tone = "ok", extra = "") => h("div", {
+  const nodePill = (label, val, tone = "ok", extra = "") => h("div", {
     style: "display: inline-flex; align-items: center; gap: .45rem; background: var(--surface); padding: .35rem .75rem; border-radius: var(--r-sm); border: 1px solid var(--line); font-size: .8125rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);"
   },
-    h("span", { style: "font-size: .875rem;" }, icon),
-    h("span", { class: "dot", dataset: { tone: tone }, style: "width: 6px; height: 6px; border-radius: 50%;" }),
+    h("span", { class: "dot", dataset: { tone: tone }, style: "width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 6px color-mix(in srgb, currentColor 60%, transparent);" }),
     h("span", { style: "color: var(--text-2); font-weight: 500;" }, label),
-    h("strong", { style: "font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); color: var(--text);" }, val),
+    h("strong", { style: "font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); color: var(--text); margin-left: .15rem;" }, val),
     extra ? h("span", { style: "font-size: .6875rem; color: var(--text-3);" }, extra) : null
   );
 
   const arrow = () => h("span", {
-    style: "color: var(--text-3); font-size: .8125rem; opacity: .6; user-select: none;"
-  }, "→");
+    style: "color: var(--text-3); font-size: .95rem; opacity: .45; user-select: none; padding: 0 .15rem;"
+  }, "›");
+
+  const hasBandwidth = net.orbi_down_mbps !== undefined && net.orbi_down_mbps !== null;
 
   return h("section", {
     class: "network-panel",
     style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1.125rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
   },
-    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem; flex-wrap: wrap; gap: .5rem;" },
+    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem; flex-wrap: wrap; gap: .6rem;" },
       h("div", {},
         h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
           h("span", { style: "font-size: 1rem;" }, "⚡"),
           h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
           h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "LIVE OBSERVER")
         ),
-        (net.orbi_uptime || net.orbi_ext_ip) ? h("div", { style: "display: flex; gap: .6rem; margin-top: .25rem; font-size: .75rem; color: var(--text-3); flex-wrap: wrap;" },
+        (net.orbi_uptime || net.orbi_ext_ip) ? h("div", { style: "display: flex; align-items: center; gap: .65rem; margin-top: .35rem; font-size: .75rem; color: var(--text-3); flex-wrap: wrap;" },
           net.orbi_uptime ? h("span", {}, `Orbi Uptime: ${net.orbi_uptime}`) : null,
           net.orbi_ext_ip ? h("span", {}, `• Public IP: ${net.orbi_ext_ip}`) : null,
-          (net.orbi_down_mbps !== undefined && net.orbi_down_mbps !== null) ? h("span", { style: "color: var(--ok); font-family: var(--font-mono, monospace); font-weight: 600;" }, `• ↓ ${net.orbi_down_mbps} Mbps  ↑ ${net.orbi_up_mbps || 0} Mbps`) : null
+          hasBandwidth ? h("span", {
+            style: "background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); color: var(--ok); padding: .1rem .5rem; border-radius: 999px; font-weight: 600; font-family: var(--font-mono, monospace); font-size: .72rem; margin-left: .2rem;"
+          }, `↓ ${net.orbi_down_mbps} Mbps  ↑ ${net.orbi_up_mbps || 0} Mbps`) : null
         ) : null
       ),
       h("div", { style: "display: flex; gap: .5rem;" },
@@ -122,22 +125,23 @@ function networkPanel(net) {
     ),
     h("div", { style: "margin-bottom: .75rem;" },
       h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "Hop-by-Hop Edge Demarcation"),
-      h("div", { style: "display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;" },
-        nodePill("🍓", "Pi 4", "Local", "ok"),
+      h("div", { style: "display: flex; gap: .35rem; align-items: center; flex-wrap: wrap;" },
+        nodePill("Pi 4", "Local", "ok"),
         arrow(),
-        nodePill("📡", "Orbi Router", orbi, getTone(orbi)),
+        nodePill("Orbi Router", orbi, getTone(orbi)),
         arrow(),
-        nodePill("🌐", "AT&T Fiber", att, getTone(att)),
+        nodePill("AT&T Fiber", att, getTone(att)),
         arrow(),
-        nodePill("☁️", "Internet WAN", wan, getTone(wan))
+        nodePill("Internet WAN", wan, getTone(wan))
       )
     ),
+    h("div", { style: "height: 1px; background: var(--line); margin: .75rem 0; opacity: .7;" }),
     h("div", {},
       h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "LAN Endpoints & Services"),
-      h("div", { style: "display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;" },
-        nodePill("🖥️", "Windows 11 Workstation", win, getTone(win)),
-        printer ? nodePill("🖨️", "Bambu Printer", printer, getTone(printer)) : null,
-        nodePill("🔍", "DNS Resolution", dns, getTone(dns))
+      h("div", { style: "display: flex; gap: .45rem; flex-wrap: wrap; align-items: center;" },
+        nodePill("Windows 11 Workstation", win, getTone(win)),
+        printer ? nodePill("Bambu Printer", printer, getTone(printer)) : null,
+        nodePill("DNS Resolution", dns, getTone(dns))
       )
     )
   );
