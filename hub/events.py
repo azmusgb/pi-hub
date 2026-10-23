@@ -36,6 +36,8 @@ TRIGGERS = {
     "homebridge_stopped": "Homebridge stops",
     "pi_hot": "the Pi gets hotter than 75 °C",
     "filament_low": "a filament spool runs low",
+    "wan_loss": "the Internet connection has sustained packet loss",
+    "wan_down": "the Internet connection goes down",
     "weather_alert": "the weather service issues a warning",
     "rain_soon": "rain is on the way",
     "freeze_tonight": "it will freeze tonight",
@@ -63,6 +65,8 @@ MESSAGES = {
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
     "pi_hot": ("The Pi is running hot", "Above 75 °C."),
     "filament_low": ("Filament running low", "Check the filament shelf in the hub."),
+    "wan_loss": ("Internet packet loss detected", "Sustained >5% packet loss on the WAN edge connection."),
+    "wan_down": ("Internet connection down", "All external WAN probes are failing."),
     "weather_alert": ("Weather warning", ""),
     "rain_soon": ("Rain on the way", ""),
     "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
@@ -72,6 +76,9 @@ DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
     ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
     ("weather_alert", "notify", None, "Pass on official weather warnings", 1),
+    ("print_finished", "notify", None, "Send a phone alert when a 3D print finishes", 1),
+    ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
+    ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
@@ -248,7 +255,7 @@ def recent(limit=40):
 
 class Watcher:
     def __init__(self):
-        self.seen = {}
+        self.seen = {"wan_loss": False, "wan_down": False}
         self.pending = {}
         self.pc_down_since = None
         self.pc_reported = None
@@ -322,6 +329,17 @@ class Watcher:
         if state in ("Printing", "Paused", "Idle", "Stopped", "Error"):
             self.last_print = state
 
+    def check_network(self, alerts, now=None):
+        if alerts is None:
+            return
+        has_loss = "PacketLossDetected" in alerts or "HighInternetLatency" in alerts
+        if self._steady("wan_loss", has_loss) and has_loss:
+            fire("wan_loss")
+
+        has_down = "InternetDown" in alerts or "GatewayUnreachable" in alerts
+        if self._steady("wan_down", has_down) and has_down:
+            fire("wan_down")
+
     def check_weather(self, w, now=None):
         """Weather events: new official warnings, rain coming (once a day), and frost tonight (once a day, after 3 pm)."""
         if not w:
@@ -348,6 +366,10 @@ def run(every=30):
     while True:
         try:
             w.check(sources.pi_status())
+        except Exception:
+            pass
+        try:
+            w.check_network(sources.active_network_alerts())
         except Exception:
             pass
         try:

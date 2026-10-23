@@ -73,6 +73,15 @@ def test_rules_run_when_their_trigger_fires(fresh_db, monkeypatch):
     assert results["print_finished"] == "Sent."
 
 
+def test_network_alerts_trigger_rules(fresh_db):
+    events.ready()
+    w = events.Watcher()
+    w.check_network(["PacketLossDetected"])
+    assert "wan_loss" not in kinds()
+    w.check_network(["PacketLossDetected"])
+    assert kinds()[-1] == "wan_loss"
+
+
 def test_rule_validation():
     with pytest.raises(ValueError):
         events.add_rule("someone_rings", "notify")

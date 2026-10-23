@@ -110,6 +110,17 @@ def network_metrics():
     return cached("netmon", 10, _netmon)
 
 
+def active_network_alerts():
+    def _fetch():
+        try:
+            data = _get_json(f"{NETMON_PROMETHEUS_URL}/api/v1/alerts", timeout=2)
+            alerts = data.get("data", {}).get("alerts", [])
+            return [a["labels"]["alertname"] for a in alerts if a.get("state") == "firing" and "alertname" in a.get("labels", {})]
+        except Exception:
+            return []
+    return cached("net_alerts", 15, _fetch)
+
+
 WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")
 
 
