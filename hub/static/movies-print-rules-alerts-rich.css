@@ -1,33 +1,6 @@
 
 /* movies-print-rules-alerts-rich.css */
 
-/* Movies — search constrained */
-.search { max-width: 900px; margin: 0 auto 1.5rem; }
-
-/* Movies — hero gradient (stronger on the left) */
-.movie-hero::before {
-  background: linear-gradient(90deg,
-    rgba(0,0,0,.85) 0%,
-    rgba(0,0,0,.62) 34%,
-    rgba(0,0,0,.1) 72%) !important;
-}
-
-/* Movies — half-watched poster: "Xm left" badge */
-.poster-art { position: relative; }
-.poster-left {
-  position: absolute;
-  top: .5rem; right: .5rem;
-  padding: .2rem .55rem;
-  border-radius: 999px;
-  background: rgba(0,0,0,.75);
-  color: #fff;
-  font-size: .6875rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-  z-index: 2;
-  backdrop-filter: blur(4px);
-}
-
 /* Print — drop zone */
 .drop {
   display: flex;
