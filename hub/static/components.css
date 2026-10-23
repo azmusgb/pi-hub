@@ -348,3 +348,402 @@ a.card:hover {
     background: #fff;
   }
 }
+
+/* ============================================================
+   Tabs / Chips / Pills
+   ============================================================ */
+
+.tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+}
+
+.tabs > button,
+.tabs > a {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: .4rem .8rem;
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background .2s var(--smooth),
+    color .2s var(--smooth);
+}
+
+.tabs > button:hover,
+.tabs > a:hover {
+  color: var(--text);
+}
+
+.tabs > button[aria-selected="true"],
+.tabs > a[aria-current="page"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--sh-1);
+}
+
+/* Compatibility with the original .tab markup. */
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  min-height: 44px;
+  padding: .45rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--acrylic-edge);
+  background: transparent;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tab[aria-selected="true"] {
+  background: rgb(var(--pei-rgb) / .14);
+  border-color: rgb(var(--pei-rgb) / .4);
+  color: var(--ink);
+}
+
+.tab .count {
+  min-width: 1.4rem;
+  padding: 0 .35rem;
+  border-radius: 999px;
+  background: var(--pei);
+  color: var(--on-pei);
+  font-size: .78rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 40px;
+  padding: .3rem .7rem;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background .18s var(--smooth),
+    color .18s var(--smooth),
+    border-color .18s var(--smooth);
+}
+
+.chip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.chip[aria-pressed="true"],
+.chip.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: transparent;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .18rem .55rem;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill--live {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+}
+
+.pill--live::before {
+  animation: pulse 1.6s infinite;
+}
+
+.pill--warn {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
+.pill--danger {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+
+/* ============================================================
+   Fields / Form Controls
+   ============================================================ */
+
+.field {
+  display: grid;
+  gap: .3rem;
+}
+
+.field > span {
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.field label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/*
+ * Effective generic form-control rule. The original early rule supplied
+ * min-height while the later zero-specificity rule supplied the final
+ * visual treatment.
+ */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea
+) {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  font-size: .9375rem;
+  color: var(--text, var(--ink));
+  background: var(--surface-2, var(--field));
+  border: 1px solid var(--line-strong, var(--acrylic-edge));
+  border-radius: var(--r-sm, 12px);
+  padding: .55rem .7rem;
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea
+):focus-visible {
+  outline: 2px solid var(--accent, var(--pei));
+  outline-offset: 1px;
+  border-color: var(--accent, var(--pei));
+  box-shadow: var(--ring, none);
+}
+
+/*
+ * Preserve the higher-specificity input focus rule from the legacy
+ * stylesheet.
+ */
+input:focus-visible {
+  outline: 2px solid var(--pei);
+  outline-offset: 1px;
+}
+
+/*
+ * .field select previously had higher specificity than the generic
+ * :where() rule, so retain its effective visual treatment.
+ */
+.field select {
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--acrylic-edge);
+  border-radius: 12px;
+  padding: .65rem .8rem;
+}
+
+
+/* ============================================================
+   Lists
+   ============================================================ */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.list > li {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .8rem 1rem;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.list > li:hover {
+  background: var(--surface-2);
+}
+
+.list > li .spacer {
+  flex: 1;
+}
+
+
+/* ============================================================
+   Tables
+   ============================================================ */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .875rem;
+}
+
+.table th,
+.table td {
+  padding: .7rem .9rem;
+  text-align: left;
+}
+
+.table th {
+  font-size: .6875rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--text-3);
+  font-weight: 700;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.table td {
+  border-bottom: 1px solid var(--line);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+
+/* ============================================================
+   Empty state
+   ============================================================ */
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  gap: .5rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  color: var(--text-3);
+}
+
+.empty-state svg {
+  width: 32px;
+  height: 32px;
+  opacity: .7;
+}
+
+
+/* ============================================================
+   Shared component accessibility / print
+   ============================================================ */
+
+@media (prefers-contrast: more) {
+  .card {
+    box-shadow: none;
+    border-width: 1.5px;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  a.card:hover {
+    transform: translateY(-2px);
+  }
+}
+
+@media (forced-colors: active) {
+  .card,
+  .btn,
+  .chip,
+  .tabs,
+  .list,
+  .table-wrap {
+    border: 1px solid ButtonBorder;
+  }
+
+  .btn--primary {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .badge,
+  .pill {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .btn {
+    transition: none;
+    animation: none;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  a.card:hover {
+    transform: translateY(-2px);
+  }
+}
+
+@media print {
+  .card,
+  .list,
+  .table-wrap {
+    border: 1px solid #ccc;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .tabs,
+  .chip {
+    display: none;
+  }
+}

@@ -256,55 +256,6 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
 .timeline > li.is-now::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .timeline time { font-size: .75rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* ---------- Tabs / segmented ---------- */
-.tabs {
-  display: inline-flex; gap: 2px; padding: 3px;
-  border-radius: var(--r-full); background: var(--surface-3);
-  border: 1px solid var(--line);
-}
-.tabs > button, .tabs > a {
-  appearance: none; border: 0; background: transparent;
-  padding: .4rem .8rem; border-radius: var(--r-full);
-  color: var(--text-2); font: inherit; font-size: .8125rem; font-weight: 600;
-  cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: background .2s var(--smooth), color .2s var(--smooth);
-}
-.tabs > button:hover, .tabs > a:hover { color: var(--text); }
-.tabs > button[aria-selected="true"], .tabs > a[aria-current="page"] {
-  background: var(--surface); color: var(--text);
-  box-shadow: var(--sh-1);
-}
-
-/* ---------- Chip / pill ---------- */
-.chip {
-  display: inline-flex; align-items: center; gap: .35rem;
-  padding: .3rem .7rem; border-radius: var(--r-full);
-  background: var(--surface-3); color: var(--text-2);
-  border: 1px solid var(--line);
-  font: inherit; font-size: .8125rem; font-weight: 600;
-  cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: background .18s var(--smooth), color .18s var(--smooth), border-color .18s var(--smooth);
-}
-.chip:hover { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
-.chip[aria-pressed="true"], .chip.is-active {
-  background: var(--accent-soft); color: var(--accent-strong); border-color: transparent;
-}
-
-.pill {
-  display: inline-flex; align-items: center; gap: .35rem;
-  padding: .18rem .55rem; border-radius: var(--r-full);
-  background: var(--surface-3); color: var(--text-2);
-  font-size: .75rem; font-weight: 600;
-}
-.pill::before {
-  content: ""; width: 6px; height: 6px; border-radius: 50%;
-  background: currentColor;
-}
-.pill--live   { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
-.pill--live::before { animation: pulse 1.6s infinite; }
-.pill--warn   { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
-.pill--danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-
 /* ---------- Kbd ---------- */
 kbd {
   display: inline-flex; align-items: center; justify-content: center;
@@ -526,15 +477,11 @@ kbd {
 @media (prefers-contrast: more) {
   :root { --line: rgba(0,0,0,.28); --line-strong: rgba(0,0,0,.5); --text-2: #2a2620; --text-3: #4a443a; }
   [data-theme="dark"] { --line: rgba(255,255,255,.24); --line-strong: rgba(255,255,255,.42); }
-  .card, .hero { box-shadow: none; border-width: 1.5px; }
-  .card:hover { transform: none; }
+  .hero { box-shadow: none; border-width: 1.5px; }
   body::after { display: none; }
 }
 @media (forced-colors: active) {
-  .card, .btn, .chip, .tabs, .list, .table-wrap { border: 1px solid ButtonBorder; }
-  .btn--primary { background: Highlight; color: HighlightText; }
   .rail a[aria-current="page"] { outline: 2px solid Highlight; }
-  .badge, .pill { border: 1px solid CanvasText; }
   body::after, body::before { display: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -554,7 +501,6 @@ kbd {
   #view { max-width: none; padding: 0; }
   body { background: #fff; color: #000; }
   body::before, body::after { display: none; }
-  .card, .list, .table-wrap { border: 1px solid #ccc; box-shadow: none; background: #fff; }
   a { color: inherit; text-decoration: underline; }
   h1, h2, h3 { break-after: avoid; }
 }
@@ -610,7 +556,7 @@ kbd {
 @media print {
   .bento { display: block; }
   .bento > * { grid-column: auto !important; grid-row: auto !important; }
-  .tabs, .chip, .eyebrow-count { display: none; }
+  .eyebrow-count { display: none; }
 }
 
 /* 3. Drop the stuttering background transition */
