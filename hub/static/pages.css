@@ -206,9 +206,6 @@ input:focus-visible { outline: 2px solid var(--pei); outline-offset: 1px; }
 .with-reveal { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
 .reveal { min-width: 4.2rem; }
 
-/* Now: weather and next event, and Ask */
-.outside { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; margin: -0.6rem 0 0; color: var(--muted); }
-.outside strong { color: var(--ink); }
 /* Rules */
 .rules { list-style: none; margin: 0; padding: 0; }
 .rule { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.9rem; align-items: center; padding: 0.7rem 0; border-bottom: 1px solid rgb(var(--ink-rgb) / 0.06); }
@@ -226,34 +223,6 @@ input:focus-visible { outline: 2px solid var(--pei); outline-offset: 1px; }
 .rule-form .primary { justify-self: start; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 
-/* Wall display: read from across the room. The time leads; the printer and the day sit below it. */
-body.wall .top { display: none; }
-body.wall .stage main { max-width: 1400px; padding-top: clamp(16px, 3vw, 36px); }
-body.wall .page-now { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); grid-template-areas: "head head" "sum sum" "main side"; column-gap: 2rem; }
-body.wall .page-now > .summary { grid-area: sum; margin: 0; }
-body.wall .page-now > .now-main { grid-area: main; }
-body.wall .now-side { display: contents; }
-.wall-head { grid-area: head; display: grid; grid-template-columns: auto 1fr; gap: 1rem 3rem; align-items: end; }
-.wall-time { margin: 0; font-size: clamp(6rem, 17vw, 13rem); font-weight: 800; letter-spacing: -0.055em; line-height: 0.82; }
-.wall-date { margin: 0.6rem 0 0; font-size: clamp(1.3rem, 2.4vw, 1.9rem); color: var(--muted); }
-.wall-weather { justify-self: end; display: grid; grid-template-columns: auto auto; gap: 0 1rem; align-items: center; text-align: right; }
-.wall-weather > .wx { width: clamp(4rem, 8vw, 6.5rem); height: clamp(4rem, 8vw, 6.5rem); grid-row: span 2; }
-.wall-temp { margin: 0; font-size: clamp(3rem, 7vw, 5.5rem); font-weight: 800; letter-spacing: -0.04em; line-height: 0.9; }
-.wall-sky { margin: 0; font-size: 1.3rem; color: var(--muted); }
-.wall-note { grid-column: 1 / -1; margin: 0.6rem 0 0; font-size: 1.15rem; color: var(--rain-ink); }
-.wall-side { grid-area: side; display: grid; gap: 1.5rem; align-content: start; }
-.wall-agenda ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; font-size: 1.35rem; }
-.wall-agenda li { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.8rem; }
-.wall-when { color: var(--pei); font-weight: 700; }
-.wall-wifi { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: center; color: var(--muted); font-size: 1.1rem; }
-.wall-wifi .wifi-qr { width: 150px; height: 150px; }
-@media (max-width: 1000px) {
-  body.wall .page-now { grid-template-columns: 1fr; grid-template-areas: "head" "sum" "main" "side"; }
-  .wall-head { grid-template-columns: 1fr; }
-  .wall-weather { justify-self: start; text-align: left; }
-}
-body.wall .ask, body.wall .outside { display: none; }
-body.wall.night { filter: brightness(0.55); }
 .field select { width: 100%; max-width: 100%; }
 
 .cam-img { display: block; width: 100%; max-width: 760px; aspect-ratio: 16 / 9; height: auto; border-radius: 14px; background: #000; object-fit: cover; }
@@ -279,79 +248,12 @@ body.wall.night { filter: brightness(0.55); }
 .use-form select { font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--acrylic-edge); border-radius: 12px; padding: 0.5rem; min-height: 44px; }
 .small-btn { min-height: 44px; padding: 0.5rem 0.9rem; }
 
-/* Weather */
-.wx { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; vertical-align: -0.35em; }
-.wx svg { width: 100%; height: 100%; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
-.wx-sun { stroke: #f2c45c; fill: rgba(242, 196, 92, 0.25); }
-.wx-ray { stroke: #f2c45c; }
-.wx-moon { stroke: #c9d2e3; fill: rgba(201, 210, 227, 0.18); }
-.wx-cloud { stroke: #c4ccd2; fill: rgba(196, 204, 210, 0.16); }
-.wx-drop { stroke: #7cb8e6; }
-.wx-flake { fill: #e6eef5; stroke: none; }
-.wx-bolt { stroke: #f2c45c; stroke-width: 1.8; }
-.wx-line { stroke: #aab3ba; }
-.out-weather { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); text-decoration: none; }
-.out-weather:hover strong { color: var(--pei); }
-.out-alert { color: var(--warn-ink); font-weight: 700; text-decoration: none; }
-.out-soon { color: var(--rain-ink); }
-.wx-alert { padding: 0.9rem 1.1rem; border-radius: 16px; background: rgb(var(--warn-rgb) / 0.12); border: 1px solid rgb(var(--warn-rgb) / 0.4); }
-.wx-alert strong { color: var(--warn-ink); font-size: 1.1rem; }
-.wx-alert p { margin: 0.3rem 0 0; }
-.wx-now { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 1.2rem; align-items: center;
-  padding: clamp(1.1rem, 3vw, 1.6rem); border-radius: 22px; background: var(--acrylic); border: 1px solid var(--acrylic-edge); }
-.wx-now > .wx { width: clamp(5rem, 16vw, 8rem); height: clamp(5rem, 16vw, 8rem); }
-.wx-soon { margin: 0; padding: 0.7rem 1rem; border-radius: 14px; background: rgb(var(--rain-rgb) / 0.12); color: var(--rain-ink); }
-.wx-h-time { color: var(--muted); font-size: 0.82rem; }
-.wx-h-rain { position: relative; width: 70%; height: 1.15rem; font-size: 0.75rem; color: var(--rain-ink); text-align: center; }
-.wx-h-rain::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 999px;
-  background: linear-gradient(90deg, #7cb8e6 var(--p), rgb(var(--rain-rgb) / 0.12) var(--p)); }
-.wx-days { list-style: none; margin: 0; padding: 0; }
-.wx-days li { display: grid; grid-template-columns: minmax(5.5rem, 1fr) 2rem 2.6rem 2.6rem minmax(5rem, 2fr) 2.6rem; gap: 0.6rem; align-items: center;
-  padding: 0.55rem 0; border-bottom: 1px solid rgb(var(--ink-rgb) / 0.06); }
-.wx-days li:last-child { border-bottom: 0; }
-.wx-d-day { font-weight: 700; }
-.wx-d-rain { color: var(--rain-ink); font-size: 0.85rem; text-align: right; }
-.wx-d-low { color: var(--muted); text-align: right; }
-.wx-d-high { font-weight: 700; }
-.wx-range { position: relative; height: 6px; border-radius: 999px; background: var(--well); }
-.wx-range i { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, #7cb8e6, #f2c45c); }
-@media (max-width: 420px) { .wx-days li { grid-template-columns: 5.2rem 1.8rem 2.2rem 2.2rem 1fr 2.2rem; gap: 0.4rem; } }
-.wall-hours { grid-column: 1 / -1; list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; text-align: center; font-size: 1rem; }
-.wall-hours li { display: grid; justify-items: center; gap: 0.15rem; color: var(--muted); }
-.wall-hours strong { color: var(--ink); }
-
-/* Now: the house panel. One quiet surface, a row per area; the print band stays the only loud thing. */
-.house { border-radius: 20px; background: var(--acrylic); border: 1px solid var(--acrylic-edge); padding: 0.9rem 0.4rem 0.4rem; }
-.house .section-title { margin: 0 0 0.3rem 0.8rem; }
-.house-list { list-style: none; margin: 0; padding: 0; }
-.house-item + .house-item { border-top: 1px solid rgb(var(--ink-rgb) / 0.07); }
-.house-row {
-  display: grid; grid-template-columns: 6.6rem 0.6rem minmax(0, 1fr) auto; gap: 0.7rem; align-items: center;
-  min-height: 56px; padding: 0.75rem 0.8rem; border-radius: 14px; color: var(--ink); text-decoration: none;
-}
-.house-row:hover { background: rgb(var(--ink-rgb) / 0.04); }
-.house-row:hover .chev { color: var(--pei); transform: translateX(2px); }
-.chev { color: var(--muted); font-size: 1.4rem; line-height: 1; transition: transform 0.15s, color 0.15s; }
-.house-extra { margin: -0.2rem 0.8rem 0.7rem calc(6.6rem + 1.3rem + 0.8rem); }
-.house-spark .spark { height: 22px; opacity: 0.8; }
-@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
-
-.wifi-panel .wifi-qr { width: 132px; height: 132px; }
-.now-side { display: grid; gap: 1rem; align-content: start; }
-
-.now-main { display: grid; gap: 1.25rem; align-content: start; }
-.now-main > div:empty { display: none; }
-.page-now > div:empty { display: none; }
-
 .foot-links { display: flex; gap: 1rem; align-items: center; }
 .link-btn { border: 0; background: none; padding: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; min-height: 32px; }
 body.wall .link-btn { display: none; }
 /* Daylight touches: posters and the QR code need a frame on a light plate. */
-:root[data-theme="light"] .poster-art, :root[data-theme="light"] .wifi-qr { box-shadow: 0 1px 0 rgb(28 34 38 / 0.08), 0 6px 18px rgb(28 34 38 / 0.10); }
+:root[data-theme="light"] .poster-art { box-shadow: 0 1px 0 rgb(28 34 38 / 0.08), 0 6px 18px rgb(28 34 38 / 0.10); }
 :root[data-theme="light"] .line-nozzle { background: #fff7e6; }
-:root[data-theme="light"] .wx-cloud { stroke: #7d8a93; fill: rgb(125 138 147 / 0.15); }
-:root[data-theme="light"] .wx-moon { stroke: #6f7d93; }
-:root[data-theme="light"] .wx-flake { fill: #8aa4ba; }
 
 /* Settings: a short checklist first, then sections you can jump to */
 .setup-steps { padding: 1rem 1.15rem; border-radius: 18px; background: rgb(var(--pei-rgb) / 0.08); border: 1px solid rgb(var(--pei-rgb) / 0.3); }
@@ -392,16 +294,6 @@ body.wall .link-btn { display: none; }
   .log-row .log-side { grid-column: 2; text-align: left; }
   .ink-row { grid-template-columns: 4rem 1fr 2.6rem; }
 }
-.house { container-type: inline-size; }
-@container (max-width: 480px) {
-  .house-row { grid-template-columns: 0.6rem minmax(0, 1fr) auto; grid-template-areas: "dot name chev" "dot say chev"; row-gap: 0.1rem; }
-  .house-row .dot { grid-area: dot; align-self: start; margin-top: 0.45rem; }
-  .house-name { grid-area: name; }
-  .house-say { grid-area: say; font-size: 0.95rem; }
-  .chev { grid-area: chev; }
-  .house-extra { margin-left: calc(0.6rem + 1.5rem); }
-}
-
 /* Fingers get bigger targets than mouse pointers. */
 @media (pointer: coarse) {
   .ghost.small { min-height: 44px; padding: 0.4rem 0.8rem; }
@@ -409,15 +301,11 @@ body.wall .link-btn { display: none; }
   .tile-fav { min-width: 44px; min-height: 44px; }
   .item { padding: 0.65rem 0; }
 }
-@media (hover: none) {
-  .house-row:hover { background: none; }
-  .house-row:hover .chev { transform: none; color: var(--muted); }
-}
+
 
 /* Short screens (laptops, phones sideways): the printer band and headings shrink with the height too. */
 @media (max-height: 760px) {
   .band-headline { font-size: clamp(1.8rem, min(7vw, 8vh), 3.2rem); }
-  .wx-temp { font-size: clamp(2.8rem, min(10vw, 11vh), 5rem); }
 }
 
 /* Installed as an app (Add to Home Screen): no browser bar, so keep clear of the notch and the clock. */
@@ -428,11 +316,11 @@ body.wall .link-btn { display: none; }
 /* People who ask for more contrast get solid surfaces and stronger lines. */
 @media (prefers-contrast: more) {
   :root { --acrylic: rgb(var(--ink-rgb) / 0.08); --acrylic-edge: rgb(var(--ink-rgb) / 0.35); --muted: var(--ink); }
-  .card, .house, .band { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .card, .band { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 @media print {
-  .rail, .foot, .ask, .toast, button { display: none !important; }
+  .rail, .foot, .toast, button { display: none !important; }
   .shell { display: block; }
   body { background: #fff; color: #000; }
 }
