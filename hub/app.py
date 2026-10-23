@@ -1,6 +1,7 @@
 """Pi Hub: the home hub web app."""
 import os
 import re
+import base64
 import tempfile
 import threading
 import time
@@ -35,8 +36,10 @@ def fresh(data):
 async def guard(request: Request, call_next):
     # Changes must come from the hub's own pages, not from another site in the browser.
     # Siri Shortcuts carry their own key instead of coming from the hub's page; the key is checked by the route.
+    # Server-to-server webhooks (/api/webhook/) are machine endpoints.
     shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut:
+    webhook = request.url.path.startswith("/api/webhook/")
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -376,6 +379,80 @@ def api_print_photo(pid: int):
         raise HTTPException(404, "No photo for this print.")
     with open(path, "rb") as f:
         return Response(f.read(), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
+# ---- Bambuddy 3D printer event webhook ----
+
+@app.post("/api/webhook/bambuddy")
+async def api_webhook_bambuddy(request: Request):
+    """Instant event webhook from Bambuddy for 3D printer events."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON payload")
+
+    event_type = (body.get("event") or body.get("event_type") or "").lower().strip()
+    title = body.get("title") or "Bambu 3D Printer"
+    msg = body.get("message") or ""
+    image_b64 = body.get("image")
+    variables = body.get("variables") or {}
+
+    now_ts = int(time.time())
+
+    # Handle completion
+    if event_type in ("print_complete", "print_finished", "completed"):
+        recorder.record_print("Printing", 100, now_ts)
+        recorder.record_print("Idle", 0, now_ts)
+        open_print = db.one("SELECT id FROM prints WHERE ended IS NOT NULL ORDER BY id DESC LIMIT 1")
+        print_id = open_print["id"] if open_print else None
+
+        # If an image was attached in base64, save it directly
+        if image_b64 and print_id:
+            try:
+                img_data = base64.b64decode(image_b64)
+                if img_data.startswith(b"\xff\xd8"):
+                    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
+                    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
+                    os.makedirs(prints_dir, exist_ok=True)
+                    target = os.path.join(prints_dir, f"{print_id}.jpg")
+                    with open(target, "wb") as f:
+                        f.write(img_data)
+                    db.run("UPDATE prints SET has_photo = 1 WHERE id = ?", print_id)
+            except Exception:
+                pass
+
+        # If filament usage is provided by Bambuddy, record it
+        filament_used = variables.get("filament_used") or variables.get("filament_used_grams")
+        if filament_used and print_id:
+            try:
+                grams = float(filament_used)
+                db.run("UPDATE prints SET grams = ? WHERE id = ?", grams, print_id)
+            except Exception:
+                pass
+
+        events.fire("print_finished", detail=msg or title)
+        return fresh({"ok": True, "event": event_type, "handled": "print_finished"})
+
+    # Handle failures / cancelled
+    elif event_type in ("print_failed", "print_stopped", "failed", "cancelled", "stopped"):
+        progress = variables.get("progress") or 0
+        error_code = variables.get("error_code") or variables.get("hms_code")
+        recorder.record_print("Error", progress, now_ts, error=error_code)
+        events.fire("print_failed", detail=msg or title)
+        return fresh({"ok": True, "event": event_type, "handled": "print_failed"})
+
+    # Handle print started
+    elif event_type in ("print_start", "print_started", "started"):
+        recorder.record_print("Printing", 0, now_ts)
+        events.fire("print_started", detail=msg or title)
+        return fresh({"ok": True, "event": event_type, "handled": "print_started"})
+
+    # Handle filament low
+    elif event_type in ("filament_low",):
+        events.fire("filament_low", detail=msg or title)
+        return fresh({"ok": True, "event": event_type, "handled": "filament_low"})
+
+    return fresh({"ok": True, "event": event_type, "handled": False})
 
 
 # ---- Workshop camera (through the failover service) ----

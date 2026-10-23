@@ -78,3 +78,23 @@ def test_print_photo_endpoint():
     assert res.status_code == 200
     assert res.headers["content-type"] == "image/jpeg"
     assert res.content == b"\xff\xd8\xff\xe0testjpeg"
+
+
+def test_bambuddy_webhook_triggers_completion_and_rules():
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app
+    c = TestClient(hub_app.app)
+    # Start a print
+    r = c.post("/api/webhook/bambuddy", json={"event": "print_start", "title": "Bambu P1S", "message": "Started printing Cube"})
+    assert r.status_code == 200
+    assert r.json()["handled"] == "print_started"
+    # Complete print
+    r = c.post("/api/webhook/bambuddy", json={
+        "event": "print_complete",
+        "title": "Bambu P1S",
+        "message": "Cube finished",
+        "variables": {"filament_used": 15.2}
+    })
+    assert r.status_code == 200
+    assert r.json()["handled"] == "print_finished"
+    assert db.one("SELECT outcome, grams FROM prints") == {"outcome": "finished", "grams": 15.2}
