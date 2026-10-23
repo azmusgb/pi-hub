@@ -210,7 +210,67 @@ function shelfSection(title, items, machine, none) {
   );
 }
 
+function librarySwitcher(sections, active, onChange) {
+  const list = asArray(sections);
+  if (list.length <= 1) {
+    return null;
+  }
+
+  const options = [
+    { key: "all", title: "All Libraries" },
+    ...list.map((s) => ({
+      key: String(s.key),
+      title: s.title === "Movies" ? "Movies (Pi Drive)" : (s.title || `Library ${s.key}`),
+    })),
+  ];
+
+  return h(
+    "nav",
+    {
+      class: "movie-libraries",
+      "aria-label": "Select movie library",
+    },
+    h(
+      "span",
+      { class: "movie-libraries-label" },
+      "Library:",
+    ),
+    h(
+      "div",
+      {
+        class: "movie-libraries-chips",
+        role: "radiogroup",
+        "aria-label": "Select movie library",
+      },
+      options.map((opt) => {
+        const isSelected = String(active) === String(opt.key);
+        return h(
+          "button",
+          {
+            type: "button",
+            class: `chip ${isSelected ? "is-active" : ""}`,
+            role: "radio",
+            "aria-checked": isSelected ? "true" : "false",
+            "aria-pressed": isSelected ? "true" : "false",
+            onclick: () => {
+              if (isSelected) return;
+              onChange(opt.key);
+            },
+          },
+          opt.title,
+        );
+      }),
+    ),
+  );
+}
+
 export function mount(state) {
+  try {
+    state.section = localStorage.getItem("hub-movie-section") || "all";
+  } catch (_) {
+    state.section = "all";
+  }
+
   const input = h("input", {
     type: "search",
     id: "movie-search",
@@ -556,6 +616,10 @@ function movieNight(state) {
       short: String(short.checked),
       skip: seen.join(","),
     });
+
+    if (state.section && state.section !== "all") {
+      query.set("section", state.section);
+    }
 
     try {
       const { pick } = await api(
@@ -963,7 +1027,7 @@ function watchingNow(watching) {
   );
 }
 
-function statsCard(data) {
+function statsCard(data, activeTitle) {
   const stats = data?.stats;
 
   if (!stats) {
@@ -978,8 +1042,13 @@ function statsCard(data) {
       stats.never_watched_old,
     );
 
+  const cardTitle =
+    activeTitle
+      ? `Watching · ${activeTitle}`
+      : "Watching";
+
   return card(
-    "Watching",
+    cardTitle,
     {
       pill:
         `${stats.watched ?? 0} of ${
@@ -1614,11 +1683,28 @@ export async function load(
 ) {
   state.force = false;
 
+  if (!state.section) {
+    try {
+      state.section = localStorage.getItem("hub-movie-section") || "all";
+    } catch (_) {
+      state.section = "all";
+    }
+  }
+
   try {
+    const params = new URLSearchParams();
+    if (state.section && state.section !== "all") {
+      params.set("section", state.section);
+    }
+    const qs = params.toString();
     const data =
       await api(
-        "/api/movies",
+        `/api/movies${qs ? `?${qs}` : ""}`,
       );
+
+    if (data?.active_section) {
+      state.section = data.active_section;
+    }
 
     state.machine =
       data?.machine || null;
@@ -1636,6 +1722,15 @@ export async function load(
         data?.continue,
       );
 
+    const activeSec = asArray(data?.sections).find(
+      (s) => String(s.key) === String(state.section),
+    );
+    const activeTitle = activeSec
+      ? activeSec.title === "Movies"
+        ? "Movies (Pi Drive)"
+        : activeSec.title
+      : null;
+
     const recentEmptyMessage =
       drive.state ===
       "Connected"
@@ -1644,6 +1739,19 @@ export async function load(
 
     state.body.replaceChildren(
       ...[
+        librarySwitcher(
+          data?.sections,
+          state.section || "all",
+          async (newSection) => {
+            state.section = newSection;
+            try {
+              localStorage.setItem("hub-movie-section", newSection);
+            } catch (_) {}
+            state.night = null;
+            await load(state);
+          },
+        ),
+
         playingNowCard(
           data?.playing,
         ),
@@ -1662,7 +1770,9 @@ export async function load(
         ),
 
         shelfSection(
-          "Recently added",
+          activeTitle
+            ? `Recently added · ${activeTitle}`
+            : "Recently added",
           data?.recent,
           state.machine,
           recentEmptyMessage,
@@ -1682,7 +1792,7 @@ export async function load(
           data?.requests,
         ),
 
-        statsCard(data),
+        statsCard(data, activeTitle),
 
         h(
           "div",

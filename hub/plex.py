@@ -53,7 +53,21 @@ def _list(path, params=None, limit=24):
     return [_item(m) for m in (data.get("MediaContainer") or {}).get("Metadata") or []][:limit]
 
 
-def recently_added():
+def _sections():
+    dirs = (_json("/library/sections").get("MediaContainer") or {}).get("Directory") or []
+    return [
+        {"key": str(s.get("key")), "title": s.get("title", ""), "type": s.get("type", "")}
+        for s in dirs if s.get("type") == "movie"
+    ]
+
+
+def movie_sections():
+    return sources.cached("plex-sections", 300, _sections) or []
+
+
+def recently_added(section=None):
+    if section and section != "all":
+        return sources.cached(f"plex-recent-{section}", 120, lambda: _list(f"/library/sections/{section}/recentlyAdded", {"X-Plex-Container-Size": 18}, 18))
     return sources.cached("plex-recent", 120, lambda: _list("/library/recentlyAdded", {"X-Plex-Container-Size": 18}, 18))
 
 
@@ -142,12 +156,32 @@ def history():
     return sources.cached("plex-history", 300, _history)
 
 
-def _library_stats():
-    sections = (_json("/library/sections").get("MediaContainer") or {}).get("Directory") or []
-    movies = [s for s in sections if s.get("type") == "movie"]
-    if not movies:
+def _library_stats(section=None):
+    dirs = (_json("/library/sections").get("MediaContainer") or {}).get("Directory") or []
+    movie_secs = [s for s in dirs if s.get("type") == "movie"]
+    if not movie_secs:
         return None
-    items = (_json(f"/library/sections/{movies[0]['key']}/all").get("MediaContainer") or {}).get("Metadata") or []
+    if section and section != "all":
+        target_secs = [s for s in movie_secs if str(s.get("key")) == str(section)]
+        if not target_secs:
+            target_secs = movie_secs[:1]
+    else:
+        target_secs = movie_secs
+
+    items = []
+    seen = set()
+    for sec in target_secs:
+        try:
+            sec_items = (_json(f"/library/sections/{sec['key']}/all").get("MediaContainer") or {}).get("Metadata") or []
+            for m in sec_items:
+                rk = str(m.get("ratingKey") or "")
+                dedup = (m.get("title", "").strip().lower(), m.get("year")) if len(target_secs) > 1 else rk
+                if dedup not in seen:
+                    seen.add(dedup)
+                    items.append(m)
+        except Exception:
+            continue
+
     unwatched, total_size, unwatched_size, every = [], 0, 0, []
     for m in items:
         every.append({"key": str(m.get("ratingKey")), "minutes": round((m.get("duration") or 0) / 60000) or None})
@@ -168,17 +202,22 @@ def _library_stats():
             "_unwatched": unwatched, "_all": every}
 
 
-def pick(kids=False, max_minutes=None, skip=()):
+def library_stats(section=None):
+    key = f"plex-stats-{section}" if section and section != "all" else "plex-stats"
+    return sources.cached(key, 1800, lambda: _library_stats(section))
+
+
+def pick(kids=False, max_minutes=None, skip=(), section=None):
     """Movie night: one unwatched movie at random, optionally family-friendly or short enough for tonight."""
     import random
-    stats = library_stats() or {}
+    try:
+        stats = library_stats(section) if section else library_stats()
+    except TypeError:
+        stats = library_stats()
+    stats = stats or {}
     pool = [u for u in stats.get("_unwatched") or [] if u["key"] not in skip]
     if kids:
         pool = [u for u in pool if (u.get("content_rating") or "") in ("G", "PG", "TV-G", "TV-Y", "TV-Y7", "TV-PG")]
     if max_minutes:
         pool = [u for u in pool if u.get("minutes") and u["minutes"] <= max_minutes]
     return random.choice(pool) if pool else None
-
-
-def library_stats():
-    return sources.cached("plex-stats", 1800, _library_stats)

@@ -94,3 +94,33 @@ def test_every_page_address_serves_the_shell(c):
         r = c.get(path)
         assert r.status_code == 200 and "js/main.js" in r.text
     assert c.get("/api/nope").status_code == 404
+
+
+def test_movies_api_accepts_section_filter(c, monkeypatch):
+    from hub import plex, sources
+    monkeypatch.setattr(sources, "pi_status", lambda: {"drive_state": "Connected", "drive_free": "100 GB", "movies": 10})
+    monkeypatch.setattr(sources, "plex_sessions", lambda: None)
+    monkeypatch.setattr(plex, "machine_id", lambda: "mock-machine")
+    monkeypatch.setattr(plex, "on_deck", lambda: [])
+    monkeypatch.setattr(plex, "history", lambda: [])
+    monkeypatch.setattr(plex, "watch_stats", lambda days: {})
+    monkeypatch.setattr(plex, "movie_sections", lambda: [
+        {"key": "1", "title": "Movies", "type": "movie"},
+        {"key": "2", "title": "Movies-WindowsPC", "type": "movie"},
+    ])
+    monkeypatch.setattr(plex, "recently_added", lambda section=None: [{"title": f"Recent-{section}"}])
+    monkeypatch.setattr(plex, "library_stats", lambda section=None: {"movies": 10, "watched": 5})
+
+    r_all = c.get("/api/movies?section=all")
+    assert r_all.status_code == 200
+    data_all = r_all.json()
+    assert data_all["active_section"] == "all"
+    assert len(data_all["sections"]) == 2
+    assert data_all["recent"][0]["title"] == "Recent-all"
+
+    r_sec = c.get("/api/movies?section=2")
+    assert r_sec.status_code == 200
+    data_sec = r_sec.json()
+    assert data_sec["active_section"] == "2"
+    assert data_sec["recent"][0]["title"] == "Recent-2"
+
