@@ -1,9 +1,32 @@
 """Every minute: keep a sample for the charts, and note print and drive changes."""
+import os
+import threading
 import time
+import urllib.request
 
 from . import db, sources
 
 KEEP_DAYS = 7
+
+
+def capture_print_photo(print_id):
+    def _do():
+        try:
+            default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
+            prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
+            os.makedirs(prints_dir, exist_ok=True)
+            target = os.path.join(prints_dir, f"{print_id}.jpg")
+            camera_url = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
+            with urllib.request.urlopen(f"{camera_url}/x2d/frame.jpg", timeout=3) as r:
+                if r.status == 200:
+                    data = r.read(400 * 1024)
+                    if data.startswith(b"\xff\xd8"):
+                        with open(target, "wb") as f:
+                            f.write(data)
+                        db.run("UPDATE prints SET has_photo = 1 WHERE id = ?", print_id)
+        except Exception:
+            pass
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def record_print(state, progress, now, error=None):
@@ -28,6 +51,7 @@ def record_print(state, progress, now, error=None):
     filament.ready()
     db.run("UPDATE prints SET ended = ?, outcome = ?, error = ? WHERE id = ?", now, outcome,
            (error or None) if outcome == "failed" else None, open_print["id"])
+    capture_print_photo(open_print["id"])
 
 
 def record_drive(present, now):

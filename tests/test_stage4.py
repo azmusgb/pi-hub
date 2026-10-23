@@ -63,3 +63,18 @@ def test_used_up_spools_leave_the_shelf():
     sid = filament.add({"material": "PLA", "colour": "Grey"})
     filament.update(sid, {"finished": True})
     assert filament.spools() == [] and len(filament.spools(include_finished=True)) == 1
+
+
+def test_print_photo_endpoint():
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app
+    c = TestClient(hub_app.app)
+    assert c.get("/api/prints/999/photo.jpg").status_code == 404
+    prints_dir = os.path.join(os.path.dirname(os.environ["HUB_DB"]), "prints")
+    os.makedirs(prints_dir, exist_ok=True)
+    with open(os.path.join(prints_dir, "999.jpg"), "wb") as f:
+        f.write(b"\xff\xd8\xff\xe0testjpeg")
+    res = c.get("/api/prints/999/photo.jpg")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "image/jpeg"
+    assert res.content == b"\xff\xd8\xff\xe0testjpeg"

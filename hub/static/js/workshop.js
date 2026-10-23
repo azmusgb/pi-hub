@@ -46,13 +46,29 @@ function camera(c) {
 function printRow(p, spools, reload) {
   const [label, tone] = p.ended ? (OUTCOME[p.outcome] || ["Ended", "warn"]) : ["Printing", "ok"];
   const used = p.grams ? `${p.grams} g of ${p.colour || "filament"} ${p.material || ""}`.trim() + (p.cost ? `, $${p.cost.toFixed(2)}` : "") : null;
+  const photo = p.has_photo ? h("a", {
+    href: `/api/prints/${p.id}/photo.jpg`,
+    target: "_blank",
+    rel: "noopener",
+    class: "print-photo-link",
+    title: "View completed print photo"
+  },
+    h("img", {
+      src: `/api/prints/${p.id}/photo.jpg`,
+      class: "print-photo-thumb",
+      alt: "Completed print photo",
+      width: 48,
+      height: 27,
+      loading: "lazy"
+    })
+  ) : null;
   const row = h("li", { class: "log-row print-row" },
     h("span", { class: "dot", dataset: { tone } }),
     h("span", { class: "log-main" }, h("strong", {}, label),
       h("span", { class: "meta" }, when(p.started)),
       p.error ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(p.error.replace(/^HMS_/, ""))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`) : null,
       used ? h("span", { class: "meta" }, used) : null),
-    h("span", { class: "log-side" }, p.ended ? duration(p.ended - p.started) : `${p.progress}% so far`));
+    h("span", { class: "log-side" }, photo, p.ended ? duration(p.ended - p.started) : `${p.progress}% so far`));
   if (p.ended && spools.length) {
     const pick = h("select", { "aria-label": "Spool used" }, spools.map((s) => h("option", { value: s.id, selected: s.id === p.spool_id }, `${s.colour} ${s.material}`)));
     const grams = h("input", { type: "number", min: 1, max: 5000, inputmode: "numeric", placeholder: "grams", value: p.grams || "", "aria-label": "Grams used" });

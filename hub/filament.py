@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS spools (
 """
 MATERIALS = ["PLA", "PLA Matte", "PLA Silk", "PLA-CF", "PETG", "PETG-CF", "ABS", "ASA", "TPU", "PC", "PA-CF", "Support", "Other"]
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
-PRINT_COLUMNS = {"spool_id": "INTEGER", "grams": "INTEGER", "cost": "REAL", "error": "TEXT"}
+PRINT_COLUMNS = {"spool_id": "INTEGER", "grams": "INTEGER", "cost": "REAL", "error": "TEXT", "has_photo": "INTEGER DEFAULT 0"}
 
 
 def ready():

@@ -24,6 +24,28 @@
 }
 .workshop-display-link:hover { text-decoration: underline; }
 
+.print-photo-link {
+  display: inline-block;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  line-height: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.print-photo-link:hover {
+  transform: scale(1.1);
+  border-color: var(--accent);
+}
+.print-photo-thumb {
+  width: 48px;
+  height: 27px;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
 /* Pi Layout */
 .pi-bottom-grid {
   display: grid;

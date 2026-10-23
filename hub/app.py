@@ -367,6 +367,17 @@ async def api_print_filament(pid: int, request: Request):
         raise HTTPException(400, str(e) or "Enter the grams used.")
 
 
+@app.get("/api/prints/{pid}/photo.jpg")
+def api_print_photo(pid: int):
+    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
+    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
+    path = os.path.join(prints_dir, f"{pid}.jpg")
+    if not os.path.exists(path):
+        raise HTTPException(404, "No photo for this print.")
+    with open(path, "rb") as f:
+        return Response(f.read(), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
 # ---- Workshop camera (through the failover service) ----
 
 CAMERA = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")

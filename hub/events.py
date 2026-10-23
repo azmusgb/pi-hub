@@ -80,6 +80,7 @@ DEFAULT_RULES = [
     ("print_finished", "notify", None, "Send a phone alert when a 3D print finishes", 1),
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
+    ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
