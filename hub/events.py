@@ -48,6 +48,7 @@ ACTIONS = {
     "notify": ("send a phone alert", False),
     "turn_on": ("turn on", True),
     "turn_off": ("turn off", True),
+    "flash": ("flash", True),
     "rescan_plex": ("rescan the Plex library", False),
     "restart_plex": ("restart Plex", False),
     "restart_homebridge": ("restart Homebridge", False),
@@ -211,6 +212,16 @@ def execute(rule, kind, detail=""):
                 return {"status": "blocked", "message": "That accessory isn't in Homebridge any more."}
             homecontrol.set_value(a["id"], a["control"], act == "turn_on")
             return {"status": "succeeded", "message": f"Turned {'on' if act == 'turn_on' else 'off'} {a['name']}."}
+        if act == "flash":
+            items = {a["id"]: a for a in homecontrol.accessories()}
+            a = items.get(rule["target"])
+            if not a or not a["control"]:
+                return {"status": "blocked", "message": "That accessory isn't in Homebridge any more."}
+            was_on = a.get("on", False)
+            homecontrol.set_value(a["id"], a["control"], not was_on)
+            time.sleep(1.2)
+            homecontrol.set_value(a["id"], a["control"], was_on)
+            return {"status": "succeeded", "message": f"Flashed {a['name']}."}
         name = {"rescan_plex": "rescan:plex", "restart_plex": "restart:plex", "restart_homebridge": "restart:homebridge"}[act]
         return {"status": "succeeded", "message": actions.run(name)["message"]}
     except Exception as e:

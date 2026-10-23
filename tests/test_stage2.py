@@ -88,6 +88,8 @@ def test_rule_validation():
     with pytest.raises(ValueError):
         events.add_rule("print_finished", "turn_on")  # needs an accessory
     with pytest.raises(ValueError):
+        events.add_rule("print_finished", "flash")  # needs an accessory
+    with pytest.raises(ValueError):
         events.add_rule("print_finished", "format_disk")
 
 

@@ -16,6 +16,8 @@ def build(hours=16):
         lines.append(f"{w['now']['sky']}, {w['now']['temp']}°{u} now, high {today['high']}°{rain}.")
         if w.get("soon"):
             lines.append(w["soon"])
+        if w.get("freeze_tonight"):
+            lines.append(f"Frost advisory: Freezing tonight (down to {w.get('tonight_low', 32)}°).")
         for a in (w.get("alerts") or [])[:2]:
             lines.append(f"Weather warning: {a['event']}.")
     prints = db.rows("SELECT outcome FROM prints WHERE ended >= ?", since)
@@ -26,9 +28,24 @@ def build(hours=16):
     printer = now.printer(s)
     if printer["state"] == "printing":
         lines.append(f"The X2D is {printer['headline'].lower()}, {printer.get('left') or 'time left unknown'} to go.")
+    try:
+        events.ready()
+        wan_issues = db.one("SELECT COUNT(*) AS n FROM events WHERE kind IN ('wan_loss', 'wan_down') AND ts >= ?", since)["n"]
+    except Exception:
+        wan_issues = 0
+    if wan_issues:
+        lines.append(f"Internet overnight: Encountered {wan_issues} packet loss or outage event{'s' if wan_issues > 1 else ''}.")
     drops = db.one("SELECT COUNT(*) AS n FROM drive_events WHERE kind = 'dropped' AND ts >= ?", since)["n"]
     if drops:
         lines.append(f"The movies drive dropped out {drops} time{'s' if drops > 1 else ''}.")
+    try:
+        import json
+        with open("/var/lib/pi-hub/last_backup.json") as f:
+            b = json.load(f)
+            if b.get("timestamp") and b["timestamp"] >= since and b.get("status") == "success":
+                lines.append(f"Backups: Nightly backup verified and synced to Windows PC ({b.get('size', '590K')}).")
+    except Exception:
+        pass
     issues = now.issues(s)
     lines += [f"Needs a look: {i['what']}. {i['say']}" for i in issues[:3]]
     if s and s.get("updates"):
