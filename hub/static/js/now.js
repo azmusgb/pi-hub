@@ -70,24 +70,39 @@ Your note:`;
 function networkPanel(net) {
   if (!net || (!net.orbi_ms && !net.wan_ms)) return null;
   const orbi = net.orbi_ms !== undefined && net.orbi_ms !== null ? `${net.orbi_ms} ms` : "—";
+  const att = net.att_ms !== undefined && net.att_ms !== null ? `${net.att_ms} ms` : "—";
   const wan = net.wan_ms !== undefined && net.wan_ms !== null ? `${net.wan_ms} ms` : "—";
   const dns = net.dns_ms !== undefined && net.dns_ms !== null ? `${net.dns_ms} ms` : "—";
   const win = net.win_ms !== undefined && net.win_ms !== null ? `${net.win_ms} ms` : "—";
-  const att = net.att_ms !== undefined && net.att_ms !== null ? `${net.att_ms} ms` : "—";
+  const printer = net.printer_ms !== undefined && net.printer_ms !== null ? `${net.printer_ms} ms` : null;
 
-  const pill = (label, val, dotTone="ok") => h("div", {
-    style: "display: flex; align-items: center; gap: .5rem; background: var(--surface); padding: .35rem .75rem; border-radius: 9999px; border: 1px solid var(--line); font-size: .8125rem;"
+  const getTone = (val) => {
+    if (val === "—" || val === null || val === undefined) return "danger";
+    const num = parseFloat(val);
+    if (isNaN(num)) return "neutral";
+    if (num > 60) return "warn";
+    return "ok";
+  };
+
+  const nodePill = (icon, label, val, tone = "ok", extra = "") => h("div", {
+    style: "display: inline-flex; align-items: center; gap: .45rem; background: var(--surface); padding: .35rem .75rem; border-radius: var(--r-sm); border: 1px solid var(--line); font-size: .8125rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);"
   },
-    h("span", { class: "dot", dataset: { tone: dotTone }, style: "width: 6px; height: 6px; border-radius: 50%;" }),
-    h("span", { style: "color: var(--text-3); font-weight: 500;" }, label),
-    h("strong", { style: "font-variant-numeric: tabular-nums;" }, val)
+    h("span", { style: "font-size: .875rem;" }, icon),
+    h("span", { class: "dot", dataset: { tone: tone }, style: "width: 6px; height: 6px; border-radius: 50%;" }),
+    h("span", { style: "color: var(--text-2); font-weight: 500;" }, label),
+    h("strong", { style: "font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); color: var(--text);" }, val),
+    extra ? h("span", { style: "font-size: .6875rem; color: var(--text-3);" }, extra) : null
   );
+
+  const arrow = () => h("span", {
+    style: "color: var(--text-3); font-size: .8125rem; opacity: .6; user-select: none;"
+  }, "→");
 
   return h("section", {
     class: "network-panel",
     style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1.125rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
   },
-    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem;" },
+    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem;" },
       h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
         h("span", { style: "font-size: 1rem;" }, "⚡"),
         h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
@@ -95,15 +110,28 @@ function networkPanel(net) {
       ),
       h("div", { style: "display: flex; gap: .5rem;" },
         h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Grafana NOC ↗"),
-        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Uptime Kuma ↗")
+        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001/status/home", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Status Page ↗")
       )
     ),
-    h("div", { style: "display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;" },
-      pill("Orbi Router", orbi),
-      pill("AT&T Fiber", att),
-      pill("Internet WAN", wan),
-      pill("DNS Lookup", dns),
-      pill("Windows PC", win)
+    h("div", { style: "margin-bottom: .75rem;" },
+      h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "Hop-by-Hop Edge Demarcation"),
+      h("div", { style: "display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;" },
+        nodePill("🍓", "Pi 4", "Local", "ok"),
+        arrow(),
+        nodePill("📡", "Orbi Router", orbi, getTone(orbi)),
+        arrow(),
+        nodePill("🌐", "AT&T Fiber", att, getTone(att)),
+        arrow(),
+        nodePill("☁️", "Internet WAN", wan, getTone(wan))
+      )
+    ),
+    h("div", {},
+      h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "LAN Endpoints & Services"),
+      h("div", { style: "display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;" },
+        nodePill("🖥️", "Windows 11 PC", win, getTone(win)),
+        printer ? nodePill("🖨️", "Bambu Printer", printer, getTone(printer)) : null,
+        nodePill("🔍", "DNS Resolution", dns, getTone(dns))
+      )
     )
   );
 }
