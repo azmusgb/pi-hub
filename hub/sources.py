@@ -91,7 +91,7 @@ def _netmon():
         "win_ms": win_ms,
         "printer_ms": printer_ms,
         "grafana_url": "http://10.0.0.30:3000",
-        "uptime_kuma_url": "http://10.0.0.30:3001",
+        "uptime_kuma_url": "http://10.0.0.30:3001/status/home",
     }
 
 
