@@ -61,7 +61,7 @@ services:
       - /mnt/usb1/netmon/grafana:/var/lib/grafana
 
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    image: louislam/uptime-kuma:2
     container_name: netmon-uptime-kuma
     restart: unless-stopped
     network_mode: host
