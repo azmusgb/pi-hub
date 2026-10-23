@@ -1,0 +1,11 @@
+#!/bin/bash
+# net-iperf: Manual LAN throughput test against iperf3 server
+set -euo pipefail
+
+TARGET="${1:-10.0.0.21}"
+PORT="${2:-5201}"
+
+echo "Testing throughput to $TARGET:$PORT..."
+echo "Note: The remote host must have 'iperf3 -s' running."
+echo "---------------------------------------------------------"
+iperf3 -c "$TARGET" -p "$PORT" -t 10

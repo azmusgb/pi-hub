@@ -1,0 +1,9 @@
+#!/bin/bash
+# net-speed: On-demand WAN bandwidth measurement (manual only)
+set -euo pipefail
+
+echo "=========================================="
+echo "NETMON Manual Internet Speed Test"
+echo "WARNING: This consumes bandwidth and should only be run manually."
+echo "=========================================="
+speedtest-cli --secure --simple
