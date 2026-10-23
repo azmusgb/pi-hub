@@ -1,0 +1,108 @@
+# NETMON Declarative Home Network Inventory
+# Spec Section 48 — Single Source of Truth
+
+network:
+  subnet: "10.0.0.0/24"
+  gateway_ip: "10.0.0.1"
+  domain: "home"
+
+devices:
+  # Layer A1: Local Gateway
+  orbi_router:
+    name: "Orbi Wi-Fi Router"
+    role: "Gateway & Wi-Fi Mesh"
+    model: "NETGEAR Orbi WiFi 6 (RBR750 / AX4200)"
+    ip: "10.0.0.1"
+    interface: "eth0"
+    monitored:
+      icmp: true
+      icmp_interval: "15s"
+      dns: 53
+      dns_interval: "60s"
+      upnp_soap: 5000
+      upnp_interval: "10s"
+    notes: "Main home Wi-Fi mesh router and DHCP server"
+
+  # Layer A2: ISP Demarcation
+  att_fiber_gateway:
+    name: "AT&T Fiber Gateway"
+    role: "ISP Demarcation"
+    model: "AT&T BGW320 / ONT Gateway"
+    ip: "192.168.1.254"
+    monitored:
+      icmp: true
+      icmp_interval: "15s"
+    notes: "IP Passthrough demarcation between Orbi WAN port and AT&T 1 Gbps Fiber"
+
+  # Diagnostic Station
+  netmon_pi:
+    name: "Raspberry Pi 4 NETMON Appliance"
+    role: "Passive Observer Station"
+    model: "Raspberry Pi 4 Model B (4GB ARM64)"
+    ip: "10.0.0.30"
+    storage: "SSK 256GB SATA SSD (ext4 /mnt/usb1)"
+    monitored:
+      node_exporter: 9100
+      prometheus: 9091
+      grafana: 3000
+      uptime_kuma: 3001
+      pi_hub: 80
+      cockpit: 9090
+      orbi_exporter: 9120
+    notes: "Zero-impact passive monitoring station, metrics TSDB, and Plex media server"
+
+  # Workstation & Local AI Node
+  windows_workstation:
+    name: "Windows 11 Workstation"
+    role: "Compute Node & Local AI"
+    model: "Custom Windows 11 PC (32GB RAM, Dedicated GPU)"
+    ip: "10.0.0.21"
+    monitored:
+      icmp: true
+      icmp_interval: "30s"
+      windows_exporter: 9182
+      ssh: 22
+      smb_share: 445
+      local_ai_web: 80
+    shares:
+      - name: "Movies"
+        path: "C:\\Movies-backup"
+        smb_user: "plexshare"
+        pi_mount: "/mnt/windows-movies"
+    notes: "Local AI inference server, movie storage share, and primary workstation"
+
+  # Workshop Hardware
+  bambu_printer:
+    name: "Bambu P1S 3D Printer"
+    role: "Fabrication & 3D Print"
+    model: "Bambu Lab P1S"
+    ip: "10.0.0.124"
+    monitored:
+      icmp: true
+      icmp_interval: "30s"
+    notes: "Workshop 3D printer, active monitoring in Pi Hub and Uptime Kuma"
+
+  # External Public WAN Anycast
+  cloudflare_wan:
+    name: "Cloudflare Public Anycast"
+    role: "WAN Edge & DNS"
+    ip: "1.1.1.1"
+    monitored:
+      icmp: true
+      icmp_interval: "30s"
+      dns: 53
+      dns_interval: "60s"
+      https: "https://1.1.1.1"
+    notes: "External IP routing, DNS, and HTTP benchmark"
+
+  google_wan:
+    name: "Google Public Anycast"
+    role: "WAN Edge & DNS"
+    ip: "8.8.8.8"
+    monitored:
+      icmp: true
+      icmp_interval: "30s"
+      dns: 53
+      dns_interval: "60s"
+      https: "https://www.google.com"
+    notes: "Secondary external WAN routing, DNS, and HTTPS reference"

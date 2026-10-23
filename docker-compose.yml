@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   node-exporter:
     image: prom/node-exporter:v1.8.2
@@ -5,6 +11,9 @@ services:
     restart: unless-stopped
     network_mode: host
     pid: host
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *default-logging
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -21,6 +30,9 @@ services:
     container_name: netmon-blackbox-exporter
     restart: unless-stopped
     network_mode: host
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *default-logging
     cap_add:
       - NET_RAW
     volumes:
@@ -33,6 +45,9 @@ services:
     container_name: netmon-prometheus
     restart: unless-stopped
     network_mode: host
+    mem_limit: 1024m
+    cpus: 1.0
+    logging: *default-logging
     volumes:
       - /opt/netmon/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /opt/netmon/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
@@ -49,6 +64,9 @@ services:
     container_name: netmon-grafana
     restart: unless-stopped
     network_mode: host
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -67,6 +85,9 @@ services:
     container_name: netmon-uptime-kuma
     restart: unless-stopped
     network_mode: host
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
     environment:
       - PORT=3001
     volumes:
