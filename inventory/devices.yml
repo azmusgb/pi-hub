@@ -49,6 +49,7 @@ devices:
       pi_hub: 80
       cockpit: 9090
       orbi_exporter: 9120
+      bambuddy: 8000
     notes: "Zero-impact passive monitoring station, metrics TSDB, and Plex media server"
 
   # Workstation & Local AI Node

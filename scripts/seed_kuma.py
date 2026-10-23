@@ -18,6 +18,7 @@ monitors = [
     {"name": "Workshop Smart Display", "type": "ping", "hostname": "10.0.0.124", "interval": 60},
     {"name": "Pi Hub Web App", "type": "http", "url": "http://10.0.0.30", "interval": 60},
     {"name": "Grafana Dashboards", "type": "http", "url": "http://10.0.0.30:3000", "interval": 60},
+    {"name": "Bambuddy Control Plane", "type": "http", "url": "http://10.0.0.30:8000", "interval": 60},
 ]
 
 def main():
