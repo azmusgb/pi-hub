@@ -82,6 +82,12 @@ def _netmon():
 
     tone = "ok" if (orbi_ok and wan_ok) else "bad"
 
+    orbi_info = {}
+    try:
+        orbi_info = _get_json("http://127.0.0.1:9120/status", timeout=1) or {}
+    except Exception:
+        pass
+
     return {
         "status": tone,
         "orbi_ms": orbi_ms,
@@ -90,6 +96,11 @@ def _netmon():
         "dns_ms": dns_ms,
         "win_ms": win_ms,
         "printer_ms": printer_ms,
+        "orbi_model": orbi_info.get("model", "RBR750"),
+        "orbi_uptime": orbi_info.get("uptime_human"),
+        "orbi_ext_ip": orbi_info.get("external_ip"),
+        "orbi_down_mbps": orbi_info.get("calc_down_mbps"),
+        "orbi_up_mbps": orbi_info.get("calc_up_mbps"),
         "grafana_url": "http://10.0.0.30:3000",
         "uptime_kuma_url": "http://10.0.0.30:3001/status/home",
     }

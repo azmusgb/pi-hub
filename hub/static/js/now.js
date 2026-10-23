@@ -102,11 +102,18 @@ function networkPanel(net) {
     class: "network-panel",
     style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1.125rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
   },
-    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem;" },
-      h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
-        h("span", { style: "font-size: 1rem;" }, "⚡"),
-        h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
-        h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "LIVE OBSERVER")
+    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem; flex-wrap: wrap; gap: .5rem;" },
+      h("div", {},
+        h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
+          h("span", { style: "font-size: 1rem;" }, "⚡"),
+          h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
+          h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "LIVE OBSERVER")
+        ),
+        (net.orbi_uptime || net.orbi_ext_ip) ? h("div", { style: "display: flex; gap: .6rem; margin-top: .25rem; font-size: .75rem; color: var(--text-3); flex-wrap: wrap;" },
+          net.orbi_uptime ? h("span", {}, `Orbi Uptime: ${net.orbi_uptime}`) : null,
+          net.orbi_ext_ip ? h("span", {}, `• Public IP: ${net.orbi_ext_ip}`) : null,
+          (net.orbi_down_mbps !== undefined && net.orbi_down_mbps !== null) ? h("span", { style: "color: var(--ok); font-family: var(--font-mono, monospace); font-weight: 600;" }, `• ↓ ${net.orbi_down_mbps} Mbps  ↑ ${net.orbi_up_mbps || 0} Mbps`) : null
+        ) : null
       ),
       h("div", { style: "display: flex; gap: .5rem;" },
         h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Grafana NOC ↗"),
