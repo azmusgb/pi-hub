@@ -105,6 +105,14 @@ if [ -d "$WORK/project-files" ]; then
     chown -R pi-hub:pi-hub /var/lib/pi-hub/project-files
 fi
 
+# Restore Completed Print Photos
+if [ -d "$WORK/prints" ]; then
+    echo "  Restoring completed 3D print photos..."
+    mkdir -p /var/lib/pi-hub/prints
+    cp -r "$WORK/prints"/* /var/lib/pi-hub/prints/ 2>/dev/null || true
+    chown -R pi-hub:pi-hub /var/lib/pi-hub/prints
+fi
+
 # Restore Uptime Kuma DB
 if [ -f "$WORK/kuma.db" ]; then
     echo "  Restoring Uptime Kuma database (/mnt/usb1/netmon/uptime-kuma/kuma.db)..."

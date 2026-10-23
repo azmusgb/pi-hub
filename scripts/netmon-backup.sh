@@ -60,6 +60,12 @@ if [ -d "/var/lib/pi-hub/project-files" ]; then
     cp -r /var/lib/pi-hub/project-files/* "$WORK/project-files/" 2>/dev/null || true
 fi
 
+if [ -d "/var/lib/pi-hub/prints" ]; then
+    echo "  Archiving completed 3D print photos..."
+    mkdir -p "$WORK/prints"
+    cp -r /var/lib/pi-hub/prints/* "$WORK/prints/" 2>/dev/null || true
+fi
+
 # 3. Archive Netmon configuration, systemd units, and environment
 mkdir -p "$WORK/config"
 if [ -d "/opt/netmon" ]; then
