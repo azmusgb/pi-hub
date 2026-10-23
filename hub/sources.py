@@ -106,6 +106,44 @@ def _netmon():
     }
 
 
+BAMBUDDY_PRINTER_URL = os.environ.get("HUB_BAMBUDDY_PRINTER_URL", "http://127.0.0.1:8000/api/v1/printers/1/status")
+
+
+def _bambuddy():
+    try:
+        data = _get_json(BAMBUDDY_PRINTER_URL, timeout=1)
+        if not data or not isinstance(data, dict):
+            return None
+        temps = data.get("temperatures") or {}
+        ams_list = data.get("ams") or []
+        first_ams = ams_list[0] if ams_list else {}
+        tray_list = first_ams.get("tray") or []
+        first_tray = next((t for t in tray_list if t.get("exists")), {})
+        return {
+            "connected": bool(data.get("connected")),
+            "state": data.get("state"),
+            "job_name": data.get("current_print") or data.get("subtask_name"),
+            "progress": data.get("progress"),
+            "layer_num": data.get("layer_num"),
+            "total_layers": data.get("total_layers"),
+            "nozzle_temp": temps.get("nozzle"),
+            "nozzle_target": temps.get("nozzle_target"),
+            "bed_temp": temps.get("bed"),
+            "bed_target": temps.get("bed_target"),
+            "ams_humidity": first_ams.get("humidity"),
+            "ams_temp": first_ams.get("temp"),
+            "filament_type": first_tray.get("tray_type"),
+            "filament_color": first_tray.get("tray_color"),
+            "wifi_signal": data.get("wifi_signal"),
+        }
+    except Exception:
+        return None
+
+
+def bambuddy_printer():
+    return cached("bambuddy_printer", 3, _bambuddy)
+
+
 def network_metrics():
     return cached("netmon", 10, _netmon)
 

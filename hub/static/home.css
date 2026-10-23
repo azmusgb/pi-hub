@@ -36,6 +36,133 @@ body.wall .now-side { display: contents; }
 body.wall .ask, body.wall .outside { display: none; }
 body.wall.night { filter: brightness(0.55); }
 
+/* Wall / Workshop Kiosk Mode Enhancements */
+.wall-tools {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.kiosk-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.kiosk-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+.kiosk-btn.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.kiosk-console {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 1.25rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+.kiosk-cam-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+  margin-bottom: 1rem;
+}
+.kiosk-cam-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.kiosk-cam-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ff4d4f;
+  font-weight: 800;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.kiosk-hud-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 70%, transparent 100%);
+  backdrop-filter: blur(4px);
+  padding: 12px 14px 8px;
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.kiosk-hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.kiosk-light-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.kiosk-light-toggle-btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.2rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.kiosk-light-toggle-btn.is-on {
+  background: color-mix(in srgb, #f2c45c 18%, var(--surface-1));
+  border-color: #f2c45c;
+  box-shadow: 0 0 16px rgba(242, 196, 92, 0.25);
+}
+
 /* Weather */
 .wx { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; vertical-align: -0.35em; }
 .wx svg { width: 100%; height: 100%; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }

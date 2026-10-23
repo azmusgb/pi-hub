@@ -9,31 +9,54 @@ def _tone(ok, warn=False):
     return "ok" if ok else ("warn" if warn else "bad")
 
 
-def printer(s):
-    if s is None:
+def printer(s, b=None):
+    if s is None and b is None:
         return {"state": "none", "headline": "No status yet",
                 "detail": "The Pi's status service isn't answering."}
-    state = s.get("x2d_state")
-    pct = s.get("x2d_progress") or 0
-    left = s.get("x2d_left") or ""
+    state = (s or {}).get("x2d_state")
+    pct = (s or {}).get("x2d_progress") or 0
+    left = (s or {}).get("x2d_left") or ""
     if state == "Printing":
-        return {"state": "printing", "progress": pct, "headline": f"Printing, {pct}%",
-                "left": left, "minutes_left": s.get("x2d_minutes_left")}
-    if state == "Paused":
-        return {"state": "paused", "progress": pct, "headline": f"Paused at {pct}%",
-                "detail": "Resume it from the printer or Bambu Handy."}
-    if state == "Error":
-        code = s.get("x2d_error")
-        return {"state": "error", "progress": pct, "headline": "Needs attention",
-                "detail": f"The printer reports {code}. Check its screen." if code else "Check the printer's screen."}
-    if state == "Stopped":
-        return {"state": "stopped", "headline": "Last print stopped", "detail": "Ready for the next one."}
-    if state == "Idle":
-        return {"state": "idle", "headline": "Idle", "detail": "Ready for the next print."}
-    if state == "Not set up":
-        return {"state": "none", "headline": "Not connected", "detail": "Local AI isn't set up to read the printer."}
-    return {"state": "none", "headline": "No status right now",
-            "detail": "Local AI isn't reporting the printer. It may be off, or between prints."}
+        res = {"state": "printing", "progress": pct, "headline": f"Printing, {pct}%",
+               "left": left, "minutes_left": (s or {}).get("x2d_minutes_left")}
+    elif state == "Paused":
+        res = {"state": "paused", "progress": pct, "headline": f"Paused at {pct}%",
+               "detail": "Resume it from the printer or Bambu Handy."}
+    elif state == "Error":
+        code = (s or {}).get("x2d_error")
+        res = {"state": "error", "progress": pct, "headline": "Needs attention",
+               "detail": f"The printer reports {code}. Check its screen." if code else "Check the printer's screen."}
+    elif state == "Stopped":
+        res = {"state": "stopped", "headline": "Last print stopped", "detail": "Ready for the next one."}
+    elif state == "Idle":
+        res = {"state": "idle", "headline": "Idle", "detail": "Ready for the next print."}
+    elif state == "Not set up":
+        res = {"state": "none", "headline": "Not connected", "detail": "Local AI isn't set up to read the printer."}
+    else:
+        res = {"state": "none", "headline": "No status right now",
+               "detail": "Local AI isn't reporting the printer. It may be off, or between prints."}
+
+    if b and isinstance(b, dict):
+        res["temperatures"] = {
+            "nozzle": b.get("nozzle_temp"),
+            "nozzle_target": b.get("nozzle_target"),
+            "bed": b.get("bed_temp"),
+            "bed_target": b.get("bed_target"),
+        }
+        res["nozzle_temp"] = b.get("nozzle_temp")
+        res["bed_temp"] = b.get("bed_temp")
+        res["nozzle_target"] = b.get("nozzle_target")
+        res["bed_target"] = b.get("bed_target")
+        res["ams_humidity"] = b.get("ams_humidity")
+        res["ams_temp"] = b.get("ams_temp")
+        res["layer_num"] = b.get("layer_num")
+        res["total_layers"] = b.get("total_layers")
+        res["job_name"] = b.get("job_name")
+        res["filament_type"] = b.get("filament_type")
+        res["filament_color"] = b.get("filament_color")
+        res["bambuddy_connected"] = b.get("connected")
+
+    return res
 
 
 def issues(s):
@@ -88,7 +111,7 @@ def summary(found):
     return f"{len(found)} things need a look" if bad else f"{len(found)} small things to check"
 
 
-def build(s, sessions, sampler, disk_free, network=None):
+def build(s, sessions, sampler, disk_free, network=None, bambuddy=None):
     found = issues(s)
     svc = (s or {}).get("services") or {}
     drive_ok = (s or {}).get("drive_state") == "Connected"
@@ -96,10 +119,10 @@ def build(s, sessions, sampler, disk_free, network=None):
     movie_known = isinstance(svc.get("plex"), bool) and (s or {}).get("drive_state") in ("Connected", "Missing", "Not mounted")
     home_known = isinstance(svc.get("homebridge"), bool)
     return {
-        "status_available": s is not None,
+        "status_available": s is not None or bambuddy is not None,
         "summary": summary(found),
         "issues": found,
-        "printer": printer(s),
+        "printer": printer(s, bambuddy),
         "network": network,
         "movies": {
             "tone": _tone(svc.get("plex") and drive_ok, warn=svc.get("plex")) if movie_known else "warn",

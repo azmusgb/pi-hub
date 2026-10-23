@@ -93,3 +93,28 @@ def test_printer_error_links_to_workshop_instead_of_system_restart():
     assert issue["href"] == "/workshop"
     assert "screen" in issue["say"]
     assert "fix" not in issue
+
+
+def test_bambuddy_telemetry_enriches_printer_status():
+    b = {
+        "connected": True,
+        "nozzle_temp": 215.0,
+        "nozzle_target": 220.0,
+        "bed_temp": 60.0,
+        "bed_target": 60.0,
+        "ams_humidity": 35,
+        "layer_num": 42,
+        "total_layers": 660,
+        "job_name": "test_bracket.3mf",
+        "filament_type": "PETG",
+        "filament_color": "161616FF",
+    }
+    d = now.build(HEALTHY, [], {}, 12.0, bambuddy=b)
+    p = d["printer"]
+    assert p["nozzle_temp"] == 215.0
+    assert p["bed_temp"] == 60.0
+    assert p["layer_num"] == 42
+    assert p["total_layers"] == 660
+    assert p["job_name"] == "test_bracket.3mf"
+    assert p["filament_type"] == "PETG"
+    assert p["bambuddy_connected"] is True

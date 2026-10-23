@@ -12,6 +12,9 @@ from . import auth, freshness
 HB_URL = os.environ.get("HUB_HOMEBRIDGE_URL", "http://127.0.0.1:8581")
 CONTROLLABLE = {"Lightbulb", "Switch", "Outlet", "Fan", "Fanv2"}
 UID = re.compile(r"^[0-9a-f]{20,80}$")
+ALIASES = {
+    "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6": ("Workshop Light", "Workshop"),
+}
 _token = {"value": None, "expires": 0}
 _lock = threading.Lock()
 
@@ -86,10 +89,14 @@ def _accessories():
             continue
         on = _value(a, "On") or _value(a, "Active")
         bright = _value(a, "Brightness")
+        uid = a.get("uniqueId")
+        alias_name, alias_room = ALIASES.get(uid, (None, None))
+        name = alias_name or (a.get("serviceName") or (a.get("accessoryInformation") or {}).get("Name") or "Accessory")[:60]
+        room = alias_room or ((a.get("accessoryInformation") or {}).get("Manufacturer") or "")[:40]
         out.append({
-            "id": a.get("uniqueId"),
-            "name": (a.get("serviceName") or (a.get("accessoryInformation") or {}).get("Name") or "Accessory")[:60],
-            "room": ((a.get("accessoryInformation") or {}).get("Manufacturer") or "")[:40],
+            "id": uid,
+            "name": name,
+            "room": room,
             "kind": {"Lightbulb": "light", "Outlet": "plug", "Switch": "switch"}.get(kind, "fan"),
             "on": bool(on and on.get("value")),
             "control": on.get("type") if on else None,
