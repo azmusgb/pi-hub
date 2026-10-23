@@ -169,8 +169,13 @@ def status():
     elif not p.get("setUp"):
         x2d_state = "Not set up"
     else:
-        x2d_state = {"printing": "Printing", "paused": "Paused", "idle": "Idle",
-                     "error": "Error", "cancelled": "Stopped", "ended": "Stopped"}.get(p.get("state"), "No status")
+        raw_state = p.get("state")
+        error_code = p.get("errorCode") or ""
+        if raw_state == "error" and not error_code:
+            x2d_state = "Stopped"
+        else:
+            x2d_state = {"printing": "Printing", "paused": "Paused", "idle": "Idle",
+                         "error": "Error", "cancelled": "Stopped", "ended": "Stopped"}.get(raw_state, "No status")
 
     queue = m.get("queue") or {}
     loaded = m.get("loaded") or []
