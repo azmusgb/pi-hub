@@ -37,7 +37,7 @@ else
     echo "  Notice: kuma.db not found at $KUMA_DB, skipping."
 fi
 
-# 2. Snapshot Pi Hub DB
+# 2. Snapshot Pi Hub DB & Project Files
 HUB_DB="/var/lib/pi-hub/hub.db"
 if [ -f "$HUB_DB" ]; then
     echo "  Snapshotting Pi Hub database ($HUB_DB)..."
@@ -52,6 +52,12 @@ src.close()
 PYBACKUP
 else
     echo "  Notice: hub.db not found at $HUB_DB, skipping."
+fi
+
+if [ -d "/var/lib/pi-hub/project-files" ]; then
+    echo "  Archiving Pi Hub project board files..."
+    mkdir -p "$WORK/project-files"
+    cp -r /var/lib/pi-hub/project-files/* "$WORK/project-files/" 2>/dev/null || true
 fi
 
 # 3. Archive Netmon configuration, systemd units, and environment
@@ -78,30 +84,75 @@ if [ -d "/etc/pi-hub" ]; then
     cp -r /etc/pi-hub/* "$WORK/config/pi-hub/" 2>/dev/null || true
 fi
 
-# 4. Create compressed tarball
+# 4. Create compressed tarball & verify integrity
 echo "  Compressing into $ARCHIVE..."
 tar -czf "$WORK/$ARCHIVE" -C "$WORK" $(ls "$WORK" | grep -v "\.tar\.gz$")
 SIZE=$(du -h "$WORK/$ARCHIVE" | cut -f1)
-echo "  Archive created ($SIZE)."
+echo "  Archive created ($SIZE). Verifying integrity..."
+tar -tzf "$WORK/$ARCHIVE" >/dev/null
+echo "  Integrity check passed."
+
+# Pruning function (keeps newest 14 archives, never deletes if under threshold)
+prune_backups() {
+    local target_dir="$1"
+    local keep=14
+    if [ -d "$target_dir" ]; then
+        local total
+        total=$(ls -1t "$target_dir"/netmon-backup-*.tar.gz 2>/dev/null | wc -l)
+        if [ "$total" -gt "$keep" ]; then
+            echo "  Pruning old archives in $target_dir (total: $total, keeping: $keep)..."
+            ls -1t "$target_dir"/netmon-backup-*.tar.gz | tail -n +"$((keep + 1))" | while read -r old_file; do
+                echo "    Pruned: $(basename "$old_file")"
+                rm -f "$old_file"
+            done
+        else
+            echo "  Retention OK in $target_dir ($total of max $keep retained)."
+        fi
+    fi
+}
 
 # 5. Store locally on SSD (/mnt/usb1/netmon/backups)
 mkdir -p "$LOCAL_DIR"
 cp "$WORK/$ARCHIVE" "$LOCAL_DIR/$ARCHIVE"
 chmod 644 "$LOCAL_DIR/$ARCHIVE"
-# Retain last 14 backups locally
-ls -1t "$LOCAL_DIR"/netmon-backup-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
+prune_backups "$LOCAL_DIR"
+LOCAL_COUNT=$(ls -1t "$LOCAL_DIR"/netmon-backup-*.tar.gz 2>/dev/null | wc -l)
 echo "  Saved locally: $LOCAL_DIR/$ARCHIVE"
 
 # 6. Synchronize off-Pi to Windows share
+OFF_PI_COUNT=0
 if [ -d "$WINDOWS_DIR" ] && [ -w "$WINDOWS_DIR" ]; then
     echo "  Synchronizing off-Pi to Windows share ($WINDOWS_DIR)..."
     cp "$WORK/$ARCHIVE" "$WINDOWS_DIR/$ARCHIVE"
-    # Retain last 14 backups on Windows share
-    ls -1t "$WINDOWS_DIR"/netmon-backup-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
+    prune_backups "$WINDOWS_DIR"
+    OFF_PI_COUNT=$(ls -1t "$WINDOWS_DIR"/netmon-backup-*.tar.gz 2>/dev/null | wc -l)
     echo "  Off-Pi sync verified: $WINDOWS_DIR/$ARCHIVE"
 else
     echo "  WARNING: Windows share directory $WINDOWS_DIR is not writable or unmounted." >&2
+    if [ -f "/etc/pi-status/ntfy_topic" ]; then
+        TOPIC=$(cat /etc/pi-status/ntfy_topic | tr -d '[:space:]')
+        curl -s -d "Automated backup could not sync to Windows share //10.0.0.21/Movies/netmon-backups. Check network share mount." \
+             -H "Title: Netmon Backup Warning" -H "Priority: high" -H "Tags: warning" \
+             "https://ntfy.sh/$TOPIC" >/dev/null 2>&1 || true
+    fi
     exit 1
 fi
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete!"
+# 7. Record health record for Pi Hub and Local AI
+STATUS_JSON=$(cat <<JSON
+{
+  "timestamp": $(date +%s),
+  "time_human": "$(date '+%a %-I:%M %p')",
+  "archive": "$ARCHIVE",
+  "size": "$SIZE",
+  "status": "success",
+  "local_count": $LOCAL_COUNT,
+  "off_pi_count": $OFF_PI_COUNT
+}
+JSON
+)
+mkdir -p /var/lib/pi-hub
+echo "$STATUS_JSON" > /var/lib/pi-hub/last_backup.json 2>/dev/null || true
+echo "$STATUS_JSON" > "$LOCAL_DIR/latest.json" 2>/dev/null || true
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete and validated!"
