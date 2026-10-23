@@ -159,73 +159,6 @@ html {
   .bento > * { grid-column: span 12 !important; grid-row: span 1 !important; }
 }
 
-/* ---------- Card variants ---------- */
-.card--chrome {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--surface), var(--surface)) padding-box,
-    linear-gradient(135deg,
-      color-mix(in srgb, var(--accent) 30%, transparent),
-      var(--line-strong) 40%,
-      var(--line) 70%,
-      color-mix(in srgb, var(--accent) 20%, transparent)) border-box;
-}
-.card--paper {
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--accent) 4%, var(--surface-2)),
-      var(--surface-2));
-  border-color: color-mix(in srgb, var(--accent) 14%, var(--line));
-}
-.card--ink {
-  background: linear-gradient(180deg, #1a1f26, #0f1318);
-  border-color: rgba(255,255,255,.08);
-  color: #e8ecf0;
-}
-.card--ink .stat-label, .card--ink small { color: rgba(232,236,240,.55); }
-.card--ink .stat-value { color: #fff; }
-
-/* Signature amber tick (replaces the full top bar) */
-.card--accent::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  border-radius: var(--r-lg) var(--r-lg) 0 0;
-  background: linear-gradient(90deg,
-    var(--accent) 0,
-    var(--accent) 28px,
-    transparent 28px);
-}
-
-/* ---------- Numbered stat ---------- */
-.stat-numbered { display: grid; gap: .35rem; align-content: start; }
-.stat-numbered .stat-value {
-  font-size: clamp(2.25rem, 1.8rem + 3.5vw, 3.75rem);
-  font-weight: 800;
-  letter-spacing: -.045em;
-  line-height: .9;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum", "ss01";
-  color: var(--text);
-}
-.stat-numbered .stat-value .unit {
-  font-size: .35em;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--text-3);
-  margin-left: .25em;
-  vertical-align: super;
-}
-.stat-numbered .stat-label {
-  font-size: .6875rem;
-  font-weight: 700;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  order: -1;
-}
-
 /* ---------- Ornamental dividers ---------- */
 .rule-dots {
   display: flex; align-items: center; justify-content: center;
@@ -336,29 +269,6 @@ html {
 [data-theme="dark"] .sh-2 { box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 4px 8px rgba(0,0,0,.5), 0 16px 32px -12px rgba(0,0,0,.6); }
 [data-theme="dark"] .sh-3 { box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 8px 16px rgba(0,0,0,.5), 0 32px 64px -20px rgba(0,0,0,.75); }
 
-/* Letterpress feel on primary buttons */
-.btn--primary {
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.22) inset,
-    0 -1px 0 rgba(0,0,0,.14) inset,
-    0 6px 16px -6px color-mix(in srgb, var(--accent) 65%, transparent);
-}
-.btn--primary:hover {
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.28) inset,
-    0 -1px 0 rgba(0,0,0,.14) inset,
-    0 8px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
-}
-
-/* Card hover: subtle accent rim + lift */
-.card {
-  transition: transform .35s var(--spring), box-shadow .3s var(--smooth), border-color .25s var(--smooth);
-}
-.card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--sh-2), 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
-}
-
 /* ---------- Choreographed entry ---------- */
 @keyframes enter-corner {
   from { opacity: 0; transform: translate(-6px, 10px) scale(.99); }
@@ -370,12 +280,9 @@ html {
 }
 
 /* ---------- Tight type rhythm for stat clusters ---------- */
-.stat-cluster { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-.stat-cluster .stat-numbered { gap: .25rem; }
 
 /* ---------- Reduced motion overrides ---------- */
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none; transition: none; }
   .bracketed:hover::before, .bracketed:hover::after { width: 14px; height: 14px; }
-  .card:hover { transform: none; }
 }

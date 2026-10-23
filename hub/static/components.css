@@ -1,0 +1,350 @@
+/* components.css
+   Shared UI primitives.
+   Card, stat, badge, and button families are authoritative here.
+*/
+
+/* ---------- Cards ---------- */
+
+.card.wide { grid-column: 1 / -1; }
+
+.card > * { min-width: 0; }
+
+.card {
+  position: relative;
+  padding: 1.25rem;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow-1);
+  container-type: inline-size;
+  transition:
+    transform .35s var(--spring),
+    box-shadow .3s var(--smooth),
+    border-color .25s var(--smooth);
+}
+
+a.card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    var(--sh-2),
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+a.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--line-strong);
+}
+
+.card--accent {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+
+/* Signature accent tick replaces the former full-width accent bar. */
+.card--accent::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0,
+    var(--accent) 28px,
+    transparent 28px
+  );
+}
+
+.card--chrome {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 30%, transparent),
+      var(--line-strong) 40%,
+      var(--line) 70%,
+      color-mix(in srgb, var(--accent) 20%, transparent)
+    ) border-box;
+}
+
+.card--paper {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 4%, var(--surface-2)),
+      var(--surface-2)
+    );
+  border-color: color-mix(in srgb, var(--accent) 14%, var(--line));
+}
+
+.card--ink {
+  background: linear-gradient(180deg, #1a1f26, #0f1318);
+  border-color: rgba(255,255,255,.08);
+  color: #e8ecf0;
+}
+
+.card--ink .stat-label,
+.card--ink small {
+  color: rgba(232,236,240,.55);
+}
+
+.card--ink .stat-value { color: #fff; }
+
+
+/* ---------- Stats ---------- */
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.stat-label {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.stat-value {
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.stat-hint {
+  font-size: .8125rem;
+  color: var(--text-3);
+}
+
+.stat-numbered {
+  display: grid;
+  gap: .35rem;
+  align-content: start;
+}
+
+.stat-numbered .stat-value {
+  font-size: clamp(2.25rem, 1.8rem + 3.5vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  line-height: .9;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
+  color: var(--text);
+}
+
+.stat-numbered .stat-value .unit {
+  font-size: .35em;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--text-3);
+  margin-left: .25em;
+  vertical-align: super;
+}
+
+.stat-numbered .stat-label {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  order: -1;
+}
+
+.stat-cluster {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.stat-cluster .stat-numbered { gap: .25rem; }
+
+
+/* ---------- Badges ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .22rem .6rem;
+  border-radius: var(--r-full);
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.badge--accent {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: transparent;
+}
+
+.badge--ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.badge--warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.badge--danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .55rem .95rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+.btn:hover { background: var(--surface-3); }
+
+.btn:active { transform: translateY(1px) scale(.99); }
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  color: var(--on-accent);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.22) inset,
+    0 -1px 0 rgba(0,0,0,.14) inset,
+    0 6px 16px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.btn--primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.28) inset,
+    0 -1px 0 rgba(0,0,0,.14) inset,
+    0 8px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+
+.btn--ghost:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.btn--sm {
+  padding: .35rem .65rem;
+  font-size: .8125rem;
+}
+
+
+/* ---------- Context / accessibility ---------- */
+
+/*
+ * components.css loads after enhance.css. These contextual rules retain
+ * the effective accessibility/print behavior that previously won through
+ * the pages → enhance → refine cascade.
+ */
+
+@media (prefers-contrast: more) {
+  .card {
+    box-shadow: none;
+    border-width: 1.5px;
+  }
+
+  .card:hover { transform: none; }
+
+  /*
+   * Keep anchor-card behavior equivalent to the previous cascade:
+   * a.card:hover's higher specificity retained its small lift.
+   */
+  a.card:hover { transform: translateY(-2px); }
+}
+
+@media (forced-colors: active) {
+  .card,
+  .btn {
+    border: 1px solid ButtonBorder;
+  }
+
+  .btn--primary {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .badge {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .btn {
+    transition: none;
+    animation: none;
+  }
+
+  .card:hover { transform: none; }
+
+  /*
+   * Preserve the former higher-specificity anchor-card rule.
+   */
+  a.card:hover { transform: translateY(-2px); }
+}
+
+@media print {
+  .card {
+    border: 1px solid #ccc;
+    box-shadow: none;
+    background: #fff;
+  }
+}
