@@ -17,14 +17,35 @@
     },
     {
       "id": 1,
-      "title": "Layer A: Gateway (10.0.0.1)",
+      "title": "Layer A1: Orbi Router",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
-          "expr": "probe_success{job=\"gateway\"}",
-          "legendFormat": "Gateway"
+          "expr": "probe_success{instance=\"10.0.0.1\"}",
+          "legendFormat": "Orbi"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Layer A2: AT&T Gateway",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "probe_success{instance=\"192.168.1.254\"}",
+          "legendFormat": "AT&T Gateway"
         }
       ],
       "fieldConfig": {
@@ -40,7 +61,7 @@
       "id": 2,
       "title": "Layer B: External IP (WAN)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
@@ -61,7 +82,7 @@
       "id": 3,
       "title": "Layer C: DNS Resolution",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
@@ -82,7 +103,7 @@
       "id": 4,
       "title": "Layer D: HTTPS (Web)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
@@ -103,33 +124,12 @@
       "id": 5,
       "title": "Windows Desktop (10.0.0.21)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
           "expr": "probe_success{instance=\"10.0.0.21\"}",
           "legendFormat": "Windows"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "OFFLINE", "color": "red" }, "1": { "text": "ONLINE", "color": "green" } } }
-          ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-        }
-      }
-    },
-    {
-      "id": 6,
-      "title": "Bambu P1S (10.0.0.124)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "targets": [
-        {
-          "expr": "probe_success{instance=\"10.0.0.124\"}",
-          "legendFormat": "Printer"
         }
       ],
       "fieldConfig": {
@@ -361,5 +361,5 @@
   "timezone": "browser",
   "title": "Home Network Diagnostics & Latency",
   "uid": "netmon-overview",
-  "version": 1
+  "version": 2
 }

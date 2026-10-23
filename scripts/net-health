@@ -12,11 +12,10 @@ NC='\033[0m'
 echo -e "${BOLD}${CYAN}=== NETMON Network Diagnostics ===${NC}"
 echo -e "Time: $(date)\n"
 
-# Helper for ICMP probe
 probe_icmp() {
     local target="$1"
     local desc="$2"
-    printf "%-32s " "$desc ($target):"
+    printf "%-38s " "$desc ($target):"
     if out=$(ping -c 2 -W 2 "$target" 2>&1); then
         avg=$(echo "$out" | tail -1 | awk -F '/' '{print $5}')
         loss=$(echo "$out" | grep -oE '[0-9]+% packet loss')
@@ -26,11 +25,10 @@ probe_icmp() {
     fi
 }
 
-# Helper for DNS probe
 probe_dns() {
     local server="$1"
     local desc="$2"
-    printf "%-32s " "$desc ($server):"
+    printf "%-38s " "$desc ($server):"
     if out=$(dig @"$server" google.com +time=2 +tries=1 +stats 2>&1); then
         if echo "$out" | grep -q "status: NOERROR"; then
             time_ms=$(echo "$out" | grep "Query time:" | awk '{print $4}')
@@ -43,11 +41,10 @@ probe_dns() {
     fi
 }
 
-# Helper for HTTP probe
 probe_http() {
     local url="$1"
     local desc="$2"
-    printf "%-32s " "$desc:"
+    printf "%-38s " "$desc:"
     if out=$(curl -o /dev/null -s -w "%{http_code} in %{time_total}s" --max-time 3 "$url" 2>&1); then
         echo -e "${GREEN}[OK]${NC} HTTP $out"
     else
@@ -55,12 +52,11 @@ probe_http() {
     fi
 }
 
-# Helper for TCP probe
 probe_tcp() {
     local host="$1"
     local port="$2"
     local desc="$3"
-    printf "%-32s " "$desc ($host:$port):"
+    printf "%-38s " "$desc ($host:$port):"
     if nc -z -w 2 "$host" "$port" 2>/dev/null; then
         echo -e "${GREEN}[OK]${NC} connected"
     else
@@ -69,7 +65,8 @@ probe_tcp() {
 }
 
 echo -e "${BOLD}--- Layered WAN & Gateway Probes ---${NC}"
-probe_icmp "10.0.0.1" "Layer A (Gateway)"
+probe_icmp "10.0.0.1" "Layer A1 (Orbi Router)"
+probe_icmp "192.168.1.254" "Layer A2 (AT&T Gateway)"
 probe_icmp "1.1.1.1" "Layer B (Cloudflare IP)"
 probe_icmp "8.8.8.8" "Layer B (Google IP)"
 probe_dns "10.0.0.1" "Layer C (Router DNS)"
@@ -81,7 +78,8 @@ echo -e "\n${BOLD}--- LAN Devices & Services ---${NC}"
 probe_icmp "10.0.0.21" "Windows Desktop"
 probe_icmp "10.0.0.124" "Bambu P1S Printer"
 probe_tcp "10.0.0.21" "22" "Windows SSH"
-probe_tcp "10.0.0.21" "11434" "Windows Ollama"
+probe_tcp "10.0.0.21" "445" "Windows SMB Movie Share"
+probe_tcp "10.0.0.21" "80" "Windows Web / Local AI"
 
 echo -e "\n${BOLD}--- Appliance Health ---${NC}"
 echo "Pi IP: $(hostname -I | awk '{print $1}') | Hostname: $(hostname)"

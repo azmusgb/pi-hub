@@ -23,10 +23,17 @@ sudo mkdir -p /mnt/usb1/netmon/{prometheus,grafana,uptime-kuma}
 sudo chown -R 65534:65534 /mnt/usb1/netmon/prometheus
 sudo chown -R 472:472 /mnt/usb1/netmon/grafana
 
+echo "Configuring systemd service..."
+sudo cp /opt/netmon/systemd/netmon.service /etc/systemd/system/netmon.service
+sudo systemctl daemon-reload
+sudo systemctl enable netmon.service
+
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
-sudo docker-compose pull
 sudo docker-compose up -d --remove-orphans
+
+echo "Reloading Prometheus..."
+curl -s -X POST http://localhost:9091/-/reload || true
 
 echo "NETMON stack started successfully!"
 EOF

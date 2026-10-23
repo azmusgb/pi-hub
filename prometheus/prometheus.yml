@@ -15,7 +15,7 @@ scrape_configs:
     static_configs:
       - targets: ["127.0.0.1:9100"]
 
-  # Layer A: Local Gateway (Router 10.0.0.1) - Scrape every 15s
+  # Layer A: Local Gateway (Orbi 10.0.0.1) & ISP Demarcation (AT&T Gateway 192.168.1.254)
   - job_name: "gateway"
     metrics_path: /probe
     params:
@@ -24,8 +24,12 @@ scrape_configs:
     static_configs:
       - targets: ["10.0.0.1"]
         labels:
-          layer: "A-gateway"
+          layer: "A1-orbi"
           name: "Orbi Router"
+      - targets: ["192.168.1.254"]
+        labels:
+          layer: "A2-att-gateway"
+          name: "AT&T Gateway"
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
@@ -130,21 +134,25 @@ scrape_configs:
       - target_label: __address__
         replacement: 127.0.0.1:9115
 
-  # LAN Services (Ollama, SSH) - Scrape every 60s
+  # LAN Services (SSH, SMB Movie Share, Web) - Scrape every 60s
   - job_name: "lan-services"
     metrics_path: /probe
     params:
       module: [tcp_connect]
     scrape_interval: 60s
     static_configs:
-      - targets: ["10.0.0.21:11434"]
-        labels:
-          service: "ollama"
-          name: "Ollama LLM (Windows)"
       - targets: ["10.0.0.21:22"]
         labels:
           service: "ssh"
-          name: "SSH Server (Windows)"
+          name: "Windows SSH (22)"
+      - targets: ["10.0.0.21:445"]
+        labels:
+          service: "smb"
+          name: "Windows SMB Share (445)"
+      - targets: ["10.0.0.21:80"]
+        labels:
+          service: "web"
+          name: "Windows Local AI Web (80)"
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
