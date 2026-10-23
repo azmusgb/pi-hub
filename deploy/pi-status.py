@@ -117,10 +117,13 @@ def drive():
     if mounted:
         st = os.statvfs(MOVIES)
         out["free"] = human_bytes(st.f_bavail * st.f_frsize)
-        try:
-            out["movies"] = len(os.listdir(os.path.join(MOVIES, "Movies")))
-        except OSError:
-            pass
+        total_movies = 0
+        for mdir in (os.path.join(MOVIES, "Movies"), "/mnt/windows-movies"):
+            try:
+                total_movies += len([f for f in os.listdir(mdir) if not f.startswith(".")])
+            except OSError:
+                pass
+        out["movies"] = total_movies
     if mounted:
         out["state"] = "Connected"
     elif present:
