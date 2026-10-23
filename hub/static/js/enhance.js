@@ -159,12 +159,27 @@
     const mod = e.metaKey || e.ctrlKey;
 
     if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); return; }
-    if (e.key === "Escape") { closePalette(); if (shortcuts) shortcuts.hidden = true; return; }
+    if (e.key === "Escape") {
+      closePalette();
+      if (shortcuts) shortcuts.hidden = true;
+      if (document.body.classList.contains("wall") || document.documentElement.dataset.wall === "1") {
+        location.href = "/";
+      }
+      return;
+    }
     if (editing) return;
 
     if (e.key === "/") { e.preventDefault(); openPalette(); return; }
     if (e.key === "?") { e.preventDefault(); toggleShortcuts(); return; }
     if (!mod && !e.altKey && e.key === "t") { e.preventDefault(); $("#theme-btn")?.click(); return; }
-    if (!mod && !e.altKey && e.key === "w") { e.preventDefault(); location.href = "/?wall=1"; return; }
+    if (!mod && !e.altKey && e.key === "w") {
+      e.preventDefault();
+      if (document.body.classList.contains("wall") || document.documentElement.dataset.wall === "1") {
+        location.href = "/";
+      } else {
+        location.href = "/wall";
+      }
+      return;
+    }
   });
 })();

@@ -22,7 +22,12 @@ function eyebrowLabel(now = new Date()) {
 }
 
 function isWallMode() {
-  return document.body.classList.contains("wall") || document.documentElement.dataset.wall === "1";
+  return (
+    window.location.pathname === "/wall" ||
+    new URLSearchParams(window.location.search).has("wall") ||
+    document.body.classList.contains("wall") ||
+    document.documentElement.dataset.wall === "1"
+  );
 }
 
 function cachedNarration() {
@@ -264,13 +269,17 @@ export function mount(state) {
   state.main = h("div", { class: "now-layout" }, state.leftCol, state.rightCol);
 
   if (isWallMode()) {
-    state.root.append(state.summary, state.outside, state.main);
+    const exitWall = h("div", { class: "wall-exit-wrap", style: "text-align: center; margin-top: 2.5rem; padding: 1rem 0;" },
+      h("a", { href: "/", class: "btn btn--ghost small", "data-link": true, style: "opacity: 0.5; font-size: 0.85rem;" }, "← Exit wall display")
+    );
+    state.root.append(state.summary, state.outside, state.main, exitWall);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
     const tasks = h("nav", { class: "quick-tasks", "aria-label": "Everyday tasks" },
       h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
       h("a", { class: "chip", href: "/print", "data-link": true }, "Print a file"),
-      h("a", { class: "chip", href: "/pi", "data-link": true }, "Get help"));
+      h("a", { class: "chip", href: "/pi", "data-link": true }, "Get help"),
+      h("a", { class: "chip", href: "/wall", "data-link": true }, "Wall display"));
     state.root.append(state.issues, tasks, state.band, state.rightCol, state.hero, state.ask);
   }
 

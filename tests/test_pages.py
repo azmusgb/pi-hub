@@ -151,3 +151,10 @@ def test_movies_catalog_and_pick_genre(c, monkeypatch):
     assert r_pick.json()["pick"]["title"] == "Superbad"
 
 
+def test_wall_route_serves_html(c):
+    r = c.get("/wall")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert b"<!doctype html>" in r.content.lower()
+
+

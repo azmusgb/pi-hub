@@ -46,7 +46,7 @@
     (() => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const wall = params.has("wall");
+        const wall = params.has("wall") || window.location.pathname === "/wall";
 
         if (wall) {
           document.documentElement.dataset.wall = "1";
@@ -541,8 +541,9 @@
           </button>
 
           <a
-            href="/?wall=1"
+            href="/wall"
             id="wall-link"
+            data-link="true"
           >
             Wall display
           </a>

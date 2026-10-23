@@ -1,5 +1,6 @@
 // Movies: what's playing, continue watching, recently added, search, requests, and drive health.
 import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
+import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
 
 export const every = 30;
 
@@ -381,6 +382,8 @@ export function mount(state) {
       }
     }, SEARCH_DEBOUNCE_MS);
   });
+
+  state.night = mountMovieNight(state);
 
   state.body = h("div", {
     class: "stack",
@@ -857,7 +860,7 @@ function movieNight(state, genres) {
   );
 
   return card(
-    "Movie night",
+    "Surprise pick",
     {
       cls: "wide",
     },
@@ -2075,6 +2078,8 @@ export async function load(
 
         catalogSection(state, catalogMovies, genres),
 
+        state.night,
+
         movieNight(state, genres),
 
         driveCard(
@@ -2127,6 +2132,7 @@ export async function load(
         ),
       ].filter(Boolean),
     );
+    refreshMovieNight(state);
   } catch (error) {
     state.body.replaceChildren(
       card(

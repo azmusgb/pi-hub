@@ -18,6 +18,7 @@ import * as weatherPage from "./weather.js";
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
+  "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/print": { key: "print", title: "Print", mod: printPage },
@@ -35,6 +36,7 @@ const PAGES = {
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
+  "/wall": "Glanceable ambient display",
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
@@ -59,11 +61,16 @@ document.addEventListener("DOMContentLoaded", updateSubtitle);
 window.addEventListener("popstate", updateSubtitle);
 
 const view = document.getElementById("view");
-const wall = new URLSearchParams(location.search).has("wall");
+function isWall(path = location.pathname, search = location.search) {
+  return path === "/wall" || new URLSearchParams(search).has("wall");
+}
 let current = null;
 let timer = null;
 
-if (wall) document.body.classList.add("wall");
+if (isWall()) {
+  document.documentElement.dataset.wall = "1";
+  document.body.classList.add("wall");
+}
 
 // Theme: each device picks Auto (follow the device), Light or Dark. The wall display goes light by day, dark by night.
 const THEMES = ["auto", "light", "dark"];
@@ -76,9 +83,17 @@ function minutes(label) {
   if (!m) return null;
   return ((Number(m[1]) % 12) + (/pm/i.test(m[3]) ? 12 : 0)) * 60 + Number(m[2] || 0);
 }
+function fetchSun() {
+  fetch("/api/outside").then((r) => r.json()).then((o) => {
+    const d = o.weather?.days?.[0];
+    const rise = minutes(d?.sunrise), set = minutes(d?.sunset);
+    if (rise != null && set != null) sun = [rise, set];
+    applyTheme();
+  }).catch(() => {});
+}
 export function applyTheme() {
   let theme = pref();
-  if (wall) {
+  if (isWall()) {
     const now = new Date(), t = now.getHours() * 60 + now.getMinutes();
     const [rise, set] = sun || [7 * 60, 19 * 60];
     theme = t >= rise && t < set ? "light" : "dark";
@@ -96,15 +111,10 @@ document.getElementById("theme-btn")?.addEventListener("click", () => {
   try { localStorage.setItem("hub-theme", next); } catch {}
   applyTheme();
 });
-if (wall) {
-  fetch("/api/outside").then((r) => r.json()).then((o) => {
-    const d = o.weather?.days?.[0];
-    const rise = minutes(d?.sunrise), set = minutes(d?.sunset);
-    if (rise != null && set != null) sun = [rise, set];
-    applyTheme();
-  }).catch(() => {});
-  setInterval(applyTheme, 60000);
+if (isWall()) {
+  fetchSun();
 }
+setInterval(applyTheme, 60000);
 applyTheme();
 
 function tick() {
@@ -155,6 +165,16 @@ async function refresh() {
 
 async function show(path, { focus = false } = {}) {
   const page = PAGES[path] || PAGES["/"];
+  const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
+  if (wallMode) {
+    document.documentElement.dataset.wall = "1";
+    document.body.classList.add("wall");
+    if (!sun) fetchSun();
+  } else {
+    delete document.documentElement.dataset.wall;
+    document.body.classList.remove("wall");
+  }
+  applyTheme();
   shownPath = location.pathname + location.search;
   clearInterval(timer);
   current?.mod.leave?.(current.state);
@@ -175,7 +195,7 @@ async function show(path, { focus = false } = {}) {
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
-  document.title = page.key === "now" ? "Home" : `${page.title} · Home`;
+  document.title = page.key === "now" ? (wallMode ? "Wall · Home" : "Home") : `${page.title} · Home`;
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
@@ -203,7 +223,6 @@ document.addEventListener("click", (e) => {
     return;
   }
   const query = new URLSearchParams(url.search);
-  if (wall) query.set("wall", "1");
   const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
   if (destination !== location.pathname + location.search + location.hash) history.pushState({}, "", destination);
   show(url.pathname, { focus: true });
@@ -216,7 +235,7 @@ window.addEventListener("popstate", () => { if (location.pathname + location.sea
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); stayAwake(); } });
 
 async function stayAwake() {
-  try { if (wall && "wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch {}
+  try { if (isWall() && "wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch {}
 }
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

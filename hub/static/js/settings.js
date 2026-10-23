@@ -214,7 +214,7 @@ export async function load(state) {
     h("p", { class: "meta" }, "Theme and display settings."),
     h("div", { class: "row" },
       h("button", { class: "btn", onclick: () => document.getElementById('theme-btn').click() }, "Toggle Theme"),
-      h("a", { href: "/?wall=1", class: "btn btn--ghost", target: "_blank" }, "Open Wall Display")
+      h("a", { href: "/wall", class: "btn btn--ghost", target: "_blank" }, "Open Wall Display")
     )
   );
   parts.unshift(appearanceCard);
