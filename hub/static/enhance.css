@@ -155,40 +155,6 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
 }
 .hero-sub { font-size: 1rem; color: var(--text-2); margin: 0; max-width: 60ch; }
 
-/* ---------- Poster ---------- */
-.poster-card {
-  position: relative; display: block; color: inherit; text-decoration: none;
-  border-radius: var(--r-lg); overflow: hidden;
-  aspect-ratio: 2 / 3;
-  background: var(--surface-3);
-  box-shadow: var(--sh-1);
-  transition: transform .35s var(--spring), box-shadow .35s var(--smooth);
-}
-.poster-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: var(--sh-2); }
-.poster-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.poster-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.poster-card::after {
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 42%);
-  opacity: .9; transition: opacity .35s var(--smooth);
-}
-.poster-meta {
-  position: absolute; left: .75rem; right: .75rem; bottom: .75rem;
-  z-index: 1; color: #fff;
-}
-.poster-title {
-  font-size: .9375rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.poster-sub { font-size: .75rem; opacity: .8; margin-top: .15rem; }
-.poster-badge {
-  position: absolute; top: .75rem; left: .75rem; z-index: 1;
-  padding: .2rem .55rem; border-radius: var(--r-full);
-  background: rgba(0,0,0,.55); color: #fff;
-  font-size: .6875rem; font-weight: 700; letter-spacing: .04em;
-  backdrop-filter: blur(6px);
-}
-
 /* ---------- Meter ---------- */
 .meter {
   display: flex; flex-direction: column; gap: .4rem;
@@ -436,7 +402,7 @@ kbd {
 }
 
 /* ---------- Card hover spotlight (progressive) ---------- */
-.card, .poster-card, .gauge {
+.card, .gauge {
   --x: 50%; --y: 50%;
 }
 .card:hover { background-image:
@@ -560,12 +526,12 @@ kbd {
 @media (prefers-contrast: more) {
   :root { --line: rgba(0,0,0,.28); --line-strong: rgba(0,0,0,.5); --text-2: #2a2620; --text-3: #4a443a; }
   [data-theme="dark"] { --line: rgba(255,255,255,.24); --line-strong: rgba(255,255,255,.42); }
-  .card, .poster-card, .hero { box-shadow: none; border-width: 1.5px; }
-  .card:hover, .poster-card:hover { transform: none; }
+  .card, .hero { box-shadow: none; border-width: 1.5px; }
+  .card:hover { transform: none; }
   body::after { display: none; }
 }
 @media (forced-colors: active) {
-  .card, .poster-card, .btn, .chip, .tabs, .list, .table-wrap { border: 1px solid ButtonBorder; }
+  .card, .btn, .chip, .tabs, .list, .table-wrap { border: 1px solid ButtonBorder; }
   .btn--primary { background: Highlight; color: HighlightText; }
   .rail a[aria-current="page"] { outline: 2px solid Highlight; }
   .badge, .pill { border: 1px solid CanvasText; }
@@ -573,7 +539,7 @@ kbd {
 }
 @media (prefers-reduced-transparency: reduce) {
   .rail, .clock, .toast, .palette-backdrop, .shortcuts-backdrop,
-  .modal-backdrop, .poster-badge {
+  .modal-backdrop {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
@@ -589,7 +555,6 @@ kbd {
   body { background: #fff; color: #000; }
   body::before, body::after { display: none; }
   .card, .list, .table-wrap { border: 1px solid #ccc; box-shadow: none; background: #fff; }
-  .poster-card { break-inside: avoid; }
   a { color: inherit; text-decoration: underline; }
   h1, h2, h3 { break-after: avoid; }
 }
@@ -643,12 +608,6 @@ kbd {
 
 /* 2. Print: guard poster + bento + tabs */
 @media print {
-  .poster-card { aspect-ratio: auto; background: none; box-shadow: none; break-inside: avoid; }
-  .poster-card::after, .poster-badge { display: none; }
-  .poster-meta { position: static; color: #000; margin-top: .35rem; }
-  .poster-title { color: #000; -webkit-line-clamp: unset; }
-  .poster-sub { color: #444; }
-  .poster-card img { max-height: 2.5in; object-fit: contain; }
   .bento { display: block; }
   .bento > * { grid-column: auto !important; grid-row: auto !important; }
   .tabs, .chip, .eyebrow-count { display: none; }

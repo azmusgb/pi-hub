@@ -328,22 +328,6 @@ html {
 }
 [data-theme="dark"] .hero::after { opacity: .07; }
 
-/* ---------- Poster reveal (refinement) ---------- */
-.poster-card .poster-meta {
-  transform: translateY(6px);
-  opacity: .9;
-  transition: transform .45s var(--spring), opacity .3s var(--smooth);
-}
-.poster-card:hover .poster-meta,
-.poster-card:focus-visible .poster-meta {
-  transform: translateY(0);
-  opacity: 1;
-}
-.poster-card img {
-  transition: transform .55s var(--spring), filter .3s var(--smooth);
-}
-.poster-card:hover img { transform: scale(1.04); filter: saturate(1.06); }
-
 /* ---------- Layered shadow helpers ---------- */
 .sh-1 { box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 1px 2px rgba(20,15,8,.06), 0 4px 12px -4px rgba(20,15,8,.08); }
 .sh-2 { box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 2px 4px rgba(20,15,8,.05), 0 12px 24px -8px rgba(20,15,8,.14); }
@@ -391,7 +375,7 @@ html {
 
 /* ---------- Reduced motion overrides ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .poster-card .poster-meta, .poster-card img { animation: none; transition: none; }
+  .reveal { animation: none; transition: none; }
   .bracketed:hover::before, .bracketed:hover::after { width: 14px; height: 14px; }
   .card:hover { transform: none; }
 }
