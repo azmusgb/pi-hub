@@ -75,7 +75,7 @@ def _netmon():
     wan_ms = durations.get("8.8.8.8") or durations.get("1.1.1.1")
     dns_ms = durations.get("10.0.0.1:53") or durations.get("1.1.1.1:53")
     win_ms = durations.get("10.0.0.21")
-    printer_ms = durations.get("10.0.0.124")
+    printer_ms = durations.get("10.0.0.136") or durations.get("10.0.0.124")
 
     orbi_ok = success.get("10.0.0.1", True)
     wan_ok = success.get("1.1.1.1", True) or success.get("8.8.8.8", True)
