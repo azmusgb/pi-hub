@@ -287,68 +287,6 @@ a.card:hover {
 }
 
 
-/* ---------- Context / accessibility ---------- */
-
-/*
- * components.css loads after enhance.css. These contextual rules retain
- * the effective accessibility/print behavior that previously won through
- * the pages → enhance → refine cascade.
- */
-
-@media (prefers-contrast: more) {
-  .card {
-    box-shadow: none;
-    border-width: 1.5px;
-  }
-
-  .card:hover { transform: none; }
-
-  /*
-   * Keep anchor-card behavior equivalent to the previous cascade:
-   * a.card:hover's higher specificity retained its small lift.
-   */
-  a.card:hover { transform: translateY(-2px); }
-}
-
-@media (forced-colors: active) {
-  .card,
-  .btn {
-    border: 1px solid ButtonBorder;
-  }
-
-  .btn--primary {
-    background: Highlight;
-    color: HighlightText;
-  }
-
-  .badge {
-    border: 1px solid CanvasText;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card,
-  .btn {
-    transition: none;
-    animation: none;
-  }
-
-  .card:hover { transform: none; }
-
-  /*
-   * Preserve the former higher-specificity anchor-card rule.
-   */
-  a.card:hover { transform: translateY(-2px); }
-}
-
-@media print {
-  .card {
-    border: 1px solid #ccc;
-    box-shadow: none;
-    background: #fff;
-  }
-}
-
 /* ============================================================
    Tabs / Chips / Pills
    ============================================================ */
