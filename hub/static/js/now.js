@@ -72,22 +72,38 @@ function networkPanel(net) {
   const orbi = net.orbi_ms !== undefined && net.orbi_ms !== null ? `${net.orbi_ms} ms` : "—";
   const wan = net.wan_ms !== undefined && net.wan_ms !== null ? `${net.wan_ms} ms` : "—";
   const dns = net.dns_ms !== undefined && net.dns_ms !== null ? `${net.dns_ms} ms` : "—";
+  const win = net.win_ms !== undefined && net.win_ms !== null ? `${net.win_ms} ms` : "—";
+  const att = net.att_ms !== undefined && net.att_ms !== null ? `${net.att_ms} ms` : "—";
 
-  return h("section", { class: "network-panel", style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1rem; margin-top: 1rem;" },
-    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem;" },
-      h("h2", { style: "font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-3); font-weight: 700; margin: 0;" }, "Network & Internet"),
-      h("span", { class: "dot", dataset: { tone: net.status || "ok" }, style: "width: 8px; height: 8px; border-radius: 50%;" })
-    ),
-    h("div", { style: "display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between;" },
-      h("div", { style: "display: flex; gap: 1.25rem; font-size: .875rem;" },
-        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "Orbi Router"), h("strong", {}, orbi)),
-        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "Internet (WAN)"), h("strong", {}, wan)),
-        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "DNS Lookup"), h("strong", {}, dns))
+  const pill = (label, val, dotTone="ok") => h("div", {
+    style: "display: flex; align-items: center; gap: .5rem; background: var(--surface); padding: .35rem .75rem; border-radius: 9999px; border: 1px solid var(--line); font-size: .8125rem;"
+  },
+    h("span", { class: "dot", dataset: { tone: dotTone }, style: "width: 6px; height: 6px; border-radius: 50%;" }),
+    h("span", { style: "color: var(--text-3); font-weight: 500;" }, label),
+    h("strong", { style: "font-variant-numeric: tabular-nums;" }, val)
+  );
+
+  return h("section", {
+    class: "network-panel",
+    style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1.125rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
+  },
+    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem;" },
+      h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
+        h("span", { style: "font-size: 1rem;" }, "⚡"),
+        h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
+        h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "LIVE OBSERVER")
       ),
       h("div", { style: "display: flex; gap: .5rem;" },
-        h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .8125rem; min-height: 36px; padding: .25rem .75rem;" }, "Grafana ↗"),
-        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .8125rem; min-height: 36px; padding: .25rem .75rem;" }, "Uptime Kuma ↗")
+        h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Grafana NOC ↗"),
+        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Uptime Kuma ↗")
       )
+    ),
+    h("div", { style: "display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;" },
+      pill("Orbi Router", orbi),
+      pill("AT&T Fiber", att),
+      pill("Internet WAN", wan),
+      pill("DNS Lookup", dns),
+      pill("Windows PC", win)
     )
   );
 }
