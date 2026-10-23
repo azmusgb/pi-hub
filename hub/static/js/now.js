@@ -67,6 +67,31 @@ Your note:`;
   return null;
 }
 
+function networkPanel(net) {
+  if (!net || (!net.orbi_ms && !net.wan_ms)) return null;
+  const orbi = net.orbi_ms !== undefined && net.orbi_ms !== null ? `${net.orbi_ms} ms` : "—";
+  const wan = net.wan_ms !== undefined && net.wan_ms !== null ? `${net.wan_ms} ms` : "—";
+  const dns = net.dns_ms !== undefined && net.dns_ms !== null ? `${net.dns_ms} ms` : "—";
+
+  return h("section", { class: "network-panel", style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1rem; margin-top: 1rem;" },
+    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem;" },
+      h("h2", { style: "font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-3); font-weight: 700; margin: 0;" }, "Network & Internet"),
+      h("span", { class: "dot", dataset: { tone: net.status || "ok" }, style: "width: 8px; height: 8px; border-radius: 50%;" })
+    ),
+    h("div", { style: "display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between;" },
+      h("div", { style: "display: flex; gap: 1.25rem; font-size: .875rem;" },
+        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "Orbi Router"), h("strong", {}, orbi)),
+        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "Internet (WAN)"), h("strong", {}, wan)),
+        h("div", {}, h("span", { style: "color: var(--text-3); font-size: .75rem; display: block;" }, "DNS Lookup"), h("strong", {}, dns))
+      ),
+      h("div", { style: "display: flex; gap: .5rem;" },
+        h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .8125rem; min-height: 36px; padding: .25rem .75rem;" }, "Grafana ↗"),
+        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .8125rem; min-height: 36px; padding: .25rem .75rem;" }, "Uptime Kuma ↗")
+      )
+    )
+  );
+}
+
 export function band(p) {
   const pct = p.progress || 0;
   const detail = p.state === "printing" && p.left
@@ -243,6 +268,7 @@ export async function load(state) {
         houseCard("Help", "/pi?from=home", "none", "Guides for common household problems", "Solve a problem")
       )
     ),
+    networkPanel(d.network),
     favs.length ? h("section", { class: "home-favourites" },
       h("h2", { class: "section-title" }, "Favourite controls"),
       h("div", { class: "tiles" }, favs.map(a => tile(a, state)))) : null,

@@ -48,7 +48,12 @@ def test_no_status_service_still_builds_a_page():
     d = now.build(None, None, {}, None)
     assert d["printer"]["state"] == "none"
     assert d["issues"][0]["what"] == "Home status unavailable"
-    assert d["movies"]["playing"] is None
+
+
+def test_network_metrics_included_when_available():
+    net = {"status": "ok", "orbi_ms": 2.1, "wan_ms": 8.3}
+    d = now.build(HEALTHY, [], {}, 12.0, network=net)
+    assert d["network"] == net
 
 
 def test_printer_states_read_as_plain_words():

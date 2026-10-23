@@ -13,7 +13,7 @@ SERVICES = [
     ("pi-hub", "Pi Hub", "This app"),
     ("pi-status", "Status and alerts", "Checks things and sends phone alerts"),
     ("cups", "Printing", "Sends prints to the HP DeskJet"),
-    ("docker", "Docker", "Ready for add-on apps; nothing runs in it now"),
+    ("docker", "Docker", "Runs NETMON network diagnostic appliance (Prometheus, Grafana, Uptime Kuma)"),
     ("cockpit.socket", "Cockpit", "Admin pages at port 9090"),
     ("x2d-camera-failover", "Camera address", "The X2D camera: from the Pi, or the MacBook as backup"),
     ("pi-hub-helper", "Pi Hub helper", "Carries out the Fix-it buttons"),
@@ -78,7 +78,14 @@ def network():
         s.close()
     except OSError:
         ip = None
-    return {"hostname": socket.gethostname(), "ip": ip, "name": f"{socket.gethostname()}.local"}
+    data = {"hostname": socket.gethostname(), "ip": ip, "name": f"{socket.gethostname()}.local"}
+    try:
+        metrics = sources.network_metrics()
+        if metrics:
+            data["metrics"] = metrics
+    except Exception:
+        pass
+    return data
 
 
 def history(hours=24):

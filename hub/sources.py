@@ -14,6 +14,7 @@ from collections import deque
 from . import freshness
 
 PI_STATUS_URL = os.environ.get("HUB_PI_STATUS_URL", "http://127.0.0.1:8099/status")
+NETMON_PROMETHEUS_URL = os.environ.get("HUB_NETMON_PROMETHEUS_URL", "http://127.0.0.1:9091")
 PLEX_URL = os.environ.get("HUB_PLEX_URL", "http://127.0.0.1:32400")
 PLEX_TOKEN_FILE = os.environ.get("HUB_PLEX_TOKEN_FILE", "/etc/pi-hub/secrets/plex_token")
 
@@ -45,6 +46,57 @@ def _get_json(url, headers=None, timeout=4):
 
 def pi_status():
     return cached("pi", 10, lambda: _get_json(PI_STATUS_URL))
+
+
+def _netmon():
+    try:
+        dur_data = _get_json(f"{NETMON_PROMETHEUS_URL}/api/v1/query?query=probe_duration_seconds", timeout=2)
+        succ_data = _get_json(f"{NETMON_PROMETHEUS_URL}/api/v1/query?query=probe_success", timeout=2)
+    except Exception:
+        return None
+
+    durations = {}
+    for item in dur_data.get("data", {}).get("result", []):
+        inst = item.get("metric", {}).get("instance")
+        val = item.get("value", [0, "0"])[1]
+        try:
+            durations[inst] = round(float(val) * 1000, 1)
+        except (ValueError, TypeError):
+            pass
+
+    success = {}
+    for item in succ_data.get("data", {}).get("result", []):
+        inst = item.get("metric", {}).get("instance")
+        val = item.get("value", [0, "0"])[1]
+        success[inst] = val == "1"
+
+    orbi_ms = durations.get("10.0.0.1")
+    att_ms = durations.get("192.168.1.254")
+    wan_ms = durations.get("8.8.8.8") or durations.get("1.1.1.1")
+    dns_ms = durations.get("10.0.0.1:53") or durations.get("1.1.1.1:53")
+    win_ms = durations.get("10.0.0.21")
+    printer_ms = durations.get("10.0.0.124")
+
+    orbi_ok = success.get("10.0.0.1", True)
+    wan_ok = success.get("1.1.1.1", True) or success.get("8.8.8.8", True)
+
+    tone = "ok" if (orbi_ok and wan_ok) else "bad"
+
+    return {
+        "status": tone,
+        "orbi_ms": orbi_ms,
+        "att_ms": att_ms,
+        "wan_ms": wan_ms,
+        "dns_ms": dns_ms,
+        "win_ms": win_ms,
+        "printer_ms": printer_ms,
+        "grafana_url": "http://10.0.0.30:3000",
+        "uptime_kuma_url": "http://10.0.0.30:3001",
+    }
+
+
+def network_metrics():
+    return cached("netmon", 10, _netmon)
 
 
 WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")

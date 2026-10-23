@@ -88,7 +88,7 @@ def summary(found):
     return f"{len(found)} things need a look" if bad else f"{len(found)} small things to check"
 
 
-def build(s, sessions, sampler, disk_free):
+def build(s, sessions, sampler, disk_free, network=None):
     found = issues(s)
     svc = (s or {}).get("services") or {}
     drive_ok = (s or {}).get("drive_state") == "Connected"
@@ -100,6 +100,7 @@ def build(s, sessions, sampler, disk_free):
         "summary": summary(found),
         "issues": found,
         "printer": printer(s),
+        "network": network,
         "movies": {
             "tone": _tone(svc.get("plex") and drive_ok, warn=svc.get("plex")) if movie_known else "warn",
             "status_known": movie_known,

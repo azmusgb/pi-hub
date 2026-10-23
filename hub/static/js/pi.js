@@ -1245,61 +1245,96 @@ function updatesCard(
 function networkCard(network) {
   const data =
     asObject(network);
+  const m =
+    asObject(data.metrics);
+
+  const facts = [
+    h(
+      "div",
+      {},
+      h("dt", {}, "Name"),
+      h("dd", {}, data.name || "—"),
+    ),
+    h(
+      "div",
+      {},
+      h("dt", {}, "Address"),
+      h("dd", {}, data.ip || "—"),
+    ),
+    h(
+      "div",
+      {},
+      h("dt", {}, "Connection"),
+      h("dd", {}, data.connection || "Network cable"),
+    ),
+  ];
+
+  if (m.orbi_ms !== undefined) {
+    facts.push(
+      h(
+        "div",
+        {},
+        h("dt", {}, "Orbi Router"),
+        h("dd", {}, m.orbi_ms !== null ? `${m.orbi_ms} ms` : "—"),
+      ),
+      h(
+        "div",
+        {},
+        h("dt", {}, "AT&T Gateway"),
+        h("dd", {}, m.att_ms !== null ? `${m.att_ms} ms` : "—"),
+      ),
+      h(
+        "div",
+        {},
+        h("dt", {}, "Internet (WAN)"),
+        h("dd", {}, m.wan_ms !== null ? `${m.wan_ms} ms` : "—"),
+      ),
+      h(
+        "div",
+        {},
+        h("dt", {}, "DNS Lookup"),
+        h("dd", {}, m.dns_ms !== null ? `${m.dns_ms} ms` : "—"),
+      ),
+    );
+  }
 
   return card(
     "Network",
     {},
-
     h(
       "dl",
       {
         class: "facts",
       },
-
+      ...facts,
+    ),
+    h(
+      "div",
+      {
+        class: "network-tools-actions",
+        style: "display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap;",
+      },
       h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Name",
-        ),
-        h(
-          "dd",
-          {},
-          data.name || "—",
-        ),
+        "a",
+        {
+          class: "button secondary",
+          href: m.grafana_url || "http://10.0.0.30:3000",
+          target: "_blank",
+          rel: "noopener",
+          style: "font-size: .875rem; text-decoration: none;",
+        },
+        "Open Grafana ↗",
       ),
-
       h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Address",
-        ),
-        h(
-          "dd",
-          {},
-          data.ip || "—",
-        ),
-      ),
-
-      h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Connection",
-        ),
-        h(
-          "dd",
-          {},
-          data.connection ||
-            "Network cable",
-        ),
+        "a",
+        {
+          class: "button secondary",
+          href: m.uptime_kuma_url || "http://10.0.0.30:3001",
+          target: "_blank",
+          rel: "noopener",
+          style: "font-size: .875rem; text-decoration: none;",
+        },
+        "Open Uptime Kuma ↗",
       ),
     ),
   );
