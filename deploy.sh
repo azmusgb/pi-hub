@@ -23,10 +23,11 @@ sudo mkdir -p /mnt/usb1/netmon/{prometheus,grafana,uptime-kuma}
 sudo chown -R 65534:65534 /mnt/usb1/netmon/prometheus
 sudo chown -R 472:472 /mnt/usb1/netmon/grafana
 
-echo "Configuring systemd service..."
-sudo cp /opt/netmon/systemd/netmon.service /etc/systemd/system/netmon.service
+echo "Configuring systemd services..."
+sudo cp /opt/netmon/systemd/*.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable netmon.service
+sudo systemctl enable netmon.service orbi-exporter.service
+sudo systemctl restart orbi-exporter.service
 
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
