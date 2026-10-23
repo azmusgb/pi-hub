@@ -512,3 +512,21 @@ body::before {
 .top-sub:empty {
   display: none;
 }
+
+/* ---------- Typography refinements ---------- */
+html {
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+#view h1,
+#view h2,
+#view h3,
+#view h4,
+.brand#page-title {
+  text-wrap: balance;
+}
+
+#view p {
+  text-wrap: pretty;
+}

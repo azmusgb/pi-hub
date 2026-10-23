@@ -150,10 +150,40 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
   margin: 0 0 .5rem;
 }
 .hero-title {
-  font-size: clamp(1.5rem, 1.1rem + 2.4vw, 2.5rem); font-weight: 800;
-  letter-spacing: -.03em; line-height: 1.05; margin: 0 0 .5rem;
+  font-size: clamp(1.5rem, 1.1rem + 2.4vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.05;
+  margin: 0 0 .5rem;
+  text-wrap: balance;
 }
-.hero-sub { font-size: 1rem; color: var(--text-2); margin: 0; max-width: 60ch; }
+
+.hero-sub {
+  font-size: 1rem;
+  color: var(--text-2);
+  margin: 0;
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* ---------- Ghost π in hero ---------- */
+.hero { position: relative; overflow: hidden; }
+.hero::after {
+  content: "π";
+  position: absolute;
+  right: -.15em;
+  bottom: -.35em;
+  font-size: clamp(8rem, 14vw, 18rem);
+  font-weight: 800;
+  line-height: .8;
+  letter-spacing: -.06em;
+  color: var(--accent);
+  opacity: .04;
+  pointer-events: none;
+  z-index: -1;
+  font-feature-settings: "kern";
+}
+[data-theme="dark"] .hero::after { opacity: .07; }
 
 /* ---------- Meter ---------- */
 .meter {
@@ -342,14 +372,21 @@ kbd {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* ---------- Stagger reveals ---------- */
-.reveal {
-  animation: reveal-in .45s var(--ease-out) both;
-  animation-delay: calc(min(var(--i, 0), 6) * 40ms);
+/* ---------- Choreographed entry ---------- */
+@keyframes enter-corner {
+  from { opacity: 0; transform: translate(-6px, 10px) scale(.99); }
+  to   { opacity: 1; transform: translate(0, 0) scale(1); }
 }
-@keyframes reveal-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+.reveal {
+  animation: enter-corner .55s var(--spring) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 45ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* ---------- Card hover spotlight (progressive) ---------- */
