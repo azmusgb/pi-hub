@@ -65,26 +65,37 @@ def movie_sections():
     return sources.cached("plex-sections", 300, _sections) or []
 
 
+def _dedupe_items(items, limit):
+    seen = set()
+    out = []
+    for it in items:
+        key = (it.get("title", "").strip().lower(), it.get("year"))
+        if key not in seen:
+            seen.add(key)
+            out.append(it)
+    return out[:limit]
+
+
 def recently_added(section=None):
     if section and section != "all":
         return sources.cached(f"plex-recent-{section}", 120, lambda: _list(f"/library/sections/{section}/recentlyAdded", {"X-Plex-Container-Size": 18}, 18))
-    return sources.cached("plex-recent", 120, lambda: _list("/library/recentlyAdded", {"X-Plex-Container-Size": 18}, 18))
+    return sources.cached("plex-recent", 120, lambda: _dedupe_items(_list("/library/recentlyAdded", {"X-Plex-Container-Size": 36}, 36), 18))
 
 
 def on_deck():
-    return sources.cached("plex-deck", 60, lambda: _list("/library/onDeck", {"X-Plex-Container-Size": 8}, 8))
+    return sources.cached("plex-deck", 60, lambda: _dedupe_items(_list("/library/onDeck", {"X-Plex-Container-Size": 24}, 24), 8))
 
 
 def search(query):
     query = query.strip()[:60]
     if not query:
         return []
-    data = _json("/hubs/search", {"query": query, "limit": 12})
-    out = []
+    data = _json("/hubs/search", {"query": query, "limit": 24})
+    raw = []
     for hub in (data.get("MediaContainer") or {}).get("Hub") or []:
         if hub.get("type") in ("movie", "show", "episode"):
-            out += [_item(m) for m in hub.get("Metadata") or []]
-    return out[:24]
+            raw += [_item(m) for m in hub.get("Metadata") or []]
+    return _dedupe_items(raw, 24)
 
 
 def thumb(path, wide=False):
