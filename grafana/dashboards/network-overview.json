@@ -8,13 +8,49 @@
   "links": [
     {
       "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Master NOC",
+      "tooltip": "Switch to Master Network Diagnostics NOC",
+      "type": "link",
+      "url": "/d/netmon-overview"
+    },
+    {
+      "asDropdown": false,
+      "icon": "bolt",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Orbi Bandwidth",
+      "tooltip": "Switch to Orbi WAN Bandwidth Analyzer",
+      "type": "link",
+      "url": "/d/netmon-orbi-wan"
+    },
+    {
+      "asDropdown": false,
+      "icon": "server",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Hardware Telemetry",
+      "tooltip": "Switch to Hardware & Storage Telemetry",
+      "type": "link",
+      "url": "/d/netmon-hardware"
+    },
+    {
+      "asDropdown": false,
       "icon": "home",
       "includeVars": false,
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
       "title": "Pi Hub",
-      "tooltip": "Open Pi Hub Web Application",
+      "tooltip": "Open Pi Hub",
       "type": "link",
       "url": "http://10.0.0.30"
     },
@@ -26,33 +62,9 @@
       "tags": [],
       "targetBlank": true,
       "title": "Uptime Kuma",
-      "tooltip": "Open Uptime Kuma v2 Dashboard",
+      "tooltip": "Open Uptime Kuma",
       "type": "link",
       "url": "http://10.0.0.30:3001"
-    },
-    {
-      "asDropdown": false,
-      "icon": "server",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Cockpit Admin",
-      "tooltip": "Open Cockpit Admin Console",
-      "type": "link",
-      "url": "http://10.0.0.30:9090"
-    },
-    {
-      "asDropdown": false,
-      "icon": "film",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Plex Media Server",
-      "tooltip": "Open Plex Web Player",
-      "type": "link",
-      "url": "http://10.0.0.30:32400/web"
     }
   ],
   "liveNow": true,
@@ -315,7 +327,7 @@
     },
     {
       "id": 5,
-      "title": "Windows Desktop (10.0.0.21)",
+      "title": "Windows 11 Workstation",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -801,7 +813,7 @@
     },
     {
       "id": 13,
-      "title": "Windows Desktop Network Traffic",
+      "title": "Windows 11 Workstation Network Traffic",
       "type": "timeseries",
       "gridPos": {
         "h": 7,
