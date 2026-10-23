@@ -7,6 +7,12 @@ const GROUPS = [
     ["/workshop", "Workshop", "3D printer, camera, display and local AI"],
     ["/weather", "Weather", "Forecast, air quality and weather warnings"],
   ]],
+  ["Appliance Suite", [
+    ["/apps", "App Suite", "Station app directory and launchpad"],
+    ["/apps/bambuddy", "Bambuddy 3D", "Queue, spool inventory, 3MF archives"],
+    ["/apps/grafana", "Grafana NOC", "Internet, gateway and network dashboards"],
+    ["/apps/status", "Service Status", "Uptime Kuma live health checks"],
+  ]],
   ["Maintenance", [
     ["/pi", "Help & system", "Solve a problem and check the hub"],
     ["/alerts", "Alerts", "Recent events and warnings"],

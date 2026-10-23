@@ -143,7 +143,9 @@ export async function load(state) {
   state.info.replaceChildren(
     card("Bambuddy", { pill: "Self-hosted", tone: "ok" },
       h("p", { class: "meta" }, "Local control plane: queueing, automatic 3MF archiving, and cost tracking."),
-      h("a", { class: "action", href: "http://10.0.0.30:8000", target: "_blank", rel: "noopener" }, "Open Bambuddy")),
+      h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
+        h("a", { class: "action", href: "/apps/bambuddy", "data-link": true }, "Open in Hub"),
+        h("a", { class: "action ghost", href: "http://10.0.0.30:8000", target: "_blank", rel: "noopener" }, "New tab ↗"))),
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),

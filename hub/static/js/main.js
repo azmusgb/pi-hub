@@ -15,6 +15,7 @@ import * as morePage from "./more.js";
 import * as rulesPage from "./rules.js";
 import * as drivesPage from "./drives.js";
 import * as weatherPage from "./weather.js";
+import * as appsPage from "./station-apps.js";
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
@@ -31,6 +32,10 @@ const PAGES = {
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
   "/drives": { key: "drives", title: "Movie storage", mod: drivesPage },
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
+  "/apps": { key: "apps", title: "App Suite", mod: appsPage },
+  "/apps/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
+  "/apps/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
+  "/apps/status": { key: "apps", title: "Service Status", mod: appsPage },
 };
 
 // Page-specific subtitles
@@ -46,7 +51,11 @@ const subtitles = {
   "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
-  "/settings": "Configure your Pi Hub"
+  "/settings": "Configure your Pi Hub",
+  "/apps": "Station apps and appliance services",
+  "/apps/bambuddy": "Self-hosted 3D print command plane",
+  "/apps/grafana": "Network observability and metrics TSDB",
+  "/apps/status": "Automated uptime and service health checks",
 };
 
 const updateSubtitle = () => {
@@ -187,8 +196,9 @@ async function show(path, { focus = false } = {}) {
   const state = { root, context };
   const parents = page.key === "drives" ? [["/movies", "Movies"]]
     : page.key === "pi" ? [["/", "Home"]]
+    : path.startsWith("/apps/") ? [["/apps", "App Suite"]]
     : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]]
-    : ["print", "workshop", "weather", "rules", "alerts", "settings"].includes(page.key) ? [["/more", "More"]] : [];
+    : ["print", "workshop", "weather", "rules", "alerts", "settings", "apps"].includes(page.key) ? [["/more", "More"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
     ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),
     h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, page.title)));
@@ -199,7 +209,7 @@ async function show(path, { focus = false } = {}) {
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === page.key || (a.dataset.page === "movies" && page.key === "drives") || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "weather", "more"].includes(page.key));
+    const here = a.dataset.page === page.key || (a.dataset.page === "movies" && page.key === "drives") || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "weather", "more", "apps"].includes(page.key));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);

@@ -530,3 +530,73 @@ html {
 #view p {
   text-wrap: pretty;
 }
+
+/* ---------- Station Apps & Embedded Views ---------- */
+.page-apps.embedded-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.app-frame-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+}
+
+.app-frame-lead {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.app-frame-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-port-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  border: 1px solid var(--line);
+}
+
+.embedded-app-frame {
+  width: 100%;
+  height: calc(100vh - 210px);
+  min-height: 700px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.app-suite-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.app-service-title {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--accent);
+  margin-top: 0.25rem;
+}
