@@ -149,3 +149,20 @@ def test_wan_down_and_recovery_fire_once(fresh_db):
     w.check_network([])
     w.check_network(None)  # Prometheus unreachable: no change either way
     assert kinds().count("wan_down") == 1
+
+
+def test_webhook_and_printer_status_report_a_print_once(fresh_db):
+    events.ready()
+    events.fire("print_started", "Cube", dedupe=events.PRINT_DEDUPE)  # Bambuddy's webhook arrives first
+    w = events.Watcher()
+    feed(w, BASE, dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
+    events.fire("print_finished", "Cube finished", dedupe=events.PRINT_DEDUPE)  # ...or second
+    assert kinds() == ["print_started", "print_finished"]
+
+
+def test_print_under_way_when_the_hub_starts_is_not_a_new_print(fresh_db):
+    events.ready()
+    w = events.Watcher()
+    printing = dict(BASE, x2d_state="Printing", x2d_progress=30)
+    feed(w, printing, printing, dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
+    assert kinds() == ["print_finished"]

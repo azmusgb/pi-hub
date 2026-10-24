@@ -458,7 +458,7 @@ async def api_webhook_bambuddy(request: Request):
             except Exception:
                 pass
 
-        events.fire("print_finished", detail=msg or title)
+        events.fire("print_finished", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_finished"})
 
     # Handle failures / cancelled
@@ -466,13 +466,13 @@ async def api_webhook_bambuddy(request: Request):
         progress = variables.get("progress") or 0
         error_code = variables.get("error_code") or variables.get("hms_code")
         recorder.record_print("Error", progress, now_ts, error=error_code)
-        events.fire("print_failed", detail=msg or title)
+        events.fire("print_failed", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_failed"})
 
     # Handle print started
     elif event_type in ("print_start", "print_started", "started"):
         recorder.record_print("Printing", 0, now_ts)
-        events.fire("print_started", detail=msg or title)
+        events.fire("print_started", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_started"})
 
     # Handle filament low

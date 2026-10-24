@@ -1,0 +1,10 @@
+[Unit]
+Description=Mount the Windows movie share if it isn't mounted
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsDirectory=/mnt/windows-movies
+
+[Service]
+Type=oneshot
+# The share is mounted once at boot with nofail; if the PC was off or still starting, try again.
+ExecStart=/bin/sh -c 'mountpoint -q /mnt/windows-movies || ! findmnt -s /mnt/windows-movies >/dev/null || timeout 30 mount /mnt/windows-movies || true'

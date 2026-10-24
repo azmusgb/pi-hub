@@ -35,10 +35,11 @@ Deployed through release `5d968f2aaf` (the Pi was running it on 24 October):
 - **Printer and Bambuddy.** Bambuddy runs in Docker on the Pi (port 8000) and is probed for live printer state at 10.0.0.136. Its "Pi Hub Automation Bridge" webhook posts print start/finish/failure and filament-low events to `/api/webhook/bambuddy`, which records prints, saves the completion photo and grams used, and fires rules. **The webhook needs the shared token** (`webhook_token` setting or `HUB_WEBHOOK_TOKEN`) as `?token=`, `X-Hub-Token` or a Bearer header; other requests get 401. Payloads over 8 MB are refused.
 - **Navigation and wall.** An App Suite launchpad embeds the Pi's other services, with short paths `/bambuddy`, `/grafana` and `/status`. `/wall` is a kiosk mode with the live nozzle camera, print telemetry and a one-tap shop light.
 
-### Known issues from 23–24 October
+### Follow-up — 24 October
 
-- The Windows movie share is mounted once at boot (`nofail`, no retry). On 23 October at 22:09 the mount failed with "host unreachable", leaving Home showing movie status as unavailable until it was mounted by hand on 24 October. Add `x-systemd.automount` (with a mount timeout) or a retry so it recovers when the PC comes back.
-- Bambuddy's own API on port 8000 is reachable from the LAN without signing in, and it has its own ntfy notifier for print completion alongside the hub's new print-finished rule; if both use the household topic, a finished print produces two phone alerts.
+- **Windows movie share.** It is mounted once at boot (`nofail`, no retry); on 23 October at 22:09 that failed with "host unreachable" and Home showed movie status as unavailable until it was mounted by hand. `pi-hub-movies-mount.timer` now retries every 5 minutes (2 minutes after boot) when the share is in fstab but not mounted. It does not recover a share that is mounted but hung because the PC went away.
+- **One alert per print.** Bambuddy's webhook and the printer status both reported each print; they are now de-duplicated (the second report of the same start/finish/failure within 10 minutes is dropped), and a print already under way when the hub restarts no longer counts as a new one. Bambuddy's own ntfy notifier used the household topic too, so its print complete/failed/stopped alerts were turned off; the hub sends those, respecting quiet hours, through the print-finished rule and a new default print-failed rule. Bambuddy still sends its other alerts (plate not empty, queue, AMS drying) directly, with a photo where it has one. The hub's print alerts carry no photo.
+- **Still open:** Bambuddy's own API and web UI on port 8000 are reachable from the LAN without signing in, including printer control. Turning on Bambuddy sign-in needs an owner-chosen password, and the hub's status probe (`HUB_BAMBUDDY_PRINTER_URL`) would then need a Bambuddy API token.
 
 ## Release and backup behaviour
 
@@ -53,7 +54,7 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 
 ## Verified locally
 
-- 117 Python tests and 8 JavaScript tests pass (24 October).
+- 119 Python tests and 8 JavaScript tests pass (24 October).
 - Release simulations cover failed JavaScript tests, partial installation, failed post-install checks, successful installation and repeat installation. Separate tests check manual rollback scheduling and refusal of invalid targets.
 - Browser checks use a temporary local database. Contextual movie help opens correctly; phone (390px), tablet (1024px) and desktop (1440px) layouts were inspected. Phone and tablet checks found no horizontal overflow. The Devices empty state and movie-details refresh were checked with mocked device responses.
 - New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.

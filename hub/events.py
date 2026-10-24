@@ -81,6 +81,7 @@ DEFAULT_RULES = [
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
     ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
+    ("print_failed", "notify", None, "Send a phone alert when a 3D print fails or stops early", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
@@ -233,9 +234,21 @@ def run_action(rule, kind, detail=""):
     return execute(rule, kind, detail)["message"]
 
 
-def fire(kind, detail=""):
+# Bambuddy's webhook and the printer status both report the same print start/finish/failure;
+# whichever arrives second within this window is dropped.
+PRINT_DEDUPE = 600
+
+
+def fire(kind, detail="", dedupe=0):
+    """Records an event and runs its rules. With dedupe (seconds), skips a repeat: the latest event in the
+    same family (print_…) is this kind and fired that recently. A start after a failure still counts."""
     ready()
     stamp = int(time.time())
+    if dedupe:
+        last = db.one("SELECT kind, ts FROM events WHERE kind LIKE ? ORDER BY ts DESC, rowid DESC LIMIT 1",
+                      kind.split("_")[0] + "_%")
+        if last and last["kind"] == kind and last["ts"] >= stamp - dedupe:
+            return False
     db.run("INSERT INTO events (ts, kind, detail) VALUES (?, ?, ?)", stamp, kind, detail[:200])
     db.run("DELETE FROM events WHERE ts < ?", stamp - 30 * 86400)
     db.run("DELETE FROM rule_runs WHERE ts < ?", stamp - 30 * 86400)
@@ -330,14 +343,15 @@ class Watcher:
 
         state = s.get("x2d_state")
         if state == "Printing":
-            if self.last_print not in ("Printing", "Paused"):
-                fire("print_started")
+            # The first reading after the hub starts only learns the state: a print already under way isn't new.
+            if self.last_print is not None and self.last_print not in ("Printing", "Paused"):
+                fire("print_started", dedupe=PRINT_DEDUPE)
             self.last_progress = s.get("x2d_progress") or 0
         elif self.last_print in ("Printing", "Paused") and state in ("Idle", "Stopped", "Error"):
             if state == "Error" or (state in ("Stopped", "Idle", "No status") and self.last_progress < 97):
-                fire("print_failed", f"at {self.last_progress}%")
+                fire("print_failed", f"at {self.last_progress}%", dedupe=PRINT_DEDUPE)
             else:
-                fire("print_finished")
+                fire("print_finished", dedupe=PRINT_DEDUPE)
         if state in ("Printing", "Paused", "Idle", "Stopped", "Error"):
             self.last_print = state
 

@@ -79,7 +79,8 @@ SUPPORT=(/usr/local/bin/pi-status.py)
 for f in pi-hub-helper.py pi-hub-backup.sh x2d-camera-failover.py pi-hub-selfcheck.py pi-hub-release pi-backup-serve; do
   SUPPORT+=("/usr/local/lib/pi-hub/$f")
 done
-for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
+for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service pi-hub-selfcheck.service pi-hub-selfcheck.timer \
+         pi-hub-movies-mount.service pi-hub-movies-mount.timer; do
   SUPPORT+=("/etc/systemd/system/$u")
 done
 SUPPORT+=(/etc/systemd/system/x2d-camera-bridge.service.d/port.conf)
@@ -135,7 +136,7 @@ install -m 755 "$D/pi-hub-helper.py" "$D/pi-hub-backup.sh" "$D/x2d-camera-failov
 install -m 755 "$D/pi-hub-release" /usr/local/lib/pi-hub/pi-hub-release.new
 mv -f /usr/local/lib/pi-hub/pi-hub-release.new /usr/local/lib/pi-hub/pi-hub-release
 for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service \
-         pi-hub-selfcheck.service pi-hub-selfcheck.timer; do
+         pi-hub-selfcheck.service pi-hub-selfcheck.timer pi-hub-movies-mount.service pi-hub-movies-mount.timer; do
   install -m 644 "$D/$u" "/etc/systemd/system/$u"
 done
 if [ -f /etc/systemd/system/x2d-camera-bridge.service ]; then

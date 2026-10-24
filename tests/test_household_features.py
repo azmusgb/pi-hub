@@ -219,7 +219,7 @@ def test_parallel_first_requests_migrate_each_column_once():
 
 def test_unknown_device_readings_do_not_trigger_automations(monkeypatch):
     fired=[]
-    monkeypatch.setattr(events,'fire',lambda kind,*a:fired.append(kind))
+    monkeypatch.setattr(events,'fire',lambda kind,*a,**k:fired.append(kind))
     watcher=events.Watcher()
     good={'drive_state':'Connected','services':{'plex':True,'homebridge':True},'pi_temp':50,'ai_state':'Ready','x2d_state':'Printing','x2d_progress':50}
     watcher.check(good,1000)
