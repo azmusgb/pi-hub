@@ -3,7 +3,6 @@ import os
 import re
 import base64
 import hmac
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -13,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, projects, freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -208,68 +207,12 @@ async def api_movie_vote(key: str, op: str, request: Request):
     return fresh({"ok": True})
 
 
-# ---- Workshop projects: planning only, never printer commands ----
+# ---- Workshop projects: Bambuddy holds them (since 24 Oct 2026); the hub only lists them ----
 
 @app.get("/api/projects")
 def api_projects():
-    return fresh(projects.view())
-
-
-@app.post("/api/projects")
-async def api_project_add(request: Request):
-    need(request, "household")
-    return fresh({"id": _say(projects.add, await request.json())})
-
-
-@app.post("/api/projects/{project_id}")
-async def api_project_update(project_id: int, request: Request):
-    need(request, "household")
-    _say(projects.update, project_id, await request.json())
-    return fresh({"ok": True})
-
-
-@app.post("/api/projects/{project_id}/delete")
-def api_project_delete(project_id: int, request: Request):
-    need(request, "household")
-    _say(projects.delete, project_id)
-    return fresh({"ok": True})
-
-
-@app.post("/api/projects/{project_id}/files")
-async def api_project_upload(project_id: int, request: Request, filename: str):
-    need(request, "household")
-    projects.ready()
-    _say(projects.exists, project_id)
-    projects.folder().mkdir(parents=True, exist_ok=True)
-    path = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=projects.folder(), prefix=".upload-", delete=False) as upload:
-            path = Path(upload.name)
-            size = 0
-            async for chunk in request.stream():
-                size += len(chunk)
-                if size > projects.MAX_FILE:
-                    raise HTTPException(413, "Project files must be 25 MB or smaller.")
-                upload.write(chunk)
-        return fresh({"id": _say(projects.attach, project_id, filename, path, size)})
-    finally:
-        if path:
-            path.unlink(missing_ok=True)
-
-
-@app.get("/api/project-files/{file_id}")
-def api_project_download(file_id: int, request: Request):
-    need(request, "kid")
-    item, path = _say(projects.file, file_id)
-    return FileResponse(path, filename=item["name"], media_type="application/octet-stream",
-                        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
-
-
-@app.post("/api/project-files/{file_id}/delete")
-def api_project_file_delete(file_id: int, request: Request):
-    need(request, "household")
-    _say(projects.remove_file, file_id)
-    return fresh({"ok": True})
+    items = bambuddy.projects()
+    return fresh({"projects": items or [], "available": items is not None})
 
 
 # ---- Workshop ----
@@ -280,8 +223,7 @@ def api_workshop():
     w = sources.world() or {}
     models = (w.get("models") or {})
     filament.ready()
-    prints = db.rows("SELECT p.*, s.colour, s.material, s.hex FROM prints p LEFT JOIN spools s ON s.id = p.spool_id "
-                     "ORDER BY p.id DESC LIMIT 20")
+    prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
     week = int(time.time()) - 7 * 86400
     return fresh({
         "printer": now.printer(s),
@@ -291,55 +233,12 @@ def api_workshop():
             "hours": round(sum(((p["ended"] or time.time()) - p["started"]) for p in prints if p["started"] >= week) / 3600, 1),
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
-        "spools": filament.spools(),
-        "materials": filament.MATERIALS,
-        "low_at": filament.low_at(),
+        "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer
         "filament_month": filament.summary(30),
         "ai": {"state": (s or {}).get("ai_state", "Unknown"),
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],
                "waiting": ((models.get("queue") or {}).get("waiting"))},
     })
-
-
-# ---- Filament ----
-
-@app.post("/api/filament")
-async def api_filament_add(request: Request):
-    role, device = need(request, "household")
-    try:
-        sid = filament.add(await request.json())
-    except (ValueError, TypeError) as e:
-        raise HTTPException(400, str(e) or "Check the spool's details.")
-    auth.log(role, device, "filament:add", "Added a spool.")
-    return fresh({"id": sid})
-
-
-@app.post("/api/filament/{sid}")
-async def api_filament_update(sid: int, request: Request):
-    role, device = need(request, "household")
-    b = await request.json()
-    try:
-        if b.get("remove"):
-            filament.remove(sid)
-        else:
-            filament.update(sid, b)
-    except LookupError as e:
-        raise HTTPException(404, str(e))
-    except (ValueError, TypeError) as e:
-        raise HTTPException(400, str(e) or "Check the numbers.")
-    return fresh({"ok": True})
-
-
-@app.post("/api/prints/{pid}/filament")
-async def api_print_filament(pid: int, request: Request):
-    role, device = need(request, "household")
-    b = await request.json()
-    try:
-        return fresh(filament.log_print(pid, int(b.get("spool_id", 0)), b.get("grams", 0)))
-    except LookupError as e:
-        raise HTTPException(404, str(e))
-    except (ValueError, TypeError) as e:
-        raise HTTPException(400, str(e) or "Enter the grams used.")
 
 
 @app.get("/api/prints/{pid}/photo.jpg")

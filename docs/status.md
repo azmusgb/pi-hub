@@ -112,3 +112,9 @@ These were reviewed from two nOvaxtech "self-hosted app spotlight" carousels (AI
 | 20 | **TrueNAS SCALE** (NAS OS) | Skip | None | — | A whole operating system that needs its own box with several drives. |
 
 **Prerequisites that make the top ideas safer:** a UPS for the PC, and BIOS "Restore on AC power loss = Power On" (both needed before #3); a second drive in the PC (#3).
+
+## Bambuddy holds spools and projects — 24 October
+
+Four places each had their own spool list: the hub's filament shelf, its project board, the Filament Inventory app and print-lab's `filaments.json`. Bambuddy is now the record for spools, projects, the queue and the archive. The hub's shelf and board (both empty) were removed, along with their write routes (`POST /api/filament…`, `/api/projects…`, `/api/prints/{id}/filament`, project files). Workshop reads Bambuddy instead, and `filament_low` now comes from Bambuddy's spools. See [household features](household-features.md#workshop-projects-and-filament-bambuddy-since-24-october-2026).
+
+Still to do: the Workshop display's filament line comes from the Filament Inventory feed, which isn't configured. Point it at Bambuddy through Local AI's display feed, and change Workshop OS's "Filament Inventory is the sole authority" docs. The owner is checking whether the Filament Inventory app holds anything worth importing; if not, it will be retired.

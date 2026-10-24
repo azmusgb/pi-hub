@@ -67,7 +67,7 @@ MESSAGES = {
     "plex_stopped": ("Plex stopped", "Restart it from the hub's Pi page."),
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
     "pi_hot": ("The Pi is running hot", "Above 75 °C."),
-    "filament_low": ("Filament running low", "Check the filament shelf in the hub."),
+    "filament_low": ("Filament running low", "See Inventory in Bambuddy."),
     "wan_loss": ("Internet packet loss detected", "Sustained >5% packet loss on the WAN edge connection."),
     "wan_down": ("Internet connection down", "All external WAN probes are failing."),
     "mirror_stale": ("Movies not copied from the PC", "New films on the PC aren't on the Pi yet. See Drives in the hub."),
@@ -290,6 +290,7 @@ class Watcher:
         self.seen = {"wan_loss": False, "wan_down": False}
         self.mirror_stale = False
         self.paperless_stale = False
+        self.low_spools = None  # Bambuddy spool ids seen low; None until the first answer
         self.pending = {}
         self.pc_down_since = None
         self.pc_reported = None
@@ -314,6 +315,19 @@ class Watcher:
             return True
         return False
 
+    def _check_spools(self):
+        """A spool that newly drops to low in Bambuddy (which takes each print's filament off by itself)."""
+        from . import bambuddy
+        spools = bambuddy.spools()
+        if spools is None:
+            return
+        low = {sp["id"]: sp for sp in spools if sp["low"]}
+        if self.low_spools is not None:
+            for sid in sorted(low.keys() - self.low_spools):
+                sp = low[sid]
+                fire("filament_low", f"{sp['colour']} {sp['material']}, {sp['grams_left']} g left")
+        self.low_spools = set(low)
+
     def check(self, s, now=None):
         now = now or time.time()
         if s is None:
@@ -325,6 +339,7 @@ class Watcher:
             if stale and not self.mirror_stale:
                 fire("mirror_stale", mirror.get("message") or "")
             self.mirror_stale = stale
+        self._check_spools()
         paperless = s.get("paperless_backup") or {}
         if paperless.get("last_ok"):
             stale = now - paperless["last_ok"] > MIRROR_STALE

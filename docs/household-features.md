@@ -15,26 +15,19 @@ Open **Movies → Movie night**. Add contenders from the unwatched suggestions, 
 
 Data lives in SQLite tables `movie_shortlist`, `movie_votes` and `movie_night_choice`. Session tokens are not returned in poll responses or stored as plaintext vote identities.
 
-## Workshop projects
+## Workshop projects and filament (Bambuddy since 24 October 2026)
 
-The live printer/camera status stays at the top of Workshop. The project board follows it, with four stages: **Ideas → Ready to print → Printing → Finished**.
+Spools and projects live in **Bambuddy** (Docker on the Pi, `http://pi.local:8000`), not in the hub. Bambuddy is connected to the X2D, so it takes each print's filament off its spool by itself; it also has the project parts lists, the print queue and the 3MF archive. One list replaces the hub's own filament shelf and project board, which were empty when they were retired.
 
-Add a name, notes, a reference link, material, a spool, and estimated grams/minutes. These are plans: moving a card does not send printer commands, start a print, or change the filament shelf. Record actual material usage in the existing print log.
+The Workshop page reads both from Bambuddy and links there to change anything:
 
-The board shows:
+- **Projects:** the active (not archived) projects, with how many prints each has, linking to the project in Bambuddy.
+- **Filament:** each active spool with its colour, material, brand and what's left ("not weighed" until Bambuddy has a reading: a print, a scale weight or an AMS tray).
+- **Low filament:** a spool counts as low under its own Bambuddy threshold, or 15% of its label weight. A spool that newly turns low fires `filament_low` (default rule: phone alert).
 
-- estimated filament cost from spool price and capacity;
-- material mismatches or a removed/finished spool;
-- a project needing more filament than its selected spool has;
-- combined estimates for Ready/Printing projects exceeding the same spool's remaining material.
+When Bambuddy doesn't answer, Workshop says so instead of showing an empty shelf. `hub/bambuddy.py` is the only code that talks to it (`HUB_BAMBUDDY_URL`, default `http://127.0.0.1:8000`); it never writes.
 
-A project's Finished stage suppresses planning warnings. The estimates do not reserve or consume physical filament.
-
-Adults and the owner manage projects and attachments. Signed-in household members, including children, can download attachments. Allowed files are STL, 3MF, STEP/STP, OBJ, G-code/BG-code and PDF. They are downloaded as attachments and never extracted, rendered as executable content or sent to the printer by the hub.
-
-Limits: 100 projects; 5 files per project; 25 MB per file; 250 MB total recorded project-file storage. Unsaved form text is preserved during ordinary page polling. Deleting a project deletes its attached files after confirmation.
-
-Project metadata lives in `projects` and `project_files` SQLite tables. File bytes live in `/var/lib/pi-hub/project-files`; local tests can override this with `HUB_PROJECT_FILES`.
+The old `spools`, `projects` and `project_files` tables are left in the database, unused. The nightly backup still copies any files in `/var/lib/pi-hub/project-files` that `project_files` refers to.
 
 ### Backups and restore verification
 

@@ -10,7 +10,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
-from hub import auth, db, events, filament, homecontrol, movie_night, plex, projects
+from hub import auth, db, events, filament, homecontrol, movie_night, plex
 from hub import app as hub_app
 
 SAME={'Origin':'http://testserver'}
@@ -105,75 +105,16 @@ def test_named_person_voter_is_shared_across_sessions_without_exposing_token(mon
     assert movie_night.voter('shared').startswith('session:') and 'shared' not in movie_night.voter('shared')
 
 
-def test_project_stages_warn_for_spool_shortage_and_do_not_deduct():
-    spool=filament.add({'material':'PLA','colour':'Gold','grams_left':100,'price':20})
-    first=projects.add({'title':'Lamp','material':'PLA','grams':80,'minutes':120,'spool_id':spool,'stage':'ready'})
-    projects.add({'title':'Bracket','material':'PETG','grams':60,'spool_id':spool,'stage':'ready'})
-    data=projects.view()
-    assert any('140 g' in w for p in data['projects'] for w in p['warnings'])
-    assert any('PETG' in w for p in data['projects'] for w in p['warnings'])
-    projects.update(first,{'stage':'printing'})
-    projects.update(first,{'stage':'finished'})
-    assert db.one('SELECT grams_left FROM spools WHERE id=?',spool)['grams_left']==100
-    assert not db.rows('SELECT * FROM prints')
-    assert next(p for p in projects.view()['projects'] if p['id']==first)['estimated_cost']==1.6
-
-
-@pytest.mark.parametrize('body',[{'title':''},{'title':'Bad','link':'javascript:alert(1)'},
-    {'title':'Bad','grams':'NaN'},{'title':'Bad','minutes':1.5},{'title':'Bad','stage':[]},
-    {'title':'Bad','spool_id':999},{'title':'Bad','material':'wood'}])
-def test_project_validation(body):
-    with pytest.raises(ValueError):projects.add(body)
-
-
-def test_project_attachment_download_and_cleanup(tmp_path):
-    project=projects.add({'title':'Test model'})
-    temp=tmp_path/'upload';temp.write_bytes(b'model')
-    file_id=projects.attach(project,'../../model.stl',temp,5)
-    item,path=projects.file(file_id)
-    assert item['name']=='model.stl' and path.read_bytes()==b'model'
-    assert projects.view()['projects'][0]['files'][0]['id']==file_id
-    projects.delete(project)
-    assert not path.exists() and not db.rows('SELECT * FROM project_files')
-    assert not projects.view()['projects']
-
-
-def test_upload_limits_and_failure_leave_no_orphans(monkeypatch,tmp_path):
-    project=projects.add({'title':'Test model'})
-    temp=tmp_path/'upload';temp.write_bytes(b'model')
-    with pytest.raises(ValueError):projects.attach(project,'script.html',temp,5)
-    monkeypatch.setattr(projects,'MAX_STORAGE',4)
-    with pytest.raises(ValueError):projects.attach(project,'model.stl',temp,5)
-    assert temp.exists() and not list(projects.folder().glob('*.stl'))
-    monkeypatch.setattr(projects,'MAX_STORAGE',1000)
-    original=db.run
-    def fail_insert(sql,*args):
-        if 'INSERT INTO project_files' in sql:raise RuntimeError('injected failure')
-        return original(sql,*args)
-    monkeypatch.setattr(db,'run',fail_insert)
-    with pytest.raises(RuntimeError):projects.attach(project,'model.stl',temp,5)
-    assert not list(projects.folder().glob('*.stl')) and not db.rows('SELECT * FROM project_files')
-
-
-def test_feature_routes_enforce_roles_and_stream_limits(monkeypatch):
+def test_feature_routes_enforce_roles(monkeypatch):
     c=TestClient(hub_app.app)
     assert c.post('/api/rules/preview',json={'trigger':'print_finished','action':'notify'},headers=SAME).status_code==401
-    assert c.post('/api/projects',json={'title':'Model'},headers=SAME).status_code==401
     assert c.post('/api/movie-night',json={'key':'1'},headers=SAME).status_code==401
-    monkeypatch.setattr(hub_app,'need',lambda *a:('household','Test'))
-    project=c.post('/api/projects',json={'title':'Model'},headers=SAME).json()['id']
-    monkeypatch.setattr(projects,'MAX_FILE',4)
-    assert c.post(f'/api/projects/{project}/files?filename=model.stl',content=b'12345',headers=SAME).status_code==413
-    assert not list(projects.folder().iterdir())
-    monkeypatch.setattr(projects,'MAX_FILE',25*1024*1024)
-    r=c.post(f'/api/projects/{project}/files?filename=model.stl',content=b'12345',headers=SAME)
-    assert r.status_code==200
-    downloaded=c.get(f"/api/project-files/{r.json()['id']}")
-    assert downloaded.content==b'12345' and 'attachment;' in downloaded.headers['content-disposition']
-    assert c.get('/api/projects').json()['projects'][0]['files']
+    # Projects and spools live in Bambuddy since 24 Oct 2026; the hub has no routes that change them.
+    assert c.post('/api/projects',json={'title':'Model'},headers=SAME).status_code==405
+    assert c.post('/api/filament',json={'material':'PLA','colour':'Red'},headers=SAME).status_code in (404,405)
 
 
-def test_real_child_can_vote_but_cannot_choose_or_modify_projects(monkeypatch,tmp_path):
+def test_real_child_can_vote_but_cannot_choose(monkeypatch,tmp_path):
     code=tmp_path/'setup';code.write_text('ABCD-1234')
     monkeypatch.setenv('HUB_SETUP_CODE_FILE',str(code))
     auth.setup('ABCD-1234','strong password','123456')
@@ -183,26 +124,27 @@ def test_real_child_can_vote_but_cannot_choose_or_modify_projects(monkeypatch,tm
     assert c.post('/api/movie-night',json={'key':'1'},headers=SAME).status_code==200
     assert c.post('/api/movie-night/1/vote',json={'vote':True},headers=SAME).status_code==200
     assert c.post('/api/movie-night/1/choose',headers=SAME).status_code==403
-    assert c.post('/api/projects',json={'title':'Model'},headers=SAME).status_code==403
     assert c.post('/api/rules/preview',json={'trigger':'print_finished','action':'notify'},headers=SAME).status_code==403
 
 
 def test_backup_snapshot_contains_database_and_only_referenced_files(tmp_path):
-    project=projects.add({'title':'Restore this'})
-    temp=tmp_path/'upload';temp.write_bytes(b'restore model')
-    file_id=projects.attach(project,'model.stl',temp,13)
-    item,_=projects.file(file_id)
-    (projects.folder()/'.upload-incomplete').write_bytes(b'not finished')
+    # Files attached to the hub's old project board (before Bambuddy held projects) are still backed up.
+    files_dir=Path(os.environ['HUB_PROJECT_FILES']);files_dir.mkdir(parents=True,exist_ok=True)
+    db.conn().executescript("CREATE TABLE IF NOT EXISTS project_files (id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, "
+                            "stored_name TEXT NOT NULL UNIQUE, name TEXT NOT NULL, size INTEGER NOT NULL, created INTEGER NOT NULL)")
+    db.run("INSERT INTO project_files (project_id, stored_name, name, size, created) VALUES (1, 'kept.stl', 'model.stl', 13, 0)")
+    (files_dir/'kept.stl').write_bytes(b'restore model')
+    (files_dir/'.upload-incomplete').write_bytes(b'not finished')
     script=(Path(__file__).resolve().parents[1]/'deploy/pi-hub-backup.sh').read_text()
     block=script.split("<<'PYBACKUP'\n",1)[1].split('\nPYBACKUP',1)[0]
-    block=block.replace('/var/lib/pi-hub/hub.db',os.environ['HUB_DB']).replace('/var/lib/pi-hub/project-files',str(projects.folder()))
+    block=block.replace('/var/lib/pi-hub/hub.db',os.environ['HUB_DB']).replace('/var/lib/pi-hub/project-files',str(files_dir))
     destination=tmp_path/'snapshot';destination.mkdir()
     result=subprocess.run([sys.executable,'-c',block,str(destination/'hub.db')],capture_output=True,text=True,timeout=10)
     assert result.returncode==0,result.stderr
     restored=sqlite3.connect(destination/'hub.db')
-    assert restored.execute('SELECT title FROM projects').fetchone()[0]=='Restore this'
+    assert restored.execute('SELECT name FROM project_files').fetchone()[0]=='model.stl'
     files=destination/'var/lib/pi-hub/project-files'
-    assert (files/item['stored_name']).read_bytes()==b'restore model'
+    assert (files/'kept.stl').read_bytes()==b'restore model'
     assert not (files/'.upload-incomplete').exists()
 
 

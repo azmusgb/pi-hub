@@ -17,52 +17,70 @@ def fresh_db(monkeypatch):
     return sent
 
 
-def test_add_spool_and_validation():
-    sid = filament.add({"material": "PLA", "colour": "  Jade   white ", "hex": "#e8f0ea", "price": "19.99"})
-    s = filament.spools()[0]
-    assert s["id"] == sid and s["colour"] == "Jade white" and s["grams_left"] == 1000 and s["cost_per_kg"] == 19.99
-    with pytest.raises(ValueError):
-        filament.add({"material": "Cheese", "colour": "x"})
-    with pytest.raises(ValueError):
-        filament.add({"material": "PLA", "colour": ""})
-    filament.add({"material": "PETG", "colour": "Black", "hex": "javascript:alert(1)"})
-    assert filament.spools()[0]["hex"] is None  # PETG sorts first; a bad colour is dropped
+BAMBUDDY_SPOOLS = [
+    {"id": 1, "material": "PLA", "subtype": "Matte", "color_name": "Dusty Rose", "rgba": "D4A5A5FF", "brand": "PlastKyro",
+     "label_weight": 1000, "weight_used": 0, "archived_at": None},
+    {"id": 2, "material": "PLA", "subtype": None, "color_name": "Grey", "rgba": None, "brand": None,
+     "label_weight": 1000, "weight_used": 900, "low_stock_threshold_pct": 20, "archived_at": None},
+    {"id": 3, "material": "PETG", "color_name": "Old", "label_weight": 1000, "weight_used": 0, "archived_at": "2026-10-01T00:00:00"},
+]
 
 
-def test_logging_a_print_takes_filament_off_and_costs_it():
-    sid = filament.add({"material": "PLA", "colour": "Red", "price": 20, "grams_total": 1000})
-    now = int(__import__("time").time())
-    recorder.record_print("Printing", 50, now - 4000)
-    recorder.record_print("Idle", 0, now)
-    pid = db.one("SELECT id FROM prints")["id"]
-    assert filament.log_print(pid, sid, 120) == {"cost": 2.4}
-    assert db.one("SELECT grams_left FROM spools")["grams_left"] == 880
-    filament.log_print(pid, sid, 100)  # corrected: the first 120 g go back first
-    assert db.one("SELECT grams_left FROM spools")["grams_left"] == 900
-    assert filament.summary()["grams"] == 100
+def _bambuddy(monkeypatch, spools=None, projects=None, down=False):
+    from hub import bambuddy, sources
+    sources._cache.clear()
+    def get(url, **kw):
+        if down:
+            raise OSError("refused")
+        return spools if "/inventory/spools" in url else projects
+    monkeypatch.setattr(sources, "_get_json", get)
+    return bambuddy
 
 
-def test_running_low_fires_once_and_the_default_rule_alerts(fresh_db):
+def test_spools_come_from_bambuddy_in_the_hub_shape(monkeypatch):
+    _bambuddy(monkeypatch, BAMBUDDY_SPOOLS)
+    s = filament.spools()
+    assert [x["id"] for x in s] == [1, 2]  # archived spools are left out
+    assert s[0] == {"id": 1, "material": "PLA Matte", "colour": "Dusty Rose", "hex": "#D4A5A5", "brand": "PlastKyro",
+                    "grams_total": 1000, "grams_left": 1000, "low": False, "cost_per_kg": None, "measured": False}
+    assert s[1]["grams_left"] == 100 and s[1]["low"] and s[1]["measured"] and s[1]["hex"] is None
+
+
+def test_bambuddy_down_is_not_an_empty_shelf(monkeypatch):
+    bambuddy = _bambuddy(monkeypatch, down=True)
+    assert bambuddy.spools() is None and bambuddy.projects() is None
+    assert filament.spools() == []
+
+
+def test_a_spool_newly_low_in_bambuddy_alerts_once(monkeypatch, fresh_db):
     events.ready()
-    sid = filament.add({"material": "PLA", "colour": "Blue", "grams_total": 1000})
-    filament.update(sid, {"grams_left": 400})
-    filament.update(sid, {"grams_left": 120})
-    filament.update(sid, {"grams_left": 100})
+    spools = [dict(BAMBUDDY_SPOOLS[1], weight_used=500)]
+    _bambuddy(monkeypatch, spools)
+    w = events.Watcher()
+    w._check_spools()  # first reading: nothing new
+    from hub import sources
+    sources._cache.clear()
+    spools[0]["weight_used"] = 850
+    w._check_spools()
+    sources._cache.clear()
+    w._check_spools()
     assert [e["kind"] for e in events.recent()] == ["filament_low"]
-    assert fresh_db and fresh_db[0][0] == "Filament running low" and "Blue PLA, 120 g left" in fresh_db[0][1]
-    assert filament.spools()[0]["low"]
+    assert fresh_db and fresh_db[0][0] == "Filament running low" and "Grey PLA, 150 g left" in fresh_db[0][1]
+
+
+def test_projects_api_lists_bambuddy_projects(monkeypatch):
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app
+    _bambuddy(monkeypatch, projects=[{"id": 1, "name": "Ballerina studio", "status": "active", "archive_count": 2},
+                                     {"id": 2, "name": "Done", "status": "archived"}])
+    r = TestClient(hub_app.app).get("/api/projects").json()
+    assert r["available"] and [p["name"] for p in r["projects"]] == ["Ballerina studio"] and r["projects"][0]["prints"] == 2
 
 
 def test_failed_print_keeps_the_error_code():
     recorder.record_print("Printing", 20, 1000)
     recorder.record_print("Error", 20, 2000, "0300_0100_0001_0007")
     assert db.one("SELECT outcome, error FROM prints") == {"outcome": "failed", "error": "0300_0100_0001_0007"}
-
-
-def test_used_up_spools_leave_the_shelf():
-    sid = filament.add({"material": "PLA", "colour": "Grey"})
-    filament.update(sid, {"finished": True})
-    assert filament.spools() == [] and len(filament.spools(include_finished=True)) == 1
 
 
 def test_print_photo_endpoint():
