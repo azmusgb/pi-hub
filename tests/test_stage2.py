@@ -182,3 +182,19 @@ def test_stale_movie_copy_is_told_once(fresh_db):
     assert kinds().count("mirror_stale") == 2
     w.check(dict(BASE, mirror={}), now=1000 + 9 * day)  # never copied: no alert until a first good copy
     assert kinds().count("mirror_stale") == 2
+
+
+def test_stale_paperless_backup_is_told_once(fresh_db):
+    events.ready()
+    w = events.Watcher()
+    day = 86400
+    w.check(dict(BASE, paperless_backup={"last_ok": 1000}), now=1000 + day)
+    assert "paperless_stale" not in kinds()
+    for t in (3 * day, 3 * day + 30):
+        w.check(dict(BASE, paperless_backup={"last_ok": 1000}), now=1000 + t)
+    assert kinds().count("paperless_stale") == 1
+    w.check(dict(BASE, paperless_backup={"last_ok": 1000 + 4 * day}), now=1000 + 4 * day + 60)  # backed up again
+    w.check(dict(BASE, paperless_backup={"last_ok": 1000 + 4 * day}), now=1000 + 7 * day)
+    assert kinds().count("paperless_stale") == 2
+    w.check(dict(BASE, paperless_backup={}), now=1000 + 9 * day)  # never backed up: no alert
+    assert kinds().count("paperless_stale") == 2

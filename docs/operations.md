@@ -91,6 +91,9 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 | Movies Plex plays | `/mnt/usb1/Movies` (copy of the PC's `//10.0.0.21/Movies`) |
 | Films removed on the PC, kept 30 days | `/mnt/usb1/.movies-removed` |
 | Last movie copy result | `/var/lib/pi-hub-mirror/state.json` |
+| Paperless backups (14 daily snapshots) | `/mnt/usb1/backups/paperless` |
+| Last Paperless backup result | `/var/lib/pi-paperless-backup/state.json` |
+| Scanner page (scanservjs) | `/opt/scanservjs` |
 
 The nightly backup script takes a consistent SQLite copy plus its referenced project model files, then archives selected Pi settings. A SQLite writer lock protects the database/file snapshot; mutations may briefly wait during this step. See the [household feature guide](household-features.md) for attachment limits and restore expectations. The Windows pull script is `deploy/windows-pull-backups.ps1`; historical deployment notes record copies in `C:\LocalAI\pi-backups`. Confirm freshness in Settings and the self-check rather than assuming that scheduled copies succeeded.
 
@@ -105,3 +108,9 @@ A run copies and removes nothing when the share isn't mounted, lists no films, o
 If the Pi's drive fails, fit a new one at `/mnt/usb1` (fstab UUID) and run the copy; everything comes back from the PC. The Bambuddy and NETMON Docker data also live on that drive under `/mnt/usb1/bambuddy` and `/mnt/usb1/netmon` and are not part of the copy.
 
 Do not unpack a backup over the running system as a verification step. Validate it in an isolated environment first, and plan any production restore separately.
+
+## Paperless and scanning
+
+Paperless-ngx runs on the Windows PC (`http://10.0.0.21:8010`, files in `C:\Paperless`), not on the Pi. The PC exports it every night at 03:15 to `C:\Paperless\export`, which is shared read-only as `PaperlessExport$` with the account the Pi already uses for the movie share. The Pi automounts that share at `/mnt/paperless-export` (fstab, `x-systemd.automount`). At 04:00, `pi-paperless-backup.timer` copies it into a dated snapshot under `/mnt/usb1/backups/paperless`. Unchanged files are hard-linked, so each snapshot costs only what changed, and the last 14 are kept. A failed run (PC off) leaves earlier snapshots alone. Results: `journalctl -u pi-paperless-backup`, the self-check ("Paperless backed up from the PC", under 50 hours) and the default two-days-stale phone alert. The snapshots hold tax and medical papers, so only root can read them.
+
+Scanning runs on the Pi in Docker (scanservjs, `http://10.0.0.30:8095`, **App Suite → Scan**, linked from Print and More). It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600). The page has no login, so anyone on the LAN or tailnet can use it.

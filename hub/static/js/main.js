@@ -36,6 +36,7 @@ const PAGES = {
   "/apps/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
   "/apps/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
   "/apps/status": { key: "apps", title: "Service Status", mod: appsPage },
+  "/apps/scan": { key: "apps", title: "Scan", mod: appsPage },
   "/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
   "/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
   "/status": { key: "apps", title: "Service Status", mod: appsPage },
@@ -59,6 +60,7 @@ const subtitles = {
   "/apps/bambuddy": "Self-hosted 3D print command plane",
   "/apps/grafana": "Network observability and metrics TSDB",
   "/apps/status": "Automated uptime and service health checks",
+  "/apps/scan": "Scan documents into Paperless",
 };
 
 const updateSubtitle = () => {

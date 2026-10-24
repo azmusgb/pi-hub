@@ -101,7 +101,8 @@ export async function load(state) {
             h("i", { style: `width:${i.level}%`, dataset: { tone: i.level < 15 ? "bad" : i.level < 30 ? "warn" : "ok", ink: i.name.toLowerCase() } })),
           h("span", { class: "ink-pct" }, `${i.level}%`))))
         : h("p", { class: "meta" }, "Ink levels show once the printer answers."),
-      ink.some((i) => i.level < 15) ? h("p", { class: "note" }, "Ink is low. Order a cartridge soon.") : null));
+      ink.some((i) => i.level < 15) ? h("p", { class: "note" }, "Ink is low. Order a cartridge soon.") : null,
+      h("a", { class: "action", href: "/apps/scan", "data-link": true }, "Scan a document into Paperless")));
   state.status.replaceChildren(
     card("Queue", { pill: d.jobs.waiting.length ? `${d.jobs.waiting.length} waiting` : "Empty", tone: d.jobs.waiting.length ? "warn" : "ok" },
       d.jobs.waiting.length ? h("ul", { class: "log" }, d.jobs.waiting.map((j) => job(j, true, state))) : empty("Nothing waiting to print."),

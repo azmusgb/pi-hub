@@ -60,6 +60,33 @@ const SERVICES = [
     parent: ["/movies", "Movies"],
   },
   {
+    id: "scan",
+    name: "Scan",
+    title: "Scan to Paperless",
+    desc: "Scan from the HP DeskJet (feeder or glass) or the Epson. Every PDF goes straight into Paperless.",
+    port: "8095",
+    embedUrl: "http://10.0.0.30:8095",
+    directUrl: "http://10.0.0.30:8095",
+    icon: "📠",
+    badge: "Port 8095 · Scanners",
+    tone: "ok",
+    embeddable: true,
+    parent: ["/print", "Print"],
+  },
+  {
+    id: "paperless",
+    name: "Paperless",
+    title: "Household Documents",
+    desc: "Bills, statements and records, read and searchable. Runs on the Windows PC; backed up to the Pi nightly.",
+    port: "10.0.0.21:8010",
+    directUrl: "http://10.0.0.21:8010",
+    icon: "🗂️",
+    badge: "PC · Port 8010",
+    tone: "ok",
+    embeddable: false,
+    parent: ["/lists", "Lists"],
+  },
+  {
     id: "cockpit",
     name: "Cockpit Console",
     title: "Linux Server Admin",
@@ -101,7 +128,7 @@ const SERVICES = [
 ];
 
 function renderDirectory() {
-  const intro = card("Station App Suite", { pill: "7 Services", tone: "ok", cls: "wide" },
+  const intro = card("Station App Suite", { pill: `${SERVICES.length} Services`, tone: "ok", cls: "wide" },
     h("p", { class: "meta" }, "All dedicated appliances, network monitors, and services operating on 10.0.0.30 and the home LAN. Open them inside Pi Hub or launch them in a dedicated window.")
   );
 

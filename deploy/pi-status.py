@@ -148,6 +148,17 @@ def mirror():
             "count": m.get("mirror_count"), "share": os.path.ismount(WINDOWS_MOVIES)}
 
 
+PAPERLESS_STATE = "/var/lib/pi-paperless-backup/state.json"
+
+
+def paperless_backup():
+    try:
+        with open(PAPERLESS_STATE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
 def updates():
     listing = run("apt", "list", "--upgradable", timeout=60)
     return sum(1 for line in listing.splitlines() if "/" in line)
@@ -225,6 +236,7 @@ def status():
         "drive_errors": d.get("io_errors", 0) + d.get("fs_errors", 0),
         "movies": d.get("movies"),
         "mirror": cached("mirror", 30, mirror),
+        "paperless_backup": cached("paperless_backup", 60, paperless_backup),
         "pi_temp": h.get("temp"),
         "pi_power": h.get("power", "Unknown"),
         "pi_uptime_h": h.get("uptime_h"),

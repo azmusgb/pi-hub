@@ -1,0 +1,12 @@
+[Unit]
+Description=Pull the Paperless export from the Windows PC
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/pi-hub/pi-paperless-backup.sh
+StateDirectory=pi-paperless-backup
+StateDirectoryMode=0755
+Nice=10
+IOSchedulingClass=idle
