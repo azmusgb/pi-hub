@@ -940,10 +940,12 @@ def service_worker():
 
 # ---- Scanning: scanservjs (Docker on the Pi), only through the hub so it needs the household PIN ----
 # scanservjs listens on 127.0.0.1:8095 only; its page and API are served here under /scan/ (its paths are relative).
-# Every request needs a household sign-in, because a scan goes straight into Paperless.
+# Every request needs a household sign-in, because a scan goes straight into Paperless. scanservjs runs on the hub's own
+# address, so the hub's cookie and Authorization are never forwarded and only content headers come back.
 SCAN_URL = os.environ.get("HUB_SCAN_URL", "http://127.0.0.1:8095")
 _HOP = {"connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te",
         "trailers", "content-length", "content-encoding", "host"}
+_SCAN_PASS = {"content-type", "content-disposition", "cache-control", "etag", "last-modified", "content-language"}
 
 
 @app.api_route("/scan", methods=["GET"])
@@ -966,7 +968,7 @@ async def scan_proxy(path: str, request: Request):
         raise
     client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))
     # No cookie (the hub's session stays here) and no accept-encoding (the body is passed through as is).
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP | {"cookie", "accept-encoding"}}
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP | {"cookie", "accept-encoding", "authorization"}}
     try:
         upstream = await client.send(client.build_request(request.method, f"{SCAN_URL}/{path}", params=request.query_params,
                                                           headers=headers, content=await request.body()), stream=True)
@@ -981,7 +983,8 @@ async def scan_proxy(path: str, request: Request):
         finally:
             await upstream.aclose()
             await client.aclose()
-    out = {k: v for k, v in upstream.headers.items() if k.lower() not in _HOP}
+    # Only content headers come back: never Set-Cookie or anything that could weaken the hub's own security headers.
+    out = {k: v for k, v in upstream.headers.items() if k.lower() in _SCAN_PASS}
     return StreamingResponse(body(), status_code=upstream.status_code, headers=out)
 
 
