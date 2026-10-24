@@ -81,3 +81,34 @@ No live recovery action or physical printing/playback/device-control test was pe
 5. Confirm current Homebridge, Wi-Fi, calendar, Tailscale and Local AI setup in Settings; historical notes do not establish current connectivity.
 6. Test drive migration with the replacement drive. The roadmap records that the complete migration was unverified.
 7. Consider workshop display firmware integration, UPS/power reporting and device modules only after the above checks.
+
+## Self-hosted app ideas — 24 October
+
+These were reviewed from two nOvaxtech "self-hosted app spotlight" carousels (AI-generated mockups, so their screenshots and numbers aren't real). They're ranked by value to this household, given what's already running: the Pi 4 (4 GB) with Plex, Homebridge, Bambuddy, NETMON/Grafana, Uptime Kuma and Pi Hub, and the Windows PC (32 GB, Docker) with the LocalAI stack, which includes SearXNG.
+
+**Value:** High · Medium · Low · None (overlaps something that already runs, or doesn't fit). **Status:** Done · Waiting on you (needs your answer or an action only you can take) · Proposed · Already running · Skip.
+
+| Rank | Idea | Status | Value | Where | Review |
+|---|---|---|---|---|---|
+| 1 | **Paperless-ngx** (documents, OCR, search) | Done 24 Oct | High | PC, `http://10.0.0.21:8010` | Fills a real gap. Nightly export at 03:15, pulled to the Pi at 04:00 (14 daily snapshots), with a self-check line and a two-days-stale alert. See [operations](operations.md#paperless-and-scanning). |
+| 2 | **Scan to Paperless** (scanservjs) | Done 24 Oct | High | Pi, `:8095`, App Suite → Scan | One tap from the HP (feeder or glass) or the Epson to Paperless. Every PDF is uploaded and the Pi's copy is deleted. Not yet tested end to end with a real document from the page. |
+| 3 | **Immich** (photo library) | Waiting on you | High | PC (its machine learning is too heavy for the Pi) | The best replacement for iCloud/Google Photos. Needs a second drive in the PC and a UPS first: C: is the PC's only disk, and its power keeps getting cut by a problem outside the PC. |
+| 4 | **Audiobookshelf** (audiobooks, podcasts) | Waiting on you | High if you have audiobooks, otherwise None | Pi, next to Plex | Good iPhone app that remembers your place. Plex handles audiobooks badly. Worth it only if there's a collection of audiobook files. |
+| 5 | **Actual Budget** (household budget) | Waiting on you | Medium–High if you'll budget | Pi | Private, light and imports bank CSVs. Separate from the business's QuickBooks. Only worth it if someone will keep it up. |
+| 6 | **Self-hosted ntfy** (alerts) | Proposed | Medium | Pi | Pi Hub, pi-status and Bambuddy alerts go through the public ntfy.sh with a secret topic name. Hosting it removes that dependency and makes the alerts private. The phone needs Tailscale for alerts away from home. |
+| 7 | **Sign-in for the scan page** | Proposed | Medium | Pi | The scan page has no login; anyone on the LAN or tailnet can scan into Paperless. A small proxy with the household PIN would close this. Bambuddy's open UI on :8000 has the same problem (see 24 October follow-up). |
+| 8 | **Home Assistant** (smart home) | Proposed | Medium | Pi | Could replace Homebridge and much of Pi Hub's rules and controls. A migration rather than a gap, so it isn't urgent. |
+| 9 | **Homebox** (home inventory) | Proposed | Low–Medium | Pi | Tools, parts, warranties and serial numbers. Overlaps a little with the filament shelf. |
+| 10 | **Linkwarden** (saved links with page copies) | Proposed | Low–Medium | Pi or PC | Nice to have; nothing is broken without it. |
+| 11 | **Calibre-Web** (ebooks) | Waiting on you | Low unless you have ebooks | Pi | Only useful with an existing EPUB library. |
+| 12 | **SearXNG as the phone's search engine** | Already running | Low | PC (LocalAI stack) | It already exists for LocalAI but isn't published. Exposing it means changing the LocalAI stack, and Claude can't restart that stack over SSH. |
+| 13 | **Grafana + Prometheus** (metrics) | Already running | None | Pi (NETMON, `:3000`) | Already in the App Suite. Nothing more to add. |
+| 14 | **LibreNMS** (network monitoring) | Skip | None | — | Uptime Kuma, Grafana/NETMON and Pi Hub alerts already cover it, and it's heavy for the Pi. |
+| 15 | **Syncthing** (file sync) | Skip | Low | — | The movie copy already uses rsync. Only worth it for phone↔PC folder sync. |
+| 16 | **Gotify** (push alerts) | Skip | None | — | No iPhone app. Self-hosted ntfy (#6) does the same job better. |
+| 17 | **Authentik** (single sign-on) | Skip | Low | — | Far too heavy for one household. #7 solves the actual gap. |
+| 18 | **Headscale** (Tailscale control server) | Skip | None | — | Free Tailscale already works. Running it yourself puts remote access at risk if it breaks. |
+| 19 | **MinIO** (S3 storage) | Skip | None | — | No use here, and its free edition has had features removed. |
+| 20 | **TrueNAS SCALE** (NAS OS) | Skip | None | — | A whole operating system that needs its own box with several drives. |
+
+**Prerequisites that make the top ideas safer:** a UPS for the PC, and BIOS "Restore on AC power loss = Power On" (both needed before #3); a second drive in the PC (#3).
