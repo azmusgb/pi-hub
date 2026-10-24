@@ -80,10 +80,11 @@ def test_print_photo_endpoint():
     assert res.content == b"\xff\xd8\xff\xe0testjpeg"
 
 
-def test_bambuddy_webhook_triggers_completion_and_rules():
+def test_bambuddy_webhook_triggers_completion_and_rules(monkeypatch):
     from fastapi.testclient import TestClient
     from hub import app as hub_app
-    c = TestClient(hub_app.app)
+    monkeypatch.setenv("HUB_WEBHOOK_TOKEN", "s3cret")
+    c = TestClient(hub_app.app, headers={"Authorization": "Bearer s3cret"})
     # Start a print
     r = c.post("/api/webhook/bambuddy", json={"event": "print_start", "title": "Bambu P1S", "message": "Started printing Cube"})
     assert r.status_code == 200
@@ -98,3 +99,31 @@ def test_bambuddy_webhook_triggers_completion_and_rules():
     assert r.status_code == 200
     assert r.json()["handled"] == "print_finished"
     assert db.one("SELECT outcome, grams FROM prints") == {"outcome": "finished", "grams": 15.2}
+
+
+def test_bambuddy_webhook_refuses_strangers(monkeypatch):
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app
+    monkeypatch.delenv("HUB_WEBHOOK_TOKEN", raising=False)
+    c = TestClient(hub_app.app)
+    event = {"event": "print_complete", "variables": {"filament_used": 99}}
+    assert c.post("/api/webhook/bambuddy", json=event).status_code == 401  # no token set, not Bambuddy's address
+    monkeypatch.setenv("HUB_WEBHOOK_TOKEN", "s3cret")
+    assert c.post("/api/webhook/bambuddy", json=event, headers={"Authorization": "Bearer wrong"}).status_code == 401
+    assert c.post("/api/webhook/bambuddy?token=wrong", json=event).status_code == 401
+    assert db.one("SELECT COUNT(*) AS n FROM prints")["n"] == 0
+    assert c.post("/api/webhook/bambuddy", json=event, headers={"X-Hub-Token": "s3cret"}).status_code == 200
+    assert c.post("/api/webhook/bambuddy?token=s3cret", content=b"[1]").status_code == 400
+    big = b'{"image": "' + b"A" * (9 * 1024 * 1024) + b'"}'
+    assert c.post("/api/webhook/bambuddy?token=s3cret", content=big).status_code == 413
+
+
+def test_bambuddy_webhook_trusts_listed_addresses(monkeypatch):
+    from fastapi.testclient import TestClient
+    from hub import app as hub_app
+    monkeypatch.delenv("HUB_WEBHOOK_TOKEN", raising=False)
+    monkeypatch.setattr(hub_app, "WEBHOOK_HOSTS", {"172.18.0.2"})
+    assert TestClient(hub_app.app, client=("172.18.0.2", 5000)).post(
+        "/api/webhook/bambuddy", json={"event": "print_start"}).json()["handled"] == "print_started"
+    assert TestClient(hub_app.app, client=("10.0.0.99", 5000)).post(
+        "/api/webhook/bambuddy", json={"event": "print_start"}).status_code == 401

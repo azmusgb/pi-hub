@@ -77,10 +77,17 @@ def _netmon():
     win_ms = durations.get("10.0.0.21")
     printer_ms = durations.get("10.0.0.136") or durations.get("10.0.0.124")
 
-    orbi_ok = success.get("10.0.0.1", True)
-    wan_ok = success.get("1.1.1.1", True) or success.get("8.8.8.8", True)
+    # A probe that isn't reporting doesn't count as up; the Internet is up while any WAN probe answers.
+    orbi_ok = success.get("10.0.0.1")
+    wan = [success[i] for i in ("1.1.1.1", "8.8.8.8") if i in success]
+    wan_ok = any(wan) if wan else None
 
-    tone = "ok" if (orbi_ok and wan_ok) else "bad"
+    if orbi_ok is False or wan_ok is False:
+        tone = "bad"
+    elif orbi_ok is None or wan_ok is None:
+        tone = "unknown"
+    else:
+        tone = "ok"
 
     orbi_info = {}
     try:

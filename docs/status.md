@@ -1,4 +1,4 @@
-# Pi Hub status — 22 October 2026
+# Pi Hub status — 24 October 2026
 
 This is the current checklist. See the [README](../README.md) for local checks and the [operations guide](operations.md) for deployment and rollback. [The original plan](plan.md) and [roadmap](roadmap.md) preserve delivery history; neither is a live equipment inventory.
 
@@ -25,6 +25,21 @@ Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devic
 - Backups include a consistent snapshot of both the database and referenced project files. Parallel first-request column initialization is serialized.
 - See the [feature guide](household-features.md) for exact behaviour, permissions and limits. These additions are deployed in application release `2be5dcc9eb`, including search-to-shortlist nomination and offline shell v64.
 
+## 23 October additions
+
+Deployed through release `5d968f2aaf` (the Pi was running it on 24 October):
+
+- **Movies from the Windows PC.** The Pi mounts `//10.0.0.21/Movies` at `/mnt/windows-movies`; the Plex section shown is the Windows library (148 films indexed). Movies can switch between Plex libraries, has a catalogue browser, genre filter and poster badges, and results are de-duplicated across libraries. Movie night voting is on the Movies page.
+- **Network.** Home and the Pi page show NETMON probe latencies (Prometheus on port 9091, Grafana on 3000, Uptime Kuma on 3001, all on this Pi in Docker) and Orbi RBR750 router uptime, public IP and throughput from the UPnP reader on port 9120. A missing probe is reported as unknown, not healthy.
+- **Rules.** New triggers for WAN packet loss and WAN down (from NETMON's firing alerts), and new default phone alerts for a finished print, the PC down for 5 minutes and WAN packet loss. A flash-the-workshop-light action is available. The morning digest adds overnight network and backup lines.
+- **Printer and Bambuddy.** Bambuddy runs in Docker on the Pi (port 8000) and is probed for live printer state at 10.0.0.136. Its "Pi Hub Automation Bridge" webhook posts print start/finish/failure and filament-low events to `/api/webhook/bambuddy`, which records prints, saves the completion photo and grams used, and fires rules. **The webhook needs the shared token** (`webhook_token` setting or `HUB_WEBHOOK_TOKEN`) as `?token=`, `X-Hub-Token` or a Bearer header; other requests get 401. Payloads over 8 MB are refused.
+- **Navigation and wall.** An App Suite launchpad embeds the Pi's other services, with short paths `/bambuddy`, `/grafana` and `/status`. `/wall` is a kiosk mode with the live nozzle camera, print telemetry and a one-tap shop light.
+
+### Known issues from 23–24 October
+
+- The Windows movie share is mounted once at boot (`nofail`, no retry). On 23 October at 22:09 the mount failed with "host unreachable", leaving Home showing movie status as unavailable until it was mounted by hand on 24 October. Add `x-systemd.automount` (with a mount timeout) or a retry so it recovers when the PC comes back.
+- Bambuddy's own API on port 8000 is reachable from the LAN without signing in, and it has its own ntfy notifier for print completion alongside the hub's new print-finished rule; if both use the household topic, a finished print produces two phone alerts.
+
 ## Release and backup behaviour
 
 - Python tests and JavaScript tests run before installing a release. JavaScript modules declare their module type so the tests do not depend on Node's automatic detection.
@@ -38,7 +53,7 @@ This is file/service recovery, not a database downgrade or a guarantee across po
 
 ## Verified locally
 
-- 104 Python tests and 8 JavaScript tests pass.
+- 117 Python tests and 8 JavaScript tests pass (24 October).
 - Release simulations cover failed JavaScript tests, partial installation, failed post-install checks, successful installation and repeat installation. Separate tests check manual rollback scheduling and refusal of invalid targets.
 - Browser checks use a temporary local database. Contextual movie help opens correctly; phone (390px), tablet (1024px) and desktop (1440px) layouts were inspected. Phone and tablet checks found no horizontal overflow. The Devices empty state and movie-details refresh were checked with mocked device responses.
 - New tests cover stale-data retention, unchanged cache confirmation times, restored source responses, absent setup, access control, direct recovery probes, bounded retries and cancelled checks. Browser checks with mocked integrations cover confirmed/unconfirmed recovery, read-only rechecking, and phone/tablet/desktop overflow.

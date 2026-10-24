@@ -2,6 +2,7 @@
 import os
 import re
 import base64
+import hmac
 import tempfile
 import threading
 import time
@@ -383,11 +384,38 @@ def api_print_photo(pid: int):
 
 # ---- Bambuddy 3D printer event webhook ----
 
+# Only Bambuddy may post here: with the shared webhook token (HUB_WEBHOOK_TOKEN, or the "webhook_token"
+# setting) as "Authorization: Bearer …", "X-Hub-Token" or "?token=", or from an address in HUB_WEBHOOK_HOSTS.
+# Bambuddy runs in Docker on the Pi, so its requests arrive from the container network, not 10.0.0.30.
+WEBHOOK_HOSTS = {h.strip() for h in os.environ.get("HUB_WEBHOOK_HOSTS", "").split(",") if h.strip()}
+WEBHOOK_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _webhook_allowed(request: Request):
+    token = os.environ.get("HUB_WEBHOOK_TOKEN") or auth.get("webhook_token")
+    if token:
+        given = request.headers.get("x-hub-token") or request.query_params.get("token") or ""
+        bearer = request.headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            given = given or bearer[7:].strip()
+        if given and hmac.compare_digest(given.encode(), token.encode()):
+            return True
+    return bool(request.client and request.client.host in WEBHOOK_HOSTS)
+
+
 @app.post("/api/webhook/bambuddy")
 async def api_webhook_bambuddy(request: Request):
     """Instant event webhook from Bambuddy for 3D printer events."""
+    if not _webhook_allowed(request):
+        raise HTTPException(401, "This webhook only accepts Bambuddy.")
+    raw = await request.body()
+    if len(raw) > WEBHOOK_MAX_BYTES:
+        raise HTTPException(413, "Webhook payload is too large")
     try:
-        body = await request.json()
+        import json as _json
+        body = _json.loads(raw)
+        if not isinstance(body, dict):
+            raise ValueError
     except Exception:
         raise HTTPException(400, "Invalid JSON payload")
 
@@ -395,7 +423,7 @@ async def api_webhook_bambuddy(request: Request):
     title = body.get("title") or "Bambu 3D Printer"
     msg = body.get("message") or ""
     image_b64 = body.get("image")
-    variables = body.get("variables") or {}
+    variables = body.get("variables") if isinstance(body.get("variables"), dict) else {}
 
     now_ts = int(time.time())
 

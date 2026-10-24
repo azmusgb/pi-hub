@@ -136,3 +136,16 @@ def test_rule_routes_need_the_pin():
     r = c.get("/api/rules").json()
     assert {t["key"] for t in r["triggers"]} >= {"print_finished", "drive_dropped", "pc_down"}
     assert r["rules"][0]["text"] == "When the movies drive comes back, rescan the Plex library."
+
+
+def test_wan_down_and_recovery_fire_once(fresh_db):
+    events.ready()
+    w = events.Watcher()
+    w.check_network(["InternetDown"])
+    w.check_network(["InternetDown"])
+    w.check_network(["InternetDown"])
+    assert kinds().count("wan_down") == 1
+    w.check_network([])
+    w.check_network([])
+    w.check_network(None)  # Prometheus unreachable: no change either way
+    assert kinds().count("wan_down") == 1

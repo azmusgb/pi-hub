@@ -118,3 +118,32 @@ def test_bambuddy_telemetry_enriches_printer_status():
     assert p["job_name"] == "test_bracket.3mf"
     assert p["filament_type"] == "PETG"
     assert p["bambuddy_connected"] is True
+
+
+def _prometheus(monkeypatch, success):
+    def fake(url, headers=None, timeout=4):
+        if "probe_duration_seconds" in url:
+            return {"data": {"result": [{"metric": {"instance": "10.0.0.1"}, "value": [0, "0.0021"]},
+                                        {"metric": {"instance": "10.0.0.136"}, "value": [0, "0.004"]}]}}
+        if "probe_success" in url:
+            return {"data": {"result": [{"metric": {"instance": i}, "value": [0, v]} for i, v in success.items()]}}
+        raise OSError("router status not running")
+    monkeypatch.setattr(sources, "_get_json", fake)
+    return sources._netmon()
+
+
+def test_network_status_reads_wan_probes(monkeypatch):
+    ok = _prometheus(monkeypatch, {"10.0.0.1": "1", "1.1.1.1": "0", "8.8.8.8": "1"})
+    assert ok["status"] == "ok" and ok["orbi_ms"] == 2.1 and ok["printer_ms"] == 4.0 and ok["orbi_uptime"] is None
+    # One WAN probe missing must not hide the other one failing.
+    assert _prometheus(monkeypatch, {"10.0.0.1": "1", "8.8.8.8": "0"})["status"] == "bad"
+    assert _prometheus(monkeypatch, {"10.0.0.1": "0", "1.1.1.1": "1"})["status"] == "bad"
+    # No probe results at all is unknown, not healthy.
+    assert _prometheus(monkeypatch, {})["status"] == "unknown"
+
+
+def test_network_metrics_absent_when_prometheus_is_down(monkeypatch):
+    def down(*a, **k):
+        raise OSError("connection refused")
+    monkeypatch.setattr(sources, "_get_json", down)
+    assert sources._netmon() is None
