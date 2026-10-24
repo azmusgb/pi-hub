@@ -114,3 +114,17 @@ Do not unpack a backup over the running system as a verification step. Validate 
 Paperless-ngx runs on the Windows PC (`http://10.0.0.21:8010`, files in `C:\Paperless`), not on the Pi. The PC exports it every night at 03:15 to `C:\Paperless\export`, which is shared read-only as `PaperlessExport$` with the account the Pi already uses for the movie share. The Pi automounts that share at `/mnt/paperless-export` (fstab, `x-systemd.automount`). At 04:00, `pi-paperless-backup.timer` copies it into a dated snapshot under `/mnt/usb1/backups/paperless`. Unchanged files are hard-linked, so each snapshot costs only what changed, and the last 14 are kept. A failed run (PC off) leaves earlier snapshots alone. Results: `journalctl -u pi-paperless-backup`, the self-check ("Paperless backed up from the PC", under 50 hours) and the default two-days-stale phone alert. The snapshots hold tax and medical papers, so only root can read them.
 
 Scanning runs on the Pi in Docker (scanservjs, `http://10.0.0.30:8095`, **App Suite → Scan**, linked from Print and More). It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600). The page has no login, so anyone on the LAN or tailnet can use it.
+
+## Turning on Bambuddy's sign-in (planned, 24 October 2026)
+
+Bambuddy (Pi, port 8000) has no sign-in, so anyone on the LAN or tailnet can use its printer controls. Three things call its API without a key, and each needs a key before sign-in goes on:
+
+| Caller | Needs | Key | State |
+|---|---|---|---|
+| Pi Hub: printer status, spools, projects | read | API key with **Read status** only, in `/etc/pi-hub/secrets/bambuddy_api_key` (root:pi-hub 640) | Ready: the hub sends `X-API-Key` when the file exists |
+| Local AI: the display's Materials card | read | another **Read status** key, as `LOCALAI_MATERIALS_KEY` in `C:\LocalAI\stack\stack.env` | To do (Local AI PR) |
+| Workshop display: Clear plate and Clear error | printer control | a **Control printer** key, set in the display's Local Portal | To do (firmware, after #227) |
+
+Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambuddy page in the App Suite asks for a sign-in once per browser.
+
+Order: ship the Local AI and firmware key support. Then in Bambuddy, create the admin account (Settings > Authentication) and the three API keys. Install them, and only then turn sign-in on. Each key carries only its own permission.

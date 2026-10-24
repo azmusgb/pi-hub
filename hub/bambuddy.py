@@ -5,7 +5,19 @@ import os
 from . import sources
 
 URL = os.environ.get("HUB_BAMBUDDY_URL", "http://127.0.0.1:8000")
+# Once Bambuddy's sign-in is on, the hub reads with a read-only API key (Bambuddy: Settings > API keys, "Read status"
+# only), kept root:pi-hub 640 like the Plex token. Without the file the hub reads as before.
+KEY_FILE = os.environ.get("HUB_BAMBUDDY_KEY_FILE", "/etc/pi-hub/secrets/bambuddy_api_key")
 LOW_PCT = 15  # Bambuddy's own default when a spool has no threshold of its own
+
+
+def headers():
+    try:
+        with open(KEY_FILE) as f:
+            key = f.read().strip()
+    except OSError:
+        return {}
+    return {"X-API-Key": key} if key else {}
 
 
 def _spool(s):
@@ -23,7 +35,7 @@ def _spool(s):
 
 
 def _spools():
-    return [_spool(s) for s in sources._get_json(URL + "/api/v1/inventory/spools", timeout=3) if not s.get("archived_at")]
+    return [_spool(s) for s in sources._get_json(URL + "/api/v1/inventory/spools", headers(), timeout=3) if not s.get("archived_at")]
 
 
 def spools():
@@ -33,7 +45,7 @@ def spools():
 
 def _projects():
     out = []
-    for p in sources._get_json(URL + "/api/v1/projects/", timeout=3):
+    for p in sources._get_json(URL + "/api/v1/projects/", headers(), timeout=3):
         if p.get("status") == "archived":
             continue
         out.append({"id": p["id"], "name": p.get("name") or "Untitled", "description": p.get("description") or "",

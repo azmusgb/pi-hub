@@ -118,7 +118,8 @@ BAMBUDDY_PRINTER_URL = os.environ.get("HUB_BAMBUDDY_PRINTER_URL", "http://127.0.
 
 def _bambuddy():
     try:
-        data = _get_json(BAMBUDDY_PRINTER_URL, timeout=1)
+        from . import bambuddy
+        data = _get_json(BAMBUDDY_PRINTER_URL, bambuddy.headers(), timeout=1)
         if not data or not isinstance(data, dict):
             return None
         temps = data.get("temperatures") or {}

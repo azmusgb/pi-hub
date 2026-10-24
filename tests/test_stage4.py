@@ -29,7 +29,7 @@ BAMBUDDY_SPOOLS = [
 def _bambuddy(monkeypatch, spools=None, projects=None, down=False):
     from hub import bambuddy, sources
     sources._cache.clear()
-    def get(url, **kw):
+    def get(url, headers=None, **kw):
         if down:
             raise OSError("refused")
         return spools if "/inventory/spools" in url else projects
@@ -145,3 +145,18 @@ def test_bambuddy_webhook_trusts_listed_addresses(monkeypatch):
         "/api/webhook/bambuddy", json={"event": "print_start"}).json()["handled"] == "print_started"
     assert TestClient(hub_app.app, client=("10.0.0.99", 5000)).post(
         "/api/webhook/bambuddy", json={"event": "print_start"}).status_code == 401
+
+
+def test_bambuddy_reads_send_the_api_key_when_there_is_one(monkeypatch, tmp_path):
+    from hub import bambuddy, sources
+    sources._cache.clear()
+    seen = []
+    monkeypatch.setattr(sources, "_get_json", lambda url, headers=None, **kw: seen.append(headers) or [])
+    monkeypatch.setattr(bambuddy, "KEY_FILE", str(tmp_path / "missing"))
+    bambuddy.spools()
+    key = tmp_path / "key"
+    key.write_text("bb_secret\n")
+    monkeypatch.setattr(bambuddy, "KEY_FILE", str(key))
+    sources._cache.clear()
+    bambuddy.projects()
+    assert seen == [{}, {"X-API-Key": "bb_secret"}]
