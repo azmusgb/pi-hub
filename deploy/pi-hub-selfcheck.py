@@ -65,6 +65,12 @@ def main(gate=False):
         add("Backup copied to the PC", hours < 50, f"{hours:.0f} h ago")
     except (OSError, ValueError, IndexError):
         add("Backup copied to the PC", False, "never")
+    try:
+        with open("/var/lib/pi-hub-mirror/state.json") as f:
+            hours = (time.time() - json.load(f)["last_ok"]) / 3600
+        add("Movies copied from the PC", hours < 50, f"{hours:.0f} h ago")
+    except (OSError, ValueError, KeyError, TypeError):
+        add("Movies copied from the PC", False, "never")
     with open("/sys/class/thermal/thermal_zone0/temp") as f:
         temp = int(f.read()) / 1000
     add("Temperature", temp < 80, f"{temp:.0f} °C")

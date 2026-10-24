@@ -97,31 +97,7 @@ def movies_uuid():
 
 
 def drive():
-    # If the Windows CIFS movies share is mounted, treat it as the primary movies storage
-    win_mounted = os.path.ismount(WINDOWS_MOVIES)
-    if win_mounted:
-        try:
-            st = os.statvfs(WINDOWS_MOVIES)
-            movies_count = len([f for f in os.listdir(WINDOWS_MOVIES) if not f.startswith(".")])
-            free_b = st.f_bavail * st.f_frsize
-            total_b = st.f_blocks * st.f_frsize
-            used_b = total_b - free_b
-            return {
-                "source": "Windows PC (//10.0.0.21/Movies)",
-                "present": True,
-                "mounted": True,
-                "state": "Connected",
-                "free": human_bytes(free_b),
-                "used": human_bytes(used_b),
-                "total": human_bytes(total_b),
-                "movies": movies_count,
-                "resets": 0,
-                "io_errors": 0,
-                "fs_errors": 0,
-            }
-        except OSError:
-            pass
-
+    # Plex plays from the Pi's own drive; pi-hub-movies-mirror copies the films there from the Windows PC.
     uuid = movies_uuid()
     present = bool(uuid) and os.path.exists(f"/dev/disk/by-uuid/{uuid}")
     if present and not real_mount():
@@ -132,7 +108,7 @@ def drive():
     mounted = real_mount()
     log = run("dmesg")
     out = {
-        "source": "Local USB (/mnt/usb1)",
+        "source": "Pi drive (/mnt/usb1)",
         "present": present,
         "mounted": mounted,
         "resets": log.count("reset SuperSpeed"),
@@ -144,19 +120,32 @@ def drive():
     if mounted:
         st = os.statvfs(MOVIES)
         out["free"] = human_bytes(st.f_bavail * st.f_frsize)
-        total_movies = 0
-        for mdir in (os.path.join(MOVIES, "Movies"), WINDOW_MOVIES):
-            try:
-                total_movies += len([f for f in os.listdir(mdir) if not f.startswith(".")])
-            except OSError:
-                pass
-        out["movies"] = total_movies
+        out["used"] = human_bytes((st.f_blocks - st.f_bfree) * st.f_frsize)
+        out["total"] = human_bytes(st.f_blocks * st.f_frsize)
+        try:
+            out["movies"] = len([f for f in os.listdir(os.path.join(MOVIES, "Movies")) if not f.startswith(".")])
+        except OSError:
+            pass
         out["state"] = "Connected"
     elif present:
         out["state"] = "Not mounted"
     else:
         out["state"] = "Missing"
     return out
+
+
+MIRROR_STATE = "/var/lib/pi-hub-mirror/state.json"
+
+
+def mirror():
+    try:
+        with open(MIRROR_STATE) as f:
+            m = json.load(f)
+    except (OSError, ValueError):
+        m = {}
+    return {"state": m.get("status", "never"), "message": m.get("message", "The movies haven't been copied from the PC yet."),
+            "last_ok": m.get("last_ok"), "finished": m.get("finished"), "source_count": m.get("source_count"),
+            "count": m.get("mirror_count"), "share": os.path.ismount(WINDOWS_MOVIES)}
 
 
 def updates():
@@ -227,7 +216,7 @@ def status():
         "ai_state": ai_state,
         "ai_models": len(loaded),
         "ai_waiting": queue.get("waiting", 0),
-        "drive_source": d.get("source", "Windows PC (//10.0.0.21/Movies)"),
+        "drive_source": d.get("source", "Pi drive (/mnt/usb1)"),
         "drive_state": d.get("state", "Unknown"),
         "drive_free": d.get("free", ""),
         "drive_used": d.get("used", ""),
@@ -235,6 +224,7 @@ def status():
         "drive_resets": d.get("resets", 0),
         "drive_errors": d.get("io_errors", 0) + d.get("fs_errors", 0),
         "movies": d.get("movies"),
+        "mirror": cached("mirror", 30, mirror),
         "pi_temp": h.get("temp"),
         "pi_power": h.get("power", "Unknown"),
         "pi_uptime_h": h.get("uptime_h"),

@@ -17,6 +17,7 @@ ACTIONS = {
     "updates:install": ("Install updates", "Updates are installing. This can take a few minutes.", "household"),
     "restart:pi": ("Restart the Pi", "The Pi is restarting. The hub is back in about a minute.", "household"),
     "selfcheck:run": ("Run a self-check", "Self-check finished. The result is on this page.", "household"),
+    "mirror:movies": ("Copy new movies from the PC", "Copying new movies from the PC. Movies shows when it's finished.", "household"),
 }
 
 

@@ -166,3 +166,19 @@ def test_print_under_way_when_the_hub_starts_is_not_a_new_print(fresh_db):
     printing = dict(BASE, x2d_state="Printing", x2d_progress=30)
     feed(w, printing, printing, dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
     assert kinds() == ["print_finished"]
+
+
+def test_stale_movie_copy_is_told_once(fresh_db):
+    events.ready()
+    w = events.Watcher()
+    day = 86400
+    w.check(dict(BASE, mirror={"last_ok": 1000}), now=1000 + day)
+    assert "mirror_stale" not in kinds()
+    for t in (3 * day, 3 * day + 30, 4 * day):
+        w.check(dict(BASE, mirror={"last_ok": 1000, "message": "The PC's movie share isn't mounted"}), now=1000 + t)
+    assert kinds().count("mirror_stale") == 1
+    w.check(dict(BASE, mirror={"last_ok": 1000 + 4 * day}), now=1000 + 4 * day + 60)  # copied again
+    w.check(dict(BASE, mirror={"last_ok": 1000 + 4 * day}), now=1000 + 7 * day)
+    assert kinds().count("mirror_stale") == 2
+    w.check(dict(BASE, mirror={}), now=1000 + 9 * day)  # never copied: no alert until a first good copy
+    assert kinds().count("mirror_stale") == 2

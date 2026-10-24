@@ -21,54 +21,31 @@ OLD = {"name": "sda", "size": 500_000_000_000, "tran": "usb", "type": "disk", "m
 NEW = {"name": "sdb", "size": 1_000_000_000_000, "tran": "usb", "type": "disk", "model": "Samsung T7", "children": []}
 
 
-@pytest.fixture
-def drives(monkeypatch):
+def test_drives_report_marks_the_movies_drive(monkeypatch):
     monkeypatch.setattr(helper, "movies_uuid", lambda: "old-uuid")
     monkeypatch.setattr(helper, "_disks", lambda: [OLD, NEW])
-    monkeypatch.setattr(helper, "_real_mount", lambda p: p == "/mnt/usb1")
-
-    class St:
-        f_blocks, f_bfree, f_frsize = 100, 40, 5_000_000_000  # 300 GB used
-    monkeypatch.setattr(helper.os, "statvfs", lambda p: St)
-    monkeypatch.setattr(helper, "MOVE_STATE", os.path.join(tempfile.mkdtemp(), "move.json"))
-    started = []
-    monkeypatch.setattr(helper.threading, "Thread", lambda target, daemon: type("T", (), {"start": lambda self: started.append(1)})())
-    return started
+    monkeypatch.setattr(helper, "_smart", lambda name: None)
+    r = helper.drives_report()
+    assert [(d["name"], d["is_movies"], d["mounted"]) for d in r["drives"]] == [("sda", True, True), ("sdb", False, False)]
 
 
-def test_move_refuses_unsafe_targets(drives):
-    assert "Unknown drive" in helper.move_start("mmcblk0")["message"]
-    assert "Unknown drive" in helper.move_start("sdb; reboot")["message"]
-    assert "current movies drive" in helper.move_start("sda")["message"]
-    assert "isn't plugged in" in helper.move_start("sdc")["message"]
-    assert drives == []
-
-
-def test_move_refuses_a_drive_that_is_too_small(drives, monkeypatch):
-    small = dict(NEW, size=200_000_000_000)
-    monkeypatch.setattr(helper, "_disks", lambda: [OLD, small])
-    assert "too small" in helper.move_start("sdb")["message"]
-
-
-def test_move_starts_on_a_good_new_drive(drives):
-    r = helper.move_start("sdb")
-    assert r["ok"] and drives == [1]
-
-
-def test_move_needs_the_old_drive_mounted(drives, monkeypatch):
-    monkeypatch.setattr(helper, "_real_mount", lambda p: False)
-    assert "has to be plugged in" in helper.move_start("sdb")["message"]
-
-
-def test_switch_needs_a_finished_copy(drives):
-    assert "Finish the copy" in helper.move_switch()["message"]
-
-
-def test_move_route_needs_owner_and_erase(monkeypatch):
+def test_the_drive_wiping_move_is_gone():
+    # The Pi's drive is now a copy of the PC's movies; there is nothing to move and nothing to wipe.
     c = TestClient(hub_app.app)
-    assert c.post("/api/drives/move", json={"device": "sdb", "confirm": "ERASE"}, headers=SAME).status_code == 401
-    monkeypatch.setattr(hub_app, "need", lambda request, role: ("owner", "Mac"))
-    r = c.post("/api/drives/move", json={"device": "sdb", "confirm": "yes"}, headers=SAME)
-    assert r.status_code == 400 and "Type ERASE" in r.json()["detail"]
-    monkeypatch.setattr(actions, "helper_with", lambda a, extra, timeout=60: {"ok": True, "message": f"{a} {extra['device']}"})
-    assert c.post("/api/drives/move", json={"device": "sdb", "confirm": "erase"}, headers=SAME).json()["message"] == "move:start sdb"
+    assert c.post("/api/drives/move", json={"device": "sdb", "confirm": "ERASE"}, headers=SAME).status_code in (404, 405)
+    assert c.post("/api/drives/switch", headers=SAME).status_code in (404, 405)
+    assert not hasattr(helper, "move_start") and "mkfs" not in Path(helper.__file__).read_text()
+
+
+def test_copy_now_runs_through_the_helper(monkeypatch):
+    assert helper.ACTIONS["mirror:movies"][0] == ["systemctl", "start", "--no-block", "pi-hub-movies-mirror.service"]
+    calls = []
+    monkeypatch.setattr(actions, "helper", lambda a, timeout=1900: calls.append(a) or {"ok": True})
+    assert "Copying new movies" in actions.run("mirror:movies")["message"] and calls == ["mirror:movies"]
+
+
+def test_drives_api_includes_the_copy_state(monkeypatch):
+    monkeypatch.setattr(actions, "helper", lambda a, timeout=1900: {"ok": True, "drives": []})
+    monkeypatch.setattr(hub_app.sources, "pi_status", lambda: {"mirror": {"state": "ok", "last_ok": 1, "count": 149}})
+    d = TestClient(hub_app.app).get("/api/drives").json()
+    assert d["mirror"]["count"] == 149 and d["drives"] == []

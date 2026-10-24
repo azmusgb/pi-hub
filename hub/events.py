@@ -38,6 +38,7 @@ TRIGGERS = {
     "filament_low": "a filament spool runs low",
     "wan_loss": "the Internet connection has sustained packet loss",
     "wan_down": "the Internet connection goes down",
+    "mirror_stale": "the movies haven't been copied from the PC for two days",
     "weather_alert": "the weather service issues a warning",
     "rain_soon": "rain is on the way",
     "freeze_tonight": "it will freeze tonight",
@@ -68,6 +69,7 @@ MESSAGES = {
     "filament_low": ("Filament running low", "Check the filament shelf in the hub."),
     "wan_loss": ("Internet packet loss detected", "Sustained >5% packet loss on the WAN edge connection."),
     "wan_down": ("Internet connection down", "All external WAN probes are failing."),
+    "mirror_stale": ("Movies not copied from the PC", "New films on the PC aren't on the Pi yet. See Drives in the hub."),
     "weather_alert": ("Weather warning", ""),
     "rain_soon": ("Rain on the way", ""),
     "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
@@ -82,6 +84,7 @@ DEFAULT_RULES = [
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
     ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
     ("print_failed", "notify", None, "Send a phone alert when a 3D print fails or stops early", 1),
+    ("mirror_stale", "notify", None, "Tell me when the movies haven't been copied from the PC for two days", 1),
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
@@ -237,6 +240,7 @@ def run_action(rule, kind, detail=""):
 # Bambuddy's webhook and the printer status both report the same print start/finish/failure;
 # whichever arrives second within this window is dropped.
 PRINT_DEDUPE = 600
+MIRROR_STALE = 2 * 86400
 
 
 def fire(kind, detail="", dedupe=0):
@@ -281,6 +285,7 @@ def recent(limit=40):
 class Watcher:
     def __init__(self):
         self.seen = {"wan_loss": False, "wan_down": False}
+        self.mirror_stale = False
         self.pending = {}
         self.pc_down_since = None
         self.pc_reported = None
@@ -310,6 +315,12 @@ class Watcher:
         if s is None:
             return
         svc = s.get("services") or {}
+        mirror = s.get("mirror") or {}
+        if mirror.get("last_ok"):
+            stale = now - mirror["last_ok"] > MIRROR_STALE
+            if stale and not self.mirror_stale:
+                fire("mirror_stale", mirror.get("message") or "")
+            self.mirror_stale = stale
         if s.get("drive_state") in ("Connected", "Missing", "Not mounted"):
             if self._steady("drive", s["drive_state"] == "Connected"):
                 fire("drive_back" if self.seen["drive"] else "drive_dropped")

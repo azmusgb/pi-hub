@@ -1567,186 +1567,54 @@ function playingNowCard(
   );
 }
 
-function driveCard(
-  drive,
-  driveEvents,
-) {
-  const drv =
-    drive || {};
+// The Pi's own drive holds the films Plex plays; each night they're copied from the Windows PC's share.
+function mirrorSay(m) {
+  if (!m || m.state === "never") return { tone: "warn", say: "Not copied from the PC yet" };
+  const age = m.last_ok ? Date.now() / 1000 - m.last_ok : Infinity;
+  if (m.state === "running") return { tone: "ok", say: "Copying from the PC now" };
+  if (age > 2 * 86400) return { tone: "warn", say: m.last_ok ? `Last copied ${when(m.last_ok)}` : "Never copied successfully" };
+  return { tone: m.state === "ok" ? "ok" : "warn", say: `Copied ${when(m.last_ok)}` };
+}
 
-  const isWindows =
-    (drv.source || "").includes("Windows");
-
-  const events =
-    asArray(driveEvents);
-
-  const drops =
-    isWindows
-      ? 0
-      : events.filter(
-          (event) =>
-            event.kind === "dropped",
-        ).length;
-
-  const connected =
-    drv.state === "Connected";
-
-  const hasErrors =
-    isWindows
-      ? false
-      : Number(drv.errors) > 0;
-
-  const freeDetail = [
-    drv.free,
-    drv.total ? `of ${drv.total}` : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+function driveCard(drive, driveEvents) {
+  const drv = drive || {};
+  const events = asArray(driveEvents);
+  const drops = events.filter((event) => event.kind === "dropped").length;
+  const connected = drv.state === "Connected";
+  const hasErrors = Number(drv.errors) > 0;
+  const m = drv.mirror || null;
+  const copy = mirrorSay(m);
+  const freeDetail = [drv.free, drv.total ? `of ${drv.total}` : null].filter(Boolean).join(" ");
+  const fact = (k, v, tone) => h("div", {}, h("dt", {}, k), h("dd", tone ? { dataset: { tone } } : {}, v));
 
   return card(
     "Movie storage",
     {
-      pill: connected
-        ? isWindows
-          ? "Windows Share"
-          : "Connected"
-        : drv.state || "Unknown",
-
-      tone: connected
-        ? hasErrors || drops
-          ? "warn"
-          : "ok"
-        : "bad",
+      pill: connected ? "Connected" : drv.state || "Unknown",
+      tone: connected ? (hasErrors || drops || copy.tone !== "ok" ? "warn" : "ok") : "bad",
     },
-
-    h(
-      "dl",
-      {
-        class: "facts",
-      },
-
-      h(
-        "div",
-        {},
-        h("dt", {}, "Storage backend"),
-        h("dd", {}, isWindows ? "Windows PC (SMB)" : (drv.source || "Local USB")),
-      ),
-
-      h(
-        "div",
-        {},
-        h("dt", {}, "Movies in library"),
-        h(
-          "dd",
-          {},
-          drv.count ?? "—",
-        ),
-      ),
-
-      h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Available space",
-        ),
-        h(
-          "dd",
-          {},
-          freeDetail || "—",
-        ),
-      ),
-
-      h(
-        "div",
-        {},
-        h(
-          "dt",
-          {},
-          "Share health",
-        ),
-
-        h(
-          "dd",
-          {
-            dataset: {
-              tone: connected
-                ? "ok"
-                : "bad",
-            },
-          },
-          connected
-            ? "Active & Reachable"
-            : (drv.state || "Disconnected"),
-        ),
-      ),
+    h("dl", { class: "facts" },
+      fact("Plays from", drv.source || "Pi drive"),
+      fact("Movies on the Pi", drv.count ?? "—"),
+      fact("Available space", freeDetail || "—"),
+      fact("Copy from the PC", copy.say, copy.tone),
+      m && m.source_count != null ? fact("Movies on the PC", m.share ? m.source_count : `${m.source_count} (share not connected)`) : null,
     ),
-
     !connected
-      ? h(
-          "p",
-          {
-            class: "note",
-          },
-          isWindows
-            ? "The Windows PC movie share is currently unreachable. Verify that your Windows workstation (10.0.0.21) is awake and connected to the network."
-            : "The movies drive is disconnected. Review drive health and connections.",
-        )
+      ? h("p", { class: "note" }, "The Pi's movies drive is disconnected. Check its cable and power; the Drives page shows its health.")
       : hasErrors || drops
-      ? h(
-          "p",
-          {
-            class: "note",
-          },
-          "The local movies drive has reported reliability problems. Back up anything important and review drive health before relying on it.",
-        )
-      : null,
-
-    !isWindows && events.length
-      ? h(
-          "ul",
-          {
-            class: "timeline",
-          },
-
-          events
-            .slice(0, 8)
-            .map((event) => {
-              const dropped =
-                event.kind ===
-                "dropped";
-
-              return h(
-                "li",
-                {
-                  dataset: {
-                    tone: dropped
-                      ? "bad"
-                      : "ok",
-                  },
-                },
-
-                h(
-                  "span",
-                  {},
-                  dropped
-                    ? "Dropped out"
-                    : "Came back",
-                ),
-
-                h(
-                  "time",
-                  {},
-                  event.ts
-                    ? when(
-                        event.ts,
-                      )
-                    : "",
-                ),
-              );
-            }),
-        )
+        ? h("p", { class: "note" }, "The Pi's movies drive has reported reliability problems. The PC still has every film, so nothing is lost, but check the drive.")
+        : m && m.state !== "ok" && m.state !== "running" && m.message
+          ? h("p", { class: "note" }, m.message)
+          : null,
+    events.length
+      ? h("ul", { class: "timeline" },
+        events.slice(0, 8).map((event) => {
+          const dropped = event.kind === "dropped";
+          return h("li", { dataset: { tone: dropped ? "bad" : "ok" } },
+            h("span", {}, dropped ? "Dropped out" : "Came back"),
+            h("time", {}, event.ts ? when(event.ts) : ""));
+        }))
       : null,
   );
 }
@@ -2108,7 +1976,7 @@ export async function load(
               "data-link":
                 true,
             },
-            "Drive health and moving to a new drive",
+            "Drive health and the copy from the PC",
           ),
 
           h(

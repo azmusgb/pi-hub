@@ -1,0 +1,10 @@
+[Unit]
+Description=Copy new movies from the Windows PC every night
+
+[Timer]
+OnCalendar=*-*-* 02:30
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

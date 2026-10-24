@@ -99,7 +99,7 @@ def api_movies(section: str = "all"):
         "continue": plex.on_deck(),
         "recent": plex.recently_added(section),
         "drive": {
-            "source": s.get("drive_source", "Windows PC (//10.0.0.21/Movies)"),
+            "source": s.get("drive_source", "Pi drive (/mnt/usb1)"),
             "state": s.get("drive_state", "Unknown"),
             "free": s.get("drive_free"),
             "used": s.get("drive_used", ""),
@@ -107,6 +107,7 @@ def api_movies(section: str = "all"):
             "count": s.get("movies"),
             "resets": s.get("drive_resets", 0),
             "errors": s.get("drive_errors", 0),
+            "mirror": s.get("mirror"),
         },
         "drive_events": system.drive_events(),
         "history": plex.history(),
@@ -126,43 +127,13 @@ def api_movies_catalog(section: str = "all"):
     })
 
 
-# ---- Drives: health, and moving the movies to a new drive ----
+# ---- Drives: health, and the copy of the PC's movies on the Pi's drive ----
 
 @app.get("/api/drives")
 def api_drives():
     report = actions.helper("drives:report", timeout=120)
-    move = actions.helper("move:status", timeout=10)
-    return fresh({"drives": report.get("drives") or [], "move": move, "ok": report.get("ok", False),
-                  "message": report.get("message")})
-
-
-@app.post("/api/drives/move")
-async def api_drives_move(request: Request):
-    role, device = need(request, "owner")
-    b = await request.json()
-    dev = str(b.get("device", ""))
-    if str(b.get("confirm", "")).strip().upper() != "ERASE":
-        raise HTTPException(400, "Type ERASE to confirm. Everything on the new drive is wiped.")
-    r = actions.helper_with("move:start", {"device": dev})
-    auth.log(role, device, "drives:move", r.get("message", ""))
-    if not r.get("ok"):
-        raise HTTPException(400, r.get("message") or "The move didn't start.")
-    return fresh(r)
-
-
-@app.post("/api/drives/switch")
-def api_drives_switch(request: Request):
-    role, device = need(request, "owner")
-    r = actions.helper("move:switch", timeout=180)
-    auth.log(role, device, "drives:switch", r.get("message", ""))
-    if not r.get("ok"):
-        raise HTTPException(400, r.get("message") or "The switch didn't work.")
-    sources._cache.clear()
-    try:
-        actions.run("rescan:plex")
-    except Exception:  # noqa: BLE001
-        pass
-    return fresh(r)
+    return fresh({"drives": report.get("drives") or [], "mirror": (sources.pi_status() or {}).get("mirror"),
+                  "ok": report.get("ok", False), "message": report.get("message")})
 
 
 @app.get("/api/now/poster/{n}.jpg")

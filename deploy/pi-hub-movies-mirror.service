@@ -1,0 +1,14 @@
+[Unit]
+Description=Copy new movies from the Windows PC to the Pi's drive
+After=network-online.target pi-hub-movies-mount.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStartPre=-/bin/systemctl start pi-hub-movies-mount.service
+ExecStart=/usr/local/lib/pi-hub/pi-hub-movies-mirror.py
+StateDirectory=pi-hub-mirror
+StateDirectoryMode=0755
+TimeoutStartSec=9h
+Nice=10
+IOSchedulingClass=idle
