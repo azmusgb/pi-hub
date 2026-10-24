@@ -93,7 +93,7 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 | Last movie copy result | `/var/lib/pi-hub-mirror/state.json` |
 | Paperless backups (14 daily snapshots) | `/mnt/usb1/backups/paperless` |
 | Last Paperless backup result | `/var/lib/pi-paperless-backup/state.json` |
-| Scanner page (scanservjs) | `/opt/scanservjs` |
+| Scanner page (scanservjs, behind the hub at `/scan/`) | `/opt/scanservjs` |
 
 The nightly backup script takes a consistent SQLite copy plus its referenced project model files, then archives selected Pi settings. A SQLite writer lock protects the database/file snapshot; mutations may briefly wait during this step. See the [household feature guide](household-features.md) for attachment limits and restore expectations. The Windows pull script is `deploy/windows-pull-backups.ps1`; historical deployment notes record copies in `C:\LocalAI\pi-backups`. Confirm freshness in Settings and the self-check rather than assuming that scheduled copies succeeded.
 
@@ -113,7 +113,7 @@ Do not unpack a backup over the running system as a verification step. Validate 
 
 Paperless-ngx runs on the Windows PC (`http://10.0.0.21:8010`, files in `C:\Paperless`), not on the Pi. The PC exports it every night at 03:15 to `C:\Paperless\export`, which is shared read-only as `PaperlessExport$` with the account the Pi already uses for the movie share. The Pi automounts that share at `/mnt/paperless-export` (fstab, `x-systemd.automount`). At 04:00, `pi-paperless-backup.timer` copies it into a dated snapshot under `/mnt/usb1/backups/paperless`. Unchanged files are hard-linked, so each snapshot costs only what changed, and the last 14 are kept. A failed run (PC off) leaves earlier snapshots alone. Results: `journalctl -u pi-paperless-backup`, the self-check ("Paperless backed up from the PC", under 50 hours) and the default two-days-stale phone alert. The snapshots hold tax and medical papers, so only root can read them.
 
-Scanning runs on the Pi in Docker (scanservjs, `http://10.0.0.30:8095`, **App Suite → Scan**, linked from Print and More). It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600). The page has no login, so anyone on the LAN or tailnet can use it.
+Scanning runs on the Pi in Docker (scanservjs, listening on `127.0.0.1:8095` only). The hub serves it at `/scan/` (**App Suite → Scan**, linked from Print and More), and only after a household PIN sign-in. It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600).
 
 ## Turning on Bambuddy's sign-in (planned, 24 October 2026)
 

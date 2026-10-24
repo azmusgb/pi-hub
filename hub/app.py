@@ -938,6 +938,53 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
 
+# ---- Scanning: scanservjs (Docker on the Pi), only through the hub so it needs the household PIN ----
+# scanservjs listens on 127.0.0.1:8095 only; its page and API are served here under /scan/ (its paths are relative).
+# Every request needs a household sign-in, because a scan goes straight into Paperless.
+SCAN_URL = os.environ.get("HUB_SCAN_URL", "http://127.0.0.1:8095")
+_HOP = {"connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te",
+        "trailers", "content-length", "content-encoding", "host"}
+
+
+@app.api_route("/scan", methods=["GET"])
+def scan_root():
+    return Response(status_code=307, headers={"Location": "/scan/"})
+
+
+@app.api_route("/scan/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def scan_proxy(path: str, request: Request):
+    import httpx
+    from fastapi.responses import StreamingResponse
+    try:
+        need(request, "household")
+    except HTTPException as e:
+        if request.method == "GET" and not path.startswith("api/"):
+            return Response("<!doctype html><meta name=viewport content='width=device-width'><title>Scan</title>"
+                            "<body style='font:16px system-ui;padding:2rem'><p>Enter the household PIN in Pi Hub first, "
+                            "then open Scan again.</p><p><a href='/apps/scan' target='_top'>Open Pi Hub</a></p>",
+                            status_code=e.status_code, media_type="text/html")
+        raise
+    client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))
+    # No cookie (the hub's session stays here) and no accept-encoding (the body is passed through as is).
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP | {"cookie", "accept-encoding"}}
+    try:
+        upstream = await client.send(client.build_request(request.method, f"{SCAN_URL}/{path}", params=request.query_params,
+                                                          headers=headers, content=await request.body()), stream=True)
+    except httpx.HTTPError:
+        await client.aclose()
+        raise HTTPException(502, "The scanner page isn't answering.")
+
+    async def body():
+        try:
+            async for chunk in upstream.aiter_bytes():  # decoded, so dropping content-encoding is right
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+    out = {k: v for k, v in upstream.headers.items() if k.lower() not in _HOP}
+    return StreamingResponse(body(), status_code=upstream.status_code, headers=out)
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
