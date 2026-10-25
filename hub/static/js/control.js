@@ -1,20 +1,14 @@
 // Control: lights, plugs and switches from Homebridge. Tap to switch; the PIN is asked once per device.
 import { api, card, ensure, h, post, toast } from "./core.js";
+import { groupAppliances } from "./wording.js";
 
 export const every = 10;
 
-// Presentation layer: map raw hardware IDs and entity names to human concepts.
+// Presentation layer: map raw hardware IDs to human names. (The dishwasher's switches are grouped into one
+// appliance card instead; see wording.js groupAppliances.)
 const FRIENDLY_NAMES = {
   "2CB1D23234351E0D": "Workshop Light",
   "3AA1F02111023E1F": "Living Room Plug",
-  
-  // Dishwasher entities mapped to a cleaner UX
-  "Dishwasher Active Program": "Dishwasher (Active)",
-  "Dishwasher Power": "Dishwasher (Power)",
-  "Auto": "Dishwasher: Auto Program",
-  "Delicate": "Dishwasher: Delicate Program",
-  "Heavy": "Dishwasher: Heavy Program",
-  "Machine Care": "Dishwasher: Machine Care",
 };
 
 function getFriendlyName(a) {
@@ -38,7 +32,7 @@ function icon(kind) {
   return svg;
 }
 
-export function tile(a, state, { favourite } = {}) {
+export function tile(a, state, { favourite, label } = {}) {
   const busy = () => tileEl.classList.add("busy");
   const stateEl = h("span", { class: "tile-state" }, a.on ? (a.brightness != null ? `On, ${a.brightness}%` : "On") : "Off");
   const toggle = h("button", {
@@ -57,7 +51,7 @@ export function tile(a, state, { favourite } = {}) {
     },
   },
   h("span", { class: "tile-icon" }, icon(a.kind)),
-  h("span", { class: "tile-name", title: a.name }, getFriendlyName(a)),
+  h("span", { class: "tile-name", title: a.name }, label || getFriendlyName(a)),
   stateEl);
 
   const kids = [toggle];
@@ -105,8 +99,16 @@ export async function load(state) {
   const favs = new Set(d.favourites);
   const groups = [["light", "Lights"], ["plug", "Plugs"], ["switch", "Switches"], ["fan", "Fans"]];
   const favouriteItems = d.accessories.filter(a => favs.has(a.id));
+  const { appliances, rest } = groupAppliances(d.accessories);
+  const applianceCards = appliances.map((ap) => h("section", { class: "row-section appliance" },
+    h("h2", { class: "section-title" }, ap.name),
+    ap.status ? h("p", { class: "meta" }, ap.status) : null,
+    h("div", { class: "tiles" }, [ap.power && tile(ap.power, state, { label: "Power" }),
+      ap.running && tile(ap.running, state, { label: "Running" })].filter(Boolean)),
+    ap.programs.length ? h("h3", { class: "sub" }, "Programs") : null,
+    h("div", { class: "tiles tiles--compact" }, ap.programs.map((p) => tile(p, state, { label: p.name })))));
   const sections = groups.map(([kind, title]) => {
-    const list = d.accessories.filter((a) => a.kind === kind && !favs.has(a.id));
+    const list = rest.filter((a) => a.kind === kind && !favs.has(a.id));
     return list.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, title),
       h("div", { class: "tiles" }, list.map((a) => tile(a, state, { favourite: favs.has(a.id) })))) : null;
   }).filter(Boolean);
@@ -114,7 +116,8 @@ export async function load(state) {
     h("p", { class: "page-intro" }, favouriteItems.length ? "Your favourites are ready below. Tap a device to switch it." : "Tap a device to switch it. Use its star to keep it in favourites and on Home."),
     favouriteItems.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Favourites"),
       h("div", { class: "tiles" }, favouriteItems.map(a => tile(a, state, { favourite: true })))) : null,
-    ...(sections.length ? sections
+    ...applianceCards,
+    ...(sections.length || applianceCards.length ? sections
     : favouriteItems.length ? [] : [card("Nothing to control", { cls: "wide" }, h("p", { class: "meta" }, "Homebridge has no lights, plugs or switches the hub can control."))]),
   h("p", { class: "meta" }, "Favourites also appear on Home.")].filter(Boolean));
 }

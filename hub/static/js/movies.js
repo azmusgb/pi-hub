@@ -209,6 +209,9 @@ function sectionId(title) {
     .replace(/^-|-$/g, "")}`;
 }
 
+// Each shelf shows its first six; the page was ~13,000 px tall on a phone (25 Oct critique).
+const SHELF_FIRST = 6;
+
 function shelfSection(title, items, machine, none) {
   const list = asArray(items);
 
@@ -247,7 +250,9 @@ function shelfSection(title, items, machine, none) {
       ),
     ),
 
-    shelf(list, machine),
+    shelf(list.slice(0, SHELF_FIRST), machine),
+    list.length > SHELF_FIRST ? h("details", { class: "show-all" },
+      h("summary", {}, `Show all ${list.length}`), shelf(list.slice(SHELF_FIRST), machine)) : null,
   );
 }
 
@@ -1609,7 +1614,7 @@ function driveCard(drive, driveEvents) {
           : null,
     events.length
       ? h("ul", { class: "timeline" },
-        events.slice(0, 8).map((event) => {
+        events.slice(0, 3).map((event) => {
           const dropped = event.kind === "dropped";
           return h("li", { dataset: { tone: dropped ? "bad" : "ok" } },
             h("span", {}, dropped ? "Dropped out" : "Came back"),
@@ -1699,7 +1704,7 @@ function catalogSection(state, allMovies, genres) {
         ? `${list.length} movies`
         : `${totalFiltered} of ${list.length} movies`;
 
-    const displayLimit = cState.expanded ? totalFiltered : 24;
+    const displayLimit = cState.expanded ? totalFiltered : 12;
     const visible = filtered.slice(0, displayLimit);
 
     gridContainer.replaceChildren();
@@ -1722,7 +1727,7 @@ function catalogSection(state, allMovies, genres) {
     );
     gridContainer.append(shelfEl);
 
-    if (totalFiltered > 24) {
+    if (totalFiltered > 12) {
       const moreBtn = h(
         "button",
         {
@@ -1735,7 +1740,7 @@ function catalogSection(state, allMovies, genres) {
         },
         cState.expanded
           ? "Show fewer movies"
-          : `Show all ${totalFiltered} movies (+${totalFiltered - 24})`,
+          : `Show all ${totalFiltered} movies (+${totalFiltered - 12})`,
       );
       gridContainer.append(h("div", { class: "catalog-actions" }, moreBtn));
     }
@@ -1960,7 +1965,7 @@ export async function load(
           data?.requests,
         ),
 
-        statsCard(data, activeTitle),
+        h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)),
 
         h(
           "div",

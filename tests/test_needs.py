@@ -78,3 +78,11 @@ def test_a_finished_print_stops_asking_after_a_day():
     # Without a "plate cleared" signal (step 3 adds one), a day-old finish has almost certainly been cleared.
     old = [{"ts": NOW - 25 * 3600, "kind": "print_finished", "detail": ""}]
     assert needs.build(old, {"cards": []}, NOW)["count"] == 0
+
+
+def test_a_finished_print_reads_plainly():
+    raw = "Bambu P1S: hex-tile E-011 BLD-011-01.gcode\nTime: 1h 4m\nFilament: Unknowng"
+    n = needs.build([{"ts": NOW - 60, "kind": "print_finished", "detail": raw}], {"cards": []}, NOW)
+    assert n["items"][0]["detail"] == "Finished hex-tile E-011 BLD-011-01 · 1 h 4 min"
+    assert needs.print_detail("", "Finished") == "Finished"
+    assert needs.print_detail("Bambu X2D: Cube.3mf", "Failed") == "Failed Cube"

@@ -2,6 +2,8 @@
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
 import { toolUrl } from "./sections.js";
+import { firstFew } from "./section-links.js";
+import { printOutcome } from "./wording.js";
 
 export const every = 15;
 
@@ -43,7 +45,7 @@ function camera(c) {
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.
 function printRow(p) {
-  const [label, tone] = p.ended ? (OUTCOME[p.outcome] || ["Ended", "warn"]) : ["Printing", "ok"];
+  const [label, tone] = printOutcome(p) || (p.ended ? (OUTCOME[p.outcome] || ["Ended", "warn"]) : ["Printing", "ok"]);
   const used = p.grams ? `${Math.round(p.grams)} g of filament` + (p.cost ? `, $${p.cost.toFixed(2)}` : "") : null;
   const photo = p.has_photo ? h("a", {
     href: `/api/prints/${p.id}/photo.jpg`,
@@ -130,7 +132,7 @@ export async function load(state) {
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
-      h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page")),
+      h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page ↗")),
     card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : d.ai.state === "Unknown" ? "warn" : "ok" },
       d.ai.state === "Unknown" ? h("p", { class: "meta" }, "The hub couldn’t check Local AI. Its current state is unconfirmed.")
       : d.ai.state === "Down"
@@ -138,11 +140,11 @@ export async function load(state) {
         : h("dl", { class: "facts" },
           h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None")),
           h("div", {}, h("dt", {}, "Jobs waiting"), h("dd", {}, String(d.ai.waiting ?? 0)))),
-      h("a", { class: "action", href: "https://10.0.0.21", target: "_blank", rel: "noopener" }, "Open Local AI"))
+      h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );
   state.body.replaceChildren(...[
     card("Print history", { pill: `${d.week.finished} finished this week`, tone: "ok", cls: "wide" },
-      prints.length ? h("ul", { class: "log" }, prints) : empty("Prints show up here once the hub has seen one start."),
+      ...(prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once the hub has seen one start.")]),
       h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
         (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : ""))),
     projectsCard(pr.available ? pr.projects : null),

@@ -615,3 +615,9 @@ html {
   .rail-assistant { display: none; }
   .top-assistant { display: inline-flex; }
 }
+
+/* Phone top bar, the same on every page: title and Assistant on one line, the clock under them. */
+@media (max-width: 860px) {
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem 1rem; }
+  .top .clock { grid-column: 1 / -1; justify-self: start; }
+}

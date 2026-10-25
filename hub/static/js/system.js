@@ -1,6 +1,7 @@
 // System: backups first ("Restore a file"), then alerts, automations, help and settings.
 import { api, h } from "./core.js";
 import { toolUrl } from "./sections.js";
+import { agoText } from "./wording.js";
 import { linkGroup } from "./section-links.js";
 
 export const every = 300;
@@ -23,8 +24,9 @@ export function mount(state) {
 export async function load(state) {
   const b = await api("/api/system/backups").catch(() => null);
   state.backups.replaceChildren(b?.available
-    ? h("ul", { class: "facts-list" }, b.repos.map((r) => h("li", { dataset: { tone: r.hours === null || r.hours > 36 ? "warn" : "ok" } },
-      h("strong", {}, r.name === "Pi" ? "The Pi" : r.name === "Mac" ? "The Mac" : r.name), " ",
-      r.hours === null ? "has no backup yet" : `backed up ${r.hours} h ago`)))
+    ? h("ul", { class: "status-list" }, b.repos.map((r) => h("li", {},
+      h("span", { class: "dot", dataset: { tone: r.hours === null || r.hours > 36 ? "warn" : "ok" }, "aria-hidden": "true" }),
+      h("strong", {}, r.name === "Pi" ? "The Pi" : r.name === "Mac" ? "The Mac" : r.name),
+      h("span", { class: "meta" }, ""), h("span", { class: "status-side" }, r.hours === null ? "No backup found" : `Backed up ${agoText(r.hours)}`))))
     : h("p", { class: "meta" }, "Couldn't read the backups just now."));
 }

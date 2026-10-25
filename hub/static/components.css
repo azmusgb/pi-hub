@@ -685,3 +685,39 @@ input:focus-visible {
     display: none;
   }
 }
+
+/* One status per line: dot, name, what it is, value (backups, the network path). */
+.status-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.status-list li { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: .55rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
+.status-list li:last-child { border-bottom: 0; }
+.status-list .dot { width: .55rem; height: .55rem; border-radius: 999px; background: var(--line-strong); align-self: center; }
+.status-list .dot[data-tone="ok"] { background: var(--ok); }
+.status-list .dot[data-tone="warn"] { background: var(--warn); }
+.status-list .dot[data-tone="bad"] { background: var(--danger); }
+.status-list .status-side { font-variant-numeric: tabular-nums; color: var(--text-2); }
+@media (max-width: 480px) { .status-list li { grid-template-columns: auto 1fr auto; } .status-list li .meta { display: none; } }
+.net-panel { display: grid; gap: .5rem; padding: 1rem 1.1rem; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
+.net-headline { margin: 0; font-size: 1.1rem; font-weight: 700; }
+
+/* One link colour (25 Oct critique): plain links, "Open … ↗" actions and breadcrumbs all use the accent, never the
+   browser's blue or visited purple. Buttons, chips, cards and the menu keep their own styles. */
+main a:not([class]), main a.action, main a.meta, .page-trail a, main a.print-photo-link {
+  color: var(--accent-strong); text-decoration-thickness: 1px; text-underline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(main a:not([class]), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
+}
+:root[data-theme="dark"] :is(main a:not([class]), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
+
+/* Facts: label on the left, value on the right, one per line (Firmware 12.8.0, Movies on the Pi 148). */
+.facts { display: grid; gap: .35rem; margin: .5rem 0; }
+.facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.facts dt { color: var(--text-2); }
+.facts dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* "Show all": the rest of a long list, one tap away. */
+.show-all { margin-top: .5rem; }
+.show-all > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-strong); font-weight: 600; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .show-all > summary { color: var(--accent); } }
+:root[data-theme="dark"] .show-all > summary { color: var(--accent); }
+.show-all > summary:focus-visible { outline: none; box-shadow: var(--ring); }

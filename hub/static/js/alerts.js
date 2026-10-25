@@ -1,10 +1,25 @@
 // Alerts: everything the Pi has pushed to your phone, newest first.
 import { markAlertsSeen } from "./navigation.js";
 import { api, card, empty, h, when } from "./core.js";
+import { mergeDropouts } from "./wording.js";
 
 export const every = 30;
 
 const TONE = { white_check_mark: "ok", tada: "ok", warning: "warn", fire: "warn", rotating_light: "bad" };
+
+// Today and yesterday show; older days sit behind "Show older alerts".
+function dayGroups(days) {
+  const day = ([label, list]) => h("section", { class: "day" }, h("h3", { class: "sub" }, label),
+    h("ul", { class: "log" }, list.map((a) => h("li", { class: "log-row" },
+      h("span", { class: "dot", dataset: { tone: TONE[a.tag] || "warn" } }),
+      h("span", { class: "log-main" },
+        h("strong", {}, a.title, a.count > 1 ? h("span", { class: "meta" }, ` ×${a.count}`) : null),
+        a.body && a.body !== a.title ? h("span", { class: "meta" }, a.body) : null),
+      h("span", { class: "log-side" }, when(a.ts).split(", ").pop())))));
+  const older = days.slice(2);
+  return [...days.slice(0, 2).map(day), older.length ? h("details", { class: "show-all" },
+    h("summary", {}, `Show older alerts (${older.reduce((n, [, l]) => n + l.length, 0)})`), ...older.map(day)) : null];
+}
 
 export function mount(state) {
   state.filter = "all";
@@ -18,9 +33,9 @@ export async function load(state) {
   const d = await api("/api/alerts");
   if (state.root.isConnected) markAlertsSeen(d.alerts);
 
-  // Collapse identical titles that repeat within 15 minutes
+  // A device that drops out and comes back many times in a day is one line; identical titles within 15 minutes are one.
   const collapsed = [];
-  for (const a of d.alerts) {
+  for (const a of mergeDropouts(d.alerts)) {
     const last = collapsed[collapsed.length - 1];
     if (last && last.title === a.title && (last.ts - a.ts) <= 900) {
       last.count = (last.count || 1) + 1;
@@ -61,13 +76,7 @@ export async function load(state) {
   state.body.replaceChildren(
     card("Alert history", { cls: "wide", pill: shown.length ? `${shown.length} shown` : null },
       shown.length
-        ? [...byDay].map(([day, list]) => h("section", { class: "day" }, h("h3", { class: "sub" }, day),
-          h("ul", { class: "log" }, list.map((a) => h("li", { class: "log-row" },
-            h("span", { class: "dot", dataset: { tone: TONE[a.tag] || "warn" } }),
-            h("span", { class: "log-main" },
-              h("strong", {}, a.title, a.count > 1 ? h("span", { class: "meta" }, ` ×${a.count}`) : null),
-              a.body && a.body !== a.title ? h("span", { class: "meta" }, a.body) : null),
-            h("span", { class: "log-side" }, when(a.ts).split(", ").pop()))))))
+        ? dayGroups([...byDay])
         : empty(state.filter === "all"
             ? "No alerts yet. When something changes, it shows here and on your phone."
             : `No ${state.filter === "problems" ? "problem" : "recovery"} alerts yet.`)),

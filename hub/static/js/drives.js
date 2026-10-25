@@ -8,7 +8,8 @@ const gb = (bytes) => bytes ? `${(bytes / 1e9).toFixed(bytes > 1e11 ? 0 : 1)} GB
 
 function health(d) {
   const s = d.smart;
-  if (!s) return { tone: "warn", say: "This drive's enclosure doesn't pass on its health report.", facts: [] };
+  if (!s) return { tone: "none", pill: x => x.mounted ? "Connected" : "Not mounted",
+    say: "Its enclosure doesn't pass on a health report, so the hub can't check the disk itself.", facts: [] };
   const bad = (s.reallocated || 0) > 0 || (s.pending || 0) > 0 || (s.uncorrectable || 0) > 0;
   const facts = [
     ["Health check", s.passed ? "Passed" : "Failed"],
@@ -54,7 +55,7 @@ export async function load(state) {
   state.body.replaceChildren(
     ...(d.drives.length ? d.drives.map((x) => {
       const hl = health(x);
-      return card(x.is_movies ? "Movies drive (Pi)" : "Other drive", { pill: hl.tone === "ok" ? "Healthy" : hl.tone === "bad" ? "Failing" : "Unknown", tone: hl.tone },
+      return card(x.is_movies ? "Movies drive (Pi)" : "Other drive", { pill: hl.pill ? hl.pill(x) : hl.tone === "ok" ? "Healthy" : hl.tone === "bad" ? "Failing" : "Check", tone: hl.pill ? (x.mounted ? "ok" : "warn") : hl.tone },
         h("p", { class: "big" }, `${x.model || "USB drive"}`),
         h("p", { class: "meta" }, `${gb(x.size)}${x.serial_end ? `, serial ending ${x.serial_end}` : ""}`),
         h("p", {}, hl.say),

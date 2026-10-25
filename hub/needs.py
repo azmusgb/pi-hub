@@ -4,8 +4,20 @@ problems with recoveries ("display went offline", "display is back"), and the li
 wrong."""
 
 PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
+import re
+
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
+
+
+def print_detail(raw, verb):
+    """Bambuddy's message ("<printer>: <file>.gcode\nTime: 1h 4m\nFilament: …") as "Finished <job> · 1 h 4 min"."""
+    lines = str(raw or "").splitlines()
+    job = re.sub(r"\.(gcode|3mf)$", "", lines[0].split(": ", 1)[-1].strip(), flags=re.I) if lines else ""
+    took = next((m for m in (re.match(r"Time:\s*(?:(\d+)h)?\s*(?:(\d+)m)?", l.strip()) for l in lines[1:]) if m and m.group(0) != "Time:"), None)
+    took = " ".join(x for x in ((f"{took.group(1)} h" if took and took.group(1) else ""),
+                                (f"{took.group(2)} min" if took and took.group(2) else "")) if x)
+    return " · ".join(x for x in (f"{verb} {job}".strip(), took) if x)
 
 
 def _printer(events, now):
@@ -17,12 +29,12 @@ def _printer(events, now):
             if now - e["ts"] > PRINT_HOURS * 3600:
                 return None
             return {"source": "Printer", "tone": "attention", "title": "Clear the plate",
-                    "detail": e.get("detail") or "The print is done.", "link": "/workshop", "ts": e["ts"]}
+                    "detail": print_detail(e.get("detail"), "Finished"), "link": "/workshop", "ts": e["ts"]}
         if e["kind"] == "print_failed":
             if now - e["ts"] > PRINT_HOURS * 3600:
                 return None
             return {"source": "Printer", "tone": "bad", "title": "The print failed",
-                    "detail": e.get("detail") or "Check the plate.", "link": "/workshop", "ts": e["ts"]}
+                    "detail": print_detail(e.get("detail"), "Failed"), "link": "/workshop", "ts": e["ts"]}
     return None
 
 

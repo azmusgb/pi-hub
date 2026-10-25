@@ -1,4 +1,5 @@
 // Settings: first-time setup, owner sign-in, and the owner's controls.
+import { firstFew } from "./section-links.js";
 import { api, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
 
 export const every = 60;
@@ -69,7 +70,7 @@ function versionsCard(r, save) {
   return card("Versions", { cls: "wide", pill: r.current ? `Running ${r.current.slice(0, 7)}` : "Not set up", tone: "ok" },
     h("p", { class: "meta" }, "New versions arrive from Claude, run the hub's tests on the Pi, and only go live if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
     live ? h("p", {}, h("strong", {}, live.subject || "Current version"), h("span", { class: "meta" }, `, live since ${when(live.ts)}`)) : null,
-    r.log.length ? h("ul", { class: "log" }, r.log.map((x) => {
+    ...(r.log.length ? firstFew(r.log.map((x) => {
       const [label, tone] = STATUS[x.status] || [x.status, "warn"];
       const canGoBack = x.status === "live" && x.sha !== r.current && r.on_pi.includes(x.sha);
       return h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone } }),
@@ -78,7 +79,7 @@ function versionsCard(r, save) {
           if (!confirm(`Go back to “${x.subject || x.sha}”? The hub restarts.`)) return;
           await save("rollback")({ to: x.sha });
         } }, "Go back to this") : h("span", { class: "log-side" }, x.sha === r.current ? "Running" : ""));
-    })) : empty("No versions recorded yet."));
+    }), { n: 3, noun: "versions" }) : [empty("No versions recorded yet.")]));
 }
 
 export function mount(state) {
@@ -204,10 +205,10 @@ export async function load(state) {
     shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },
       d.log.length
-        ? h("ul", { class: "log" }, d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
+        ? firstFew(d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household PIN"}`)),
-          h("span", { class: "log-side" }, when(l.ts)))))
-        : empty("Nothing yet. Every restart, fix and settings change is listed here.")),
+          h("span", { class: "log-side" }, when(l.ts)))), { n: 6, noun: "changes" })
+        : [empty("Nothing yet. Every restart, fix and settings change is listed here.")]),
   ];
   
   const appearanceCard = card("Appearance", {},

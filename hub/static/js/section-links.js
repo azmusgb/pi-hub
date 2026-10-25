@@ -7,3 +7,11 @@ export function linkGroup(title, links) {
       h("a", /^https?:/.test(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true },
         h("strong", {}, name), h("span", { class: "meta" }, what))))));
 }
+
+// A long list shows its newest few; the rest sit behind "Show all" (one tap, no page jump).
+export function firstFew(items, { n = 6, cls = "log", noun = "entries" } = {}) {
+  if (items.length <= n) return [h("ul", { class: cls }, items)];
+  return [h("ul", { class: cls }, items.slice(0, n)),
+    h("details", { class: "show-all" }, h("summary", {}, `Show all ${items.length} ${noun}`),
+      h("ul", { class: cls }, items.slice(n)))];
+}

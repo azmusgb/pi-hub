@@ -1,9 +1,10 @@
 // Home: the one-line answer, then six cards (one home, "Home cards"): Needs you, Workshop, Documents, Media,
 // Home & network and System. The wall display keeps its own layout.
-import { api, clockTime, ensure, fix, h, post, settle, spark, weatherIcon, whoami } from "./core.js";
+import { api, clockTime, h, post, settle, weatherIcon } from "./core.js";
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
 import { homeCards } from "./home-cards.js";
+import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 
@@ -34,126 +35,29 @@ function isWallMode() {
   );
 }
 
-function cachedNarration() {
-  const hour = new Date().getHours();
-  try {
-    const cached = JSON.parse(sessionStorage.getItem("hub-narration-" + hour) || "null");
-    if (cached && Date.now() - cached.ts < 30 * 60 * 1000) return cached.text;
-  } catch {}
-  return null;
-}
 
-async function generateNarration(d, out) {
-  try {
-    const me = await whoami();
-    if (me.role === "none") return null;
-  } catch { return null; }
-  const hour = new Date().getHours();
-  const snapshot = {
-    timeOfDay: hour < 6 ? "night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night",
-    weather: out?.weather ? out.weather.now.temp + " degrees, " + out.weather.now.sky.toLowerCase() : null,
-    printer: d.printer.state === "printing" ? "printing" : "idle",
-    moviesNow: d.movies.playing ? d.movies.playing.map((s) => s.title) : [],
-  };
-  const prompt = `You are the voice of a home writing a brief note to its owner. Given this snapshot, write ONE short sentence (occasionally two short ones) in plain, warm English describing how the house is right now. Speak as the house itself, never in the first person. Be specific: mention weather, movies, or the printer only if they are actually notable. Otherwise just be present. Never invent details.
-
-Examples of good output:
-- A quiet Sunday afternoon. The workshop windows are shut against the rain.
-- The printer is warm from a job that just finished. Everything else is still.
-- Evening, cool and clear. Two movies playing in the living room.
-
-Snapshot: ${JSON.stringify(snapshot)}
-
-Your note:`;
-  try {
-    const r = await post("/api/ask", { question: prompt });
-    const text = (r.answer || "").trim().replace(/^["']|["']$/g, "");
-    if (text && text.length > 10 && text.length < 200) {
-      sessionStorage.setItem("hub-narration-" + hour, JSON.stringify({ text, ts: Date.now() }));
-      return text;
-    }
-  } catch {}
-  return null;
-}
-
+// The internet and the home network in plain words (the 25 Oct critique): one headline, then how quickly each part
+// of the path answers. Details live in Grafana and Uptime Kuma.
 export function networkPanel(net) {
   if (!net || (!net.orbi_ms && !net.wan_ms)) return null;
-  const orbi = net.orbi_ms !== undefined && net.orbi_ms !== null ? `${net.orbi_ms} ms` : "—";
-  const att = net.att_ms !== undefined && net.att_ms !== null ? `${net.att_ms} ms` : "—";
-  const wan = net.wan_ms !== undefined && net.wan_ms !== null ? `${net.wan_ms} ms` : "—";
-  const dns = net.dns_ms !== undefined && net.dns_ms !== null ? `${net.dns_ms} ms` : "—";
-  const win = net.win_ms !== undefined && net.win_ms !== null ? `${net.win_ms} ms` : "—";
-  const printer = net.printer_ms !== undefined && net.printer_ms !== null ? `${net.printer_ms} ms` : null;
-
-  const getTone = (val) => {
-    if (val === "—" || val === null || val === undefined) return "danger";
-    const num = parseFloat(val);
-    if (isNaN(num)) return "neutral";
-    if (num > 60) return "warn";
-    return "ok";
-  };
-
-  const nodePill = (label, val, tone = "ok", extra = "") => h("div", {
-    style: "display: inline-flex; align-items: center; gap: .45rem; background: var(--surface); padding: .35rem .75rem; border-radius: var(--r-sm); border: 1px solid var(--line); font-size: .8125rem; box-shadow: 0 1px 2px rgba(0,0,0,0.03);"
-  },
-    h("span", { class: "dot", dataset: { tone: tone }, style: "width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 6px color-mix(in srgb, currentColor 60%, transparent);" }),
-    h("span", { style: "color: var(--text-2); font-weight: 500;" }, label),
-    h("strong", { style: "font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); color: var(--text); margin-left: .15rem;" }, val),
-    extra ? h("span", { style: "font-size: .6875rem; color: var(--text-3);" }, extra) : null
-  );
-
-  const arrow = () => h("span", {
-    style: "color: var(--text-3); font-size: .95rem; opacity: .45; user-select: none; padding: 0 .15rem;"
-  }, "›");
-
-  const hasBandwidth = net.orbi_down_mbps !== undefined && net.orbi_down_mbps !== null;
-
-  return h("section", {
-    class: "network-panel",
-    style: "background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 1.125rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
-  },
-    h("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem; flex-wrap: wrap; gap: .6rem;" },
-      h("div", {},
-        h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
-          h("span", { style: "font-size: 1rem;" }, "⚡"),
-          h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
-          h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: color-mix(in srgb, var(--ok) 65%, var(--text)); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "Live")
-        ),
-        (net.orbi_uptime || net.orbi_ext_ip) ? h("div", { style: "display: flex; align-items: center; gap: .65rem; margin-top: .35rem; font-size: .75rem; color: var(--text-3); flex-wrap: wrap;" },
-          net.orbi_uptime ? h("span", {}, `Orbi Uptime: ${net.orbi_uptime}`) : null,
-          net.orbi_ext_ip ? h("span", {}, `• Public IP: ${net.orbi_ext_ip}`) : null,
-          hasBandwidth ? h("span", {
-            style: "background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); color: color-mix(in srgb, var(--ok) 65%, var(--text)); padding: .1rem .5rem; border-radius: 999px; font-weight: 600; font-family: var(--font-mono, monospace); font-size: .72rem; margin-left: .2rem;"
-          }, `↓ ${net.orbi_down_mbps} Mbps  ↑ ${net.orbi_up_mbps || 0} Mbps`) : null
-        ) : null
-      ),
-      h("div", { style: "display: flex; gap: .5rem;" },
-        h("a", { class: "chip", href: toolUrl("network"), target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Open Grafana ↗"),
-        h("a", { class: "chip", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Open Status ↗")
-      )
-    ),
-    h("div", { style: "margin-bottom: .75rem;" },
-      h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "Hop-by-Hop Edge Demarcation"),
-      h("div", { style: "display: flex; gap: .35rem; align-items: center; flex-wrap: wrap;" },
-        nodePill("Pi 4", "Local", "ok"),
-        arrow(),
-        nodePill("Orbi Router", orbi, getTone(orbi)),
-        arrow(),
-        nodePill("AT&T Fiber", att, getTone(att)),
-        arrow(),
-        nodePill("Internet WAN", wan, getTone(wan))
-      )
-    ),
-    h("div", { style: "height: 1px; background: var(--line); margin: .75rem 0; opacity: .7;" }),
-    h("div", {},
-      h("p", { style: "font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 .4rem .2rem; font-weight: 600;" }, "LAN Endpoints & Services"),
-      h("div", { style: "display: flex; gap: .45rem; flex-wrap: wrap; align-items: center;" },
-        nodePill("Windows 11 Workstation", win, getTone(win)),
-        printer ? nodePill("Bambu Printer", printer, getTone(printer)) : null,
-        nodePill("DNS Resolution", dns, getTone(dns))
-      )
-    )
-  );
+  const ms = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10} ms` : "no answer");
+  const tone = (v) => (!Number.isFinite(v) ? "bad" : v > 60 ? "warn" : "ok");
+  const row = (label, what, v) => h("li", {},
+    h("span", { class: "dot", dataset: { tone: tone(v) }, "aria-hidden": "true" }),
+    h("strong", {}, label), h("span", { class: "meta" }, what), h("span", { class: "status-side" }, ms(v)));
+  const headline = plainInternet(net);
+  return h("section", { class: "net-panel", "aria-label": "Internet and home network" },
+    h("p", { class: "net-headline", dataset: { tone: headline.startsWith("Internet OK") ? "ok" : "warn" } }, headline),
+    h("ul", { class: "status-list" },
+      row("Router", "The Orbi", net.orbi_ms),
+      row("AT&T line", "From the router to AT&T", net.att_ms),
+      row("Internet", "Out to the wider internet", net.wan_ms),
+      row("Name lookups", "Turning names into addresses", net.dns_ms),
+      row("Windows PC", "Local AI and Paperless", net.win_ms),
+      Number.isFinite(net.printer_ms) ? row("3D printer", "The X2D", net.printer_ms) : null),
+    h("p", { class: "meta" },
+      h("a", { class: "tool-link", href: toolUrl("network"), target: "_blank", rel: "noopener" }, "Open Grafana ↗"), " ",
+      h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗")));
 }
 
 export function band(p, cam = null) {
@@ -373,51 +277,6 @@ function renderWallHeader(state, out) {
   state.wallWeather.replaceChildren(...[wxIcon, wxTemp, wxSky, tools].filter(Boolean));
 }
 
-function askBox() {
-  const input = h("input", { type: "text", id: "ask-input", maxlength: 400, placeholder: "Ask about the house…", autocomplete: "off", enterkeyhint: "send" });
-  const answer = h("div", { class: "ask-answer", "aria-live": "polite" });
-  const btn = h("button", { type: "submit", class: "primary" }, "Ask");
-
-  const submitQuery = async (queryText) => {
-    const q = (queryText !== undefined ? queryText : input.value || "").trim();
-    if (!q || !(await ensure("household"))) return;
-    input.value = q;
-    btn.disabled = true;
-    answer.replaceChildren(h("p", { class: "meta" }, "Asking Local AI…"));
-    try {
-      const r = await post("/api/ask", { question: q });
-      answer.replaceChildren(h("p", { class: "ask-q" }, q), h("p", { class: "ask-a" }, r.answer));
-      input.value = "";
-    } catch (x) {
-      answer.replaceChildren(h("p", { class: "note" }, x.message));
-    }
-    btn.disabled = false;
-  };
-
-  const chip = (label) => h("button", {
-    type: "button",
-    class: "chip ask-chip",
-    onclick: () => submitQuery(label)
-  }, label);
-
-  return h("section", { class: "ask-section" },
-    h("h2", { class: "section-title" }, "Ask Pi Hub"),
-    h("form", { class: "ask", role: "search", "aria-label": "Ask Local AI", onsubmit: (e) => {
-      e.preventDefault();
-      submitQuery();
-    } },
-    h("label", { for: "ask-input", class: "sr" }, "Ask about the house"),
-    h("div", { class: "ask-row" }, input, btn),
-    answer,
-    h("div", { class: "ask-suggestions", role: "group", "aria-label": "Suggested questions" },
-      chip("How is the internet running?"),
-      chip("What movies are unwatched?"),
-      chip("Is the 3D printer ready?"),
-      chip("Are backups working?"),
-      chip("What’s happening at home?")
-    )
-  ));
-}
 
 function outsideLine(o) {
   const bits = [];
@@ -458,7 +317,6 @@ export function mount(state) {
   
   state.band = h("div");
   state.issues = h("div");
-  state.ask = isWallMode() ? "" : askBox();
   
   // Left column
   state.leftCol = h("div", { class: "now-col-left" }, state.band, state.issues);
@@ -485,7 +343,7 @@ export function mount(state) {
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
     state.cards = h("div", { class: "home-cards" });
-    state.root.append(state.hero, state.cards, state.ask);
+    state.root.append(state.hero, state.cards);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -535,27 +393,6 @@ export async function load(state) {
   if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
-  if (state.ask) state.ask.hidden = !d.status_available || ["Down", "Unknown"].includes(d.workshop.ai);
-
-  // Progressive enhancement: when the house is quiet, let it write a note.
-  if (d.issues.length === 0 && d.workshop.ai !== "Down" && !isWallMode()) {
-    const cached = cachedNarration();
-    if (cached) {
-      state.summary.textContent = cached;
-    } else {
-      generateNarration(d, out).then((text) => {
-        if (text && state.summary.textContent === d.summary) {
-          state.summary.textContent = text;
-          if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
-            state.summary.animate(
-              [{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "translateY(0)" }],
-              { duration: 400, easing: "cubic-bezier(.16, 1, .3, 1)" }
-            );
-          }
-        }
-      });
-    }
-  }
 
   // Wall Kiosk Mode Specialized Flow
   if (isWallMode()) {

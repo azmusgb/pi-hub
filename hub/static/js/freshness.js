@@ -1,9 +1,9 @@
 import { api, h } from "./core.js";
 
+// Checking detail, not something to act on: it lives on Help & system only (25 Oct critique). Other pages say
+// "<App> isn't answering" in the card that needs it.
 const SOURCES = {
-  now: ["pi", "plex", "home", "weather", "calendar"], movies: ["pi", "plex"],
-  control: ["home"], workshop: ["pi", "world"], print: ["printer"],
-  weather: ["weather"], pi: ["pi", "plex", "home", "printer", "world", "weather", "calendar"],
+  pi: ["pi", "plex", "home", "printer", "world", "weather", "calendar"],
 };
 export function ageLabel(seconds) {
   const age = Math.max(0, Math.floor(seconds));

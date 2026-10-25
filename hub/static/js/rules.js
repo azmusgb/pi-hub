@@ -1,5 +1,6 @@
 // Preview describes decisions. Only real household events execute automations.
 import { api, card, empty, ensure, h, post, toast, when } from './core.js';
+import { firstFew } from './section-links.js';
 export const every=30;
 const STATUS={succeeded:['Completed','ok'],failed:['Failed','bad'],blocked:['Blocked','warn'],skipped:['Skipped','warn'],running:['No completion recorded','warn'],would_run:['Would run','ok']};
 
@@ -59,11 +60,11 @@ function renderHistory(state) {
     h('p',{class:'meta'},'The latest 60 outcomes from the last 30 days. History starts with this version; removing a rule keeps its recorded outcomes.'),
     h('div',{class:'tabs','aria-label':'Filter automation history'},...[['all',`All · ${runs.length}`],['attention',`Needs a look · ${attention.length}`]].map(([key,label])=>h('button',{
       type:'button',class:state.filter===key?'active':'','aria-pressed':String(state.filter===key),onclick:()=>{state.filter=key;renderHistory(state);}},label))),
-    shown.length?h('ul',{class:'automation-history'},shown.map(run=>{
+    ...(shown.length?firstFew(shown.map(run=>{
       const [label,tone]=STATUS[run.status]||[run.status,'warn'];
       return h('li',{},h('div',{class:'run-outcome'},h('span',{class:'feature-tag',dataset:{tone}},label),h('time',{},when(run.ts))),
         h('strong',{},run.rule_text),h('p',{},run.message),h('span',{class:'meta'},run.elapsed_ms?`${(run.elapsed_ms/1000).toFixed(1)} seconds`:['skipped','blocked'].includes(run.status)?'No device action was run.':'Recorded by the hub.'));
-    })):empty(state.filter==='attention'?'No failed or blocked runs in this history.':'The next matching household event will leave its outcome here. Previewing a rule never adds a real run.')));
+    }),{n:6,cls:'automation-history',noun:'runs'}):[empty(state.filter==='attention'?'No failed or blocked runs in this history.':'The next matching household event will leave its outcome here. Previewing a rule never adds a real run.')])));
 }
 export async function load(state) {
   const d=await api('/api/rules');if(!state.root.isConnected)return;

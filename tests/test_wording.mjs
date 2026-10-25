@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { agoText, groupAppliances, mergeDropouts, printOutcome, plainInternet } from '../hub/static/js/wording.js';
+
+test('backup and event ages read like speech', () => {
+  assert.equal(agoText(0), 'less than an hour ago');
+  assert.equal(agoText(1), '1 h ago');
+  assert.equal(agoText(30), '30 h ago');
+  assert.equal(agoText(50), '2 days ago');
+  assert.equal(agoText(null), 'never');
+});
+
+const sw = (id, name, room = 'Bosch', on = false) => ({ id, name, room, kind: 'switch', on });
+test('an appliance whose functions arrive as separate switches becomes one card', () => {
+  const accessories = [
+    { id: 'l', name: 'Workshop Light', room: 'Workshop', kind: 'light', on: true },
+    sw('p', 'Dishwasher Power', 'Bosch', true), sw('a', 'Dishwasher Active Program'),
+    sw('1', 'Auto'), sw('2', 'Normal', 'Bosch', true), sw('3', 'Rinse'), sw('4', 'Speed 60'),
+  ];
+  const { appliances, rest } = groupAppliances(accessories);
+  assert.deepEqual(rest.map((a) => a.id), ['l']);
+  assert.equal(appliances.length, 1);
+  const d = appliances[0];
+  assert.equal(d.name, 'Dishwasher');
+  assert.equal(d.power.id, 'p');
+  assert.equal(d.running.id, 'a');
+  assert.deepEqual(d.programs.map((p) => p.name), ['Auto', 'Normal', 'Rinse', 'Speed 60']);
+  assert.equal(d.status, 'On · Normal selected');
+  assert.equal(groupAppliances([sw('x', 'Fan', 'Kitchen'), sw('y', 'Pump', 'Kitchen')]).appliances.length, 0);
+});
+
+test('a device that drops out and comes back many times in a day is one line', () => {
+  const day = new Date(2026, 9, 24, 12).getTime() / 1000;
+  const alerts = [];  // newest first, as /api/alerts gives them
+  for (let i = 0; i < 4; i++) {
+    alerts.push({ ts: day - i * 600, title: 'Workshop display is back', body: '', tag: 'white_check_mark' });
+    alerts.push({ ts: day - i * 600 - 300, title: 'Workshop display went offline', body: '', tag: 'warning' });
+  }
+  alerts.push({ ts: day - 5000, title: 'X2D print finished', body: 'Cube', tag: 'tada' });
+  const out = mergeDropouts(alerts);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].title, 'Workshop display dropped out 4 times');
+  assert.equal(out[0].body, 'Back now');
+  assert.equal(out[0].tag, 'warning');
+  assert.equal(out[1].title, 'X2D print finished');
+  const once = mergeDropouts(alerts.slice(0, 2));
+  assert.deepEqual(once.map((a) => a.title), ['Workshop display is back', 'Workshop display went offline']);
+});
+
+test('a print that ran for no time reads as cancelled at the start', () => {
+  assert.deepEqual(printOutcome({ started: 100, ended: 130, outcome: 'finished' }), ['Cancelled at start', 'warn']);
+  assert.deepEqual(printOutcome({ started: 100, ended: 130, outcome: 'stopped' }), ['Cancelled at start', 'warn']);
+  assert.equal(printOutcome({ started: 100, ended: 3940, outcome: 'finished' }), null);
+  assert.equal(printOutcome({ started: 100, ended: null }), null);
+});
+
+test('the internet summary is in plain words', () => {
+  assert.equal(plainInternet({ status: 'ok', wan_ms: 9.5, orbi_down_mbps: 20.96, orbi_up_mbps: 2.5 }), 'Internet OK · 21 Mbps down, 2.5 up');
+  assert.equal(plainInternet({ status: 'ok', wan_ms: 400 }), 'Internet slow');
+  assert.equal(plainInternet({ status: 'bad' }), 'Internet down');
+  assert.equal(plainInternet(null), "Network checks aren't answering");
+});
