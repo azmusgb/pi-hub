@@ -14,7 +14,9 @@ def printer_actions(b):
     if not b or not b.get("connected"):
         return []
     state = b.get("bambuddy_state")
-    return [a for a, fits in (("clear", b.get("awaiting_plate_clear")), ("pause", state == "RUNNING"),
+    # Bambuddy keeps awaiting_plate_clear while a print started from the printer runs, so only after one ends
+    done = state in ("FINISH", "FAILED") and b.get("awaiting_plate_clear")
+    return [a for a, fits in (("clear", done), ("pause", state == "RUNNING"),
                                 ("resume", state == "PAUSE")) if fits]
 
 

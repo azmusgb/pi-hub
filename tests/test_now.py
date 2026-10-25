@@ -195,3 +195,10 @@ def test_a_printer_error_with_the_plate_waiting_still_says_so():
     assert p["state"] == "error" and p["actions"] == ["clear"]
     assert p["headline"] == "Print failed — clear the plate"
     assert p["detail"] == "The printer reports 0300-4000. Check its screen."
+
+
+def test_no_clear_while_a_new_print_runs_even_if_bambuddy_still_flags_the_plate():
+    # seen live 25 Oct: E-012 started from the printer, Bambuddy kept awaiting_plate_clear true while RUNNING
+    assert now.printer_actions({**B, "bambuddy_state": "RUNNING"}) == ["pause"]
+    assert now.printer_actions({**B, "bambuddy_state": "PAUSE"}) == ["resume"]
+    assert now.printer_actions({**B, "bambuddy_state": "IDLE"}) == []
