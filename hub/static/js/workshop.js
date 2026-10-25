@@ -31,10 +31,17 @@ export function leave(state) { clearInterval(state.camTimer); }
 function camera(c) {
   const src = c.source === "Pi" ? "From the Pi" : c.source === "MacBook" ? "From the MacBook (backup)" : null;
   if (!c.ok) {
+    // The printer's own state says the most: its video switched off (common after it restarts) or not answering at all.
+    const why = c.reason === "liveview_off"
+      ? ["The X2D isn't sharing its camera on the network. On the printer's screen, turn on ", h("strong", {}, "LAN Only Liveview"),
+        " (Settings › Network). The picture comes back here within a minute."]
+      : c.reason === "printer_unreachable" ? ["The printer isn't answering on the network. It may be off or restarting."]
+      : null;
     const tips = [];
-    if (c.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't set up yet");
+    if (c.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't getting pictures");
     if (c.sources?.MacBook && !c.sources.MacBook.fresh) tips.push("the MacBook is asleep or Bambu Studio's live view is closed");
     return card("Camera", { cls: "wide", pill: "No picture", tone: "warn" },
+      why ? h("p", {}, ...why) : null,
       h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the printer right now."));
   }
   const hint = c.source === "MacBook"
@@ -121,9 +128,9 @@ export async function load(state) {
   state.band.replaceChildren(band(d.printer));
   state.facts = d.printer.headline;
   state.actions.replaceChildren(...[printerButtons(d.printer, () => load(state))].filter(Boolean));
-  if (state.camOk !== cam.ok || state.camSource !== cam.source) {
+  if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
     state.cam.replaceChildren(camera(cam));
-    state.camOk = cam.ok; state.camSource = cam.source;
+    state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
   }
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;

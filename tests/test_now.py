@@ -210,3 +210,18 @@ def test_assistant_state_follows_the_status_service(monkeypatch):
     assert c.get("/api/assistant").json() == {"state": "Down"}
     monkeypatch.setattr(sources, "pi_status", lambda: None)
     assert c.get("/api/assistant").json() == {"state": "Unknown"}
+
+
+def test_camera_says_why_when_the_printer_shares_no_video(monkeypatch):
+    import urllib.request as ur
+
+    def down(*a, **k):
+        raise OSError("no bridge")
+    monkeypatch.setattr(ur, "urlopen", down)
+    c = TestClient(hub_app.app)
+    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: port != 322)
+    assert c.get("/api/camera").json()["reason"] == "liveview_off"
+    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: False)
+    assert c.get("/api/camera").json()["reason"] == "printer_unreachable"
+    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: True)
+    assert c.get("/api/camera").json()["reason"] is None
