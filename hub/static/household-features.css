@@ -45,7 +45,7 @@
 .project-lane-heading h3 { margin:0; font-size:.9rem; }
 .project-lane-heading > span { color:var(--text-2); font-size:.8rem; }
 .project-card { padding:1rem; border:1px solid var(--line-strong); border-radius:var(--r-md); margin-bottom:.75rem; background:var(--surface-1,transparent); min-width:0; overflow-wrap:anywhere; }
-.project-card[data-warning="true"] { border-left:3px solid var(--accent-strong); }
+.project-card[data-warning="true"] { border-left:3px solid var(--warn); }
 .project-card h4 { font-size:1rem; margin:0 0 .5rem; line-height:1.4; }
 .project-spec { font-size:.8rem; line-height:1.6; margin:.5rem 0; }
 .project-warning { font-size:.8rem; line-height:1.5; border-top:1px solid var(--line); padding-top:.6rem; color:var(--text); }

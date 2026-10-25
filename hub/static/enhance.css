@@ -680,4 +680,4 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .source-freshness dd { margin: .25rem 0 0; color: var(--text-2); overflow-wrap: anywhere; }
 .source-freshness [data-stale="true"] dd { font-style: italic; }
 body.wall .source-freshness { display: none; }
-.fix-result[data-tone="warn"] { border-color: var(--accent-strong); }
+.fix-result[data-tone="warn"] { border-color: var(--warn); }

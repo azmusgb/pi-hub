@@ -136,7 +136,7 @@ export function applyTheme() {
     theme = dark.matches ? "dark" : "light";
   }
   document.documentElement.dataset.theme = theme;
-  document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#e3e7e8" : "#1b1f22";
+  document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#f5f7fa" : "#0b1118";
   const b = document.getElementById("theme-btn");
   if (b) b.textContent = `Theme: ${LABEL[pref()]}`;
 }

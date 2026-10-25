@@ -7,7 +7,9 @@ import { mkdirSync } from 'node:fs';
 
 const BASE = process.argv[2] || 'http://10.0.0.30';
 const OUT = new URL('./out/', import.meta.url).pathname;
-const PAGES = { '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
+// The wall (kiosk) has no menu or Assistant button: only its contrast and fit are checked.
+const WALL = '/wall';
+const PAGES = { '/wall': 'wall', '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
 mkdirSync(OUT, { recursive: true });
 
 const problems = [];
@@ -21,11 +23,12 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
       await page.goto(BASE + path, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       const current = await page.$$eval('.rail [data-page][aria-current="page"]', (a) => a.map((x) => x.dataset.page));
-      if (!current.includes(key)) problems.push(`${where}: active tab ${current} (want ${key})`);
+      if (path !== WALL && !current.includes(key)) problems.push(`${where}: active tab ${current} (want ${key})`);
       const axe = await new AxeBuilder({ page }).exclude('.house-cam-img').analyze();
       for (const v of axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))) {
         problems.push(`${where}: axe ${v.id} (${v.nodes.length})`);
       }
+      if (path === WALL) { await page.screenshot({ path: `${OUT}${key}-${width}-${colorScheme}.png` }); continue; }
       const assistant = page.locator(width < 861 ? '.top-assistant' : '.rail-assistant');
       if (!(await assistant.isVisible())) problems.push(`${where}: Assistant not visible`);
       if (await assistant.locator('.nav-badge').count()) problems.push(`${where}: Assistant has a badge`);

@@ -49,4 +49,48 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v89" in sw
+    assert "pi-hub-shell-v90" in sw
+
+
+def _kit():
+    import json
+    return json.load(open(os.path.join(STATIC, "ui", "tokens.json")))["color"]
+
+
+def _rgb(hexv):
+    return ", ".join(str(int(hexv[i:i + 2], 16)) for i in (1, 3, 5))
+
+
+def test_no_amber_or_old_status_literals_in_the_page_code():
+    found = [f"{os.path.basename(p)}: {a}" for p in glob.glob(os.path.join(STATIC, "js", "*.js"))
+             for a in ("#d49b20", "#f2c45c", "#b26a00", "#f5b04a") if a in open(p).read().lower()]
+    assert found == []
+
+
+def test_the_printer_accent_and_progress_line_work_outside_the_band_too():
+    css = open(os.path.join(STATIC, "home.css")).read()
+    assert re.search(r"(^|\n):root\s*\{[^}]*--band-accent:\s*#b26a00", css), "--band-accent on :root"
+    assert re.search(r"(^|\n)\.line-bead\s*\{[^}]*var\(--band-accent\)", css), "an unscoped .line-bead rule"
+
+
+def test_warning_states_use_the_warning_colour():
+    for f, sel in (("enhance.css", '.fix-result[data-tone="warn"]'), ("household-features.css", '.project-card[data-warning="true"]')):
+        css = open(os.path.join(STATIC, f)).read()
+        rule = css[css.index(sel):css.index("}", css.index(sel))]
+        assert "var(--warn)" in rule and "--accent" not in rule, (f, rule)
+
+
+def test_the_status_triples_follow_the_kit():
+    kit, css = _kit(), re.sub(r"[ \t]+", " ", open(os.path.join(STATIC, "app.css")).read())
+    for mode in ("light", "dark"):
+        for name, token in (("ok", "ok"), ("warn", "warn"), ("bad", "bad"), ("pei", "accent")):
+            assert f"--{name}-rgb: {_rgb(kit[token][mode])};" in css, (mode, name, kit[token][mode])
+
+
+def test_browser_chrome_colours_follow_the_kit():
+    kit = _kit()
+    html = open(os.path.join(STATIC, "index.html")).read().lower()
+    main = open(os.path.join(STATIC, "js", "main.js")).read().lower()
+    for mode in ("light", "dark"):
+        assert kit["bg"][mode] in html and kit["bg"][mode] in main, mode
+    assert "#f4f1ea" not in html and "#0a0c0f" not in html

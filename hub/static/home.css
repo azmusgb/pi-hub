@@ -66,7 +66,7 @@ body.wall.night { filter: brightness(0.55); }
 .kiosk-btn.active {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-strong);  /* the kit's accent text: 4.5:1 on the tint */
 }
 .kiosk-console {
   background: var(--surface-2);
@@ -414,30 +414,28 @@ body.wall.night { filter: brightness(0.55); }
 .wifi-panel .meta { margin: .25rem 0 0; font-size: .8125rem; color: var(--text-3); }
 
 /* ---- Printer Band emphasis: the one place the hub's amber stays (one home, step 5) ---- */
-.band { --band-accent: #b26a00; }
-:root[data-theme="dark"] .band { --band-accent: #f5b04a; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .band { --band-accent: #f5b04a; } }
+:root { --band-accent: #b26a00; }
+:root[data-theme="dark"] { --band-accent: #f5b04a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --band-accent: #f5b04a; } }
 .band.is-printing {
   background: color-mix(in srgb, var(--band-accent) 8%, var(--surface));
   border-color: color-mix(in srgb, var(--band-accent) 40%, var(--line));
 }
-/* The band itself: a card with the printer's name, the headline, an amber progress line and the detail. Amber is for
+/* The progress line (the band and the wall's console) and the band itself: a card with the printer's name, the headline, an amber progress line and the detail. Amber is for
    the line and the edge only; its text uses the theme's text colours (amber text fails contrast on white). */
 .band { position: relative; padding: 1.25rem 1.5rem; border: 1px solid var(--line); border-radius: var(--r-lg);
   background: var(--surface); box-shadow: var(--shadow-1); }
 .band-name { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
 .band-headline { margin: .25rem 0 .75rem; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
-.band .line { position: relative; height: 6px; margin: 0 0 .75rem; }
-.band .line-track { position: absolute; inset: 0; border-radius: 999px; background: var(--surface-3); }
-.band .line-bead { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--band-accent); }
-.band .line-nozzle { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+.line { position: relative; height: 6px; margin: 0 0 .75rem; }
+.line-track { position: absolute; inset: 0; border-radius: 999px; background: var(--surface-3); }
+.line-bead { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--band-accent); }
+.line-nozzle { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
   background: var(--band-accent); box-shadow: 0 0 0 3px var(--surface); }
 .band-detail { margin: 0; color: var(--text-2); }
 
 
 /* ---- Design Audit Refinements ---- */
-:root[data-theme="light"] { --text-3: #625d53; }
-:root[data-theme="dark"] { --text-2: #b0b8c4; --text-3: #9ca6b4; }
 
 /* 2. Shrink Hero & Remove accidental Pi shape */
 .hero {

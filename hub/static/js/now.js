@@ -193,7 +193,7 @@ function workshopLightCard(light, state) {
     h("span", { class: "meta", style: "font-size: .75rem; margin-top: .1rem;" }, "Govee Workbench Illumination")
   );
   const stateLabel = h("span", {
-    style: `font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: color-mix(in srgb, ${isOn ? '#f2c45c' : 'var(--text-3)'} 20%, transparent); color: ${isOn ? '#d49b20' : 'var(--text-3)'}; margin-right: .75rem;`
+    style: `font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: color-mix(in srgb, ${isOn ? 'var(--warn)' : 'var(--text-3)'} 20%, transparent); color: ${isOn ? 'var(--warn)' : 'var(--text-3)'}; margin-right: .75rem;`
   }, isOn ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off");
   const btnAction = h("span", { class: "chip", style: "font-size: .8rem; font-weight: 700;" }, isOn ? "Turn Off" : "Turn On");
 
@@ -207,8 +207,8 @@ function workshopLightCard(light, state) {
         light.on = !light.on;
         toggleBtn.classList.toggle("is-on", light.on);
         stateLabel.textContent = light.on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
-        stateLabel.style.background = `color-mix(in srgb, ${light.on ? '#f2c45c' : 'var(--text-3)'} 20%, transparent)`;
-        stateLabel.style.color = light.on ? '#d49b20' : 'var(--text-3)';
+        stateLabel.style.background = `color-mix(in srgb, ${light.on ? 'var(--warn)' : 'var(--text-3)'} 20%, transparent)`;
+        stateLabel.style.color = light.on ? 'var(--warn)' : 'var(--text-3)';
         bulbIcon.style.opacity = light.on ? "1" : "0.45";
         btnAction.textContent = light.on ? "Turn Off" : "Turn On";
       } catch (e) {
@@ -346,7 +346,7 @@ export function mount(state) {
     }, 1000);
 
     const exitWall = h("div", { class: "wall-exit-wrap", style: "text-align: center; margin-top: 2.5rem; padding: 1rem 0;" },
-      h("a", { href: "/", class: "btn btn--ghost small", "data-link": true, style: "opacity: 0.5; font-size: 0.85rem;" }, "← Exit wall display")
+      h("a", { href: "/", class: "btn btn--ghost small", "data-link": true, style: "font-size: 0.85rem; color: var(--text-2);" }, "← Exit wall display")
     );
     state.root.append(state.wallHead, state.summary, state.outside, state.main, exitWall);
   } else {
