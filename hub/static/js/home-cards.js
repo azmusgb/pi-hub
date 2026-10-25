@@ -13,6 +13,7 @@ export function homeBadge(needs) {
 }
 
 function needsCard(needs) {
+  if (needs === undefined) return null;  // not asked yet
   if (!needs) {
     return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: "Couldn't check what needs you",
       items: [], note: "", action: null, link: null };
@@ -66,11 +67,12 @@ function systemCard(backups, pi) {
   const worst = backups?.available && hours.length === backups.repos.length ? Math.max(...hours) : null;
   const temp = Number.isFinite(pi?.temp) ? ` · Pi ${Math.round(pi.temp)} °C` : "";
   return { key: "system", title: "System",
-    status: (worst === null ? "Backups unknown" : `Backed up ${worst} h ago`) + temp,
-    tone: worst === null || worst > STALE_HOURS ? "warn" : "ok",
+    status: (backups === undefined ? "Checking backups…" : worst === null ? "Backups unknown" : `Backed up ${worst} h ago`) + temp,
+    tone: backups === undefined ? "none" : worst === null || worst > STALE_HOURS ? "warn" : "ok",
     action: { label: "Restore a file", href: "/system" }, link: null };
 }
 
+// `undefined` for needs, backups or latest means "not answered yet": Home shows its cards at once and fills these in.
 // Every card but Needs you has one main action; Needs you's items are its actions.
 export function homeCards({ now, needs, backups, home, latest, at = new Date(), host = globalThis.location?.hostname || "" }) {
   return [

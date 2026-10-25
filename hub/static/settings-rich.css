@@ -1,6 +1,7 @@
 
 /* settings-rich.css — Information Architecture and Grid */
 .auth-box {
+  width: 100%;  /* inside .stack's grid it otherwise shrinks to its narrowest word (one word per line on a phone) */
   max-width: 440px;
   margin: 4rem auto;
 }

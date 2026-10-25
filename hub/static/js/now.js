@@ -582,12 +582,6 @@ export async function load(state) {
     }
   }
 
-  const [needs, backups, latest] = await Promise.all([
-    settle(api("/api/needs"), 4000, null),
-    settle(api("/api/system/backups"), 4000, null),
-    settle(api("/api/movies/latest"), 4000, null),
-  ]);
-  if (needs) setNeeds(needs);
   state.summary.hidden = false;
   if (state.hero) state.hero.hidden = false;
   if (!state.cards) {  // the wall's "Ambient Home" view: the same cards in its right column
@@ -595,7 +589,20 @@ export async function load(state) {
     state.leftCol.replaceChildren(state.band);
     state.rightCol.replaceChildren(state.cards);
   }
-  state.cards.replaceChildren(...homeCards({ now: d, needs, backups, home, latest }).map((c) => homeCard(c, cam)));
+  // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
+  // the page never waits on them.
+  const draw = (extra) => state.cards.replaceChildren(
+    ...homeCards({ now: d, home, ...extra }).map((c) => homeCard(c, cam)));
+  draw(state.extra || {});
+  Promise.all([
+    settle(api("/api/needs"), 4000, null),
+    settle(api("/api/system/backups"), 4000, null),
+    settle(api("/api/movies/latest"), 4000, null),
+  ]).then(([needs, backups, latest]) => {
+    if (needs) setNeeds(needs);
+    state.extra = { needs, backups, latest };
+    if (state.cards.isConnected) draw(state.extra);
+  });
 }
 
 export function failed(state) {

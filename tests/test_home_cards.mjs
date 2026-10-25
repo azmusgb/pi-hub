@@ -91,3 +91,10 @@ test('Needs you says when it could not check, even with nothing else to show', (
   assert.equal(by(all({ needs: null })).needs.status, "Couldn't check what needs you");
   assert.equal(homeBadge({ count: 0, items: [], unread: ['Local AI'] }), '');
 });
+
+test('before the extra sources answer, Home shows its cards with "Checking…" instead of waiting', () => {
+  const c = by(all({ needs: undefined, backups: undefined, latest: undefined }));
+  assert.ok(!c.needs);
+  assert.equal(c.system.status, 'Checking backups… · Pi 52 °C');
+  assert.equal(c.media.status, 'Now playing: Arrival');
+});
