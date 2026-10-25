@@ -726,3 +726,7 @@ main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.m
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .show-all > summary { color: var(--accent); } }
 :root[data-theme="dark"] .show-all > summary { color: var(--accent); }
 .show-all > summary:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* Clear the plate, Pause, Resume under the Workshop printer band (one home, step 3) */
+.printer-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+.printer-actions .btn { min-height: 44px; }

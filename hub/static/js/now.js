@@ -7,6 +7,7 @@ import { homeCards } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
+import { PRINTER_ACTIONS, runPrinterAction } from "./printer-actions.js";
 
 export const every = 15;
 
@@ -295,7 +296,14 @@ function outsideLine(o) {
 const outward = (href) => /^https?:/.test(href);
 const go = (link) => { const href = resolveLink(link); return outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true }; };
 
-function homeCard(c, cam) {
+// A printer action on a card (Clear the plate): the same flow as the Workshop page's buttons.
+function cardButton(action, onDone) {
+  const b = h("button", { type: "button", class: "btn home-card-action" }, action.label || PRINTER_ACTIONS[action.do]?.label);
+  b.addEventListener("click", () => runPrinterAction(action.do, [b], onDone));
+  return b;
+}
+
+function homeCard(c, cam, onDone) {
   const showCam = c.key === "workshop" && cam?.ok && /^(Printing|Paused)/.test(c.status);
   return h("section", { class: `home-card home-card--${c.key}`, dataset: { tone: c.tone }, "aria-labelledby": `card-${c.key}` },
     h("div", { class: "home-card-head" },
@@ -306,7 +314,8 @@ function homeCard(c, cam) {
       h("li", { dataset: { tone: i.tone } }, h("a", go(i.link), h("strong", {}, i.title), i.detail ? h("span", { class: "meta" }, i.detail) : null)))) : null,
     c.note ? h("p", { class: "meta" }, c.note) : null,
     showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
-    c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
+    c.action?.do ? cardButton(c.action, onDone)
+      : c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
     c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null);
 }
 
@@ -429,7 +438,7 @@ export async function load(state) {
   // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
   // the page never waits on them.
   const draw = (extra) => state.cards.replaceChildren(
-    ...homeCards({ now: d, home, ...extra }).map((c) => homeCard(c, cam)));
+    ...homeCards({ now: d, home, ...extra }).map((c) => homeCard(c, cam, () => load(state))));
   draw(state.extra || {});
   Promise.all([
     settle(api("/api/needs"), 4000, null),

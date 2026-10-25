@@ -98,3 +98,16 @@ test('before the extra sources answer, Home shows its cards with "Checking…" i
   assert.equal(c.system.status, 'Checking backups… · Pi 52 °C');
   assert.equal(c.media.status, 'Now playing: Arrival');
 });
+
+test('Workshop card offers Clear plate when the print is done', () => {
+  const c = homeCards({ now: { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } }, at: AT, host: 'home.home.arpa' })
+    .find((x) => x.key === 'workshop');
+  assert.deepEqual(c.action, { label: 'Clear the plate', do: 'clear' });
+  assert.equal(c.status, 'Print done — clear the plate');
+  assert.equal(c.tone, 'warn');
+});
+
+test('Workshop card keeps the Bambuddy link while printing', () => {
+  const c = by(all()).workshop;
+  assert.equal(c.action.label, 'Open Bambuddy ↗');
+});

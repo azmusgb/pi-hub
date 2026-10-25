@@ -4,6 +4,7 @@ import { band } from "./now.js";
 import { toolUrl } from "./sections.js";
 import { firstFew } from "./section-links.js";
 import { printOutcome } from "./wording.js";
+import { printerButtons } from "./printer-actions.js";
 
 export const every = 15;
 
@@ -11,11 +12,12 @@ const OUTCOME = { finished: ["Finished", "ok"], stopped: ["Stopped", "warn"], fa
 
 export function mount(state) {
   state.band = h("div");
+  state.actions = h("div");
   state.cam = h("div");
   state.info = h("div", { class: "now-col-right" });
   state.body = h("div", { class: "cards" });
   
-  const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
+  const leftCol = h("div", { class: "now-col-left" }, state.band, state.actions, state.cam);
   state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body);
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
@@ -117,6 +119,7 @@ export async function load(state) {
   const [d, cam, pr] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
     settle(api("/api/projects"), 6000, { available: false })]);
   state.band.replaceChildren(band(d.printer));
+  state.actions.replaceChildren(...[printerButtons(d.printer, () => load(state))].filter(Boolean));
   if (state.camOk !== cam.ok || state.camSource !== cam.source) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source;
