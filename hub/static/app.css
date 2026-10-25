@@ -42,8 +42,8 @@
   --ok: var(--ui-ok);
   --warn: var(--ui-warn);
   --danger: var(--ui-bad);
-  --shadow-1: 0 1px 2px rgba(32,27,20,.05), 0 2px 6px rgba(32,27,20,.05);
-  --shadow-2: 0 18px 40px -18px rgba(32,27,20,.28);
+  --shadow-1: 0 1px 2px rgb(var(--shade-rgb) / .05), 0 2px 6px rgb(var(--shade-rgb) / .05);
+  --shadow-2: 0 18px 40px -18px rgb(var(--shade-rgb) / .28);
   --glow: 0 0 0 1px var(--accent-soft), 0 10px 30px -12px var(--accent-soft);
   --ring: 0 0 0 3px var(--accent-soft);
   --shell-blur: saturate(140%) blur(14px);
@@ -330,7 +330,7 @@ body::before {
 :root {
   /* text */
   --ink:        var(--text);
-  --ink-rgb:    27, 25, 21;
+  --ink-rgb:    17 24 33;
   --muted:      var(--text-2);
 
   /* surfaces */
@@ -342,7 +342,7 @@ body::before {
   --toast-bg:     var(--surface-3);
 
   /* overlays */
-  --backdrop:     rgba(15, 12, 9, .5);
+  --backdrop:     rgb(var(--shade-rgb) / .5);
   --acrylic:      color-mix(in srgb, var(--surface) 78%, transparent);
   --acrylic-edge: var(--line-strong);
 
@@ -351,27 +351,27 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    26, 111, 196;  /* the kit's light accent */
+  --pei-rgb:    26 111 196;  /* the kit's light accent */
   --p:          var(--accent);
 
   /* status triples */
-  --ok-rgb:     18, 106, 69;
-  --warn-rgb:   129, 83, 0;
+  --ok-rgb:     18 103 67;
+  --warn-rgb:   125 81 0;
   --warn-ink:   #ffffff;
-  --bad-rgb:    176, 42, 32;
+  --bad-rgb:    167 40 30;
   --bad:        var(--danger);
   --bad-ink:    #ffffff;
 
   /* misc */
-  --rain-rgb:   45, 110, 166;
+  --rain-rgb:   45 110 166;
   --rain-ink:   #2d6ea6;
-  --shade-rgb:  32, 27, 20;
+  --shade-rgb:  17 24 33;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ink:        var(--text);
-    --ink-rgb:    232, 236, 240;
+    --ink-rgb:    233 238 244;
     --muted:      var(--text-2);
 
     --field:        var(--surface-2);
@@ -389,25 +389,25 @@ body::before {
     --pei-deep:   var(--accent-strong);
     --pei-ink:    var(--on-accent);
     --on-pei:     var(--on-accent);
-    --pei-rgb:    90, 180, 255;
+    --pei-rgb:    90 180 255;
     --p:          var(--accent);
 
-    --ok-rgb:     62, 207, 142;
-    --warn-rgb:   245, 176, 61;
+    --ok-rgb:     62 207 142;
+    --warn-rgb:   245 176 61;
     --warn-ink:   #1a1206;
-    --bad-rgb:    255, 107, 99;
+    --bad-rgb:    255 115 108;
     --bad:        var(--danger);
     --bad-ink:    #1a1206;
 
-    --rain-rgb:   127, 195, 232;
+    --rain-rgb:   127 195 232;
     --rain-ink:   #7fc3e8;
-    --shade-rgb:  0, 0, 0;
+    --shade-rgb:  0 0 0;
   }
 }
 
 [data-theme="dark"] {
   --ink:        var(--text);
-  --ink-rgb:    232, 236, 240;
+  --ink-rgb:    233 238 244;
   --muted:      var(--text-2);
 
   --field:        var(--surface-2);
@@ -425,19 +425,19 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    90, 180, 255;
+  --pei-rgb:    90 180 255;
   --p:          var(--accent);
 
-  --ok-rgb:     62, 207, 142;
-  --warn-rgb:   245, 176, 61;
+  --ok-rgb:     62 207 142;
+  --warn-rgb:   245 176 61;
   --warn-ink:   #1a1206;
-  --bad-rgb:    255, 107, 99;
+  --bad-rgb:    255 115 108;
   --bad:        var(--danger);
   --bad-ink:    #1a1206;
 
-  --rain-rgb:   127, 195, 232;
+  --rain-rgb:   127 195 232;
   --rain-ink:   #7fc3e8;
-  --shade-rgb:  0, 0, 0;
+  --shade-rgb:  0 0 0;
 }
 
 

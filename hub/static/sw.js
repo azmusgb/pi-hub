@@ -1,5 +1,5 @@
 // Keeps the page shell available when the Pi is briefly unreachable. Live data is never cached.
-const SHELL = "pi-hub-shell-v90";
+const SHELL = "pi-hub-shell-v91";
 const FILES = ["/static/household-features.css", "/static/js/movie-night.js", "/static/js/freshness.js", "/static/js/recovery.js", "/static/js/experience.js", "/static/js/navigation.js", "/", "/static/ui/tokens.css", "/static/ui/components.css", "/static/ui/figtree-latin-wght-normal.woff2", "/static/app.css", "/static/pages.css", "/static/js/main.js", "/static/enhance.css", "/static/home.css", "/static/settings-rich.css", "/static/lists-rich.css", "/static/workshop-pi-rich.css", "/static/movies-print-rules-alerts-rich.css", "/static/movies.css", "/static/ambient.css", "/static/js/ambient.js", "/static/js/enhance.js", "/static/js/enhance-audit.js", "/static/js/core.js", "/static/js/now.js",
 "/static/components.css",
   "/static/js/movies.js", "/static/js/workshop.js", "/static/js/printer-actions.js", "/static/js/print.js", "/static/js/lists.js", "/static/js/pi.js",

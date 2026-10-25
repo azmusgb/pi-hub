@@ -74,3 +74,10 @@ def test_scan_signed_out_page_is_styled():
     assert 'href="/static/ui/tokens.css"' in html and 'href="/static/ui/components.css"' in html
     assert 'class="ui-btn ui-btn--primary"' in html and 'target="_top"' in html
     assert 'lang="en"' in html and "Open Pi Hub" not in html
+
+
+def test_scan_signed_out_page_follows_the_hub_theme():
+    html = TestClient(hub_app.app).get("/scan/").text
+    head = html[:html.index("</head>")]
+    assert '<script src="/static/js/saved-theme.js"></script>' in head
+    assert head.index("saved-theme.js") < head.index("/static/ui/tokens.css")

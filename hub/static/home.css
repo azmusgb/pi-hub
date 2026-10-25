@@ -158,9 +158,9 @@ body.wall.night { filter: brightness(0.55); }
   user-select: none;
 }
 .kiosk-light-toggle-btn.is-on {
-  background: color-mix(in srgb, #f2c45c 18%, var(--surface-1));
-  border-color: #f2c45c;
-  box-shadow: 0 0 16px rgba(242, 196, 92, 0.25);
+  background: color-mix(in srgb, var(--warn) 18%, var(--surface-1));
+  border-color: var(--warn);
+  box-shadow: 0 0 16px rgb(var(--warn-rgb) / 0.25);
 }
 
 /* Weather */

@@ -1063,6 +1063,7 @@ _SCAN_PASS = {"content-type", "content-disposition", "cache-control", "etag", "l
 SCAN_SIGNED_OUT = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scan · Pi Hub</title>
+<script src="/static/js/saved-theme.js"></script>
 <link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
 <style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
 main{max-width:32rem}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}p{margin:0 0 16px;color:var(--ui-muted)}</style>

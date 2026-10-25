@@ -49,7 +49,7 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v90" in sw
+    assert "pi-hub-shell-v91" in sw
 
 
 def _kit():
@@ -58,7 +58,7 @@ def _kit():
 
 
 def _rgb(hexv):
-    return ", ".join(str(int(hexv[i:i + 2], 16)) for i in (1, 3, 5))
+    return " ".join(str(int(hexv[i:i + 2], 16)) for i in (1, 3, 5))
 
 
 def test_no_amber_or_old_status_literals_in_the_page_code():
@@ -83,7 +83,7 @@ def test_warning_states_use_the_warning_colour():
 def test_the_status_triples_follow_the_kit():
     kit, css = _kit(), re.sub(r"[ \t]+", " ", open(os.path.join(STATIC, "app.css")).read())
     for mode in ("light", "dark"):
-        for name, token in (("ok", "ok"), ("warn", "warn"), ("bad", "bad"), ("pei", "accent")):
+        for name, token in (("ok", "ok"), ("warn", "warn"), ("bad", "bad"), ("pei", "accent"), ("ink", "text")):
             assert f"--{name}-rgb: {_rgb(kit[token][mode])};" in css, (mode, name, kit[token][mode])
 
 
@@ -94,3 +94,31 @@ def test_browser_chrome_colours_follow_the_kit():
     for mode in ("light", "dark"):
         assert kit["bg"][mode] in html and kit["bg"][mode] in main, mode
     assert "#f4f1ea" not in html and "#0a0c0f" not in html
+
+
+def test_shadows_are_the_kits_ink_not_warm_brown():
+    # Light-mode shadows are the kit's text colour (cool ink); the old warm brown (32,27,20) and the kiosk's yellow
+    # glow are gone, and a lit kiosk light uses the warning colour like the Now page's shop light.
+    ink = _rgb(_kit()["text"]["light"])
+    found = []
+    for path in glob.glob(os.path.join(STATIC, "*.css")):
+        flat = re.sub(r"\s+", "", open(path).read())
+        found += [f"{os.path.basename(path)}: {w}" for w in ("32,27,20", "242,196,92", "#f2c45c") if w in flat
+                  and not (w != "32,27,20" and os.path.basename(path) == "home.css" and _only_weather(path, w))]
+    assert found == []
+    css = re.sub(r"[ \t]+", " ", open(os.path.join(STATIC, "app.css")).read())
+    assert f"--shade-rgb: {ink};" in css
+    assert "--shadow-1: 0 1px 2px rgb(var(--shade-rgb) / .05)" in css and "rgba(15, 12, 9" not in css
+
+
+def _only_weather(path, w):
+    # The weather icons are drawn yellow on purpose; only they may use it.
+    return all(".wx-" in line for line in open(path) if w in re.sub(r"\s+", "", line))
+
+
+def test_colour_triples_are_space_separated():
+    # rgb(var(--x-rgb) / .1) only works with "r g b"; a comma triple there makes the whole colour invalid, and the
+    # tint, border or shadow silently disappears.
+    bad = [f"{os.path.basename(p)}: {m}" for p in glob.glob(os.path.join(STATIC, "*.css"))
+           for m in re.findall(r"--[a-z-]+-rgb:\s*[^;]*,[^;]*;", open(p).read())]
+    assert bad == []
