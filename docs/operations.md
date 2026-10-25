@@ -123,6 +123,7 @@ Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin accou
 |---|---|---|---|
 | Pi Hub: printer status, spools, projects | read | API key with **Read status** only, in `/etc/pi-hub/secrets/bambuddy_api_key` (root:pi-hub 640) | Done |
 | Local AI: the display's Materials card | read | another **Read status** key, as `LOCALAI_MATERIALS_KEY` in `C:\LocalAI\stack\stack.env` | Key in `stack.env`; the container must be recreated to read it |
+| Pi Hub: Clear the plate, Pause, Resume (Workshop and Home) | printer control | API key with **Control printer** only, printer 1 ("Pi Hub control"), in `/etc/pi-hub/secrets/bambuddy_control_key` (root:pi-hub 640). Made once by `sudo python3 /opt/pi-hub/current/deploy/bambuddy-control-key.py`, which signs in as `bill` and never prints the key | To do (owner runs the script) |
 | Workshop display: Clear plate | printer control | goes through Local AI (`POST /api/display/printer/clear`), which uses `LOCALAI_BAMBUDDY_CONTROL_KEY` ("Control printer", printer 1 only) | Key in `stack.env`; firmware `e2af9bf` installed |
 
 Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambuddy page in the App Suite asks for a sign-in once per browser.

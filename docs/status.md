@@ -157,3 +157,14 @@ Live on the Pi (plan `docs/superpowers/plans/2026-10-24-one-home-step-2-structur
 **Waiting for the owner:**
 - In Paperless, add the workflow that shares each new document with the user `hub` (operations › Paperless). Until then, Documents search finds only what is shared with `hub`. Paperless holds 0 documents today.
 - Re-walk the five critique tasks on the iPhone for the step and login counts, once the step-1 DNS and certificate steps are done.
+
+## One home, step 3: one printer — 25 October
+
+Plan `docs/superpowers/plans/2026-10-25-one-home-step-3-printer.md`.
+
+- **Buttons:** Workshop shows "Clear the plate" (after a finished or failed print), "Pause the print" (while printing) and "Resume the print" (while paused), from Bambuddy's own state and its `awaiting_plate_clear` flag. Home's Workshop card offers "Clear the plate" too.
+- **Path:** `POST /api/printer/{clear,pause,resume}`, owner only, through Bambuddy with the hub's own control key (operations › Bambuddy's sign-in). Clear plate makes the same two calls as Local AI's display path (clear-plate, then hms/clear).
+- **Questions first:** Clear plate asks whether the plate is empty, because Bambuddy may start the next queued print; Pause asks too.
+- **Errors in plain words:** no key yet, Bambuddy refused the key, Bambuddy isn't answering.
+- **Gate check:** signed-out pause is refused (401).
+

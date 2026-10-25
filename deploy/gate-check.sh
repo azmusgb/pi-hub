@@ -47,4 +47,8 @@ r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{content_type}' http://1
 case "$r" in "200 application/x-x509-ca-cert"*) say "old address → CA root" ok ;; *) say "old address → CA root" "got $r" ;; esac
 r=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/api/now)
 case "$r" in "200 application/json"*) say "old address → hub /api/now" ok ;; *) say "old address → hub /api/now" "got $r" ;; esac
+# The printer actions are the owner's: signed out, the hub refuses before Bambuddy is asked.
+r=$(curl -s --max-time 10 --cacert "$CA" --resolve home.home.arpa:443:127.0.0.1 -o /dev/null -w '%{http_code}' -X POST \
+  -H 'Origin: https://home.home.arpa' https://home.home.arpa/api/printer/pause)
+case "$r" in 401) say "printer pause refused signed out" ok ;; *) say "printer pause refused signed out" "got $r" ;; esac
 exit $fail
