@@ -1,6 +1,6 @@
 // Control: lights, plugs and switches from Homebridge. Tap to switch; the PIN is asked once per device.
 import { api, card, ensure, h, post, toast } from "./core.js";
-import { groupAppliances } from "./wording.js";
+import { applianceLabel, groupAppliances } from "./wording.js";
 
 export const every = 10;
 
@@ -12,7 +12,7 @@ const FRIENDLY_NAMES = {
 };
 
 function getFriendlyName(a) {
-  return FRIENDLY_NAMES[a.id] || FRIENDLY_NAMES[a.name] || a.name;
+  return FRIENDLY_NAMES[a.id] || FRIENDLY_NAMES[a.name] || applianceLabel(a);
 }
 
 const PATHS = {
@@ -103,10 +103,12 @@ export async function load(state) {
   const applianceCards = appliances.map((ap) => h("section", { class: "row-section appliance" },
     h("h2", { class: "section-title" }, ap.name),
     ap.status ? h("p", { class: "meta" }, ap.status) : null,
-    h("div", { class: "tiles" }, [ap.power && tile(ap.power, state, { label: "Power" }),
-      ap.running && tile(ap.running, state, { label: "Running" })].filter(Boolean)),
-    ap.programs.length ? h("h3", { class: "sub" }, "Programs") : null,
-    h("div", { class: "tiles tiles--compact" }, ap.programs.map((p) => tile(p, state, { label: p.name })))));
+    // Like the other sections, a switch already in Favourites isn't repeated here; each keeps its star.
+    h("div", { class: "tiles" }, [[ap.power, "Power"], [ap.running, "Running"]]
+      .filter(([a]) => a && !favs.has(a.id)).map(([a, label]) => tile(a, state, { label, favourite: false }))),
+    ap.programs.some((p) => !favs.has(p.id)) ? h("h3", { class: "sub" }, "Programs") : null,
+    h("div", { class: "tiles tiles--compact" }, ap.programs.filter((p) => !favs.has(p.id))
+      .map((p) => tile(p, state, { label: p.name, favourite: false })))));
   const sections = groups.map(([kind, title]) => {
     const list = rest.filter((a) => a.kind === kind && !favs.has(a.id));
     return list.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, title),

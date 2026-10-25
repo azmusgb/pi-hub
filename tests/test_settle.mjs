@@ -14,3 +14,18 @@ test('a page load that hangs fails after its deadline, so the next refresh can t
   await assert.rejects(deadline(never, 20), /took too long/);
   assert.equal(await deadline(Promise.resolve('done'), 20), 'done');
 });
+
+test('a load that missed its deadline finishes before another starts', async () => {
+  const { loadOnce } = await import('../hub/static/js/core.js');
+  const page = {};
+  let release;
+  const slow = loadOnce(page, () => new Promise((r) => { release = r; }), 20);
+  await assert.rejects(slow, /took too long/);
+  let started = false;
+  assert.deepEqual(await loadOnce(page, () => { started = true; }, 20), { skipped: true });
+  assert.equal(started, false);
+  release();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(await loadOnce(page, () => { started = true; }, 20), { skipped: false });
+  assert.equal(started, true);
+});

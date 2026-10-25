@@ -1,7 +1,7 @@
 import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
 import { updateNavigation } from "./navigation.js";
-import { deadline, ensure, h, toast } from "./core.js";
+import { ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
@@ -158,8 +158,8 @@ async function refresh() {
   const retry = page.notice.querySelector("button");
   if (retry) { retry.disabled = true; retry.textContent = "Checking…"; }
   try {
-    await deadline(page.mod.load(page.state), page.mod.loadDeadline || LOAD_DEADLINE_MS);
-    if (page !== current) return;
+    const { skipped } = await loadOnce(page, () => page.mod.load(page.state), page.mod.loadDeadline || LOAD_DEADLINE_MS);
+    if (page !== current || skipped) return;
     page.lastOk = Date.now();
     page.error = false;
     page.notice.hidden = true;

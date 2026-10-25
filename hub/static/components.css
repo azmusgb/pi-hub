@@ -698,6 +698,7 @@ input:focus-visible {
 @media (max-width: 480px) { .status-list li { grid-template-columns: auto 1fr auto; } .status-list li .meta { display: none; } }
 .net-panel { display: grid; gap: .5rem; padding: 1rem 1.1rem; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
 .net-headline { margin: 0; font-size: 1.1rem; font-weight: 700; }
+.net-headline[data-tone="warn"] { color: var(--warn); }
 
 /* One link colour (25 Oct critique): plain links, "Open … ↗" actions and breadcrumbs all use the accent, never the
    browser's blue or visited purple. Buttons, chips, cards, the menu and list rows (section pages, More, Needs you)
@@ -718,7 +719,10 @@ main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.m
 
 /* "Show all": the rest of a long list, one tap away. */
 .show-all { margin-top: .5rem; }
-.show-all > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-strong); font-weight: 600; }
+.show-all > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: .4rem; color: var(--accent-strong); font-weight: 600; list-style: none; }
+.show-all > summary::-webkit-details-marker { display: none; }
+.show-all > summary::before { content: "▸"; }
+.show-all[open] > summary::before { content: "▾"; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .show-all > summary { color: var(--accent); } }
 :root[data-theme="dark"] .show-all > summary { color: var(--accent); }
 .show-all > summary:focus-visible { outline: none; box-shadow: var(--ring); }

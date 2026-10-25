@@ -2,12 +2,13 @@
 import { markAlertsSeen } from "./navigation.js";
 import { api, card, empty, h, when } from "./core.js";
 import { mergeDropouts } from "./wording.js";
+import { rememberOpen } from "./section-links.js";
 
 export const every = 30;
 
 const TONE = { white_check_mark: "ok", tada: "ok", warning: "warn", fire: "warn", rotating_light: "bad" };
 
-// Today and yesterday show; older days sit behind "Show older alerts".
+// The two most recent days with alerts show; older days sit behind "Show older alerts".
 function dayGroups(days) {
   const day = ([label, list]) => h("section", { class: "day" }, h("h3", { class: "sub" }, label),
     h("ul", { class: "log" }, list.map((a) => h("li", { class: "log-row" },
@@ -17,8 +18,8 @@ function dayGroups(days) {
         a.body && a.body !== a.title ? h("span", { class: "meta" }, a.body) : null),
       h("span", { class: "log-side" }, when(a.ts).split(", ").pop())))));
   const older = days.slice(2);
-  return [...days.slice(0, 2).map(day), older.length ? h("details", { class: "show-all" },
-    h("summary", {}, `Show older alerts (${older.reduce((n, [, l]) => n + l.length, 0)})`), ...older.map(day)) : null];
+  return [...days.slice(0, 2).map(day), older.length ? rememberOpen(h("details", { class: "show-all" },
+    h("summary", {}, `Show older alerts (${older.reduce((n, [, l]) => n + l.length, 0)})`), ...older.map(day)), "alerts-older") : null];
 }
 
 export function mount(state) {

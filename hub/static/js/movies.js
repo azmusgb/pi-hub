@@ -1,6 +1,7 @@
 // Movies: what's playing, continue watching, recently added, search, requests, and drive health.
 import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
+import { rememberOpen } from "./section-links.js";
 
 export const every = 30;
 
@@ -251,8 +252,8 @@ function shelfSection(title, items, machine, none) {
     ),
 
     shelf(list.slice(0, SHELF_FIRST), machine),
-    list.length > SHELF_FIRST ? h("details", { class: "show-all" },
-      h("summary", {}, `Show all ${list.length}`), shelf(list.slice(SHELF_FIRST), machine)) : null,
+    list.length > SHELF_FIRST ? rememberOpen(h("details", { class: "show-all" },
+      h("summary", {}, `Show all ${list.length}`), shelf(list.slice(SHELF_FIRST), machine)), `shelf:${title}`) : null,
   );
 }
 
@@ -1965,7 +1966,7 @@ export async function load(
           data?.requests,
         ),
 
-        h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)),
+        rememberOpen(h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)), "movies-stats"),
 
         h(
           "div",

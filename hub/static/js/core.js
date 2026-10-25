@@ -22,6 +22,16 @@ export function settle(promise, ms, fallback) {
   ]);
 }
 
+// One load per page at a time. A load that misses its deadline is reported as failed, but it is left to finish (each
+// request has its own timeout) and no new load starts until it has, so a late answer can never overwrite a newer one.
+export function loadOnce(page, start, ms) {
+  if (page.inflight) return Promise.resolve({ skipped: true });
+  const run = Promise.resolve().then(start);
+  page.inflight = run;
+  run.catch(() => {}).finally(() => { if (page.inflight === run) page.inflight = null; });
+  return deadline(run, ms).then(() => ({ skipped: false }));
+}
+
 // A page load that hangs fails after its deadline, so the page says so and the next refresh can try again.
 export function deadline(promise, ms) {
   let timer;

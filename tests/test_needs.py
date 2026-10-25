@@ -84,5 +84,10 @@ def test_a_finished_print_reads_plainly():
     raw = "Bambu P1S: hex-tile E-011 BLD-011-01.gcode\nTime: 1h 4m\nFilament: Unknowng"
     n = needs.build([{"ts": NOW - 60, "kind": "print_finished", "detail": raw}], {"cards": []}, NOW)
     assert n["items"][0]["detail"] == "Finished hex-tile E-011 BLD-011-01 · 1 h 4 min"
-    assert needs.print_detail("", "Finished") == "Finished"
     assert needs.print_detail("Bambu X2D: Cube.3mf", "Failed") == "Failed Cube"
+
+
+def test_print_detail_falls_back_to_a_sentence_when_there_is_no_job_name():
+    assert needs.print_detail("", "Finished") == "The print is done."
+    assert needs.print_detail("Bambu 3D Printer", "Finished") == "The print is done."
+    assert needs.print_detail("", "Failed") == "Check the plate."

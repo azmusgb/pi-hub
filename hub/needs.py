@@ -2,10 +2,9 @@
 printer. Read from each app on every call; nothing is copied (D8). The Pi's alert history isn't used: it mixes
 problems with recoveries ("display went offline", "display is back"), and the live issues already say what is still
 wrong."""
-
-PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 import re
 
+PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 
@@ -17,7 +16,9 @@ def print_detail(raw, verb):
     took = next((m for m in (re.match(r"Time:\s*(?:(\d+)h)?\s*(?:(\d+)m)?", l.strip()) for l in lines[1:]) if m and m.group(0) != "Time:"), None)
     took = " ".join(x for x in ((f"{took.group(1)} h" if took and took.group(1) else ""),
                                 (f"{took.group(2)} min" if took and took.group(2) else "")) if x)
-    return " · ".join(x for x in (f"{verb} {job}".strip(), took) if x)
+    if not job or job.lower().startswith("bambu"):  # no job name, only the printer's: say it plainly
+        return "The print is done." if verb == "Finished" else "Check the plate."
+    return " · ".join(x for x in (f"{verb} {job}", took) if x)
 
 
 def _printer(events, now):
