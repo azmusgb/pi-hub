@@ -75,8 +75,16 @@ display's touchscreen layout (it adopts the names and the shared printer actions
   in the admin console.
 
 **Caddy:**
-- Caddy runs on the Pi, on ports 80/443. Pi Hub moves off :80 to `127.0.0.1:8100`, with `http://pi` redirecting to
-  `https://home.home.arpa`.
+- Caddy runs on the Pi, on ports 80/443. Pi Hub moves off :80 to `127.0.0.1:8100`.
+- **Machine callers keep working.** Caddy keeps answering `http://10.0.0.30` and `http://pi` by passing everything
+  to the hub unchanged, with no redirect and no gate, until step 6. These callers use their own keys or tokens:
+  - Local AI's `GET /api/now`;
+  - Bambuddy's webhook `/api/webhook/bambuddy`;
+  - Siri Shortcuts `/api/shortcut/*`;
+  - the PC's backup pull.
+
+  Browsers get a "Use https://home.home.arpa" banner from the hub instead. At step 6 these callers move to the gate
+  names, or keep plain http on `/api/*` only.
 - **TLS:** Caddy's internal CA. The root is installed once on the iPhone (profile) and the Mac (Keychain). Keep the
   CA's data volume; recreating it means re-trusting on every device (lesson from Local AI).
 - **Sign-in check:** each site except `home.` runs `forward_auth` against Pi Hub `GET /api/gate` (new). The answer
