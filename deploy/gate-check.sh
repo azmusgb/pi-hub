@@ -8,6 +8,7 @@ NAMES=(assistant bambuddy paperless homebox backups network status adguard devic
 fail=0
 say() { printf '%-34s %s\n' "$1" "$2"; [ "$2" = ok ] || fail=1; }
 get() { curl -s --max-time 10 --cacert "$CA" --resolve "$1.home.arpa:443:127.0.0.1" -o /dev/null -w '%{http_code} %{redirect_url}' "${@:2}" "https://$1.home.arpa/"; }
+size() { curl -s --max-time 10 --cacert "$CA" --resolve "$1.home.arpa:443:127.0.0.1" -o /dev/null -w '%{size_download}' -L --max-redirs 3 "${@:2}" "https://$1.home.arpa/"; }
 
 # A short-lived gate token (what a signed-in owner's browser holds) for the signed-in checks, removed at the end.
 TOKEN=$(python3 - <<'PY'
@@ -28,6 +29,8 @@ for n in "${NAMES[@]}"; do
   r=$(get "$n" -b "hub_gate=$TOKEN")
   case "${r%% *}" in 302) case "$r" in *home.home.arpa/?signin*) say "$n signed in" "still sent to sign-in" ;; *) say "$n signed in" ok ;; esac ;;
                     000|401|502|503|504) say "$n signed in" "got $r" ;; *) say "$n signed in" ok ;; esac
+  # An empty page means the tool didn't recognise the name it was asked for.
+  b=$(size "$n" -b "hub_gate=$TOKEN"); [ "${b:-0}" -gt 0 ] && say "$n shows a page" ok || say "$n shows a page" "empty"
 done
 # Grafana trusts X-WEBAUTH-USER, so it must only be reachable through the gate: from the LAN it's closed or ignores it.
 r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.30:3000/api/user)

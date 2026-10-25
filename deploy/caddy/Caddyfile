@@ -38,7 +38,13 @@ home.home.arpa {
 assistant.home.arpa {
 	route {
 		import gated
+		# Local AI's own Caddy answers only its own names, so ask it as 10.0.0.21. Its same-origin check compares
+		# Origin with Host, so a request from this page carries 10.0.0.21 as its Origin too; any other Origin passes
+		# unchanged and is refused there as before.
+		@own header Origin https://assistant.home.arpa
+		request_header @own Origin https://10.0.0.21
 		reverse_proxy https://10.0.0.21 {
+			header_up Host 10.0.0.21
 			transport http {
 				tls_insecure_skip_verify
 			}
