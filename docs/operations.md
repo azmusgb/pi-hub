@@ -115,16 +115,16 @@ Paperless-ngx runs on the Windows PC (`http://10.0.0.21:8010`, files in `C:\Pape
 
 Scanning runs on the Pi in Docker (scanservjs, listening on `127.0.0.1:8095` only). The hub serves it at `/scan/` (**App Suite → Scan**, linked from Print and More), and only after a household PIN sign-in. It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600).
 
-## Turning on Bambuddy's sign-in (planned, 24 October 2026)
+## Bambuddy's sign-in (on since 24 October 2026)
 
-Bambuddy (Pi, port 8000) has no sign-in, so anyone on the LAN or tailnet can use its printer controls. Three things call its API without a key, and each needs a key before sign-in goes on:
+Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin account is `bill`; its password is in `/etc/pi-hub/secrets/bambuddy_admin` (root only). Three callers use scoped API keys:
 
 | Caller | Needs | Key | State |
 |---|---|---|---|
-| Pi Hub: printer status, spools, projects | read | API key with **Read status** only, in `/etc/pi-hub/secrets/bambuddy_api_key` (root:pi-hub 640) | Ready: the hub sends `X-API-Key` when the file exists |
-| Local AI: the display's Materials card | read | another **Read status** key, as `LOCALAI_MATERIALS_KEY` in `C:\LocalAI\stack\stack.env` | To do (Local AI PR) |
-| Workshop display: Clear plate and Clear error | printer control | a **Control printer** key, set in the display's Local Portal | To do (firmware, after #227) |
+| Pi Hub: printer status, spools, projects | read | API key with **Read status** only, in `/etc/pi-hub/secrets/bambuddy_api_key` (root:pi-hub 640) | Done |
+| Local AI: the display's Materials card | read | another **Read status** key, as `LOCALAI_MATERIALS_KEY` in `C:\LocalAI\stack\stack.env` | Key in `stack.env`; the container must be recreated to read it |
+| Workshop display: Clear plate | printer control | goes through Local AI (`POST /api/display/printer/clear`), which uses `LOCALAI_BAMBUDDY_CONTROL_KEY` ("Control printer", printer 1 only) | Key in `stack.env`; firmware `e2af9bf` installed |
 
 Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambuddy page in the App Suite asks for a sign-in once per browser.
 
-Order: ship the Local AI and firmware key support. Then in Bambuddy, create the admin account (Settings > Authentication) and the three API keys. Install them, and only then turn sign-in on. Each key carries only its own permission.
+The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.env` (root only), for re-installing them. To turn sign-in off again: Bambuddy › Settings › Authentication.
