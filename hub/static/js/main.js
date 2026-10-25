@@ -15,7 +15,10 @@ import * as morePage from "./more.js";
 import * as rulesPage from "./rules.js";
 import * as drivesPage from "./drives.js";
 import * as weatherPage from "./weather.js";
-import * as appsPage from "./station-apps.js";
+import * as documentsPage from "./documents.js";
+import * as networkPage from "./network.js";
+import * as systemPage from "./system.js";
+import { SECTIONS, sectionFor, redirectFor } from "./sections.js";
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
@@ -26,20 +29,16 @@ const PAGES = {
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/control": { key: "control", title: "Devices", mod: controlPage },
+  "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
   "/drives": { key: "drives", title: "Movie storage", mod: drivesPage },
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
-  "/apps": { key: "apps", title: "App Suite", mod: appsPage },
-  "/apps/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
-  "/apps/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
-  "/apps/status": { key: "apps", title: "Service Status", mod: appsPage },
-  "/apps/scan": { key: "apps", title: "Scan", mod: appsPage },
-  "/bambuddy": { key: "apps", title: "Bambuddy 3D", mod: appsPage },
-  "/grafana": { key: "apps", title: "Grafana NOC", mod: appsPage },
-  "/status": { key: "apps", title: "Service Status", mod: appsPage },
+  "/media": { key: "movies", title: "Media", mod: moviesPage },
+  "/documents": { key: "documents", title: "Documents", mod: documentsPage },
+  "/network": { key: "network", title: "Home & network", mod: networkPage },
+  "/system": { key: "system", title: "System", mod: systemPage },
 };
 
 // Page-specific subtitles
@@ -49,18 +48,17 @@ const subtitles = {
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
-  "/workshop": "Bambu X2D and local AI",
+  "/workshop": "The X2D, filament and projects",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
   "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub",
-  "/apps": "Station apps and appliance services",
-  "/apps/bambuddy": "Self-hosted 3D print command plane",
-  "/apps/grafana": "Network observability and metrics TSDB",
-  "/apps/status": "Automated uptime and service health checks",
-  "/apps/scan": "Scan documents into Paperless",
+  "/media": "Movies and what's playing",
+  "/documents": "Find, scan and print papers",
+  "/network": "Devices, internet and blocking",
+  "/system": "Backups, alerts and settings",
 };
 
 const updateSubtitle = () => {
@@ -178,7 +176,10 @@ async function refresh() {
 }
 
 async function show(path, { focus = false } = {}) {
+  const moved = redirectFor(path);
+  if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
   const page = PAGES[path] || PAGES["/"];
+  const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
     document.documentElement.dataset.wall = "1";
@@ -199,11 +200,10 @@ async function show(path, { focus = false } = {}) {
   view.append(notice, root);
   const context = new URLSearchParams(location.search);
   const state = { root, context };
-  const parents = page.key === "drives" ? [["/movies", "Movies"]]
-    : page.key === "pi" ? [["/", "Home"]]
-    : path.startsWith("/apps/") ? [["/apps", "App Suite"]]
-    : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]]
-    : ["print", "workshop", "weather", "rules", "alerts", "settings", "apps"].includes(page.key) ? [["/more", "More"]] : [];
+  const home = SECTIONS.find((x) => x.key === section);
+  const parents = page.key === "drives" ? [["/media", "Media"]]
+    : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
+    : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
     ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),
     h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, page.title)));
@@ -214,7 +214,7 @@ async function show(path, { focus = false } = {}) {
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === page.key || (a.dataset.page === "movies" && page.key === "drives") || (a.dataset.page === "more" && ["workshop", "print", "pi", "alerts", "settings", "rules", "weather", "more", "apps"].includes(page.key));
+    const here = a.dataset.page === section || (a.dataset.page === "more" && ["network", "system", "more"].includes(section));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);

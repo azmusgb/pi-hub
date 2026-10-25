@@ -600,3 +600,18 @@ html {
   color: var(--accent);
   margin-top: 0.25rem;
 }
+
+/* Assistant (one home, D2): the rail's foot on the desktop, the top bar on the phone. Never badged. */
+.rail-assistant, .top-assistant {
+  display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; padding: .45rem .75rem;
+  border-radius: 999px; border: 1px solid var(--line, currentColor); color: var(--text); text-decoration: none;
+  font-weight: 600; font-size: .875rem;
+}
+.rail-assistant { margin-top: auto; }
+.rail-assistant svg, .top-assistant svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.rail-assistant:focus-visible, .top-assistant:focus-visible { outline: none; box-shadow: var(--ring); }
+.top-assistant { display: none; }
+@media (max-width: 860px) {
+  .rail-assistant { display: none; }
+  .top-assistant { display: inline-flex; }
+}
