@@ -398,6 +398,7 @@ export async function load(state) {
   const worst = d.issues.some((i) => i.tone === "bad") ? "bad" : d.issues.length ? "warn" : "ok";
   state.summary.textContent = d.summary;
   state.summary.dataset.tone = worst;
+  state.facts = d.summary;  // what the Assistant button hands Local AI
   state.summary.hidden = !isWallMode() && d.issues.length > 0;
   if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();

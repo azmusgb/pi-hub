@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink } from '../hub/static/js/sections.js';
+import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink, assistantHref } from '../hub/static/js/sections.js';
 
 test('one menu by task, in the design order', () => {
   assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
@@ -51,4 +51,21 @@ test('server links name a tool, and the page resolves it for the address in use'
   assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.30'), 'http://10.0.0.21:8010/documents/42/details');
   assert.equal(resolveLink('tool:assistant', '10.0.0.30'), 'https://10.0.0.21/');
   assert.equal(resolveLink('/workshop', '10.0.0.30'), '/workshop');
+});
+
+test('assistantHref carries the page and its facts', () => {
+  assert.equal(assistantHref('home.home.arpa', 'Workshop', 'Printing, 40% · done 3:10 PM'),
+    'https://assistant.home.arpa/#ask?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
+  assert.equal(assistantHref('10.0.0.30', 'Home'), 'https://10.0.0.21/#ask?context=' + encodeURIComponent('Pi Hub › Home'));
+});
+
+test('assistantHref keeps the context to 300 characters', () => {
+  const ctx = decodeURIComponent(assistantHref('home.home.arpa', 'System', 'x'.repeat(1000)).split('context=')[1]);
+  assert.equal(ctx.length, 300);
+  assert.ok(ctx.endsWith('…'));
+});
+
+test('assistantHref never sends "undefined" and collapses whitespace', () => {
+  assert.ok(!assistantHref('home.home.arpa', 'Media', undefined).includes('undefined'));
+  assert.equal(decodeURIComponent(assistantHref('home.home.arpa', 'Home', ' Two\n things  ').split('context=')[1]), 'Pi Hub › Home: Two things');
 });

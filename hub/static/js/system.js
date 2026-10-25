@@ -23,6 +23,7 @@ export function mount(state) {
 
 export async function load(state) {
   const b = await api("/api/system/backups").catch(() => null);
+  state.facts = b?.available ? b.repos.map((r) => `${r.name} ${r.hours === null ? "has no backup" : `backed up ${agoText(r.hours)}`}`).join(", ") : "";
   state.backups.replaceChildren(b?.available
     ? h("ul", { class: "status-list" }, b.repos.map((r) => h("li", {},
       h("span", { class: "dot", dataset: { tone: r.hours === null || r.hours > 36 ? "warn" : "ok" }, "aria-hidden": "true" }),

@@ -68,3 +68,12 @@ export function resolveLink(href, host = globalThis.location?.hostname || "") {
   const m = /^tool:([a-z]+)\/?(.*)$/.exec(href || "");
   return m ? toolUrl(m[1], host) + m[2] : href;
 }
+
+// The Assistant button hands Local AI the page and its key facts (one home, step 4): Local AI shows them over its
+// composer and sends them with the next question. At most 300 characters, as the design says.
+const CONTEXT_MAX = 300;
+export function assistantHref(host, title, facts) {
+  let text = `Pi Hub › ${title}${facts ? `: ${facts}` : ""}`.replace(/\s+/g, " ").trim();
+  if (text.length > CONTEXT_MAX) text = text.slice(0, CONTEXT_MAX - 1) + "…";
+  return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
+}

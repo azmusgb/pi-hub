@@ -119,6 +119,7 @@ export async function load(state) {
   const [d, cam, pr] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
     settle(api("/api/projects"), 6000, { available: false })]);
   state.band.replaceChildren(band(d.printer));
+  state.facts = d.printer.headline;
   state.actions.replaceChildren(...[printerButtons(d.printer, () => load(state))].filter(Boolean));
   if (state.camOk !== cam.ok || state.camSource !== cam.source) {
     state.cam.replaceChildren(camera(cam));

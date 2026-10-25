@@ -3,6 +3,7 @@ import { api, h } from "./core.js";
 import * as devices from "./control.js";
 import { networkPanel } from "./now.js";
 import { toolUrl } from "./sections.js";
+import { plainInternet } from "./wording.js";
 
 export const every = devices.every;
 
@@ -24,6 +25,7 @@ export async function load(state) {
     api("/api/wifi").catch(() => ({ set: false })),
     devices.load(state.devices),
   ]);
+  state.facts = now?.network ? plainInternet(now.network) : "";
   state.internet.replaceChildren(networkPanel(now?.network) || h("p", { class: "meta" }, "The network checks aren't answering."));
   state.extras.replaceChildren(...[
     h("section", { class: "more-group" }, h("h2", {}, "Ad blocking"),
