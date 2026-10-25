@@ -131,4 +131,6 @@ The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.en
 
 ## Phone alerts (ntfy)
 
-Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Since 24 October 2026 the Pi runs its own ntfy (`/opt/ntfy`, Docker, port 8093, cache on the USB drive), and both servers are listed while phones move over. In the ntfy app, add the same topic on the server `http://10.0.0.30:8093` (at home) or `http://pi:8093` (over Tailscale). Once every phone gets alerts from it, remove `https://ntfy.sh` from the servers file; nothing else changes. For instant delivery on iPhone, the Pi's ntfy asks ntfy.sh to wake the app; only the message id goes there, never the text.
+Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
+
+A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) but **stopped**. On 24 October 2026 the iPhone received its messages inside the app, but no banner appeared, although the server passed the wake-up to ntfy.sh. So alerts use ntfy.sh only, and Bambuddy's "Household ntfy (Pi)" channel is turned off. To try again, start it (`cd /opt/ntfy && sudo docker compose up -d`) and add `http://127.0.0.1:8093` to the servers file.
