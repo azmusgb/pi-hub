@@ -43,6 +43,8 @@ for host in home.home.arpa home.arpa other.home.arpa; do
   r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $host" http://127.0.0.1/)
   case "$r" in 30[1278]" https://"*) say "http://$host → https" ok ;; *) say "http://$host → https" "got $r" ;; esac
 done
+r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/home-ca.crt)
+case "$r" in "200 application/x-x509-ca-cert"*) say "old address → CA root" ok ;; *) say "old address → CA root" "got $r" ;; esac
 r=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/api/now)
 case "$r" in "200 application/json"*) say "old address → hub /api/now" ok ;; *) say "old address → hub /api/now" "got $r" ;; esac
 exit $fail

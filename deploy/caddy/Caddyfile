@@ -139,5 +139,14 @@ http:// {
 	# owner password never crosses the network in the clear.
 	@named host home.arpa *.home.arpa
 	redir @named https://home.home.arpa{uri}
-	reverse_proxy 127.0.0.1:8100
+	# The CA root, so a new device can trust it before the names resolve (http://10.0.0.30/home-ca.crt).
+	handle /home-ca.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8100
+	}
 }
