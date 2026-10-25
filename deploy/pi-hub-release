@@ -40,7 +40,7 @@ fi
 
 wait_healthy() {
   for i in $(seq 1 30); do
-    if curl --max-time 2 -fs -o /dev/null http://127.0.0.1/healthz; then return 0; fi
+    if curl --max-time 2 -fs -o /dev/null http://127.0.0.1:8100/healthz; then return 0; fi
     sleep 1
   done
   return 1

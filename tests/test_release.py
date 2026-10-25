@@ -140,3 +140,12 @@ def test_manual_rollback_uses_a_separate_checked_systemd_job(tmp_path, monkeypat
                         "/usr/local/lib/pi-hub/pi-hub-release", target]
     monkeypatch.setattr(helper.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=1))
     assert helper.rollback(target)['ok'] is False
+
+
+def test_hub_listens_only_on_localhost_8100():
+    # One home step 1: Caddy takes ports 80/443 and fronts the hub.
+    deploy = Path(__file__).resolve().parents[1] / "deploy"
+    unit = (deploy / "pi-hub.service").read_text()
+    assert "--host 127.0.0.1 --port 8100" in unit and "CAP_NET_BIND_SERVICE" not in unit
+    assert "http://127.0.0.1:8100/healthz" in (deploy / "pi-hub-release").read_text()
+    assert 'HUB = "http://127.0.0.1:8100"' in (deploy / "pi-hub-selfcheck.py").read_text()

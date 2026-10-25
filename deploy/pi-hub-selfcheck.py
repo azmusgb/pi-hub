@@ -7,7 +7,7 @@ import subprocess
 import time
 import urllib.request
 
-HUB = "http://127.0.0.1"
+HUB = "http://127.0.0.1:8100"
 OUT = "/var/lib/pi-hub-selfcheck/last.json"
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
 PAGES = ["/", "/movies", "/control", "/lists", "/workshop", "/print", "/pi", "/rules", "/alerts", "/drives", "/settings", "/more"]
