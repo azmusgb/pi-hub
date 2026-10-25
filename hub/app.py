@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -83,6 +83,11 @@ def api_now():
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
     return fresh(data)
+
+
+@app.get("/api/needs")
+def api_needs():
+    return fresh(needs.build(system.alerts(), events.recent(40), sources.localai_feed(), int(time.time())))
 
 
 # ---- Movies ----

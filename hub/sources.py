@@ -3,9 +3,11 @@
 - pi-status (localhost:8099): Pi health, movie drive, services, X2D / display / Local AI.
 - Plex (localhost:32400): what's playing, using the server's own token file.
 - /proc: processor and memory, sampled for the small charts.
+- Local AI (https://10.0.0.21): its house cards, for Needs you.
 """
 import json
 import os
+import ssl
 import threading
 import time
 import urllib.request
@@ -168,6 +170,20 @@ def active_network_alerts():
 
 
 WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")
+
+
+def _localai_feed():
+    # Local AI's own Caddy uses its private CA; the Pi talks to it on the LAN as the gate does.
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request("https://10.0.0.21/api/display/feed", headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=4, context=ctx) as r:
+        return json.load(r)
+
+
+def localai_feed():
+    return cached("localai-feed", 30, _localai_feed)
 
 
 def _world():
