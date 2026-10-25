@@ -147,3 +147,44 @@ def test_network_metrics_absent_when_prometheus_is_down(monkeypatch):
         raise OSError("connection refused")
     monkeypatch.setattr(sources, "_get_json", down)
     assert sources._netmon() is None
+
+
+# ---- One home, step 3: which printer actions fit now ----
+
+B = {"connected": True, "bambuddy_state": "FINISH", "awaiting_plate_clear": True}
+
+
+def test_actions_follow_bambuddy():
+    assert now.printer_actions(None) == []
+    assert now.printer_actions({**B, "connected": False}) == []
+    assert now.printer_actions(B) == ["clear"]
+    assert now.printer_actions({**B, "bambuddy_state": "RUNNING", "awaiting_plate_clear": False}) == ["pause"]
+    assert now.printer_actions({**B, "bambuddy_state": "PAUSE", "awaiting_plate_clear": False}) == ["resume"]
+
+
+def test_finished_and_failed_headlines_ask_to_clear():
+    assert now.printer({"x2d_state": "Idle"}, B)["headline"] == "Print done — clear the plate"
+    assert now.printer({"x2d_state": "Idle"}, {**B, "bambuddy_state": "FAILED"})["headline"] == "Print failed — clear the plate"
+
+
+def test_paused_detail_points_here_when_resume_is_possible():
+    p = now.printer({"x2d_state": "Paused", "x2d_progress": 40},
+                    {**B, "bambuddy_state": "PAUSE", "awaiting_plate_clear": False})
+    assert p["actions"] == ["resume"] and p["detail"] == "Resume it here or on the printer."
+
+
+def test_no_bambuddy_means_no_actions():
+    assert now.printer({"x2d_state": "Printing", "x2d_progress": 5}, None)["actions"] == []
+
+
+def test_bambuddy_status_carries_state_and_plate_flag(monkeypatch):
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: {"connected": True, "state": "FINISH", "awaiting_plate_clear": True})
+    b = sources._bambuddy()
+    assert b["bambuddy_state"] == "FINISH" and b["awaiting_plate_clear"] is True
+
+
+def test_workshop_printer_has_bambuddy_actions(monkeypatch):
+    monkeypatch.setattr(sources, "pi_status", lambda: {"x2d_state": "Idle"})
+    monkeypatch.setattr(sources, "bambuddy_printer", lambda: B)
+    r = TestClient(hub_app.app).get("/api/workshop")
+    assert r.json()["printer"]["actions"] == ["clear"]

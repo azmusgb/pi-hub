@@ -145,6 +145,8 @@ def _bambuddy():
             "filament_type": first_tray.get("tray_type"),
             "filament_color": first_tray.get("tray_color"),
             "wifi_signal": data.get("wifi_signal"),
+            "bambuddy_state": data.get("state"),
+            "awaiting_plate_clear": bool(data.get("awaiting_plate_clear")),
         }
     except Exception:
         return None

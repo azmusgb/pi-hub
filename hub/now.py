@@ -9,6 +9,15 @@ def _tone(ok, warn=False):
     return "ok" if ok else ("warn" if warn else "bad")
 
 
+def printer_actions(b):
+    """The buttons that fit Bambuddy's state now: clear the plate, pause or resume (one home, step 3)."""
+    if not b or not b.get("connected"):
+        return []
+    state = b.get("bambuddy_state")
+    return [a for a, fits in (("clear", b.get("awaiting_plate_clear")), ("pause", state == "RUNNING"),
+                                ("resume", state == "PAUSE")) if fits]
+
+
 def printer(s, b=None):
     if s is None and b is None:
         return {"state": "none", "headline": "No status yet",
@@ -56,6 +65,12 @@ def printer(s, b=None):
         res["filament_color"] = b.get("filament_color")
         res["bambuddy_connected"] = b.get("connected")
 
+    res["actions"] = printer_actions(b)
+    if "resume" in res["actions"]:
+        res["detail"] = "Resume it here or on the printer."
+    if "clear" in res["actions"] and res["state"] not in ("printing", "paused"):
+        failed = b.get("bambuddy_state") == "FAILED"
+        res["headline"] = "Print failed — clear the plate" if failed else "Print done — clear the plate"
     return res
 
 
