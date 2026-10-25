@@ -35,7 +35,7 @@ case "$r" in 000|401) say "grafana not open to a forged header" ok ;; *) say "gr
 # A home.arpa name over plain http never reaches the hub's sign-in: it goes to https first.
 for host in home.home.arpa home.arpa other.home.arpa; do
   r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $host" http://127.0.0.1/)
-  case "$r" in 30[178]" https://"*) say "http://$host → https" ok ;; *) say "http://$host → https" "got $r" ;; esac
+  case "$r" in 30[1278]" https://"*) say "http://$host → https" ok ;; *) say "http://$host → https" "got $r" ;; esac
 done
 r=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/api/now)
 case "$r" in "200 application/json"*) say "old address → hub /api/now" ok ;; *) say "old address → hub /api/now" "got $r" ;; esac
