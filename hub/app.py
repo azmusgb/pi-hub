@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -281,6 +281,19 @@ def api_workshop():
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],
                "waiting": ((models.get("queue") or {}).get("waiting"))},
     })
+
+
+@app.post("/api/printer/{action}")
+def api_printer_action(action: str, request: Request):
+    """Clear the plate, pause or resume, through Bambuddy with the hub's control key (owner only)."""
+    need(request, "owner")
+    if action not in printer_control.STEPS:
+        raise HTTPException(404, "The printer can clear, pause or resume.")
+    r = printer_control.run(action)
+    if not r["ok"]:
+        raise HTTPException(503 if "no key" in r["steps"].values() else 502, r["say"])
+    sources._cache.pop("bambuddy_printer", None)  # the next refresh shows the new state
+    return fresh({"ok": True, "say": r["say"]})
 
 
 @app.get("/api/prints/{pid}/photo.jpg")
