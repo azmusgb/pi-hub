@@ -138,3 +138,14 @@ A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the 
 ## Homebox (home inventory)
 
 Homebox runs in Docker on the Pi (`/opt/homebox`, port 7745, data on the USB drive at `/mnt/usb1/homebox`), linked from App Suite and More. It is for tools, parts, appliances, manuals and warranties; filament stays in Bambuddy. Sign-up is off; it was open only while the owner made their account. The API-key pepper is in `/opt/homebox/homebox.env` (root only); changing it invalidates Homebox API keys. To let another person sign up: `cd /opt/homebox && sudo HBOX_ALLOW_REGISTRATION=true docker compose up -d`, then run `sudo docker compose up -d` again afterwards.
+
+## AdGuard Home (ad and tracker blocking)
+
+AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on port 53, web UI on port 3002; Grafana has 3000). Its work data is on the USB drive. Upstream DNS is Quad9 and Cloudflare over HTTPS. The default AdGuard DNS filter is on. The admin is `bill`; the password is in `/etc/pi-hub/secrets/adguard_admin` (root only). Devices use it only when DNS points at `10.0.0.30`: set it per device, or in the Orbi (Advanced › Setup › Internet Setup › Domain Name Server: primary `10.0.0.30`, secondary `9.9.9.9`, which keeps the internet working if the Pi is down). If a site breaks, allow it under Filters › Custom filtering rules or in the Query log.
+
+## Backrest (backups)
+
+- **The Pi:** Backrest (`/opt/backrest`, port 9898, a web UI for restic) backs it up every night at 03:30 into `/mnt/usb1/backups/restic/pi`: hub backups, `/etc`, `/opt`, and Bambuddy, Homebox, Paperless snapshots and NETMON data. Encrypted; it keeps 14 daily, 8 weekly and 12 monthly snapshots, and prunes on Sundays.
+- **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/HealthData`, `~/.ssh` and Claude's memory, without build output or dependencies.
+- **Passwords and login:** the repository passwords are in `/etc/pi-hub/secrets/restic_pi` and `restic_mac` (root only). The Mac's is also in its login Keychain as `restic-mac`. **Without them the backups can't be read.** Backrest's login is `bill`; the password is in `/etc/pi-hub/secrets/backrest_admin`.
+- **Still to do:** both repositories sit on the same USB drive as the Movies and Bambuddy data. An off-site copy (another drive, or a cloud bucket, still encrypted) is the next step.
