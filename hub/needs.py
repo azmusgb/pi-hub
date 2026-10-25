@@ -3,7 +3,7 @@ printer. Read from each app on every call; nothing is copied (D8). The Pi's aler
 problems with recoveries ("display went offline", "display is back"), and the live issues already say what is still
 wrong."""
 
-FAILED_HOURS = 24
+PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ASSISTANT = "https://assistant.home.arpa/"
 
@@ -14,10 +14,12 @@ def _printer(events, now):
         if e["kind"] == "print_started":
             return None
         if e["kind"] == "print_finished":
+            if now - e["ts"] > PRINT_HOURS * 3600:
+                return None
             return {"source": "Printer", "tone": "attention", "title": "Clear the plate",
                     "detail": e.get("detail") or "The print is done.", "link": "/workshop", "ts": e["ts"]}
         if e["kind"] == "print_failed":
-            if now - e["ts"] > FAILED_HOURS * 3600:
+            if now - e["ts"] > PRINT_HOURS * 3600:
                 return None
             return {"source": "Printer", "tone": "bad", "title": "The print failed",
                     "detail": e.get("detail") or "Check the plate.", "link": "/workshop", "ts": e["ts"]}

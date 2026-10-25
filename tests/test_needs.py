@@ -72,3 +72,9 @@ def test_the_alert_history_is_not_needs():
     # "Workshop display went offline" then "is back": history, not something to do. Live issues cover what's still wrong.
     import inspect
     assert "alerts" not in inspect.signature(needs.build).parameters
+
+
+def test_a_finished_print_stops_asking_after_a_day():
+    # Without a "plate cleared" signal (step 3 adds one), a day-old finish has almost certainly been cleared.
+    old = [{"ts": NOW - 25 * 3600, "kind": "print_finished", "detail": ""}]
+    assert needs.build(old, {"cards": []}, NOW)["count"] == 0

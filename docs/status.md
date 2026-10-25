@@ -143,3 +143,17 @@ Live on the Pi (design `docs/superpowers/specs/2026-10-24-one-home-design.md`, o
 | Start a movie | two systems (hub Movies, Plex) |
 
 After step 1, the logins for Grafana disappear and every tool is one name away. The other counts move in steps 2–4.
+
+## One home, step 2: the hub's structure — 25 October
+
+Live on the Pi (plan `docs/superpowers/plans/2026-10-24-one-home-step-2-structure.md`; operations › "The hub's menu").
+
+- **Menu:** Home · Workshop · Documents · Media · Home & network · System, plus Assistant. The Home tab's badge counts Needs you.
+- **Home:** six cards, Needs you first.
+- **Removed:** the App Suite. Its old addresses redirect.
+- **Words:** the X2D is named correctly in the hub. Bambuddy's own printer name is still "Bambu P1S", and it shows in print messages; rename it in Bambuddy › Printers.
+- **Browser check:** all 24 views pass (390 and 1440 px, light and dark, axe).
+
+**Waiting for the owner:**
+- In Paperless, add the workflow that shares each new document with the user `hub` (operations › Paperless). Until then, Documents search finds only what is shared with `hub`. Paperless holds 0 documents today.
+- Re-walk the five critique tasks on the iPhone for the step and login counts, once the step-1 DNS and certificate steps are done.
