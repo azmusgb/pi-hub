@@ -1,6 +1,7 @@
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
 import { api, card, duration, empty, h, when } from "./core.js";
 import { band } from "./now.js";
+import { toolUrl } from "./sections.js";
 
 export const every = 15;
 
@@ -120,11 +121,11 @@ export async function load(state) {
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;
   state.info.replaceChildren(
-    card("Bambuddy", { pill: "Self-hosted", tone: "ok" },
-      h("p", { class: "meta" }, "Local control plane: queueing, automatic 3MF archiving, and cost tracking."),
+    card("Filament and projects", { pill: "Bambuddy", tone: "ok" },
+      h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy."),
       h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
-        h("a", { class: "action", href: "/apps/bambuddy", "data-link": true }, "Open in Hub"),
-        h("a", { class: "action ghost", href: "http://10.0.0.30:8000", target: "_blank", rel: "noopener" }, "New tab ↗"))),
+        h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"),
+        h("a", { class: "action ghost", href: `${toolUrl("assistant")}#projects`, target: "_blank", rel: "noopener" }, "Print lab ↗"))),
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),

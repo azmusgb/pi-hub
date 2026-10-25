@@ -166,3 +166,24 @@ def test_latest_movie_is_one_title_or_none(c, monkeypatch):
     assert c.get("/api/movies/latest").json() == {"title": "Dune"}
     monkeypatch.setattr(plex, "recently_added", lambda section=None: None)
     assert c.get("/api/movies/latest").json() == {"title": None}
+
+
+def test_section_pages_serve_the_shell(c):
+    for path in ("/documents", "/network", "/system", "/media"):
+        r = c.get(path)
+        assert r.status_code == 200 and b"js/main.js" in r.content, path
+
+
+def _static_text():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "hub/static"
+    return {p.name: p.read_text() for p in root.rglob("*") if p.suffix in (".js", ".html", ".css")}
+
+
+def test_the_x2d_is_named_correctly():
+    assert [n for n, t in _static_text().items() if "P1S" in t] == []
+
+
+def test_no_app_suite_left():
+    words = ("App Suite", "Command Plane", "Grafana NOC", "Port 8000", "station-apps")
+    assert [(n, w) for n, t in _static_text().items() for w in words if w in t] == []

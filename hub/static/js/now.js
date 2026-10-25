@@ -4,6 +4,7 @@ import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
 import { homeCards } from "./home-cards.js";
+import { toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 
 export const every = 15;
@@ -75,7 +76,7 @@ Your note:`;
   return null;
 }
 
-function networkPanel(net) {
+export function networkPanel(net) {
   if (!net || (!net.orbi_ms && !net.wan_ms)) return null;
   const orbi = net.orbi_ms !== undefined && net.orbi_ms !== null ? `${net.orbi_ms} ms` : "—";
   const att = net.att_ms !== undefined && net.att_ms !== null ? `${net.att_ms} ms` : "—";
@@ -127,8 +128,8 @@ function networkPanel(net) {
         ) : null
       ),
       h("div", { style: "display: flex; gap: .5rem;" },
-        h("a", { class: "chip", href: net.grafana_url || "http://10.0.0.30:3000", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Grafana NOC ↗"),
-        h("a", { class: "chip", href: net.uptime_kuma_url || "http://10.0.0.30:3001/status/home", target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Status Page ↗")
+        h("a", { class: "chip", href: toolUrl("network"), target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Open Grafana ↗"),
+        h("a", { class: "chip", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener", style: "text-decoration: none; font-size: .75rem; min-height: 28px; padding: .15rem .6rem;" }, "Open Status ↗")
       )
     ),
     h("div", { style: "margin-bottom: .75rem;" },
@@ -189,7 +190,7 @@ export function band(p, cam = null) {
   return h("section", { class: cls, dataset: { state: p.state }, "aria-label": "Bambu 3D Printer" },
     h("div", { class: "band-content" },
       h("div", { class: "band-info" },
-        h("p", { class: "band-name" }, "Bambu P1S"),
+        h("p", { class: "band-name" }, "Bambu X2D"),
         h("h2", { class: "band-headline" }, p.headline),
         h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
           h("div", { class: "line-track" }),
@@ -260,7 +261,7 @@ function workshopKioskConsole(d, cam, home, state) {
       h("div", {},
         h("div", { style: "display: flex; gap: .5rem; align-items: center;" },
           h("span", { style: "font-size: 1.15rem;" }, "🖨️"),
-          h("h2", { style: "margin: 0; font-size: 1.15rem; font-weight: 700;" }, "Bambu P1S Workshop"),
+          h("h2", { style: "margin: 0; font-size: 1.15rem; font-weight: 700;" }, "Bambu X2D Workshop"),
           h("span", {
             style: `font-size: .6875rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--${isPrinting ? 'ok' : 'text-3'}) 15%, transparent); color: var(--${isPrinting ? 'ok' : 'text-3'});`
           }, isPrinting ? "PRINTING" : "IDLE")

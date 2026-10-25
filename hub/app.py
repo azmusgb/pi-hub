@@ -1034,7 +1034,7 @@ async def scan_proxy(path: str, request: Request):
         if request.method == "GET" and not path.startswith("api/"):
             return Response("<!doctype html><meta name=viewport content='width=device-width'><title>Scan</title>"
                             "<body style='font:16px system-ui;padding:2rem'><p>Enter the household PIN in Pi Hub first, "
-                            "then open Scan again.</p><p><a href='/apps/scan' target='_top'>Open Pi Hub</a></p>",
+                            "then open Scan again.</p><p><a href='/documents' target='_top'>Open Pi Hub</a></p>",
                             status_code=e.status_code, media_type="text/html")
         raise
     client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))

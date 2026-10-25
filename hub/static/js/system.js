@@ -1,17 +1,30 @@
-// System: backups, alerts, automations, help and settings.
+// System: backups first ("Restore a file"), then alerts, automations, help and settings.
+import { api, h } from "./core.js";
 import { toolUrl } from "./sections.js";
 import { linkGroup } from "./section-links.js";
 
-export const every = 600;
+export const every = 300;
+
 export function mount(state) {
-  state.root.append(linkGroup("", [
-    ["/alerts", "Alerts", "Recent events and warnings"],
-    ["/rules", "Automations", "Choose what happens automatically"],
-    [toolUrl("backups"), "Restore a file ↗", "Backups of the Pi and the Mac, in Backrest"],
-    ["/pi", "Help & system", "Solve a problem and check the hub"],
-    ["/drives", "Movie storage", "The movies drive and its health"],
-    ["/settings", "Settings", "Household access, connections and backups"],
-    [toolUrl("pi"), "The Pi's admin ↗", "Cockpit: services, updates and logs"],
-  ]));
+  state.backups = h("div");
+  state.root.append(
+    h("section", { class: "more-group" }, h("h2", {}, "Restore a file"), state.backups,
+      h("a", { class: "tool-link", href: toolUrl("backups"), target: "_blank", rel: "noopener" }, "Open Backrest ↗")),
+    linkGroup("Look after the hub", [
+      ["/alerts", "Alerts", "Recent events and warnings"],
+      ["/rules", "Automations", "Choose what happens automatically"],
+      ["/pi", "Help & system", "Solve a problem and check the hub"],
+      ["/drives", "Movie storage", "The movies drive and its health"],
+      ["/settings", "Settings", "Household access, connections and backups"],
+      [toolUrl("pi"), "The Pi's admin ↗", "Services, updates and logs, in Cockpit"],
+    ]));
 }
-export async function load() {}
+
+export async function load(state) {
+  const b = await api("/api/system/backups").catch(() => null);
+  state.backups.replaceChildren(b?.available
+    ? h("ul", { class: "facts-list" }, b.repos.map((r) => h("li", { dataset: { tone: r.hours === null || r.hours > 36 ? "warn" : "ok" } },
+      h("strong", {}, r.name === "Pi" ? "The Pi" : r.name === "Mac" ? "The Mac" : r.name), " ",
+      r.hours === null ? "has no backup yet" : `backed up ${r.hours} h ago`)))
+    : h("p", { class: "meta" }, "Couldn't read the backups just now."));
+}

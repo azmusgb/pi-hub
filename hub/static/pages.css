@@ -393,3 +393,8 @@ body.wall .link-btn { display: none; }
     animation: none;
   }
 }
+
+/* Documents: the search box. */
+.doc-search { display: flex; gap: .5rem; margin-block: .5rem 1rem; }
+.doc-search input { flex: 1; min-width: 0; min-height: 44px; padding: .5rem .75rem; border-radius: var(--r-sm); border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; }
+.doc-search input:focus-visible { outline: none; box-shadow: var(--ring); }

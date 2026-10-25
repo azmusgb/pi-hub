@@ -796,6 +796,10 @@ body:not(.wall) .page-now { display: block; }
 .home-card-items a:focus-visible, .home-card-action:focus-visible, .home-card-link:focus-visible { outline: none; box-shadow: var(--ring); }
 .home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-md); }
 .home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; }
-.home-card-link { align-self: flex-start; padding-block: .35rem; color: var(--accent-strong); font-weight: 600; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .home-card-link { color: var(--accent); } }
-:root[data-theme="dark"] .home-card-link { color: var(--accent); }
+.home-card-link { align-self: flex-start; padding-block: .35rem; }
+/* "Open <tool> ↗": the small product line under a task (one home, Words). */
+.home-card-link, .tool-link { color: var(--accent-strong); font-weight: 600; font-size: .9rem; }
+.tool-link { display: inline-block; margin-top: .75rem; padding-block: .35rem; }
+.tool-link:focus-visible { outline: none; box-shadow: var(--ring); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) :is(.home-card-link, .tool-link) { color: var(--accent); } }
+:root[data-theme="dark"] :is(.home-card-link, .tool-link) { color: var(--accent); }
