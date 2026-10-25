@@ -177,3 +177,12 @@ Plan `docs/superpowers/plans/2026-10-25-one-home-step-4-assistant.md`. Local AI 
 - **PC off:** `GET /api/assistant`; the button reads "The PC is off" only when the status service says Local AI is Down.
 - **Local AI:** opens on its Assistant; the printer line and the Hub/Terminal/Materials bar are gone; "← Home" goes to the hub. Card titles: a caller's label ("House question"), a whole title up to 72 characters, or the kind's name.
 - **Later:** Recent still lists each hourly health check (grouping repeats is a separate change).
+
+## One home, step 5: one look — 25 October
+
+Plan `docs/superpowers/plans/2026-10-25-one-home-step-5-look.md`. Kit appliance-ui 1.1.1 (pushed).
+
+- **Kit:** the contrast gate now covers status chips, the danger button and the header badge on their own tints (4.5:1), field borders (3:1) and accent text on its tint; four light status colours darker; new `--ui-field-line` and `--ui-header-total`.
+- **Pi Hub (live):** colours, font and components from the kit (`hub/static/ui`, checked by `verify.py`); amber only on the printer band (`--band-accent`), which is a card again; the wall passes contrast in daylight; a styled signed-out Scan page. Browser check: 28 views (now including the wall) pass.
+- **Local AI:** PR #390 (green in local CI: 824 unit tests, 52/52 browser suites) carries the kit's dark colours in its one stylesheet; waiting for the owner's `npm run ship -- 390`.
+- **Later (from the review):** the kit gate doesn't yet check the real `accentSoft` tint or the `surface-2` background; signed-out Scan follows the device theme; a few old navy/warm values remain in Local AI and the hub's shadows.
