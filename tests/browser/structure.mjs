@@ -34,7 +34,7 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
         await page.waitForTimeout(200);
         const covered = await page.evaluate(() => {
           const bar = document.querySelector('.rail').getBoundingClientRect();
-          const last = [...document.querySelectorAll('main section, main .home-card')].at(-1);
+          const last = [...document.querySelectorAll('main section, main .home-card')].filter((e) => e.checkVisibility()).at(-1);  // not inside a closed "Show all"
           return last ? last.getBoundingClientRect().bottom > bar.top + 1 : false;
         });
         if (covered) problems.push(`${where}: the bottom bar covers the last section`);
