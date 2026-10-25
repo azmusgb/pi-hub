@@ -13,7 +13,15 @@ export function homeBadge(needs) {
 }
 
 function needsCard(needs) {
-  if (!needs?.count) return null;
+  if (!needs) {
+    return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: "Couldn't check what needs you",
+      items: [], note: "", action: null, link: null };
+  }
+  if (!needs.count && needs.unread?.length) {
+    return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: `Couldn't check ${needs.unread.join(" or ")}`,
+      items: [], note: "", action: null, link: null };
+  }
+  if (!needs.count) return null;
   const tone = TONES.find((t) => needs.items.some((i) => i.tone === t)) || "warn";
   return {
     key: "needs", title: "Needs you", tone, count: needs.count, status: plural(needs.count, "thing"),

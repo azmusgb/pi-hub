@@ -93,21 +93,21 @@ def api_needs():
 @app.get("/api/system/backups")
 def api_system_backups():
     """When the Pi and the Mac last backed up (newest restic snapshot), through the root helper."""
-    report = sources.cached("helper-backups", 300, lambda: actions.helper("backups:ages", timeout=20))
+    report = sources.cached("helper-backups", 300, lambda: actions.helper("backups:ages", timeout=5))
     now = int(time.time())
     ages = (report or {}).get("ages") or {}
     return fresh({"repos": [{"name": n, "last": t, "hours": (now - t) // 3600 if t else None} for n, t in ages.items()],
-                  "available": bool(report and report.get("ok")), "open": "https://backups.home.arpa/"})
+                  "available": bool(report and report.get("ok")), "open": "tool:backups"})
 
 
 @app.get("/api/network/adguard")
 def api_network_adguard():
     """Today's DNS queries and blocks from AdGuard, through the root helper (which holds the password)."""
-    report = sources.cached("helper-adguard", 300, lambda: actions.helper("adguard:stats", timeout=20))
+    report = sources.cached("helper-adguard", 300, lambda: actions.helper("adguard:stats", timeout=5))
     if not report or not report.get("ok"):
         return fresh({"available": False})
     return fresh({"available": True, "queries": report["queries"], "blocked": report["blocked"],
-                  "open": "https://adguard.home.arpa/"})
+                  "open": "tool:adguard"})
 
 
 @app.get("/api/documents")

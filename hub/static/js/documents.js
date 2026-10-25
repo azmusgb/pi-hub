@@ -1,6 +1,6 @@
 // Documents: find a paper in Paperless, scan one, print one, and the household lists.
 import { ensure, h, whoami } from "./core.js";
-import { toolUrl } from "./sections.js";
+import { resolveLink, toolUrl } from "./sections.js";
 import { linkGroup } from "./section-links.js";
 
 export const every = 600;
@@ -22,7 +22,7 @@ function results(state, d, q) {
   if (!d.results.length) return [h("p", { class: "meta" }, q ? `Nothing matches “${q}”.` : "No documents yet.")];
   return [h("h3", { class: "section-title" }, q ? `Matches for “${q}”` : "Recent documents"),
     h("ul", { class: "more" }, d.results.map((r) => h("li", {},
-      h("a", { href: r.link, target: "_blank", rel: "noopener" }, h("strong", {}, r.title), h("span", { class: "meta" }, r.created)))))];
+      h("a", { href: resolveLink(r.link), target: "_blank", rel: "noopener" }, h("strong", {}, r.title), h("span", { class: "meta" }, r.created)))))];
 }
 
 async function search(state, q) {

@@ -4,7 +4,7 @@ import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
 import { homeCards } from "./home-cards.js";
-import { toolUrl } from "./sections.js";
+import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 
 export const every = 15;
@@ -434,7 +434,9 @@ function outsideLine(o) {
 }
 
 const outward = (href) => /^https?:/.test(href);
-const go = (href) => outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true };
+const go = (link) => { const href = resolveLink(link); return outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true }; };
+// A slow source never holds Home back: past this, its card shows "isn't answering" and the next refresh tries again.
+const within = (p, ms = 4000) => Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
 function homeCard(c, cam) {
   const showCam = c.key === "workshop" && cam?.ok && /^(Printing|Paused)/.test(c.status);
@@ -582,13 +584,18 @@ export async function load(state) {
   }
 
   const [needs, backups, latest] = await Promise.all([
-    api("/api/needs").catch(() => null),
-    api("/api/system/backups").catch(() => null),
-    api("/api/movies/latest").catch(() => null),
+    within(api("/api/needs").catch(() => null)),
+    within(api("/api/system/backups").catch(() => null)),
+    within(api("/api/movies/latest").catch(() => null)),
   ]);
   if (needs) setNeeds(needs);
   state.summary.hidden = false;
   if (state.hero) state.hero.hidden = false;
+  if (!state.cards) {  // the wall's "Ambient Home" view: the same cards in its right column
+    state.cards = h("div", { class: "home-cards" });
+    state.leftCol.replaceChildren(state.band);
+    state.rightCol.replaceChildren(state.cards);
+  }
   state.cards.replaceChildren(...homeCards({ now: d, needs, backups, home, latest }).map((c) => homeCard(c, cam)));
 }
 

@@ -32,7 +32,7 @@ def test_search_encodes_and_caps_the_query(monkeypatch):
     assert "query=bill+%22AT%26T%22" in calls[0] and "page_size=8" in calls[0]
     q = calls[0].split("query=")[1].split("&")[0]
     assert len(q.replace("+", " ").replace("%22", '"').replace("%26", "&")) <= 100
-    assert out == [{"id": 42, "title": "AT&T bill", "created": "2026-10-01", "link": "https://paperless.home.arpa/documents/42/details"}]
+    assert out == [{"id": 42, "title": "AT&T bill", "created": "2026-10-01", "link": "tool:paperless/documents/42/details"}]
 
 
 def test_empty_query_returns_recent(monkeypatch):
@@ -55,7 +55,7 @@ def test_no_token_means_unavailable(monkeypatch):
     assert paperless.search("bill") is None and calls == []
     owner(monkeypatch)
     r = TestClient(hub_app.app).get("/api/documents").json()
-    assert r["available"] is False and r["open"] == "https://paperless.home.arpa/"
+    assert r["available"] is False and r["open"] == "tool:paperless"
 
 
 def test_documents_are_for_the_owner_only(monkeypatch):

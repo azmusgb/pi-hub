@@ -24,7 +24,7 @@ def test_needs_merges_the_three_sources():
     assert n["count"] == len(n["items"]) == 4
     local = [i for i in n["items"] if i["source"] == "Local AI"]
     assert {i["title"] for i in local} == {"Needs you", "Disk"}
-    assert all(i["link"] == "https://assistant.home.arpa/" for i in local)
+    assert all(i["link"] == "tool:assistant" for i in local)
     assert by["Pi Hub"]["title"] == "Movies drive" and by["Pi Hub"]["link"] == "/pi"
     assert by["Printer"]["title"] == "Clear the plate" and by["Printer"]["link"] == "/workshop"
     assert n["unread"] == []

@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 API = "http://10.0.0.21:8010/api/documents/"
 TOKEN_FILE = "/etc/pi-hub/secrets/paperless_token"
-OPEN = "https://paperless.home.arpa/"
+OPEN = "tool:paperless"  # the page resolves it to the address in use (sections.js resolveLink)
 MAX_QUERY = 100
 
 
@@ -33,4 +33,4 @@ def search(q, n=8):
     params = {"page_size": n, "ordering": "-created", **({"query": q} if q else {})}
     page = _get(f"{API}?{urlencode(params)}", token)
     return [{"id": d["id"], "title": str(d.get("title") or "Untitled")[:120], "created": str(d.get("created") or "")[:10],
-             "link": f"{OPEN}documents/{d['id']}/details"} for d in page.get("results") or []]
+             "link": f"{OPEN}/documents/{d['id']}/details"} for d in page.get("results") or []]

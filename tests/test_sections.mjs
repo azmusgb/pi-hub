@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl } from '../hub/static/js/sections.js';
+import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink } from '../hub/static/js/sections.js';
 
 test('one menu by task, in the design order', () => {
   assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
@@ -44,4 +44,11 @@ test('tool links use the gate names on home.arpa and the old address elsewhere',
   assert.equal(toolUrl('paperless', '10.0.0.30'), 'http://10.0.0.21:8010/');
   assert.equal(toolUrl('scan', '10.0.0.30'), '/scan/');
   assert.equal(toolUrl('bambuddy', 'pi'), 'http://pi:8000/');
+});
+
+test('server links name a tool, and the page resolves it for the address in use', () => {
+  assert.equal(resolveLink('tool:paperless/documents/42/details', 'home.home.arpa'), 'https://paperless.home.arpa/documents/42/details');
+  assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.30'), 'http://10.0.0.21:8010/documents/42/details');
+  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), 'https://10.0.0.21/');
+  assert.equal(resolveLink('/workshop', '10.0.0.30'), '/workshop');
 });

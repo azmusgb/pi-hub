@@ -5,7 +5,7 @@ wrong."""
 
 PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
-ASSISTANT = "https://assistant.home.arpa/"
+ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 
 
 def _printer(events, now):

@@ -63,7 +63,7 @@ test('every card still renders when its source is down', () => {
   assert.equal(c.network.status, "Network checks aren't answering");
   assert.equal(c.system.status, "Backups unknown");
   assert.equal(c.system.tone, 'warn');
-  assert.ok(!c.needs);
+  assert.equal(c.needs.status, "Couldn't check what needs you");
 });
 
 test('Needs you says which sources it could not read', () => {
@@ -81,4 +81,13 @@ test('the Home badge equals the Needs you count', () => {
 
 test('links use the old addresses when the hub is opened by IP', () => {
   assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'http://10.0.0.30:8000/');
+});
+
+test('Needs you says when it could not check, even with nothing else to show', () => {
+  const n = by(all({ needs: { count: 0, items: [], unread: ['Local AI'] } })).needs;
+  assert.equal(n.status, "Couldn't check Local AI");
+  assert.equal(n.tone, 'warn');
+  assert.deepEqual(n.items, []);
+  assert.equal(by(all({ needs: null })).needs.status, "Couldn't check what needs you");
+  assert.equal(homeBadge({ count: 0, items: [], unread: ['Local AI'] }), '');
 });

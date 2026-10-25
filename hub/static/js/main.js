@@ -18,7 +18,10 @@ import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
-import { SECTIONS, sectionFor, redirectFor } from "./sections.js";
+import { SECTIONS, sectionFor, redirectFor, toolUrl } from "./sections.js";
+
+// The Assistant button goes to Local AI by the address the hub was opened by.
+for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) a.href = toolUrl("assistant");
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },

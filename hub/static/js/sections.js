@@ -62,3 +62,9 @@ export function toolUrl(name, host = globalThis.location?.hostname || "") {
   if (old.startsWith(":")) return `http://${host}${old}/`;
   return old.replace("{host}", host);
 }
+
+// The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).
+export function resolveLink(href, host = globalThis.location?.hostname || "") {
+  const m = /^tool:([a-z]+)\/?(.*)$/.exec(href || "");
+  return m ? toolUrl(m[1], host) + m[2] : href;
+}
