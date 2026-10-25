@@ -121,7 +121,8 @@ def ask(question):
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE  # Local AI uses its own certificate on the home network
     req = urllib.request.Request(CHAT_URL, method="POST", headers={"Content-Type": "application/json"},
-                                 data=json.dumps({"messages": [{"role": "user", "content": prompt}], "brief": True}).encode())
+                                 data=json.dumps({"messages": [{"role": "user", "content": prompt}], "brief": True,
+                                                 "title": "House question"}).encode())  # its name in Local AI's Recent
     try:
         with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
             reply = json.load(r)
