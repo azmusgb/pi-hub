@@ -131,3 +131,29 @@ def test_renewing_the_gate_needs_the_owner_on_home_arpa(client):
     signin(client, "10.0.0.30")
     r = client.post("/api/gate/renew", headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
     assert r.status_code == 400 and gate_cookie(r) is None
+
+
+def test_signing_out_revokes_every_gate_token_from_that_sign_in(client):
+    headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
+    r = signin(client, "home.home.arpa")
+    session, first = r.cookies.get("hub_session"), gate_cookie(r)
+    client.cookies.clear()
+    renewed = gate_cookie(client.post("/api/gate/renew", headers=headers,
+                                      cookies={"hub_session": session, "hub_gate": first}))
+    client.cookies.clear()
+    assert client.get("/api/gate", cookies={"hub_gate": first}, follow_redirects=False).status_code == 302  # replaced
+    assert client.get("/api/gate", cookies={"hub_gate": renewed}).status_code == 200
+    client.post("/api/signout", headers=headers, cookies={"hub_session": session})  # without `renewed` in hand
+    client.cookies.clear()
+    assert client.get("/api/gate", cookies={"hub_gate": renewed}, follow_redirects=False).status_code == 302
+
+
+def test_a_gate_token_never_outlives_its_sign_in(client):
+    import sqlite3
+    signin(client, "home.home.arpa")
+    db = sqlite3.connect(os.environ["HUB_DB"])
+    (owner,) = db.execute("SELECT expires FROM sessions WHERE role = 'owner'").fetchone()
+    db.execute("UPDATE sessions SET expires = ? WHERE role = 'owner'", (owner - 3600,)); db.commit()
+    r = client.post("/api/gate/renew", headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
+    (gate_expires,) = db.execute("SELECT expires FROM sessions WHERE role = 'gate' ORDER BY rowid DESC").fetchone()
+    assert gate_expires <= owner - 3600 and r.status_code == 200

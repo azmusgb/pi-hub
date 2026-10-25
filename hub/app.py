@@ -525,7 +525,7 @@ def _signed_in(token, role, host=""):
     resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
     shared = gate.cookie_kwargs(host, auth.LIFETIME[role])
     if shared and role == "owner":  # signed in through the front gate: a gate-only token for every *.home.arpa tool
-        resp.set_cookie(gate.COOKIE, auth.gate_session(auth.LIFETIME[role]), **shared)
+        resp.set_cookie(gate.COOKIE, auth.gate_session(token), **shared)
     return resp
 
 
@@ -537,8 +537,9 @@ def api_gate_renew(request: Request):
     shared = gate.cookie_kwargs(request.headers.get("host", ""), auth.LIFETIME["owner"])
     if not shared:
         raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
+    auth.sign_out(request.cookies.get(gate.COOKIE))  # the stale one, if any
     resp = fresh({"ok": True})
-    resp.set_cookie(gate.COOKIE, auth.gate_session(auth.LIFETIME["owner"]), **shared)
+    resp.set_cookie(gate.COOKIE, auth.gate_session(request.cookies.get(auth.COOKIE)), **shared)
     return resp
 
 

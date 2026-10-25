@@ -203,20 +203,25 @@ def session(token, gate=False):
     return row
 
 
-def gate_session(lifetime):
+def gate_session(owner_token):
     """A token only the front gate accepts (role "gate"): it is the cookie every *.home.arpa tool sees, so it must
-    never work as a hub session. Issued only for owner sign-ins; removed on sign-out."""
+    never work as a hub session. It belongs to the owner sign-in that made it (device "gate:<that session's hash>"),
+    ends when that sign-in ends, and goes when it signs out. None when owner_token isn't a live owner session."""
+    owner = session(owner_token)
+    if not owner or owner["role"] != "owner":
+        return None
     token = secrets.token_urlsafe(32)
-    now = int(time.time())
-    _ready()
-    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'gate', ?, ?, 'front gate')",
-           hashlib.sha256(token.encode()).hexdigest(), now, now + lifetime)
+    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'gate', ?, ?, ?)",
+           hashlib.sha256(token.encode()).hexdigest(), int(time.time()), owner["expires"],
+           "gate:" + hashlib.sha256(owner_token.encode()).hexdigest())
     return token
 
 
 def sign_out(token):
+    """Ends a session; for an owner sign-in, also every gate token it made."""
     if token:
-        db.run("DELETE FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
+        h = hashlib.sha256(token.encode()).hexdigest()
+        db.run("DELETE FROM sessions WHERE token_hash = ? OR (role = 'gate' AND device = ?)", h, "gate:" + h)
 
 
 def allowed(role, need):
