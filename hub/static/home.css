@@ -413,11 +413,15 @@ body.wall.night { filter: brightness(0.55); }
 .wifi-name { font-weight: 700; margin: 0; font-size: 1rem; letter-spacing: -.02em; }
 .wifi-panel .meta { margin: .25rem 0 0; font-size: .8125rem; color: var(--text-3); }
 
-/* ---- Printer Band emphasis ---- */
+/* ---- Printer Band emphasis: the one place the hub's amber stays (one home, step 5) ---- */
+.band { --band-accent: #b26a00; }
+:root[data-theme="dark"] .band { --band-accent: #f5b04a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .band { --band-accent: #f5b04a; } }
 .band.is-printing {
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--band-accent) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--band-accent) 40%, var(--line));
 }
+.band .line-bead { background: var(--band-accent); }
 
 
 /* ---- Design Audit Refinements ---- */

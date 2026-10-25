@@ -5,7 +5,7 @@
 :root {
   color-scheme: light;
 
-  --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--ui-font);
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
 
   --rail-w: 252px;
@@ -23,26 +23,28 @@
   --ease-out: cubic-bezier(.16, 1, .3, 1);
   --dur: .22s;
 
-  --bg: #f4f1ea;
-  --bg-elev: #faf8f3;
-  --surface: #ffffff;
-  --surface-2: #fbf9f5;
-  --surface-3: #f0ece3;
-  --line: rgba(32, 27, 20, .10);
-  --line-strong: rgba(32, 27, 20, .18);
-  --text: #1b1915;
-  --text-2: #5c564c;
-  --text-3: #8b8478;
-  --accent: #b26a00;
-  --accent-strong: #8f5300;
-  --accent-soft: rgba(178, 106, 0, .13);
-  --on-accent: #ffffff;
-  --ok: #2f7d4f;
-  --warn: #a86500;
-  --danger: #b3341f;
+  /* Colours come from the appliance-ui kit (/static/ui/tokens.css, one home step 5); it switches light and dark itself.
+     The printer band keeps the hub's amber as --band-accent (home.css). */
+  --bg: var(--ui-bg);
+  --bg-elev: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface);
+  --surface-3: var(--ui-surface-2);
+  --line: var(--ui-line);
+  --line-strong: var(--ui-line-2);
+  --text: var(--ui-text);
+  --text-2: var(--ui-muted);
+  --text-3: var(--ui-muted);
+  --accent: var(--ui-accent);
+  --accent-strong: var(--ui-accent-text);
+  --accent-soft: var(--ui-accent-soft);
+  --on-accent: var(--ui-on-accent);
+  --ok: var(--ui-ok);
+  --warn: var(--ui-warn);
+  --danger: var(--ui-bad);
   --shadow-1: 0 1px 2px rgba(32,27,20,.05), 0 2px 6px rgba(32,27,20,.05);
   --shadow-2: 0 18px 40px -18px rgba(32,27,20,.28);
-  --glow: 0 0 0 1px rgba(178,106,0,.16), 0 10px 30px -12px rgba(178,106,0,.45);
+  --glow: 0 0 0 1px var(--accent-soft), 0 10px 30px -12px var(--accent-soft);
   --ring: 0 0 0 3px var(--accent-soft);
   --shell-blur: saturate(140%) blur(14px);
 }
@@ -50,53 +52,15 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0a0c0f;
-    --bg-elev: #0e1116;
-    --surface: #11151a;
-    --surface-2: #151a20;
-    --surface-3: #1c222a;
-    --line: rgba(255, 255, 255, .07);
-    --line-strong: rgba(255, 255, 255, .14);
-    --text: #e8ecf0;
-    --text-2: #9aa4b0;
-    --text-3: #6a7481;
-    --accent: #f5b04a;
-    --accent-strong: #ffc670;
-    --accent-soft: rgba(245, 176, 74, .14);
-    --on-accent: #1a1206;
-    --ok: #5cc98d;
-    --warn: #f0b04a;
-    --danger: #f07a63;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
     --shadow-2: 0 24px 50px -24px rgba(0, 0, 0, .8);
-    --glow: 0 0 0 1px rgba(245,176,74,.22), 0 10px 34px -12px rgba(245,176,74,.5);
-    --ring: 0 0 0 3px rgba(245, 176, 74, .25);
   }
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0c0f;
-  --bg-elev: #0e1116;
-  --surface: #11151a;
-  --surface-2: #151a20;
-  --surface-3: #1c222a;
-  --line: rgba(255, 255, 255, .07);
-  --line-strong: rgba(255, 255, 255, .14);
-  --text: #e8ecf0;
-  --text-2: #9aa4b0;
-  --text-3: #6a7481;
-  --accent: #f5b04a;
-  --accent-strong: #ffc670;
-  --accent-soft: rgba(245, 176, 74, .14);
-  --on-accent: #1a1206;
-  --ok: #5cc98d;
-  --warn: #f0b04a;
-  --danger: #f07a63;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
   --shadow-2: 0 24px 50px -24px rgba(0, 0, 0, .8);
-  --glow: 0 0 0 1px rgba(245,176,74,.22), 0 10px 34px -12px rgba(245,176,74,.5);
-  --ring: 0 0 0 3px rgba(245, 176, 74, .25);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -387,14 +351,14 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    178, 106, 0;
+  --pei-rgb:    26, 111, 196;  /* the kit's light accent */
   --p:          var(--accent);
 
   /* status triples */
-  --ok-rgb:     47, 125, 79;
-  --warn-rgb:   168, 101, 0;
+  --ok-rgb:     18, 106, 69;
+  --warn-rgb:   129, 83, 0;
   --warn-ink:   #ffffff;
-  --bad-rgb:    179, 52, 31;
+  --bad-rgb:    176, 42, 32;
   --bad:        var(--danger);
   --bad-ink:    #ffffff;
 
@@ -425,13 +389,13 @@ body::before {
     --pei-deep:   var(--accent-strong);
     --pei-ink:    var(--on-accent);
     --on-pei:     var(--on-accent);
-    --pei-rgb:    245, 176, 74;
+    --pei-rgb:    90, 180, 255;
     --p:          var(--accent);
 
-    --ok-rgb:     92, 201, 141;
-    --warn-rgb:   240, 176, 74;
+    --ok-rgb:     62, 207, 142;
+    --warn-rgb:   245, 176, 61;
     --warn-ink:   #1a1206;
-    --bad-rgb:    240, 122, 99;
+    --bad-rgb:    255, 107, 99;
     --bad:        var(--danger);
     --bad-ink:    #1a1206;
 
@@ -461,13 +425,13 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    245, 176, 74;
+  --pei-rgb:    90, 180, 255;
   --p:          var(--accent);
 
-  --ok-rgb:     92, 201, 141;
-  --warn-rgb:   240, 176, 74;
+  --ok-rgb:     62, 207, 142;
+  --warn-rgb:   245, 176, 61;
   --warn-ink:   #1a1206;
-  --bad-rgb:    240, 122, 99;
+  --bad-rgb:    255, 107, 99;
   --bad:        var(--danger);
   --bad-ink:    #1a1206;
 

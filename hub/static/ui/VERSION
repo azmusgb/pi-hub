@@ -1,0 +1,15 @@
+{
+  "version": "1.1.0",
+  "files": {
+    "appliance-header.js": "9bbfbcd2e3508677b35f83eb80cdb0ee94341241b55a8acaca392469d411d723",
+    "appliance-header.lite.js": "31d458cdbc7948f7ac0ac91b8436efebbc60e8c11c120f493ae0589029982b0d",
+    "components.css": "85f2be957b50bed60b9ec42d8762dc89da57d3dc96f3397c4c375b399d15ad43",
+    "tokens.css": "83441fc5ddf77573cca1e4c0b7823187038a96887fc0ae7de1594ff2a5412c09",
+    "tokens.h": "e1f661f00f12e10693ea7fd7a72b09fe7c4b695b053f9cf22f7e3d739b1e8553",
+    "tokens.json": "1e5cc48d18610911aa74053871b583536a64ce37863b5985df5e94bbc4619416",
+    "OFL-Figtree.txt": "bb272dfcd8801eb31fb98fe51828f76f0e41ac82f89256101df8021aa3d30ce2",
+    "figtree-latin-wght-normal.woff2": "93a68eaa293304b947a167d0f7d0e00a1a8b5cf4972dc0da3da2094359a33e9a",
+    "verify.mjs": "d5693b4c40ee8fdc65ef357127e6771ee10c941841178828a7ca5bafa893579e",
+    "verify.py": "6a36cdd159dc803db7aa75a4065799f67abc691eadbb8f889151a44eee2048c9"
+  }
+}
