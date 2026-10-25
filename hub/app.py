@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -520,10 +520,22 @@ def _device(request: Request):
     return "A browser"
 
 
-def _signed_in(token, role):
+def _signed_in(token, role, host=""):
     resp = fresh({"role": role})
     resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
+    shared = gate.cookie_kwargs(host, auth.LIFETIME[role])
+    if shared:  # signed in through the front gate: the same session for every *.home.arpa tool
+        resp.set_cookie(gate.COOKIE, token, **shared)
     return resp
+
+
+@app.get("/api/gate")
+def api_gate(request: Request):
+    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes."""
+    s = auth.session(request.cookies.get(gate.COOKIE)) or auth.session(request.cookies.get(auth.COOKIE))
+    if s and s["role"] == "owner":
+        return Response(status_code=200, headers={"X-Remote-User": "bill", "Cache-Control": "no-store"})
+    return Response(status_code=302, headers={"Location": gate.signin_url(request.headers), "Cache-Control": "no-store"})
 
 
 @app.get("/api/me")
@@ -543,7 +555,7 @@ async def api_setup(request: Request):
         raise HTTPException(400, str(e))
     token, role = auth.sign_in(request.client.host, _device(request), password=b.get("owner_password"))
     auth.log(role, _device(request), "setup", "The hub was set up.")
-    return _signed_in(token, role)
+    return _signed_in(token, role, request.headers.get("host", ""))
 
 
 @app.post("/api/signin")
@@ -556,7 +568,7 @@ async def api_signin(request: Request):
             token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
     except PermissionError as e:
         raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
-    return _signed_in(token, role)
+    return _signed_in(token, role, request.headers.get("host", ""))
 
 
 @app.post("/api/signout")
@@ -564,6 +576,7 @@ def api_signout(request: Request):
     auth.sign_out(request.cookies.get(auth.COOKIE))
     resp = fresh({"role": "none"})
     resp.delete_cookie(auth.COOKIE, path="/")
+    resp.delete_cookie(gate.COOKIE, path="/", domain=gate.DOMAIN, secure=True, httponly=True, samesite="lax")
     return resp
 
 

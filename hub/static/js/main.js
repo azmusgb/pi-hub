@@ -1,7 +1,7 @@
 import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
 import { updateNavigation } from "./navigation.js";
-import { h } from "./core.js";
+import { ensure, h } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
@@ -253,6 +253,24 @@ async function stayAwake() {
   try { if (isWall() && "wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch {}
 }
 
+// The front gate (hub/gate.py) sends a signed-out visit to any *.home.arpa tool here with ?signin=owner&next=…:
+// sign in, then go back to that tool. Only https home.arpa addresses are followed, as on the server.
+export function safeNext(url) {
+  try {
+    const u = new URL(url);
+    const ours = u.hostname === "home.arpa" || u.hostname.endsWith(".home.arpa");
+    return u.protocol === "https:" && ours && !u.username && !u.password ? u.href : null;
+  } catch { return null; }
+}
+
+async function gateSignIn() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("signin") !== "owner") return;
+  const next = safeNext(q.get("next") || "");
+  if ((await ensure("owner")) && next) { location.replace(next); return; }
+  history.replaceState({}, "", location.pathname);
+}
+
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 tick();
 setInterval(tick, 15000);
@@ -261,5 +279,6 @@ updateNavigation();
 setInterval(updateNavigation, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
+gateSignIn();
 
 
