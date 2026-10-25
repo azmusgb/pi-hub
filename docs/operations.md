@@ -134,3 +134,7 @@ The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.en
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
 
 A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) but **stopped**. On 24 October 2026 the iPhone received its messages inside the app, but no banner appeared, although the server passed the wake-up to ntfy.sh. So alerts use ntfy.sh only, and Bambuddy's "Household ntfy (Pi)" channel is turned off. To try again, start it (`cd /opt/ntfy && sudo docker compose up -d`) and add `http://127.0.0.1:8093` to the servers file.
+
+## Homebox (home inventory)
+
+Homebox runs in Docker on the Pi (`/opt/homebox`, port 7745, data on the USB drive at `/mnt/usb1/homebox`), linked from App Suite and More. It is for tools, parts, appliances, manuals and warranties; filament stays in Bambuddy. Sign-up is off; it was open only while the owner made their account. The API-key pepper is in `/opt/homebox/homebox.env` (root only); changing it invalidates Homebox API keys. To let another person sign up: `cd /opt/homebox && sudo HBOX_ALLOW_REGISTRATION=true docker compose up -d`, then run `sudo docker compose up -d` again afterwards.

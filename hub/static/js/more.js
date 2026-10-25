@@ -6,6 +6,7 @@ const GROUPS = [
     ["/print", "Print", "Print a file and check the queue"],
     ["/apps/scan", "Scan", "Scan a document into Paperless"],
     ["http://10.0.0.21:8010", "Paperless ↗", "Find a bill, statement or record"],
+    ["http://10.0.0.30:7745", "Homebox ↗", "What you own and where it is"],
     ["/workshop", "Workshop", "3D printer, camera, display and local AI"],
     ["/weather", "Weather", "Forecast, air quality and weather warnings"],
   ]],

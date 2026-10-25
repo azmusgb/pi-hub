@@ -98,7 +98,7 @@ These were reviewed from two nOvaxtech "self-hosted app spotlight" carousels (AI
 | 6 | **Self-hosted ntfy** (alerts) | Proposed | Medium | Pi | Pi Hub, pi-status and Bambuddy alerts go through the public ntfy.sh with a secret topic name. Hosting it removes that dependency and makes the alerts private. The phone needs Tailscale for alerts away from home. |
 | 7 | **Sign-in for the scan page** | Proposed | Medium | Pi | The scan page has no login; anyone on the LAN or tailnet can scan into Paperless. A small proxy with the household PIN would close this. Bambuddy's open UI on :8000 has the same problem (see 24 October follow-up). |
 | 8 | **Home Assistant** (smart home) | Proposed | Medium | Pi | Could replace Homebridge and much of Pi Hub's rules and controls. A migration rather than a gap, so it isn't urgent. |
-| 9 | **Homebox** (home inventory) | Proposed | Low–Medium | Pi | Tools, parts, warranties and serial numbers. Overlaps a little with the filament shelf. |
+| 9 | **Homebox** (home inventory) | Done 24 Oct | Low–Medium | Pi | Tools, parts, warranties and serial numbers. Overlaps a little with the filament shelf. |
 | 10 | **Linkwarden** (saved links with page copies) | Proposed | Low–Medium | Pi or PC | Nice to have; nothing is broken without it. |
 | 11 | **Calibre-Web** (ebooks) | Waiting on you | Low unless you have ebooks | Pi | Only useful with an existing EPUB library. |
 | 12 | **SearXNG as the phone's search engine** | Already running | Low | PC (LocalAI stack) | It already exists for LocalAI but isn't published. Exposing it means changing the LocalAI stack, and Claude can't restart that stack over SSH. |
