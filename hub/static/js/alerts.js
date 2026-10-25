@@ -56,7 +56,7 @@ export async function load(state) {
     ["recovery", "Recovery", recoveryCount],
   ];
   state.tabs.replaceChildren(...filters.map(([key, label, count]) => h("button", {
-    role: "tab", "aria-selected": String(key === state.filter),
+    class: "tab", role: "tab", "aria-selected": String(key === state.filter),
     onclick: () => { state.filter = key; load(state); },
   }, label, count ? h("span", { class: "count" }, String(count)) : null)));
 
