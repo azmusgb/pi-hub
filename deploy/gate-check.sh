@@ -20,17 +20,20 @@ db.execute("INSERT INTO sessions (token_hash, role, created, expires, device) VA
 db.commit(); print(t)
 PY
 )
-trap 'python3 -c "import sqlite3; d=sqlite3.connect(\"/var/lib/pi-hub/hub.db\"); d.execute(\"DELETE FROM sessions WHERE device = ?\", (\"gate-check\",)); d.commit()"' EXIT
+# The token goes in a cookie file scoped to .home.arpa, so curl never sends it to a host a redirect points at.
+JAR=$(mktemp); chmod 600 "$JAR"
+printf '.home.arpa\tTRUE\t/\tTRUE\t0\thub_gate\t%s\n' "$TOKEN" > "$JAR"
+trap 'rm -f "$JAR"; python3 -c "import sqlite3; d=sqlite3.connect(\"/var/lib/pi-hub/hub.db\"); d.execute(\"DELETE FROM sessions WHERE device = ?\", (\"gate-check\",)); d.commit()"' EXIT
 
 r=$(get home); [ "${r%% *}" = 200 ] && say "home (open)" ok || say "home (open)" "got $r"
 for n in "${NAMES[@]}"; do
   r=$(get "$n")
   case "$r" in "302 https://home.home.arpa/?signin=owner&next="*) say "$n signed out → sign-in" ok ;; *) say "$n signed out → sign-in" "got $r" ;; esac
-  r=$(get "$n" -b "hub_gate=$TOKEN")
+  r=$(get "$n" -b "$JAR")
   case "${r%% *}" in 302) case "$r" in *home.home.arpa/?signin*) say "$n signed in" "still sent to sign-in" ;; *) say "$n signed in" ok ;; esac ;;
                     000|401|502|503|504) say "$n signed in" "got $r" ;; *) say "$n signed in" ok ;; esac
   # An empty page means the tool didn't recognise the name it was asked for.
-  b=$(size "$n" -b "hub_gate=$TOKEN"); [ "${b:-0}" -gt 0 ] && say "$n shows a page" ok || say "$n shows a page" "empty"
+  b=$(size "$n" -b "$JAR"); [ "${b:-0}" -gt 0 ] && say "$n shows a page" ok || say "$n shows a page" "empty"
 done
 # Grafana trusts X-WEBAUTH-USER, so it must only be reachable through the gate: from the LAN it's closed or ignores it.
 r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.30:3000/api/user)
