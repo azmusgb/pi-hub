@@ -35,8 +35,9 @@ async function checkAssistant() {
   for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
     a.querySelector("span").textContent = label;
     a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
-    if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
-    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.href = toolUrl("assistant"); }
+    // Without an href a link drops out of the tab order and screen readers stop reading it: keep both while it's off.
+    if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); a.setAttribute("role", "link"); a.tabIndex = 0; }
+    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = toolUrl("assistant"); }
   }
 }
 checkAssistant();
