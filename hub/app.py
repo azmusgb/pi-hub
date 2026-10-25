@@ -1059,6 +1059,20 @@ _HOP = {"connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authe
 _SCAN_PASS = {"content-type", "content-disposition", "cache-control", "etag", "last-modified", "content-language"}
 
 
+# Shown in Documents' Scan frame (or on its own) when nobody has signed in: the kit's look, one way forward.
+SCAN_SIGNED_OUT = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan · Pi Hub</title>
+<link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
+<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
+main{max-width:32rem}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}p{margin:0 0 16px;color:var(--ui-muted)}</style>
+</head><body><main>
+<h1>Scan needs the household PIN</h1>
+<p>A scan goes straight into Paperless, so the hub asks who you are first. Sign in, then open Scan again.</p>
+<a class="ui-btn ui-btn--primary" href="/settings" target="_top">Sign in to Pi Hub</a>
+</main></body></html>"""
+
+
 @app.api_route("/scan", methods=["GET"])
 def scan_root():
     return Response(status_code=307, headers={"Location": "/scan/"})
@@ -1072,10 +1086,7 @@ async def scan_proxy(path: str, request: Request):
         need(request, "household")
     except HTTPException as e:
         if request.method == "GET" and not path.startswith("api/"):
-            return Response("<!doctype html><meta name=viewport content='width=device-width'><title>Scan</title>"
-                            "<body style='font:16px system-ui;padding:2rem'><p>Enter the household PIN in Pi Hub first, "
-                            "then open Scan again.</p><p><a href='/documents' target='_top'>Open Pi Hub</a></p>",
-                            status_code=e.status_code, media_type="text/html")
+            return Response(SCAN_SIGNED_OUT, status_code=e.status_code, media_type="text/html")
         raise
     client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))
     # No cookie (the hub's session stays here) and no accept-encoding (the body is passed through as is).
