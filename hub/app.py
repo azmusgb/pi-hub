@@ -111,7 +111,8 @@ def api_network_adguard():
 
 
 @app.get("/api/documents")
-def api_documents(q: str = ""):
+def api_documents(request: Request, q: str = ""):
+    need(request, "owner")  # titles of tax and medical papers: the owner only
     try:
         results = paperless.search(q)
     except Exception:  # noqa: BLE001 — Paperless off or refusing: say so, don't fail the page

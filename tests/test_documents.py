@@ -11,6 +11,10 @@ from hub import app as hub_app, paperless  # noqa: E402
 PAGE = {"results": [{"id": 42, "title": "AT&T bill", "created": "2026-10-01T00:00:00Z", "correspondent": 3}]}
 
 
+def owner(monkeypatch):
+    monkeypatch.setattr(hub_app, "need", lambda request, role: ("owner", "test"))
+
+
 def fake(monkeypatch, calls, result=PAGE, token="tok"):
     def get(url, token):
         calls.append(url)
@@ -40,6 +44,7 @@ def test_empty_query_returns_recent(monkeypatch):
 
 def test_documents_says_unavailable_when_paperless_is_off(monkeypatch):
     fake(monkeypatch, [], result=OSError("refused"))
+    owner(monkeypatch)
     r = TestClient(hub_app.app).get("/api/documents", params={"q": "bill"})
     assert r.status_code == 200 and r.json()["available"] is False and r.json()["results"] == []
 
@@ -48,5 +53,13 @@ def test_no_token_means_unavailable(monkeypatch):
     calls = []
     fake(monkeypatch, calls, token=None)
     assert paperless.search("bill") is None and calls == []
+    owner(monkeypatch)
     r = TestClient(hub_app.app).get("/api/documents").json()
     assert r["available"] is False and r["open"] == "https://paperless.home.arpa/"
+
+
+def test_documents_are_for_the_owner_only(monkeypatch):
+    calls = []
+    fake(monkeypatch, calls)
+    r = TestClient(hub_app.app).get("/api/documents", params={"q": "tax"})
+    assert r.status_code == 401 and calls == []

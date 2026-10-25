@@ -1,0 +1,76 @@
+// Home's cards (one home, "Home cards"): data in, card models out, so the page and the tests agree on the words.
+import { toolUrl } from "./sections.js";
+
+const TONES = ["bad", "attention", "warn"];
+const SLOW_MS = 150;
+const STALE_HOURS = 36;
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+export function homeBadge(needs) {
+  const n = Number(needs?.count) || 0;
+  return n <= 0 ? "" : n > 99 ? "99+" : String(n);
+}
+
+function needsCard(needs) {
+  if (!needs?.count) return null;
+  const tone = TONES.find((t) => needs.items.some((i) => i.tone === t)) || "warn";
+  return {
+    key: "needs", title: "Needs you", tone, count: needs.count, status: plural(needs.count, "thing"),
+    items: needs.items, note: needs.unread?.length ? `Couldn't check ${needs.unread.join(" or ")}.` : "",
+    action: { label: needs.items[0].title, href: needs.items[0].link }, link: null,
+  };
+}
+
+function workshopCard(p, at, host) {
+  const done = Number.isFinite(p?.minutes_left)
+    ? new Date(at.getTime() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const status = p?.state === "printing" ? `Printing, ${p.progress}%${done ? ` · done ${done}` : ""}`
+    : p?.state === "paused" ? `Paused at ${p.progress}%`
+    : p?.state === "error" ? "Needs attention"
+    : p?.state === "idle" || p?.state === "stopped" ? "Idle"
+    : "Bambuddy isn't answering";
+  const tone = p?.state === "error" ? "bad" : ["printing", "idle", "stopped"].includes(p?.state) ? "ok" : "warn";
+  return { key: "workshop", title: "Bambu X2D", status, tone,
+    action: { label: "Open Bambuddy ↗", href: toolUrl("bambuddy", host) }, link: { label: "Workshop", href: "/workshop" } };
+}
+
+function mediaCard(movies, latest) {
+  const playing = movies?.playing;
+  const now = playing == null ? "Plex isn't answering" : playing.length ? `Now playing: ${playing[0].title}` : "Nothing playing";
+  return { key: "media", title: "Media", status: latest?.title ? `${now} · Latest: ${latest.title}` : now,
+    tone: playing == null ? "warn" : "ok", action: { label: "Watch a movie", href: "/media" }, link: null };
+}
+
+function networkCard(net, home) {
+  const on = (home?.accessories || []).filter((a) => a.on).length;
+  const internet = !net || net.status === "unknown" ? null
+    : net.status === "bad" ? ["Internet down", "bad"]
+    : net.wan_ms > SLOW_MS ? ["Internet slow", "warn"] : ["Internet OK", "ok"];
+  const devices = home?.connected ? ` · ${plural(on, "device")} on` : "";
+  return { key: "network", title: "Home & network",
+    status: internet ? internet[0] + devices : "Network checks aren't answering", tone: internet ? internet[1] : "warn",
+    action: { label: "Control devices", href: "/network" }, link: null };
+}
+
+function systemCard(backups, pi) {
+  const hours = (backups?.repos || []).map((r) => r.hours).filter(Number.isFinite);
+  const worst = backups?.available && hours.length === backups.repos.length ? Math.max(...hours) : null;
+  const temp = Number.isFinite(pi?.temp) ? ` · Pi ${Math.round(pi.temp)} °C` : "";
+  return { key: "system", title: "System",
+    status: (worst === null ? "Backups unknown" : `Backed up ${worst} h ago`) + temp,
+    tone: worst === null || worst > STALE_HOURS ? "warn" : "ok",
+    action: { label: "Restore a file", href: "/system" }, link: null };
+}
+
+export function homeCards({ now, needs, backups, home, latest, at = new Date(), host = globalThis.location?.hostname || "" }) {
+  return [
+    needsCard(needs),
+    workshopCard(now?.printer, at, host),
+    { key: "documents", title: "Documents", status: "Search Paperless or scan a page", tone: "ok",
+      action: { label: "Find a document", href: "/documents" }, link: { label: "Scan ↗", href: toolUrl("scan", host) } },
+    mediaCard(now?.movies, latest),
+    networkCard(now?.network, home),
+    systemCard(backups, now?.pi),
+  ].filter(Boolean);
+}
