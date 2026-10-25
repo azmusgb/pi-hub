@@ -709,6 +709,9 @@ main a:not([class]), main a.action, main a.meta, .page-trail a, main a.print-pho
 }
 :root[data-theme="dark"] :is(main a:not([class]), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
 
+/* Lists of places (section pages, More) and Needs you's items are rows, not inline links: they keep the text colour. */
+main :is(.more, .home-card-items) a { color: var(--text); }
+
 /* Facts: label on the left, value on the right, one per line (Firmware 12.8.0, Movies on the Pi 148). */
 .facts { display: grid; gap: .35rem; margin: .5rem 0; }
 .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
