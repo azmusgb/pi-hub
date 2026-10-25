@@ -20,7 +20,7 @@ def release(tmp_path):
     tools = tmp_path / 'bin'
     tools.mkdir()
     for directory in ['srv', 'opt/pi-hub/releases/previous', 'var/lock',
-                      'usr/local/bin', 'usr/local/lib/pi-hub', 'etc/systemd/system']:
+                      'usr/local/bin', 'usr/local/lib/pi-hub', 'etc/systemd/system', 'etc/caddy']:
         (root / directory).mkdir(parents=True, exist_ok=True)
     old = root / 'opt/pi-hub/releases/previous'
     (old / 'marker').write_text('old app')
@@ -31,19 +31,23 @@ def release(tmp_path):
     (root / 'usr/local/bin/pi-status.py').write_text('old status')
     (root / 'etc/systemd/system/pi-hub.service').write_text('old unit')
     (root / 'etc/systemd/system/x2d-camera-bridge.service').write_text('camera')
+    (root / 'etc/caddy/Caddyfile').write_text('# package default')
     script = (ROOT / 'deploy/pi-hub-release').read_text()
     script = re.sub(r'/[a-z]+/(?:local/)?', lambda m: str(root) + m[0]
                     if m[0] in ['/srv/', '/opt/', '/var/', '/usr/local/', '/etc/'] else m[0], script)
     script = script.replace('/tmp/pi-hub-gate.json', str(tmp_path / 'gate.json'))
     runner = tmp_path / 'release'
     runner.write_text(script)
-    archive = tmp_path / 'release.tar'
-    with tarfile.open(archive, 'w') as tar:
-        tar.add(ROOT / 'deploy', arcname='deploy')
-        for name, body in [('tests/smoke.mjs', ''), ('hub/static/icon.svg', '<svg/>')]:
-            entry = tarfile.TarInfo(name)
-            entry.size = len(body)
-            tar.addfile(entry, io.BytesIO(body.encode()))
+    archives = {}
+    for kind in ('gate', 'pregate'):  # pregate: a release from before the front gate (no deploy/caddy)
+        archives[kind] = tmp_path / f'release-{kind}.tar'
+        with tarfile.open(archives[kind], 'w') as tar:
+            tar.add(ROOT / 'deploy', arcname='deploy',
+                    filter=lambda t: None if kind == 'pregate' and '/caddy' in t.name else t)
+            for name, body in [('tests/smoke.mjs', ''), ('hub/static/icon.svg', '<svg/>')]:
+                entry = tarfile.TarInfo(name)
+                entry.size = len(body)
+                tar.addfile(entry, io.BytesIO(body.encode()))
     stub = tools / 'stub'
     stub.write_text('#!' + sys.executable + '\n' + r'''
 import os, pathlib, shutil, sys
@@ -71,22 +75,26 @@ elif name == 'systemctl':
     if args == ['daemon-reload'] and os.environ.get('FAIL') == 'install':
         marker = pathlib.Path(os.environ['CALLS'] + '.failed')
         if not marker.exists(): marker.touch(); sys.exit(1)
+elif name == 'curl':
+    with open(os.environ['CALLS'], 'a') as f: f.write('curl ' + args[-1] + '\n')
+    healthy = os.environ.get('HEALTHY')
+    sys.exit(0 if not healthy or args[-1] in healthy.split() else 7)
 elif name == 'caddy':
     with open(os.environ['CALLS'], 'a') as f: f.write('caddy ' + ' '.join(args) + '\n')
 elif name == 'readlink':
     p = pathlib.Path(args[-1])
     if not p.exists(): sys.exit(1)
     print(p.resolve())
-# flock, sleep, curl and rsvg-convert succeed without touching the host.
+# flock, sleep and rsvg-convert succeed without touching the host.
 ''')
     stub.chmod(0o755)
     for name in ['git', 'timeout', 'python3', 'mv', 'systemctl', 'readlink',
                  'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']:
         (tools / name).symlink_to(stub)
 
-    def run(fail=''):
-        env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'],
-               'ARCHIVE': str(archive), 'FAIL': fail, 'CALLS': str(tmp_path / 'calls')}
+    def run(fail='', kind='gate', healthy=''):
+        env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy,
+               'ARCHIVE': str(archives[kind]), 'FAIL': fail, 'CALLS': str(tmp_path / 'calls')}
         return subprocess.run(['bash', str(runner), SHA], env=env, capture_output=True, text=True)
     return root, helper, run
 
@@ -155,8 +163,6 @@ def test_hub_listens_only_on_localhost_8100():
 
 def test_release_puts_the_gate_in_front_of_the_hub(release):
     root, helper, run = release
-    (root / 'etc/caddy').mkdir()
-    (root / 'etc/caddy/Caddyfile').write_text('# package default')
     result = run()
     assert result.returncode == 0, result.stdout + result.stderr
     assert (root / 'etc/caddy/Caddyfile').read_text() == (ROOT / 'deploy/caddy/Caddyfile').read_text()
@@ -168,10 +174,50 @@ def test_release_puts_the_gate_in_front_of_the_hub(release):
 
 def test_failed_release_gives_back_the_old_gate_or_frees_port_80(release):
     root, helper, run = release
-    (root / 'etc/caddy').mkdir()
-    (root / 'etc/caddy/Caddyfile').write_text('# package default')
     result = run('gate')
     assert result.returncode != 0
     assert (root / 'etc/caddy/Caddyfile').read_text() == '# package default'
     calls = (root.parent / 'calls').read_text().splitlines()
     assert 'stop caddy' in calls[calls.index('restart caddy') + 1:]  # the old hub needs :80 back
+
+
+HUB_8100 = 'http://127.0.0.1:8100/healthz'
+THROUGH_CADDY = 'http://127.0.0.1/healthz'
+
+
+def test_gate_release_checks_the_hub_and_the_gate(release):
+    root, helper, run = release
+    assert run(healthy=HUB_8100).returncode != 0  # the hub answers but the gate doesn't: not live
+    assert (root / 'opt/pi-hub/current').resolve().name == 'previous'
+    calls = (root.parent / 'calls')
+    calls.unlink()
+    result = run(healthy=f'{HUB_8100} {THROUGH_CADDY}')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'curl ' + THROUGH_CADDY in calls.read_text().splitlines()
+
+
+def test_failed_first_gate_release_recovers_to_the_hub_on_port_80(release):
+    root, helper, run = release
+    result = run('gate', healthy=THROUGH_CADDY)  # the previous release (no gate) answers on :80
+    assert result.returncode != 0
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert log[0]['status'] == 'rolled-back', result.stdout
+
+
+def test_rolling_back_to_a_release_from_before_the_gate(release):
+    root, helper, run = release
+    result = run(kind='pregate', healthy=THROUGH_CADDY)
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = (root.parent / 'calls').read_text().splitlines()
+    assert calls.index('stop caddy') < calls.index('restart pi-hub pi-hub-helper x2d-camera-failover')
+    assert 'restart caddy' not in calls
+
+
+def test_gate_release_refuses_without_caddy(release):
+    root, helper, run = release
+    import shutil
+    shutil.rmtree(root / 'etc/caddy')
+    result = run()
+    assert result.returncode != 0
+    assert 'install.sh' in result.stdout + result.stderr
+    assert (root / 'opt/pi-hub/current').resolve().name == 'previous'

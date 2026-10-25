@@ -129,5 +129,9 @@ scan.home.arpa {
 # The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) still reach the hub unchanged:
 # Local AI's /api/now, Bambuddy's webhook, Siri Shortcuts and browsers all keep working until step 6.
 http:// {
+	# A home.arpa name without its own site (home.arpa itself, a mistyped name) goes to the hub over https, so the
+	# owner password never crosses the network in the clear.
+	@named host home.arpa *.home.arpa
+	redir @named https://home.home.arpa{uri}
 	reverse_proxy 127.0.0.1:8100
 }

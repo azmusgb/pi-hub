@@ -109,3 +109,25 @@ def test_signin_on_home_arpa_sets_the_gate_cookie_and_signout_clears_it(client):
                for c in r.headers.get_list("set-cookie"))
     client.cookies.clear()
     assert client.get("/api/gate", cookies={"hub_gate": gate_token}, follow_redirects=False).status_code == 302  # revoked
+
+
+def test_a_signed_in_owner_can_renew_a_missing_gate_token(client):
+    # Signed in at home.home.arpa but with no (or a stale) gate cookie: the sign-in hand-back renews it instead of
+    # bouncing between the tool and the hub.
+    signin(client, "home.home.arpa")
+    headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
+    r = client.post("/api/gate/renew", headers=headers)
+    assert r.status_code == 200
+    client.cookies.clear()
+    assert client.get("/api/gate", cookies={"hub_gate": gate_cookie(r)}).status_code == 200
+
+
+def test_renewing_the_gate_needs_the_owner_on_home_arpa(client):
+    headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
+    assert client.post("/api/gate/renew", headers=headers).status_code == 401
+    signin(client, "home.home.arpa", pin="123456")
+    assert client.post("/api/gate/renew", headers=headers).status_code == 401
+    client.cookies.clear()
+    signin(client, "10.0.0.30")
+    r = client.post("/api/gate/renew", headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
+    assert r.status_code == 400 and gate_cookie(r) is None

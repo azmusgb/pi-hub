@@ -32,6 +32,11 @@ done
 # Grafana trusts X-WEBAUTH-USER, so it must only be reachable through the gate: from the LAN it's closed or ignores it.
 r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.30:3000/api/user)
 case "$r" in 000|401) say "grafana not open to a forged header" ok ;; *) say "grafana not open to a forged header" "got $r" ;; esac
+# A home.arpa name over plain http never reaches the hub's sign-in: it goes to https first.
+for host in home.home.arpa home.arpa other.home.arpa; do
+  r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $host" http://127.0.0.1/)
+  case "$r" in 30[178]" https://"*) say "http://$host → https" ok ;; *) say "http://$host → https" "got $r" ;; esac
+done
 r=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/api/now)
 case "$r" in "200 application/json"*) say "old address → hub /api/now" ok ;; *) say "old address → hub /api/now" "got $r" ;; esac
 exit $fail

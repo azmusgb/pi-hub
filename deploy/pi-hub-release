@@ -40,10 +40,17 @@ fi
 
 wait_healthy() {
   for i in $(seq 1 30); do
-    if curl --max-time 2 -fs -o /dev/null http://127.0.0.1:8100/healthz; then return 0; fi
+    if curl --max-time 2 -fs -o /dev/null "$1"; then return 0; fi
     sleep 1
   done
   return 1
+}
+# A release with the front gate runs its hub on 127.0.0.1:8100 behind Caddy on :80; one from before the gate runs
+# its hub on :80 itself. Either way the old address must answer.
+gated() { [ -f "$1/deploy/caddy/Caddyfile" ]; }
+healthy_for() {
+  if gated "$1"; then wait_healthy http://127.0.0.1:8100/healthz && wait_healthy http://127.0.0.1/healthz
+  else wait_healthy http://127.0.0.1/healthz; fi
 }
 
 mkdir -p "$REL"
@@ -71,6 +78,11 @@ rm -rf "$TESTDB"
 rm -rf "$NEW" && mv "$NEW.tmp" "$NEW"
 find "$NEW" -name __pycache__ -prune -exec rm -rf {} +
 for s in 180 192 512; do rsvg-convert -w $s -h $s "$NEW/hub/static/icon.svg" -o "$NEW/hub/static/icon-$s.png"; done
+
+if gated "$NEW" && { [ ! -d /etc/caddy ] || ! command -v caddy >/dev/null; }; then
+  say "this version needs the front gate (Caddy), which isn't installed; run deploy/install.sh from the Mac"
+  exit 1
+fi
 
 # Snapshot every installed supporting file before touching the running release.
 PREV=$(readlink -f "$CUR" 2>/dev/null || true)
@@ -120,7 +132,7 @@ recover() {
     if systemctl cat x2d-camera-bridge.service >/dev/null 2>&1; then
       systemctl restart x2d-camera-bridge || restored=0
     fi
-    if [ "$restored" = 1 ] && wait_healthy; then
+    if [ "$restored" = 1 ] && healthy_for "$PREV"; then
       record rolled-back "Release failed; restored the previous app and supporting files." || true
     else
       record failed "Release failed; recovery needs attention. Snapshot: $SNAP" || true
@@ -176,7 +188,7 @@ fi
 
 say "checking the new version…"
 ok=0
-wait_healthy && ok=1 || ok=0
+healthy_for "$NEW" && ok=1 || ok=0
 if [ $ok = 1 ]; then
   sleep 3
   python3 "$NEW/deploy/pi-hub-selfcheck.py" --gate > /tmp/pi-hub-gate.json 2>/dev/null && ok=1 || ok=0

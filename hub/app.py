@@ -529,6 +529,19 @@ def _signed_in(token, role, host=""):
     return resp
 
 
+@app.post("/api/gate/renew")
+def api_gate_renew(request: Request):
+    """A signed-in owner on home.home.arpa whose gate cookie is missing or stale gets a new one, so the sign-in
+    hand-back never bounces between a tool and the hub."""
+    need(request, "owner")
+    shared = gate.cookie_kwargs(request.headers.get("host", ""), auth.LIFETIME["owner"])
+    if not shared:
+        raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
+    resp = fresh({"ok": True})
+    resp.set_cookie(gate.COOKIE, auth.gate_session(auth.LIFETIME["owner"]), **shared)
+    return resp
+
+
 @app.get("/api/gate")
 def api_gate(request: Request):
     """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes."""
