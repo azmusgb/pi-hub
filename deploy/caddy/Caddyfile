@@ -74,9 +74,12 @@ backups.home.arpa {
 network.home.arpa {
 	route {
 		import gated
-		# Grafana trusts this header only from 127.0.0.1 (GF_AUTH_PROXY_WHITELIST).
+		# Grafana trusts its login header only from 127.0.0.1, and only under a secret name that Caddy and Grafana
+		# alone know (GRAFANA_GATE_HEADER in /etc/pi-hub/secrets/grafana_gate.env), so nothing else on the Pi (Uptime
+		# Kuma can send any header) can sign in as the owner. Without the file, Grafana's name won't match: no login.
+		request_header -{$GRAFANA_GATE_HEADER:X-Webauth-User}
 		reverse_proxy 127.0.0.1:3000 {
-			header_up X-WEBAUTH-USER {http.request.header.X-Remote-User}
+			header_up {$GRAFANA_GATE_HEADER:X-Webauth-User} {http.request.header.X-Remote-User}
 		}
 	}
 }

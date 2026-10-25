@@ -31,6 +31,15 @@ if [ -s /opt/homepage/secrets/plex_token ] && [ ! -s /etc/pi-hub/secrets/plex_to
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets && sudo chmod 750 /etc/pi-hub/secrets
 
+# The secret header name Caddy uses to sign the owner into Grafana (netmon reads the same file).
+if ! sudo test -s /etc/pi-hub/secrets/grafana_gate.env; then
+  h="X-Gate-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+  printf 'GRAFANA_GATE_HEADER=%s\nGF_AUTH_PROXY_HEADER_NAME=%s\n' "$h" "$h" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/grafana_gate.env'
+fi
+sudo install -d -m 755 /etc/systemd/system/caddy.service.d
+printf '[Service]\nEnvironmentFile=-/etc/pi-hub/secrets/grafana_gate.env\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+sudo systemctl daemon-reload
+
 # One-time setup code for the hub's Settings page.
 if [ ! -s /etc/pi-hub/setup-code ]; then
   python3 -c "import secrets; a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; c=''.join(secrets.choice(a) for _ in range(8)); print(c[:4] + '-' + c[4:])" \
