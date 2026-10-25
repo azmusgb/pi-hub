@@ -78,12 +78,14 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_SECURITY_ALLOW_EMBEDDING=true
       # The front gate (Caddy on this Pi, https://network.home.arpa) signs the owner in as `bill`. Host networking
-      # means only processes on the Pi itself come from 127.0.0.1; the LAN can't send this header.
+      # means only processes on the Pi itself come from 127.0.0.1, and the header's name is a secret shared with
+      # Caddy (GF_AUTH_PROXY_HEADER_NAME, from the env_file below), so other local services can't forge it.
       - GF_AUTH_PROXY_ENABLED=true
-      - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
       - GF_AUTH_PROXY_HEADER_PROPERTY=username
       - GF_AUTH_PROXY_AUTO_SIGN_UP=false
       - GF_AUTH_PROXY_WHITELIST=127.0.0.1
+    env_file:
+      - /etc/pi-hub/secrets/grafana_gate.env
     volumes:
       - /opt/netmon/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - /opt/netmon/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
