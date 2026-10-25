@@ -154,6 +154,21 @@ AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on p
 - **Passwords and login:** the repository passwords are in `/etc/pi-hub/secrets/restic_pi` and `restic_mac` (root only). The Mac's is also in its login Keychain as `restic-mac`. **Without them the backups can't be read.** Backrest's login is `bill`; the password is in `/etc/pi-hub/secrets/backrest_admin`.
 - **Still to do:** both repositories sit on the same USB drive as the Movies and Bambuddy data. An off-site copy (another drive, or a cloud bucket, still encrypted) is the next step.
 
+## The hub's menu (since 25 October 2026)
+
+One menu by task (design: one home, step 2). The phone shows Home, Workshop, Documents, Media and More; More holds Home & network and System. The Assistant button opens Local AI and never carries a badge. The Home tab's badge is the count of Needs you.
+
+| Section | Path | Inside |
+|---|---|---|
+| Home | `/` | Needs you (`/api/needs`: the hub's own issues, Local AI's warnings, Pi alerts from the last 12 h, the printer) and one card per section |
+| Workshop | `/workshop` | The X2D, camera, filament and projects (Bambuddy), Print lab, the workshop display |
+| Documents | `/documents` | Find a document (owner only, Paperless user `hub`), Scan, `/print`, `/lists` |
+| Media | `/media` | Movies (`/movies` redirects here), `/drives` |
+| Home & network | `/network` | Devices (`/control` redirects here), Internet, Ad blocking (AdGuard via the root helper), Guest Wi-Fi |
+| System | `/system` | Backup ages (restic snapshots via the root helper), `/alerts`, `/rules`, `/pi`, `/settings`, Cockpit |
+
+Old App Suite addresses (`/apps/...`, `/bambuddy`, `/grafana`, `/status`) redirect to the section that now holds the tool. Links to tools use the `*.home.arpa` names when the hub is opened by one, and the old `IP:port` otherwise. Browser check from the Mac: `cd tests/browser && npm install && node structure.mjs http://10.0.0.30`.
+
 ## The front gate (since 24 October 2026)
 
 Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs/superpowers/specs/2026-10-24-one-home-design.md`).
