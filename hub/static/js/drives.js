@@ -2,6 +2,7 @@
 import { api, card, empty, ensure, h, post, toast, when } from "./core.js";
 
 export const every = 10;
+export const loadDeadline = 160_000;  // the drives report can take 150 s while disks spin up
 
 const gb = (bytes) => bytes ? `${(bytes / 1e9).toFixed(bytes > 1e11 ? 0 : 1)} GB` : "—";
 

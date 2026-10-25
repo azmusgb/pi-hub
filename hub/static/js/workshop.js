@@ -1,5 +1,5 @@
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
-import { api, card, duration, empty, h, when } from "./core.js";
+import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
 import { toolUrl } from "./sections.js";
 
@@ -111,8 +111,9 @@ function projectsCard(projects) {
 }
 
 export async function load(state) {
-  const [d, cam, pr] = await Promise.all([api("/api/workshop"), api("/api/camera").catch(() => ({ ok: false })),
-    api("/api/projects").catch(() => ({ available: false }))]);
+  // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each.
+  const [d, cam, pr] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
+    settle(api("/api/projects"), 6000, { available: false })]);
   state.band.replaceChildren(band(d.printer));
   if (state.camOk !== cam.ok || state.camSource !== cam.source) {
     state.cam.replaceChildren(camera(cam));

@@ -1,7 +1,7 @@
 import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
 import { updateNavigation } from "./navigation.js";
-import { ensure, h, toast } from "./core.js";
+import { deadline, ensure, h, toast } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
@@ -146,6 +146,10 @@ function tick() {
   } else updated.textContent = "Checking this page…";
 }
 
+// Short enough that a hung request can't leave a page on "Loading…" for good (refresh() won't start again while a
+// load is still running). A page with a known slow source sets its own `loadDeadline` (Movie storage).
+const LOAD_DEADLINE_MS = 45_000;
+
 async function refresh() {
   const page = current;
   if (!page?.mod.load || page.loading) return;
@@ -154,7 +158,7 @@ async function refresh() {
   const retry = page.notice.querySelector("button");
   if (retry) { retry.disabled = true; retry.textContent = "Checking…"; }
   try {
-    await page.mod.load(page.state);
+    await deadline(page.mod.load(page.state), page.mod.loadDeadline || LOAD_DEADLINE_MS);
     if (page !== current) return;
     page.lastOk = Date.now();
     page.error = false;

@@ -1,6 +1,6 @@
 // Home: the one-line answer, then six cards (one home, "Home cards"): Needs you, Workshop, Documents, Media,
 // Home & network and System. The wall display keeps its own layout.
-import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from "./core.js";
+import { api, clockTime, ensure, fix, h, post, settle, spark, weatherIcon, whoami } from "./core.js";
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
 import { homeCards } from "./home-cards.js";
@@ -435,8 +435,6 @@ function outsideLine(o) {
 
 const outward = (href) => /^https?:/.test(href);
 const go = (link) => { const href = resolveLink(link); return outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true }; };
-// A slow source never holds Home back: past this, its card shows "isn't answering" and the next refresh tries again.
-const within = (p, ms = 4000) => Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
 function homeCard(c, cam) {
   const showCam = c.key === "workshop" && cam?.ok && /^(Printing|Paused)/.test(c.status);
@@ -506,11 +504,12 @@ export function mount(state) {
 }
 
 export async function load(state) {
+  // Only the house status is required; each extra source gets 6 s, then the page shows without it.
   const [d, out, home, cam] = await Promise.all([
     api("/api/now"),
-    api("/api/outside").catch(() => null),
-    api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
-    api("/api/camera").catch(() => ({ ok: false })),
+    settle(api("/api/outside"), 6000, null),
+    settle(api("/api/home"), 6000, { connected: false, accessories: [], favourites: [] }),
+    settle(api("/api/camera"), 6000, { ok: false }),
   ]);
   
   state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !isWallMode()
@@ -584,9 +583,9 @@ export async function load(state) {
   }
 
   const [needs, backups, latest] = await Promise.all([
-    within(api("/api/needs").catch(() => null)),
-    within(api("/api/system/backups").catch(() => null)),
-    within(api("/api/movies/latest").catch(() => null)),
+    settle(api("/api/needs"), 4000, null),
+    settle(api("/api/system/backups"), 4000, null),
+    settle(api("/api/movies/latest"), 4000, null),
   ]);
   if (needs) setNeeds(needs);
   state.summary.hidden = false;

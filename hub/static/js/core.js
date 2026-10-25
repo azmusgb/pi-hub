@@ -14,6 +14,23 @@ const RANK = {
   owner: 3,
 };
 
+// A source that doesn't answer in time gives its fallback, so one slow service never holds a whole page.
+export function settle(promise, ms, fallback) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => fallback),
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+// A page load that hangs fails after its deadline, so the page says so and the next refresh can try again.
+export function deadline(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("The page took too long to load.")), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 function finiteNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
