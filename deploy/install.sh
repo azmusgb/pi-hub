@@ -37,7 +37,9 @@ if ! sudo test -s /etc/pi-hub/secrets/grafana_gate.env; then
   printf 'GRAFANA_GATE_HEADER=%s\nGF_AUTH_PROXY_HEADER_NAME=%s\n' "$h" "$h" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/grafana_gate.env'
 fi
 sudo install -d -m 755 /etc/systemd/system/caddy.service.d
-printf '[Service]\nEnvironmentFile=-/etc/pi-hub/secrets/grafana_gate.env\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+# Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
+# write the secret to the journal).
+printf '[Service]\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
 
 # One-time setup code for the hub's Settings page.

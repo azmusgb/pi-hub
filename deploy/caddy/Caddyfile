@@ -4,6 +4,9 @@
 # re-trusting it everywhere.
 {
 	local_certs
+	# The admin API would show the whole config, including Grafana's secret header name, to anything on the Pi;
+	# a socket in /run/caddy (0700, caddy only) keeps it to Caddy and root.
+	admin unix//run/caddy/admin.sock
 }
 
 # Strip identity headers a client might send, ask the hub, then pass only the hub's answer on (never its cookie). Inside `route` so
@@ -76,10 +79,10 @@ network.home.arpa {
 		import gated
 		# Grafana trusts its login header only from 127.0.0.1, and only under a secret name that Caddy and Grafana
 		# alone know (GRAFANA_GATE_HEADER in /etc/pi-hub/secrets/grafana_gate.env), so nothing else on the Pi (Uptime
-		# Kuma can send any header) can sign in as the owner. Without the file, Grafana's name won't match: no login.
-		request_header -{$GRAFANA_GATE_HEADER:X-Webauth-User}
+		# Kuma can send any header) can sign in as the owner. Caddy won't start without the file.
+		request_header -{$GRAFANA_GATE_HEADER:X-Gate-Unset}
 		reverse_proxy 127.0.0.1:3000 {
-			header_up {$GRAFANA_GATE_HEADER:X-Webauth-User} {http.request.header.X-Remote-User}
+			header_up {$GRAFANA_GATE_HEADER:X-Gate-Unset} {http.request.header.X-Remote-User}
 		}
 	}
 }
