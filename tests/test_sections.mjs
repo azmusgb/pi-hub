@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink, assistantHref } from '../hub/static/js/sections.js';
+import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink, assistantHref, assistantButton } from '../hub/static/js/sections.js';
 
 test('one menu by task, in the design order', () => {
   assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
@@ -68,4 +68,11 @@ test('assistantHref keeps the context to 300 characters', () => {
 test('assistantHref never sends "undefined" and collapses whitespace', () => {
   assert.ok(!assistantHref('home.home.arpa', 'Media', undefined).includes('undefined'));
   assert.equal(decodeURIComponent(assistantHref('home.home.arpa', 'Home', ' Two\n things  ').split('context=')[1]), 'Pi Hub › Home: Two things');
+});
+
+test('assistantButton says the PC is off only when Local AI is down', () => {
+  assert.deepEqual(assistantButton('Down'), { label: 'The PC is off', disabled: true });
+  assert.deepEqual(assistantButton('Unknown'), { label: 'Assistant', disabled: false });
+  assert.deepEqual(assistantButton('Ready'), { label: 'Assistant', disabled: false });
+  assert.deepEqual(assistantButton(undefined), { label: 'Assistant', disabled: false });
 });

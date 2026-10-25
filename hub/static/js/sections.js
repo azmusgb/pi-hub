@@ -77,3 +77,8 @@ export function assistantHref(host, title, facts) {
   if (text.length > CONTEXT_MAX) text = text.slice(0, CONTEXT_MAX - 1) + "…";
   return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
 }
+
+// When the Pi's status service says Local AI is down, the button says so and can't be pressed. "Unknown" isn't "off".
+export function assistantButton(state) {
+  return state === "Down" ? { label: "The PC is off", disabled: true } : { label: "Assistant", disabled: false };
+}

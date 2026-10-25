@@ -1,7 +1,7 @@
 import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
 import { updateNavigation } from "./navigation.js";
-import { ensure, h, loadOnce, toast } from "./core.js";
+import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
@@ -18,15 +18,29 @@ import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
-import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref } from "./sections.js";
+import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
 // (set as the person reaches for it, so they are the ones on screen).
 for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
   a.href = toolUrl("assistant");
-  const fill = () => { if (current) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
+  const fill = () => { if (current && !a.hasAttribute("aria-disabled")) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
   for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
+  a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
+// "The PC is off" while the Pi's status service says Local AI is down; checked now and every minute.
+async function checkAssistant() {
+  const r = await api("/api/assistant").catch(() => null);
+  const { label, disabled } = assistantButton(r?.state);
+  for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
+    a.querySelector("span").textContent = label;
+    a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
+    if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); }
+    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.href = toolUrl("assistant"); }
+  }
+}
+checkAssistant();
+setInterval(checkAssistant, 60_000);
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },

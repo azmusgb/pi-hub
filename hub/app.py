@@ -608,6 +608,12 @@ def api_gate(request: Request):
     return Response(status_code=302, headers={"Location": gate.signin_url(request.headers), "Cache-Control": "no-store"})
 
 
+@app.get("/api/assistant")
+def api_assistant():
+    """Whether Local AI answers, for the Assistant button (the same fact /api/now shows)."""
+    return fresh({"state": (sources.pi_status() or {}).get("ai_state") or "Unknown"})
+
+
 @app.get("/api/me")
 def api_me(request: Request):
     role, device = who(request)

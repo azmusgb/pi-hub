@@ -202,3 +202,11 @@ def test_no_clear_while_a_new_print_runs_even_if_bambuddy_still_flags_the_plate(
     assert now.printer_actions({**B, "bambuddy_state": "RUNNING"}) == ["pause"]
     assert now.printer_actions({**B, "bambuddy_state": "PAUSE"}) == ["resume"]
     assert now.printer_actions({**B, "bambuddy_state": "IDLE"}) == []
+
+
+def test_assistant_state_follows_the_status_service(monkeypatch):
+    c = TestClient(hub_app.app)
+    monkeypatch.setattr(sources, "pi_status", lambda: {"ai_state": "Down"})
+    assert c.get("/api/assistant").json() == {"state": "Down"}
+    monkeypatch.setattr(sources, "pi_status", lambda: None)
+    assert c.get("/api/assistant").json() == {"state": "Unknown"}

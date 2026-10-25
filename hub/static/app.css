@@ -621,3 +621,4 @@ html {
   .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem 1rem; }
   .top .clock { grid-column: 1 / -1; justify-self: start; }
 }
+.rail-assistant[aria-disabled], .top-assistant[aria-disabled] { cursor: not-allowed; }
