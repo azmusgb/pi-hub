@@ -4,6 +4,7 @@
 Listens on a Unix socket that only the pi-hub user can reach, and runs one of a fixed
 list of actions by name. It never runs anything it's sent; it looks the name up.
 """
+import base64
 import json
 import os
 import pwd
@@ -13,6 +14,7 @@ import struct
 import subprocess
 import threading
 import time
+import urllib.request
 
 SOCKET = "/run/pi-hub-helper/helper.sock"
 HUB_USER = "pi-hub"
@@ -88,6 +90,41 @@ def drives_report():
     return {"ok": True, "drives": out}
 
 
+RESTIC = {"Pi": "/mnt/usb1/backups/restic/pi", "Mac": "/mnt/usb1/backups/restic/mac"}
+ADGUARD_CONF = "/opt/adguard/conf/AdGuardHome.yaml"
+ADGUARD_SECRET = "/etc/pi-hub/secrets/adguard_admin"
+
+
+def backups_ages(roots=RESTIC):
+    """The newest snapshot file's time in each restic repo (root-only folders); None when there is none."""
+    out = {}
+    for name, root in roots.items():
+        try:
+            folder = os.path.join(root, "snapshots")
+            out[name] = int(max(os.path.getmtime(os.path.join(folder, f)) for f in os.listdir(folder)))
+        except (OSError, ValueError):
+            out[name] = None
+    return out
+
+
+def _adguard_fetch():
+    user = re.search(r"users:\s*\n\s*-\s*name:\s*(\S+)", open(ADGUARD_CONF).read()).group(1)
+    password = open(ADGUARD_SECRET).read().strip()
+    req = urllib.request.Request("http://127.0.0.1:3002/control/stats", headers={
+        "Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()})
+    with urllib.request.urlopen(req, timeout=4) as r:
+        return json.load(r)
+
+
+def adguard_stats(fetch=_adguard_fetch):
+    """Today's DNS queries and blocks; the admin password stays in here."""
+    try:
+        s = fetch()
+        return {"queries": int(s["num_dns_queries"]), "blocked": int(s["num_blocked_filtering"])}
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def run(name):
     cmd, timeout = ACTIONS[name]
     if timeout is None:
@@ -140,6 +177,11 @@ def handle(conn):
                 reply = _jobs.get(name[7:], {"state": "idle"})
             elif name == "drives:report":
                 reply = drives_report()
+            elif name == "backups:ages":
+                reply = {"ok": True, "ages": backups_ages()}
+            elif name == "adguard:stats":
+                stats = adguard_stats()
+                reply = {"ok": stats is not None, **(stats or {"message": "AdGuard isn't answering."})}
             elif name == "release:rollback":
                 reply = rollback(str(req.get("to", "")))
             elif name not in ACTIONS:
