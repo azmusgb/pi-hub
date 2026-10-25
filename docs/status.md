@@ -118,3 +118,28 @@ These were reviewed from two nOvaxtech "self-hosted app spotlight" carousels (AI
 Four places each had their own spool list: the hub's filament shelf, its project board, the Filament Inventory app and print-lab's `filaments.json`. Bambuddy is now the record for spools, projects, the queue and the archive. The hub's shelf and board (both empty) were removed, along with their write routes (`POST /api/filament…`, `/api/projects…`, `/api/prints/{id}/filament`, project files). Workshop reads Bambuddy instead, and `filament_low` now comes from Bambuddy's spools. See [household features](household-features.md#workshop-projects-and-filament-bambuddy-since-24-october-2026).
 
 Still to do: the Workshop display's filament line comes from the Filament Inventory feed, which isn't configured. Point it at Bambuddy through Local AI's display feed, and change Workshop OS's "Filament Inventory is the sole authority" docs. The owner is checking whether the Filament Inventory app holds anything worth importing; if not, it will be retired.
+
+## One home, step 1: the front gate — 24 October
+
+Live on the Pi (design `docs/superpowers/specs/2026-10-24-one-home-design.md`, operations › "The front gate"). Caddy holds :80/:443 and fronts 12 names under `home.arpa`. Every name except `home.` needs the hub's owner sign-in, the hub listens on 127.0.0.1:8100, and Grafana signs the owner in by itself. AdGuard answers the names. `deploy/gate-check.sh` passes all 39 checks. The old addresses still work.
+
+- **Fixed for the new names:** Local AI is reached by its own address behind the gate, and Paperless trusts `https://paperless.home.arpa` for its login form (`PAPERLESS_CSRF_TRUSTED_ORIGINS` in `C:\Paperless\compose.yml`, backup `compose.yml.bak-20261024`).
+- **Waiting for the owner:**
+  - set the Orbi's DNS to the Pi;
+  - trust the CA on the iPhone and the Mac;
+  - add Tailscale split DNS for `home.arpa`;
+  - open `https://bambuddy.home.arpa` on the iPhone (Wi-Fi and cellular).
+
+  Not yet seen in a real browser: the shared cookie across names, Cockpit's web socket, and the sign-in loop guard.
+
+**Baseline for the acceptance re-walk** (from the 24 October critique, before the gate):
+
+| Task | Steps and logins today |
+|---|---|
+| Find a bill | 4 steps and a login (Paperless), nothing in Local AI |
+| Check and clear the print | shown in 4 places, actionable in 1 (the display) |
+| Why is the internet slow | 3 places (hub, Grafana with its own login, Uptime Kuma) |
+| Restore a file | hard to find (Backrest, own login, technical words) |
+| Start a movie | two systems (hub Movies, Plex) |
+
+After step 1, the logins for Grafana disappear and every tool is one name away. The other counts move in steps 2–4.
