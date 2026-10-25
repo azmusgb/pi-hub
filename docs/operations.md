@@ -129,6 +129,10 @@ Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambudd
 
 The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.env` (root only), for re-installing them. To turn sign-in off again: Bambuddy › Settings › Authentication.
 
+### The hub's view of Paperless (since 25 October 2026)
+
+The hub's Documents section searches Paperless as the user `hub`. That user can only view documents, correspondents, tags and document types, and has no password. Its API token is in `/etc/pi-hub/secrets/paperless_token` (root:pi-hub 640) and is never shown. Paperless shows a document only to its owner and the users it is shared with. So that `hub` sees new ones, add a workflow in Paperless › Workflows: trigger "Document Added", action "Assignment", "Grant view permissions" to user `hub`. To turn the hub's view off, delete the token in Paperless › Settings › Users › `hub`.
+
 ## Phone alerts (ntfy)
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.

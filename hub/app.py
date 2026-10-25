@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -108,6 +108,16 @@ def api_network_adguard():
         return fresh({"available": False})
     return fresh({"available": True, "queries": report["queries"], "blocked": report["blocked"],
                   "open": "https://adguard.home.arpa/"})
+
+
+@app.get("/api/documents")
+def api_documents(q: str = ""):
+    try:
+        results = paperless.search(q)
+    except Exception:  # noqa: BLE001 — Paperless off or refusing: say so, don't fail the page
+        results = None
+    return fresh({"query": q[:paperless.MAX_QUERY], "results": results or [], "available": results is not None,
+                  "open": paperless.OPEN})
 
 
 # ---- Movies ----

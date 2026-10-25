@@ -29,6 +29,10 @@ rm -f /tmp/pi-hub-release
 if [ -s /opt/homepage/secrets/plex_token ] && [ ! -s /etc/pi-hub/secrets/plex_token ]; then
   sudo install -m 640 -o root -g pi-hub /opt/homepage/secrets/plex_token /etc/pi-hub/secrets/plex_token
 fi
+# Paperless's view-only token for Documents (made once on the PC; see docs/operations.md): readable by the hub only.
+if sudo test -e /etc/pi-hub/secrets/paperless_token; then
+  sudo chown root:pi-hub /etc/pi-hub/secrets/paperless_token && sudo chmod 640 /etc/pi-hub/secrets/paperless_token
+fi
 sudo chown root:pi-hub /etc/pi-hub/secrets && sudo chmod 750 /etc/pi-hub/secrets
 
 # The secret header name Caddy uses to sign the owner into Grafana (netmon reads the same file).
