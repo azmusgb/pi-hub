@@ -168,3 +168,12 @@ Plan `docs/superpowers/plans/2026-10-25-one-home-step-3-printer.md`.
 - **Errors in plain words:** no key yet, Bambuddy refused the key, Bambuddy isn't answering.
 - **Gate check:** signed-out pause is refused (401).
 
+
+## One home, step 4: Assistant — 25 October
+
+Plan `docs/superpowers/plans/2026-10-25-one-home-step-4-assistant.md`. Local AI PR #389 (merge 214e989, live as 2.0.933).
+
+- **Hand-off:** the hub's Assistant button opens `#ask?context=Pi Hub › <page>: <facts>`; Local AI shows it as a plain-text line over the composer and sends it once, with a Chat or Research question only, marked as page facts. Checked live: Workshop → "Context: Pi Hub › Workshop: Printing, 80%", mode Chat.
+- **PC off:** `GET /api/assistant`; the button reads "The PC is off" only when the status service says Local AI is Down.
+- **Local AI:** opens on its Assistant; the printer line and the Hub/Terminal/Materials bar are gone; "← Home" goes to the hub. Card titles: a caller's label ("House question"), a whole title up to 72 characters, or the kind's name.
+- **Later:** Recent still lists each hourly health check (grouping repeats is a separate change).
