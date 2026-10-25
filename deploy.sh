@@ -29,7 +29,8 @@ sudo cp /opt/netmon/systemd/* /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable netmon.service orbi-exporter.service iperf3.service netmon-backup.timer
 sudo systemctl restart orbi-exporter.service iperf3.service netmon-backup.timer
-sudo ln -sf /usr/local/bin/netmon-backup.sh /etc/cron.daily/netmon-backup
+# The timer runs the backup; the old cron.daily link made it run twice a night.
+sudo rm -f /etc/cron.daily/netmon-backup
 
 echo "Starting Docker Compose stack..."
 cd /opt/netmon

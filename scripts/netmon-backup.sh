@@ -87,7 +87,9 @@ fi
 
 if [ -d "/etc/pi-hub" ]; then
     mkdir -p "$WORK/config/pi-hub"
-    cp -r /etc/pi-hub/* "$WORK/config/pi-hub/" 2>/dev/null || true
+    # Not the secrets (Plex token, setup code, app passwords): this archive goes to a Windows share. They are in the
+    # encrypted Backrest backups instead.
+    (cd /etc/pi-hub && find . -path ./secrets -prune -o -type f -print | cpio -pdm "$WORK/config/pi-hub" 2>/dev/null) || true
 fi
 
 # 4. Create compressed tarball & verify integrity
@@ -120,7 +122,7 @@ prune_backups() {
 # 5. Store locally on SSD (/mnt/usb1/netmon/backups)
 mkdir -p "$LOCAL_DIR"
 cp "$WORK/$ARCHIVE" "$LOCAL_DIR/$ARCHIVE"
-chmod 644 "$LOCAL_DIR/$ARCHIVE"
+chmod 600 "$LOCAL_DIR/$ARCHIVE"
 prune_backups "$LOCAL_DIR"
 LOCAL_COUNT=$(ls -1t "$LOCAL_DIR"/netmon-backup-*.tar.gz 2>/dev/null | wc -l)
 echo "  Saved locally: $LOCAL_DIR/$ARCHIVE"
@@ -130,6 +132,7 @@ OFF_PI_COUNT=0
 if [ -d "$WINDOWS_DIR" ] && [ -w "$WINDOWS_DIR" ]; then
     echo "  Synchronizing off-Pi to Windows share ($WINDOWS_DIR)..."
     cp "$WORK/$ARCHIVE" "$WINDOWS_DIR/$ARCHIVE"
+    chmod 600 "$WINDOWS_DIR/$ARCHIVE" 2>/dev/null || true
     prune_backups "$WINDOWS_DIR"
     OFF_PI_COUNT=$(ls -1t "$WINDOWS_DIR"/netmon-backup-*.tar.gz 2>/dev/null | wc -l)
     echo "  Off-Pi sync verified: $WINDOWS_DIR/$ARCHIVE"
