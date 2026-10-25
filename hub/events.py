@@ -91,6 +91,17 @@ DEFAULT_RULES = [
 ]
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
+# ntfy servers, one per line: the Pi's own (http://127.0.0.1:8093) and, while phones still listen there, ntfy.sh.
+SERVERS_FILE = "/etc/pi-status/ntfy_servers"
+
+
+def ntfy_servers():
+    try:
+        with open(SERVERS_FILE) as f:
+            servers = [line.strip().rstrip("/") for line in f if line.strip() and not line.startswith("#")]
+    except OSError:
+        servers = []
+    return servers or ["https://ntfy.sh"]
 
 
 def ready():
@@ -125,13 +136,16 @@ def push(title, body="", tags="", priority="default", urgent=False):
             topic = f.read().strip()
     except OSError:
         return "No alert topic is set up."
-    req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=(body or title).encode(), method="POST",
-                                 headers={"Title": title, "Tags": tags, "Priority": priority})
-    try:
-        urllib.request.urlopen(req, timeout=10).close()
-        return "Sent."
-    except OSError:
-        return "The phone message didn't go out."
+    sent = False
+    for server in ntfy_servers():
+        req = urllib.request.Request(f"{server}/{topic}", data=(body or title).encode(), method="POST",
+                                     headers={"Title": title, "Tags": tags, "Priority": priority})
+        try:
+            urllib.request.urlopen(req, timeout=10).close()
+            sent = True
+        except OSError:
+            pass
+    return "Sent." if sent else "The phone message didn't go out."
 
 
 # ---- Rules ----

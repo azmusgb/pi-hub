@@ -246,6 +246,7 @@ def status():
 
 
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
+SERVERS_FILE = "/etc/pi-status/ntfy_servers"  # one per line; default ntfy.sh (the Pi's own is http://127.0.0.1:8093)
 
 
 ALERTS_LOG = "/var/lib/pi-status/alerts.jsonl"
@@ -264,13 +265,19 @@ def notify(title, message, tags="", priority="default"):
             topic = f.read().strip()
     except OSError:
         return
-    req = urllib.request.Request(
-        f"https://ntfy.sh/{topic}", data=message.encode(), method="POST",
-        headers={"Title": title, "Tags": tags, "Priority": priority})
     try:
-        urllib.request.urlopen(req, timeout=10).close()
-    except Exception:
-        pass
+        with open(SERVERS_FILE) as f:
+            servers = [line.strip().rstrip("/") for line in f if line.strip() and not line.startswith("#")]
+    except OSError:
+        servers = []
+    for server in servers or ["https://ntfy.sh"]:
+        req = urllib.request.Request(
+            f"{server}/{topic}", data=message.encode(), method="POST",
+            headers={"Title": title, "Tags": tags, "Priority": priority})
+        try:
+            urllib.request.urlopen(req, timeout=10).close()
+        except Exception:
+            pass
 
 
 def watch():

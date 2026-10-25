@@ -198,3 +198,27 @@ def test_stale_paperless_backup_is_told_once(fresh_db):
     assert kinds().count("paperless_stale") == 2
     w.check(dict(BASE, paperless_backup={}), now=1000 + 9 * day)  # never backed up: no alert
     assert kinds().count("paperless_stale") == 2
+
+
+def test_push_goes_to_every_ntfy_server(monkeypatch, tmp_path):
+    import importlib
+    import urllib.request
+    real_push = importlib.reload(importlib.import_module("hub.events")).push  # the autouse fixture stubs push
+    topic = tmp_path / "topic"; topic.write_text("house-abc\n")
+    servers = tmp_path / "servers"; servers.write_text("# both while the phone moves over\nhttp://127.0.0.1:8093/\nhttps://ntfy.sh\n")
+    monkeypatch.setattr(events, "TOPIC_FILE", str(topic))
+    monkeypatch.setattr(events, "SERVERS_FILE", str(servers))
+    monkeypatch.setattr(events, "quiet_now", lambda now=None: False)
+    urls = []
+    class R:
+        def close(self): pass
+    def fake(req, timeout=10):
+        urls.append(req.full_url)
+        if "ntfy.sh" in req.full_url:
+            raise OSError("down")
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    assert real_push("Title", "Body") == "Sent."  # one server answered
+    assert urls == ["http://127.0.0.1:8093/house-abc", "https://ntfy.sh/house-abc"]
+    servers.write_text("")
+    assert events.ntfy_servers() == ["https://ntfy.sh"]

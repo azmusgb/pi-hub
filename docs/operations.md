@@ -128,3 +128,7 @@ Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin accou
 Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambuddy page in the App Suite asks for a sign-in once per browser.
 
 The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.env` (root only), for re-installing them. To turn sign-in off again: Bambuddy › Settings › Authentication.
+
+## Phone alerts (ntfy)
+
+Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Since 24 October 2026 the Pi runs its own ntfy (`/opt/ntfy`, Docker, port 8093, cache on the USB drive), and both servers are listed while phones move over. In the ntfy app, add the same topic on the server `http://10.0.0.30:8093` (at home) or `http://pi:8093` (over Tailscale). Once every phone gets alerts from it, remove `https://ntfy.sh` from the servers file; nothing else changes. For instant delivery on iPhone, the Pi's ntfy asks ntfy.sh to wake the app; only the message id goes there, never the text.
