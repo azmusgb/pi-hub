@@ -71,6 +71,8 @@ elif name == 'systemctl':
     if args == ['daemon-reload'] and os.environ.get('FAIL') == 'install':
         marker = pathlib.Path(os.environ['CALLS'] + '.failed')
         if not marker.exists(): marker.touch(); sys.exit(1)
+elif name == 'caddy':
+    with open(os.environ['CALLS'], 'a') as f: f.write('caddy ' + ' '.join(args) + '\n')
 elif name == 'readlink':
     p = pathlib.Path(args[-1])
     if not p.exists(): sys.exit(1)
@@ -79,7 +81,7 @@ elif name == 'readlink':
 ''')
     stub.chmod(0o755)
     for name in ['git', 'timeout', 'python3', 'mv', 'systemctl', 'readlink',
-                 'flock', 'sleep', 'curl', 'rsvg-convert']:
+                 'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']:
         (tools / name).symlink_to(stub)
 
     def run(fail=''):
@@ -149,3 +151,27 @@ def test_hub_listens_only_on_localhost_8100():
     assert "--host 127.0.0.1 --port 8100" in unit and "CAP_NET_BIND_SERVICE" not in unit
     assert "http://127.0.0.1:8100/healthz" in (deploy / "pi-hub-release").read_text()
     assert 'HUB = "http://127.0.0.1:8100"' in (deploy / "pi-hub-selfcheck.py").read_text()
+
+
+def test_release_puts_the_gate_in_front_of_the_hub(release):
+    root, helper, run = release
+    (root / 'etc/caddy').mkdir()
+    (root / 'etc/caddy/Caddyfile').write_text('# package default')
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (root / 'etc/caddy/Caddyfile').read_text() == (ROOT / 'deploy/caddy/Caddyfile').read_text()
+    calls = (root.parent / 'calls').read_text().splitlines()
+    validate = next(i for i, c in enumerate(calls) if c.startswith('caddy validate'))
+    hub = next(i for i, c in enumerate(calls) if c.startswith('restart pi-hub'))
+    assert validate < hub < calls.index('restart caddy')  # Caddy takes :80 only after the hub has left it
+
+
+def test_failed_release_gives_back_the_old_gate_or_frees_port_80(release):
+    root, helper, run = release
+    (root / 'etc/caddy').mkdir()
+    (root / 'etc/caddy/Caddyfile').write_text('# package default')
+    result = run('gate')
+    assert result.returncode != 0
+    assert (root / 'etc/caddy/Caddyfile').read_text() == '# package default'
+    calls = (root.parent / 'calls').read_text().splitlines()
+    assert 'stop caddy' in calls[calls.index('restart caddy') + 1:]  # the old hub needs :80 back

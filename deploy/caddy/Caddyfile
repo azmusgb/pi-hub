@@ -1,0 +1,127 @@
+# The front gate (docs/superpowers/specs/2026-10-24-one-home-design.md). Every house tool at https://<name>.home.arpa,
+# behind one sign-in: Pi Hub's owner session, checked at GET /api/gate. Certificates come from Caddy's own CA; trust
+# its root once per device (https://home.home.arpa/home-ca.crt). Never delete /var/lib/caddy: a new CA means
+# re-trusting it everywhere.
+{
+	local_certs
+}
+
+# Strip identity headers a client might send, ask the hub, then pass only the hub's answer on (never its cookie). Inside `route` so
+# these run in this order (Caddy's default order would run forward_auth before request_header).
+(gated) {
+	request_header -X-Remote-User
+	request_header -X-Webauth-User
+	forward_auth 127.0.0.1:8100 {
+		uri /api/gate
+		copy_headers X-Remote-User
+	}
+	# The gate's own cookie is for the gate alone: tools behind it see it emptied. (Caddy 2.6 drops an empty
+	# replacement, so the name stays with no value.)
+	request_header Cookie "hub_gate=[^;]*" "hub_gate="
+}
+
+home.home.arpa {
+	handle /home-ca.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8100
+	}
+}
+
+assistant.home.arpa {
+	route {
+		import gated
+		reverse_proxy https://10.0.0.21 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+}
+
+bambuddy.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:8000
+	}
+}
+
+paperless.home.arpa {
+	route {
+		import gated
+		reverse_proxy 10.0.0.21:8010
+	}
+}
+
+homebox.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:7745
+	}
+}
+
+backups.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:9898
+	}
+}
+
+network.home.arpa {
+	route {
+		import gated
+		# Grafana trusts this header only from 127.0.0.1 (GF_AUTH_PROXY_WHITELIST).
+		reverse_proxy 127.0.0.1:3000 {
+			header_up X-WEBAUTH-USER {http.request.header.X-Remote-User}
+		}
+	}
+}
+
+status.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:3001
+	}
+}
+
+adguard.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:3002
+	}
+}
+
+devices.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:8581
+	}
+}
+
+pi.home.arpa {
+	route {
+		import gated
+		reverse_proxy https://127.0.0.1:9090 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+}
+
+scan.home.arpa {
+	route {
+		import gated
+		reverse_proxy 127.0.0.1:8095
+	}
+}
+
+# The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) still reach the hub unchanged:
+# Local AI's /api/now, Bambuddy's webhook, Siri Shortcuts and browsers all keep working until step 6.
+http:// {
+	reverse_proxy 127.0.0.1:8100
+}

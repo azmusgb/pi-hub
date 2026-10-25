@@ -192,14 +192,26 @@ def sign_in(who, device, pin=None, password=None):
     return token, role
 
 
-def session(token):
+def session(token, gate=False):
+    """The hub session for a token; with gate=True, the front gate's token instead. Neither works as the other."""
     if not token:
         return None
     _ready()
     row = db.one("SELECT role, device, expires, person_id FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
-    if not row or row["expires"] < time.time():
+    if not row or row["expires"] < time.time() or (row["role"] == "gate") != gate:
         return None
     return row
+
+
+def gate_session(lifetime):
+    """A token only the front gate accepts (role "gate"): it is the cookie every *.home.arpa tool sees, so it must
+    never work as a hub session. Issued only for owner sign-ins; removed on sign-out."""
+    token = secrets.token_urlsafe(32)
+    now = int(time.time())
+    _ready()
+    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'gate', ?, ?, 'front gate')",
+           hashlib.sha256(token.encode()).hexdigest(), now, now + lifetime)
+    return token
 
 
 def sign_out(token):

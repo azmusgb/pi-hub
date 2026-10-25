@@ -85,6 +85,7 @@ for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backu
   SUPPORT+=("/etc/systemd/system/$u")
 done
 SUPPORT+=(/etc/systemd/system/x2d-camera-bridge.service.d/port.conf)
+SUPPORT+=(/etc/caddy/Caddyfile)
 for f in "${SUPPORT[@]}"; do
   if [ -e "$f" ] || [ -L "$f" ]; then
     mkdir -p "$SNAP$(dirname "$f")"
@@ -112,7 +113,10 @@ recover() {
       restored=0
     fi
     systemctl daemon-reload || restored=0
+    # The gate holds :80 in front of the hub; a hub from before the gate needs :80 back.
+    if [ -d /etc/caddy ] && [ ! -f "$PREV/deploy/caddy/Caddyfile" ]; then systemctl stop caddy || restored=0; fi
     systemctl restart pi-status pi-hub pi-hub-helper x2d-camera-failover || restored=0
+    if [ -d /etc/caddy ] && [ -f "$PREV/deploy/caddy/Caddyfile" ]; then systemctl restart caddy || restored=0; fi
     if systemctl cat x2d-camera-bridge.service >/dev/null 2>&1; then
       systemctl restart x2d-camera-bridge || restored=0
     fi
@@ -149,10 +153,23 @@ fi
 if ! cmp -s "$D/pi-status.py" /usr/local/bin/pi-status.py; then
   install -m 755 "$D/pi-status.py" /usr/local/bin/pi-status.py && systemctl restart pi-status
 fi
+# The front gate (Caddy) answers :80/:443 and passes to the hub on 127.0.0.1:8100. A release from before the gate
+# (a manual rollback) runs its hub on :80, so Caddy stops for it.
+if [ -d /etc/caddy ]; then
+  if [ -f "$D/caddy/Caddyfile" ]; then
+    install -m 644 "$D/caddy/Caddyfile" /etc/caddy/Caddyfile
+    caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null
+  else
+    systemctl stop caddy
+  fi
+fi
 systemctl daemon-reload
 
 ln -sfn "$NEW" "$CUR.new" && mv -T "$CUR.new" "$CUR"
 systemctl restart pi-hub pi-hub-helper x2d-camera-failover
+if [ -d /etc/caddy ] && [ -f "$D/caddy/Caddyfile" ]; then
+  systemctl restart caddy
+fi
 if systemctl cat x2d-camera-bridge.service >/dev/null 2>&1; then
   systemctl restart x2d-camera-bridge
 fi

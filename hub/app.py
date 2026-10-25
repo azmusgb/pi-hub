@@ -524,16 +524,16 @@ def _signed_in(token, role, host=""):
     resp = fresh({"role": role})
     resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
     shared = gate.cookie_kwargs(host, auth.LIFETIME[role])
-    if shared:  # signed in through the front gate: the same session for every *.home.arpa tool
-        resp.set_cookie(gate.COOKIE, token, **shared)
+    if shared and role == "owner":  # signed in through the front gate: a gate-only token for every *.home.arpa tool
+        resp.set_cookie(gate.COOKIE, auth.gate_session(auth.LIFETIME[role]), **shared)
     return resp
 
 
 @app.get("/api/gate")
 def api_gate(request: Request):
     """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes."""
-    s = auth.session(request.cookies.get(gate.COOKIE)) or auth.session(request.cookies.get(auth.COOKIE))
-    if s and s["role"] == "owner":
+    h = auth.session(request.cookies.get(auth.COOKIE))
+    if auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner"):
         return Response(status_code=200, headers={"X-Remote-User": "bill", "Cache-Control": "no-store"})
     return Response(status_code=302, headers={"Location": gate.signin_url(request.headers), "Cache-Control": "no-store"})
 
@@ -574,6 +574,7 @@ async def api_signin(request: Request):
 @app.post("/api/signout")
 def api_signout(request: Request):
     auth.sign_out(request.cookies.get(auth.COOKIE))
+    auth.sign_out(request.cookies.get(gate.COOKIE))
     resp = fresh({"role": "none"})
     resp.delete_cookie(auth.COOKIE, path="/")
     resp.delete_cookie(gate.COOKIE, path="/", domain=gate.DOMAIN, secure=True, httponly=True, samesite="lax")
