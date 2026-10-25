@@ -62,3 +62,9 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
     monkeypatch.setattr(system, "alerts", lambda limit=200: [])
     r = TestClient(hub_app.app).get("/api/needs")
     assert r.status_code == 200 and r.json()["unread"] == ["Local AI"]
+
+
+def test_the_hubs_own_live_issues_need_you_too():
+    issues = [{"what": "Plex", "say": "Plex has stopped.", "tone": "bad"}]
+    n = needs.build([], [], {"cards": []}, NOW, issues)
+    assert n["items"][0] == {"source": "Pi Hub", "tone": "bad", "title": "Plex", "detail": "Plex has stopped.", "link": "/pi"}

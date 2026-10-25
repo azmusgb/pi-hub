@@ -87,7 +87,8 @@ def api_now():
 
 @app.get("/api/needs")
 def api_needs():
-    return fresh(needs.build(system.alerts(), events.recent(40), sources.localai_feed(), int(time.time())))
+    return fresh(needs.build(system.alerts(), events.recent(40), sources.localai_feed(), int(time.time()),
+                             now.issues(sources.pi_status())))
 
 
 @app.get("/api/system/backups")
@@ -122,6 +123,12 @@ def api_documents(request: Request, q: str = ""):
 
 
 # ---- Movies ----
+
+@app.get("/api/movies/latest")
+def api_movies_latest():
+    recent = plex.recently_added()
+    return fresh({"title": recent[0]["title"] if recent else None})
+
 
 @app.get("/api/movies")
 def api_movies(section: str = "all"):

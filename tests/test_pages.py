@@ -158,3 +158,11 @@ def test_wall_route_serves_html(c):
     assert b"<!doctype html>" in r.content.lower()
 
 
+
+
+def test_latest_movie_is_one_title_or_none(c, monkeypatch):
+    from hub import plex
+    monkeypatch.setattr(plex, "recently_added", lambda section=None: [{"title": "Dune", "year": 2021, "key": "1"}])
+    assert c.get("/api/movies/latest").json() == {"title": "Dune"}
+    monkeypatch.setattr(plex, "recently_added", lambda section=None: None)
+    assert c.get("/api/movies/latest").json() == {"title": None}

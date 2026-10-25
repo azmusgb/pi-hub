@@ -1,5 +1,5 @@
-"""Needs you (one home, D7): what wants the owner now, from Local AI's house cards, the Pi's recent alerts and the
-printer. Read from each app on every call; nothing is copied (D8)."""
+"""Needs you (one home, D7): what wants the owner now, from the hub's own live issues, Local AI's house cards, the
+Pi's recent alerts and the printer. Read from each app on every call; nothing is copied (D8)."""
 
 ALERT_HOURS = 12
 FAILED_HOURS = 24
@@ -23,8 +23,10 @@ def _printer(events, now):
     return None
 
 
-def build(alerts, events, feed, now):
-    items, unread = [], []
+def build(alerts, events, feed, now, issues=()):
+    items = [{"source": "Pi Hub", "tone": i["tone"] if i.get("tone") in ORDER else "warn", "title": i["what"],
+              "detail": i.get("say", ""), "link": "/pi", "ts": now} for i in issues]
+    unread = []
     if feed is None:
         unread.append("Local AI")
     else:

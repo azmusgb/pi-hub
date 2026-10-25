@@ -775,3 +775,27 @@ body:not(.wall) .page-now { display: block; }
     aspect-ratio: 16 / 9;
   }
 }
+
+/* One home: Home's six cards, Needs you first and full width. */
+.home-cards { display: grid; gap: .875rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-block: 1rem; }
+.home-card {
+  display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; border-radius: var(--r-lg);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.home-card--needs { grid-column: 1 / -1; border-color: var(--accent); background: var(--accent-soft); }
+.home-card--needs[data-tone="bad"] { border-color: var(--danger); }
+.home-card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.home-card-title { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.home-card-status { margin: 0; color: var(--text-2); }
+.home-card .dot { width: .6rem; height: .6rem; border-radius: var(--r-full); background: var(--line-strong); }
+.home-card .dot[data-tone="ok"] { background: var(--ok); }
+.home-card .dot[data-tone="warn"], .home-card .dot[data-tone="attention"] { background: var(--warn); }
+.home-card .dot[data-tone="bad"] { background: var(--danger); }
+.home-card-items { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+.home-card-items a { display: grid; gap: .1rem; padding: .5rem .65rem; border-radius: var(--r-sm); background: var(--surface); color: var(--text); text-decoration: none; min-height: 44px; }
+.home-card-items a:focus-visible, .home-card-action:focus-visible, .home-card-link:focus-visible { outline: none; box-shadow: var(--ring); }
+.home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-md); }
+.home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; }
+.home-card-link { align-self: flex-start; padding-block: .35rem; color: var(--accent-strong); font-weight: 600; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .home-card-link { color: var(--accent); } }
+:root[data-theme="dark"] .home-card-link { color: var(--accent); }

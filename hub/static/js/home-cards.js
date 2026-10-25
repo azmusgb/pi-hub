@@ -18,7 +18,7 @@ function needsCard(needs) {
   return {
     key: "needs", title: "Needs you", tone, count: needs.count, status: plural(needs.count, "thing"),
     items: needs.items, note: needs.unread?.length ? `Couldn't check ${needs.unread.join(" or ")}.` : "",
-    action: { label: needs.items[0].title, href: needs.items[0].link }, link: null,
+    action: null, link: null,  // each item is its own action
   };
 }
 
@@ -63,6 +63,7 @@ function systemCard(backups, pi) {
     action: { label: "Restore a file", href: "/system" }, link: null };
 }
 
+// Every card but Needs you has one main action; Needs you's items are its actions.
 export function homeCards({ now, needs, backups, home, latest, at = new Date(), host = globalThis.location?.hostname || "" }) {
   return [
     needsCard(needs),

@@ -23,6 +23,8 @@ test('Needs you comes first, and only when something needs you', () => {
   assert.equal(n.title, 'Needs you');
   assert.equal(n.tone, 'attention');
   assert.deepEqual(n.items.map((i) => i.title), ['Clear the plate', 'Pi is hot']);
+  assert.equal(n.action, null);
+  for (const c of all().slice(1)) assert.ok(c.action?.label && c.action?.href, c.key);
 });
 
 test('each card has a status line and one main action in task words', () => {

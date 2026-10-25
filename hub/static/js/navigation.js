@@ -1,14 +1,15 @@
 // Small device-local indicators. Nothing is uploaded or tracked across devices.
 import { api, h } from "./core.js";
 import { unreadCount } from "./experience.js";
+import { homeBadge } from "./home-cards.js";
 
 const ALERTS_SEEN_KEY = "hub-alerts-seen";
-const MAX_BADGE_COUNT = 99;
 
 let seen = readSeenTimestamp();
 let alerts = [];
 let print = "";
 let pending = false;
+let needs = null;  // /api/needs: its count is the Home tab's badge (one home, D7)
 
 function readSeenTimestamp() {
   const now = Math.floor(Date.now() / 1000);
@@ -67,11 +68,9 @@ function printerStatus(printer) {
   return "";
 }
 
-function badgeText(key, count) {
-  if (count > 0 && (key === "alerts" || key === "more")) {
-    return count > MAX_BADGE_COUNT
-      ? `${MAX_BADGE_COUNT}+`
-      : String(count);
+function badgeText(key) {
+  if (key === "home") {
+    return homeBadge(needs);
   }
 
   if (key === "workshop" && print) {
@@ -82,7 +81,11 @@ function badgeText(key, count) {
 }
 
 function detailForPage(key, count) {
-  if (key === "alerts") {
+  if (key === "home" && needs?.count > 0) {
+    return `${needs.count} thing${needs.count === 1 ? " needs" : "s need"} you`;
+  }
+
+  if (key === "system" || key === "more") {
     return count > 0
       ? `${count} new alert${count === 1 ? "" : "s"}`
       : "";
@@ -90,17 +93,6 @@ function detailForPage(key, count) {
 
   if (key === "workshop") {
     return print;
-  }
-
-  if (key === "more") {
-    return [
-      count > 0
-        ? `${count} new alert${count === 1 ? "" : "s"}`
-        : "",
-      print,
-    ]
-      .filter(Boolean)
-      .join("; ");
   }
 
   return "";
@@ -134,7 +126,7 @@ function render() {
     const base = getBaseLabel(anchor);
     const key = anchor.dataset.page || "";
     const detail = detailForPage(key, count);
-    const badge = badgeText(key, count);
+    const badge = badgeText(key);
 
     anchor.querySelector(".nav-badge")?.remove();
 
@@ -189,9 +181,10 @@ export async function updateNavigation() {
   pending = true;
 
   try {
-    const [alertsResult, nowResult] = await Promise.allSettled([
+    const [alertsResult, nowResult, needsResult] = await Promise.allSettled([
       api("/api/alerts"),
       api("/api/now"),
+      api("/api/needs"),
     ]);
 
     /*
@@ -206,6 +199,10 @@ export async function updateNavigation() {
         : [];
     }
 
+    if (needsResult.status === "fulfilled") {
+      needs = needsResult.value;
+    }
+
     if (nowResult.status === "fulfilled") {
       print = printerStatus(nowResult.value?.printer);
     }
@@ -214,4 +211,9 @@ export async function updateNavigation() {
   } finally {
     pending = false;
   }
+}
+// Home shares what it just loaded, so the badge and the Needs you card never disagree.
+export function setNeeds(value) {
+  needs = value;
+  render();
 }

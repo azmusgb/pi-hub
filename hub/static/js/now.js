@@ -1,7 +1,10 @@
-// Now: the one-line answer, the print band, what needs a look, and a card per area.
+// Home: the one-line answer, then six cards (one home, "Home cards"): Needs you, Workshop, Documents, Media,
+// Home & network and System. The wall display keeps its own layout.
 import { api, clockTime, ensure, fix, h, post, spark, weatherIcon, whoami } from "./core.js";
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
+import { homeCards } from "./home-cards.js";
+import { setNeeds } from "./navigation.js";
 
 export const every = 15;
 
@@ -429,6 +432,24 @@ function outsideLine(o) {
   return bits.length ? h("p", { class: "outside" }, ...bits) : null;
 }
 
+const outward = (href) => /^https?:/.test(href);
+const go = (href) => outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true };
+
+function homeCard(c, cam) {
+  const showCam = c.key === "workshop" && cam?.ok && /^(Printing|Paused)/.test(c.status);
+  return h("section", { class: `home-card home-card--${c.key}`, dataset: { tone: c.tone }, "aria-labelledby": `card-${c.key}` },
+    h("div", { class: "home-card-head" },
+      h("h2", { id: `card-${c.key}`, class: "home-card-title" }, c.title),
+      h("span", { class: "dot", dataset: { tone: c.tone }, "aria-hidden": "true" })),
+    h("p", { class: "home-card-status" }, c.status),
+    c.items ? h("ul", { class: "home-card-items" }, c.items.slice(0, 4).map((i) =>
+      h("li", { dataset: { tone: i.tone } }, h("a", go(i.link), h("strong", {}, i.title), i.detail ? h("span", { class: "meta" }, i.detail) : null)))) : null,
+    c.note ? h("p", { class: "meta" }, c.note) : null,
+    showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
+    c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
+    c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null);
+}
+
 export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
   state.outside = h("div", { class: "outside-wrap" });
@@ -462,12 +483,8 @@ export function mount(state) {
     state.root.append(state.wallHead, state.summary, state.outside, state.main, exitWall);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
-    const tasks = h("nav", { class: "quick-tasks", "aria-label": "Everyday tasks" },
-      h("a", { class: "chip", href: "/lists", "data-link": true }, "Shopping list"),
-      h("a", { class: "chip", href: "/print", "data-link": true }, "Print a file"),
-      h("a", { class: "chip", href: "/pi", "data-link": true }, "Get help"),
-      h("a", { class: "chip", href: "/wall", "data-link": true }, "Wall display"));
-    state.root.append(state.issues, tasks, state.band, state.rightCol, state.hero, state.ask);
+    state.cards = h("div", { class: "home-cards" });
+    state.root.append(state.hero, state.cards, state.ask);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -486,11 +503,10 @@ export function mount(state) {
 }
 
 export async function load(state) {
-  const [d, out, home, wifi, cam] = await Promise.all([
+  const [d, out, home, cam] = await Promise.all([
     api("/api/now"),
     api("/api/outside").catch(() => null),
     api("/api/home").catch(() => ({ connected: false, accessories: [], favourites: [] })),
-    api("/api/wifi").catch(() => ({ set: false })),
     api("/api/camera").catch(() => ({ ok: false })),
   ]);
   
@@ -564,68 +580,15 @@ export async function load(state) {
     }
   }
 
-  // Printer band goes above alerts if printing, otherwise hide it
-  if (d.printer.state === "printing" || d.printer.state === "paused") {
-    state.band.replaceChildren(band(d.printer, cam));
-  } else {
-    state.band.replaceChildren();
-  }
-
-  renderIssues(state, d.issues);
-
-  const m = d.movies;
-  const p = d.pi;
-  const w = d.workshop;
-  const cpu = p.cpu_series?.at(-1);
-
-  // 2x2 House Grid
-  const houseCard = (name, href, tone, say, action, extra = null) => h("a", { class: "house-card", href, "data-link": true },
-    h("div", { class: "house-header" },
-      h("h3", { class: "house-name" }, name),
-      h("span", { class: "dot", dataset: { tone } })
-    ),
-    h("p", { class: "house-say" }, say),
-    extra,
-    h("span", { class: "house-action" }, action)
-  );
-
-  const camPreview = (cam && cam.ok) ? h("div", { class: "house-cam-wrap" },
-    h("img", { class: "house-cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "Workshop live camera preview", loading: "lazy" }),
-    h("span", { class: "house-cam-badge" }, "● LIVE")
-  ) : null;
-
-  const movieReady = d.status_available && m.plex_running && m.drive === "Connected";
-  const mSay = !m.status_known ? "Status unavailable" : movieReady ? "Ready to watch" : "Playback needs attention";
-  const wSay = !d.status_available ? "Status unavailable" : d.printer.state === "printing" ? `Printing, ${d.printer.progress}%`
-    : d.printer.state === "paused" ? "Print paused" : d.printer.state === "error" ? "Printer needs attention" : "Printer and workshop status";
-  const hSay = !d.home.status_known ? "Status unavailable" : !d.home.homebridge_running ? "Controls need attention"
-    : !home.connected ? "Connect your smart-home controls" : favs.length ? `${favs.filter(a => a.on).length} of ${favs.length} favourites on` : "Lights, plugs and switches";
-
-  state.rightCol.replaceChildren(...[
-    h("section", { class: "house-section" },
-      h("h2", { class: "section-title" }, "The house"),
-      h("div", { class: "house-grid" },
-        houseCard("Movies", movieReady ? "/movies?from=home" : "/pi?help=movies&from=home", m.tone, mSay, movieReady ? "Watch movies" : m.status_known ? "Fix movie playback" : "Check movie status"),
-        houseCard("Devices", "/control?from=home", d.home.tone, hSay, "Control devices"),
-        houseCard("Workshop", "/workshop?from=home", d.printer.state === "error" ? "bad" : d.status_available && ["printing", "idle"].includes(d.printer.state) ? "ok" : "warn", wSay, "Check the printer", camPreview),
-        houseCard("Help", "/pi?from=home", "none", "Guides for common household problems", "Solve a problem")
-      )
-    ),
-    networkPanel(d.network),
-    displayAccessories.length ? h("section", { class: "home-favourites" },
-      h("div", { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5rem;" },
-        h("h2", { class: "section-title", style: "margin: 0;" }, controlsTitle),
-        h("a", { href: "/control?from=home", "data-link": true, style: "font-size: .8125rem; color: var(--accent); text-decoration: none; font-weight: 500;" }, "All devices →")
-      ),
-      h("div", { class: "tiles" }, displayAccessories.map(a => tile(a, state)))) : null,
-    wifi.set ? h("section", { class: "wifi-panel" },
-      h("div", { class: "wifi-header" }, "Guest Wi-Fi"),
-      h("div", { class: "wifi-content" },
-        h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 96, height: 96 }),
-        h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid), h("p", { class: "meta" }, "Scan to join"))
-      )
-    ) : null,
-  ].filter(Boolean));
+  const [needs, backups, latest] = await Promise.all([
+    api("/api/needs").catch(() => null),
+    api("/api/system/backups").catch(() => null),
+    api("/api/movies/latest").catch(() => null),
+  ]);
+  if (needs) setNeeds(needs);
+  state.summary.hidden = false;
+  if (state.hero) state.hero.hidden = false;
+  state.cards.replaceChildren(...homeCards({ now: d, needs, backups, home, latest }).map((c) => homeCard(c, cam)));
 }
 
 export function failed(state) {
