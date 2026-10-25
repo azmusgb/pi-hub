@@ -160,7 +160,7 @@ One menu by task (design: one home, step 2). The phone shows Home, Workshop, Doc
 
 | Section | Path | Inside |
 |---|---|---|
-| Home | `/` | Needs you (`/api/needs`: the hub's own issues, Local AI's warnings, Pi alerts from the last 12 h, the printer) and one card per section |
+| Home | `/` | Needs you (`/api/needs`: the hub's own live issues, Local AI's warnings, the printer) and one card per section |
 | Workshop | `/workshop` | The X2D, camera, filament and projects (Bambuddy), Print lab, the workshop display |
 | Documents | `/documents` | Find a document (owner only, Paperless user `hub`), Scan, `/print`, `/lists` |
 | Media | `/media` | Movies (`/movies` redirects here), `/drives` |

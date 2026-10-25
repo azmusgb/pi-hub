@@ -117,13 +117,13 @@ export function networkPanel(net) {
         h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
           h("span", { style: "font-size: 1rem;" }, "⚡"),
           h("h2", { style: "font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700; margin: 0;" }, "Network Command Center"),
-          h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "LIVE OBSERVER")
+          h("span", { style: "font-size: .6875rem; background: color-mix(in srgb, var(--ok) 15%, transparent); color: color-mix(in srgb, var(--ok) 65%, var(--text)); padding: .15rem .45rem; border-radius: 4px; font-weight: 600;" }, "Live")
         ),
         (net.orbi_uptime || net.orbi_ext_ip) ? h("div", { style: "display: flex; align-items: center; gap: .65rem; margin-top: .35rem; font-size: .75rem; color: var(--text-3); flex-wrap: wrap;" },
           net.orbi_uptime ? h("span", {}, `Orbi Uptime: ${net.orbi_uptime}`) : null,
           net.orbi_ext_ip ? h("span", {}, `• Public IP: ${net.orbi_ext_ip}`) : null,
           hasBandwidth ? h("span", {
-            style: "background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); color: var(--ok); padding: .1rem .5rem; border-radius: 999px; font-weight: 600; font-family: var(--font-mono, monospace); font-size: .72rem; margin-left: .2rem;"
+            style: "background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); color: color-mix(in srgb, var(--ok) 65%, var(--text)); padding: .1rem .5rem; border-radius: 999px; font-weight: 600; font-family: var(--font-mono, monospace); font-size: .72rem; margin-left: .2rem;"
           }, `↓ ${net.orbi_down_mbps} Mbps  ↑ ${net.orbi_up_mbps || 0} Mbps`) : null
         ) : null
       ),

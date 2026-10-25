@@ -87,8 +87,7 @@ def api_now():
 
 @app.get("/api/needs")
 def api_needs():
-    return fresh(needs.build(system.alerts(), events.recent(40), sources.localai_feed(), int(time.time()),
-                             now.issues(sources.pi_status())))
+    return fresh(needs.build(events.recent(40), sources.localai_feed(), int(time.time()), now.issues(sources.pi_status())))
 
 
 @app.get("/api/system/backups")
