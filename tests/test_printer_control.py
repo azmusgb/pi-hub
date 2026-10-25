@@ -160,3 +160,16 @@ def test_default_post_maps_bambuddy_answers(monkeypatch):
     assert printer_control._post("print/pause", "k1") == "HTTP 409"
     monkeypatch.setattr(printer_control.urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(TimeoutError()))
     assert printer_control._post("print/pause", "k1") == "no answer"
+
+
+def test_plate_cleared_but_error_list_not_counts_as_done_and_says_so(tmp_key):
+    r = printer_control.run("clear", post=lambda p, k: "ok" if p == "clear-plate" else "no answer")
+    assert r["ok"] is True
+    assert r["say"] == "Plate cleared. The printer's error list didn't clear; check its screen."
+
+
+def test_a_failed_action_that_reached_bambuddy_still_drops_the_status_cache(owner, monkeypatch):
+    sources._cache["bambuddy_printer"] = (time.time(), {"state": "RUNNING"})
+    monkeypatch.setattr(printer_control, "run", lambda a: {"ok": False, "say": "x", "steps": {"print/pause": "HTTP 500"}})
+    assert owner.post("/api/printer/pause", headers=ORIGIN).status_code == 502
+    assert "bambuddy_printer" not in sources._cache

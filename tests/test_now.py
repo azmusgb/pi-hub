@@ -188,3 +188,10 @@ def test_workshop_printer_has_bambuddy_actions(monkeypatch):
     monkeypatch.setattr(sources, "bambuddy_printer", lambda: B)
     r = TestClient(hub_app.app).get("/api/workshop")
     assert r.json()["printer"]["actions"] == ["clear"]
+
+
+def test_a_printer_error_with_the_plate_waiting_still_says_so():
+    p = now.printer({"x2d_state": "Error", "x2d_error": "0300-4000"}, B)
+    assert p["state"] == "error" and p["actions"] == ["clear"]
+    assert p["headline"] == "Print failed — clear the plate"
+    assert p["detail"] == "The printer reports 0300-4000. Check its screen."

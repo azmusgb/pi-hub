@@ -14,11 +14,16 @@ export function printerActionList(p) {
 
 const DEPS = { confirm: (q) => window.confirm(q), ensure, post, toast };
 
-// One action at a time: every button in the row stays disabled until Bambuddy answers.
+// One action at a time, for the whole page: a refresh redraws the buttons, so the flag lives here, not on them.
+let busy = false;
+export const printerBusy = () => busy;
+
 export async function runPrinterAction(action, buttons, onDone, deps = DEPS) {
-  if (buttons.some((b) => b.disabled)) return;
+  if (busy) return;
   const ask = PRINTER_ACTIONS[action]?.ask;
   if (ask && !deps.confirm(ask)) return;
+  if (busy) return;  // another action started while the question was open
+  busy = true;
   buttons.forEach((b) => { b.disabled = true; });
   try {
     if (!(await deps.ensure("owner"))) return;
@@ -27,6 +32,7 @@ export async function runPrinterAction(action, buttons, onDone, deps = DEPS) {
   } catch (e) {
     deps.toast(e?.message || "The printer didn't answer.", "bad");
   } finally {
+    busy = false;
     buttons.forEach((b) => { b.disabled = false; });
   }
   onDone?.();
@@ -35,7 +41,7 @@ export async function runPrinterAction(action, buttons, onDone, deps = DEPS) {
 export function printerButtons(p, onDone) {
   const list = printerActionList(p);
   if (!list.length) return null;
-  const buttons = list.map((a, i) => h("button", { type: "button", class: i ? "btn ghost" : "btn" }, a.label));
+  const buttons = list.map((a, i) => h("button", { type: "button", class: i ? "btn ghost" : "btn", disabled: busy }, a.label));
   list.forEach((a, i) => buttons[i].addEventListener("click", () => runPrinterAction(a.action, buttons, onDone)));
   return h("div", { class: "printer-actions" }, ...buttons);
 }

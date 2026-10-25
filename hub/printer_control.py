@@ -49,12 +49,16 @@ def _say(result):
 
 
 def run(action, post=None):
-    """{"ok", "say", "steps"}; stops at the first step that doesn't go through. Never raises."""
+    """{"ok", "say", "steps"}. Stops when the first step fails; once the plate is cleared it counts as done even if
+    the error list doesn't clear (the queue may already be starting). Never raises."""
     post = post or _post
     key = _key()  # read on every call, so a newly made key works without a restart
     steps = {}
-    for path in STEPS[action]:
+    for i, path in enumerate(STEPS[action]):
         steps[path] = post(path, key) if key else "no key"
+        if steps[path] != "ok" and i:  # the plate is cleared; only its error list didn't go
+            return {"ok": True, "say": "Plate cleared. The printer's error list didn't clear; check its screen.",
+                    "steps": steps}
         if steps[path] != "ok":
             return {"ok": False, "say": _say(steps[path]), "steps": steps}
     return {"ok": True, "say": DONE[action], "steps": steps}

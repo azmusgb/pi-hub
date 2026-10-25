@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PRINTER_ACTIONS, printerActionList, runPrinterAction } from '../hub/static/js/printer-actions.js';
+import { PRINTER_ACTIONS, printerActionList, printerBusy, runPrinterAction } from '../hub/static/js/printer-actions.js';
 
 test('printerActionList follows the status', () => {
   assert.deepEqual(printerActionList({ actions: ['clear'] }).map((a) => a.label), ['Clear the plate']);
@@ -59,4 +59,16 @@ test('runPrinterAction shows Bambuddy errors and still refreshes', async () => {
   assert.deepEqual(seen.toasts, [["Bambuddy isn't answering. Check the Pi, or use the printer's screen.", 'bad']]);
   assert.equal(buttons[0].disabled, false);
   assert.equal(seen.done, 1);
+});
+
+test('a refresh that draws new buttons mid-action cannot send a second request', async () => {
+  const { seen, deps, release } = fakes();
+  const first = runPrinterAction('pause', [{ disabled: false }], () => seen.done++, deps);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(printerBusy(), true);
+  await runPrinterAction('pause', [{ disabled: false }], () => seen.done++, deps);  // fresh buttons after a redraw
+  assert.deepEqual(seen.posts, ['/api/printer/pause']);
+  release();
+  await first;
+  assert.equal(printerBusy(), false);
 });

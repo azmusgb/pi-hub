@@ -111,3 +111,10 @@ test('Workshop card keeps the Bambuddy link while printing', () => {
   const c = by(all()).workshop;
   assert.equal(c.action.label, 'Open Bambuddy ↗');
 });
+
+test('Workshop card stays red when the printer reports an error and the plate waits', () => {
+  const c = homeCards({ now: { printer: { state: 'error', headline: 'Print failed — clear the plate', actions: ['clear'] } }, at: AT, host: 'home.home.arpa' })
+    .find((x) => x.key === 'workshop');
+  assert.equal(c.tone, 'bad');
+  assert.equal(c.action.do, 'clear');
+});

@@ -290,9 +290,10 @@ def api_printer_action(action: str, request: Request):
     if action not in printer_control.STEPS:
         raise HTTPException(404, "The printer can clear, pause or resume.")
     r = printer_control.run(action)
+    if "no key" not in r["steps"].values():  # Bambuddy was asked: the next refresh reads its state again
+        sources._cache.pop("bambuddy_printer", None)
     if not r["ok"]:
         raise HTTPException(503 if "no key" in r["steps"].values() else 502, r["say"])
-    sources._cache.pop("bambuddy_printer", None)  # the next refresh shows the new state
     return fresh({"ok": True, "say": r["say"]})
 
 

@@ -7,7 +7,7 @@ import { homeCards } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
-import { PRINTER_ACTIONS, runPrinterAction } from "./printer-actions.js";
+import { PRINTER_ACTIONS, printerBusy, runPrinterAction } from "./printer-actions.js";
 
 export const every = 15;
 
@@ -298,7 +298,7 @@ const go = (link) => { const href = resolveLink(link); return outward(href) ? { 
 
 // A printer action on a card (Clear the plate): the same flow as the Workshop page's buttons.
 function cardButton(action, onDone) {
-  const b = h("button", { type: "button", class: "btn home-card-action" }, action.label || PRINTER_ACTIONS[action.do]?.label);
+  const b = h("button", { type: "button", class: "btn home-card-action", disabled: printerBusy() }, action.label || PRINTER_ACTIONS[action.do]?.label);
   b.addEventListener("click", () => runPrinterAction(action.do, [b], onDone));
   return b;
 }

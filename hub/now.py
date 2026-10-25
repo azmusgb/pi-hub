@@ -69,7 +69,7 @@ def printer(s, b=None):
     if "resume" in res["actions"]:
         res["detail"] = "Resume it here or on the printer."
     if "clear" in res["actions"] and res["state"] not in ("printing", "paused"):
-        failed = b.get("bambuddy_state") == "FAILED"
+        failed = b.get("bambuddy_state") == "FAILED" or res["state"] == "error"
         res["headline"] = "Print failed — clear the plate" if failed else "Print done — clear the plate"
     return res
 

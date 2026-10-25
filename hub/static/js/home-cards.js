@@ -42,7 +42,7 @@ function workshopCard(p, at, host) {
     : "Bambuddy isn't answering";
   const tone = p?.state === "error" ? "bad" : ["printing", "idle", "stopped"].includes(p?.state) ? "ok" : "warn";
   if (p?.actions?.includes("clear")) {  // finished or failed: the plate comes first
-    return { key: "workshop", title: "Bambu X2D", status: p.headline, tone: "warn",
+    return { key: "workshop", title: "Bambu X2D", status: p.headline, tone: p.state === "error" ? "bad" : "warn",
       action: { label: "Clear the plate", do: "clear" }, link: { label: "Workshop", href: "/workshop" } };
   }
   return { key: "workshop", title: "Bambu X2D", status, tone,
