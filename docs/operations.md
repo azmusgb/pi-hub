@@ -149,3 +149,32 @@ AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on p
 - **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/HealthData`, `~/.ssh` and Claude's memory, without build output or dependencies.
 - **Passwords and login:** the repository passwords are in `/etc/pi-hub/secrets/restic_pi` and `restic_mac` (root only). The Mac's is also in its login Keychain as `restic-mac`. **Without them the backups can't be read.** Backrest's login is `bill`; the password is in `/etc/pi-hub/secrets/backrest_admin`.
 - **Still to do:** both repositories sit on the same USB drive as the Movies and Bambuddy data. An off-site copy (another drive, or a cloud bucket, still encrypted) is the next step.
+
+## The front gate (since 24 October 2026)
+
+Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs/superpowers/specs/2026-10-24-one-home-design.md`).
+
+| Name | Goes to |
+|---|---|
+| `home.home.arpa` | Pi Hub (no gate; it is where you sign in) |
+| `assistant.home.arpa` | Local AI (PC, https://10.0.0.21) |
+| `bambuddy.home.arpa` | Bambuddy (Pi :8000) |
+| `paperless.home.arpa` | Paperless (PC :8010) |
+| `homebox.home.arpa` | Homebox (Pi :7745) |
+| `backups.home.arpa` | Backrest (Pi :9898) |
+| `network.home.arpa` | Grafana (Pi :3000), signed in as `bill` automatically |
+| `status.home.arpa` | Uptime Kuma (Pi :3001) |
+| `adguard.home.arpa` | AdGuard (Pi :3002) |
+| `devices.home.arpa` | Homebridge (Pi :8581) |
+| `pi.home.arpa` | Cockpit (Pi :9090) |
+| `scan.home.arpa` | scanservjs (Pi 127.0.0.1:8095) |
+
+- **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.30`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
+- **The gate:** Caddy on the Pi (`/etc/caddy/Caddyfile`, installed by each release from `deploy/caddy/Caddyfile`) holds ports 80 and 443. Pi Hub now listens on `127.0.0.1:8100`. Each name except `home.` asks the hub's `GET /api/gate` first: the owner goes through, anyone else goes to the hub's sign-in and comes back after it.
+- **Sign-in:** signing in as the owner at `https://home.home.arpa` also sets `hub_gate`, a gate-only token for every `*.home.arpa` name (12 hours; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes both. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
+- **Grafana:** trusts `X-WEBAUTH-USER` only from 127.0.0.1, which is Caddy (Grafana uses host networking, so nothing on the LAN can send it). The gate removes any client-sent `X-Remote-User` or `X-Webauth-User`. User `bill` is a Grafana admin with an unknown password; the `admin` login still works with `/etc/pi-hub/secrets/grafana_admin`.
+- **Certificates:** Caddy's own CA. Its root is at `https://home.home.arpa/home-ca.crt`; trust it once on each device (iPhone: download, then Settings › General › VPN & Device Management, then Settings › General › About › Certificate Trust Settings; Mac: open it in Keychain Access, set to Always Trust). The CA lives in `/var/lib/caddy`; **never delete it**, or every device must trust a new one.
+- **Check it:** `ssh pi 'sudo bash /opt/pi-hub/current/deploy/gate-check.sh'` prints one line per check. The nightly self-check includes "The front gate answers".
+- **Old addresses** (`http://10.0.0.30`, `http://pi`, each `IP:port`) still work until step 6 of the design. Caddy passes plain http to the hub unchanged, so Local AI, Bambuddy's webhook, Siri Shortcuts and the PC's backup pull are unaffected.
+- **Rollback:** a release from before the gate runs its hub on :80, so a release (or rollback) without `deploy/caddy/Caddyfile` stops Caddy.
+- **Paperless** keeps its own login; its trusted login waits for step 6, when its port can be limited to the Pi.
