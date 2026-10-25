@@ -421,7 +421,18 @@ body.wall.night { filter: brightness(0.55); }
   background: color-mix(in srgb, var(--band-accent) 8%, var(--surface));
   border-color: color-mix(in srgb, var(--band-accent) 40%, var(--line));
 }
-.band .line-bead { background: var(--band-accent); }
+/* The band itself: a card with the printer's name, the headline, an amber progress line and the detail. Amber is for
+   the line and the edge only; its text uses the theme's text colours (amber text fails contrast on white). */
+.band { position: relative; padding: 1.25rem 1.5rem; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--shadow-1); }
+.band-name { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.band-headline { margin: .25rem 0 .75rem; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.band .line { position: relative; height: 6px; margin: 0 0 .75rem; }
+.band .line-track { position: absolute; inset: 0; border-radius: 999px; background: var(--surface-3); }
+.band .line-bead { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--band-accent); }
+.band .line-nozzle { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: var(--band-accent); box-shadow: 0 0 0 3px var(--surface); }
+.band-detail { margin: 0; color: var(--text-2); }
 
 
 /* ---- Design Audit Refinements ---- */

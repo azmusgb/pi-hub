@@ -230,7 +230,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 body.wall .link-btn { display: none; }
 /* Daylight touches: posters and the QR code need a frame on a light plate. */
 :root[data-theme="light"] .poster-art { box-shadow: 0 1px 0 rgb(28 34 38 / 0.08), 0 6px 18px rgb(28 34 38 / 0.10); }
-:root[data-theme="light"] .line-nozzle { background: #fff7e6; }
 
 /* Settings: a short checklist first, then sections you can jump to */
 .setup-steps { padding: 1rem 1.15rem; border-radius: 18px; background: rgb(var(--pei-rgb) / 0.08); border: 1px solid rgb(var(--pei-rgb) / 0.3); }
