@@ -40,6 +40,7 @@ the PC; bash + curl for the check.
 | 53 | AdGuard DNS | open (the names depend on it) |
 | 80, 443 | Caddy, the gate | open |
 | 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
+| 8091 | X2D camera frames | open: the Workshop display (10.0.0.124) reads `http://10.0.0.30:8091/x2d/frame.jpg` (found during Task 3) |
 | 32400 | Plex | open (players on the TV and phones need it; not a gated tool) |
 | 51125, 45665 | Homebridge's HomeKit bridges | open (HomeKit needs them); only the UI, 8581, closes |
 | 60000 | ipp-usb (AirPrint) | open |
@@ -47,7 +48,7 @@ the PC; bash + curl for the check.
 | PC 443 | Local AI (`https://10.0.0.21`) | open: it has its own Caddy; the Mac's board reports, the hub and the Workshop display call it; its lock is its own sign-in (Local AI #331) |
 
 Everything else listening on the LAN today closes: 3000 Grafana, 3001 Uptime Kuma, 3002 AdGuard web, 7745 Homebox,
-8091 camera failover, 8099 pi-status, 8581 Homebridge UI, 9090 Cockpit, 9100 node_exporter, 9115 blackbox, 9120 Orbi
+8099 pi-status, 8581 Homebridge UI, 9090 Cockpit, 9100 node_exporter, 9115 blackbox, 9120 Orbi
 exporter, 9898 Backrest; and Paperless 8010 on the PC except from the Pi. (Every one of these is already read by its
 users at 127.0.0.1: the hub, Prometheus and Caddy.)
 
@@ -183,7 +184,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 **Interfaces:**
 - The rule file adds `table ip pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
   Docker's own) that drops `ct original proto-dst 8000` unless `ip saddr` is in
-  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.21, 10.0.0.16 }`. A separate table is used so Docker rebuilding
+  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16 }` (10.0.0.30: Uptime Kuma, on host networking, checks `http://10.0.0.30:8000`). A separate table is used so Docker rebuilding
   `ip filter` never removes it. The unit is `Type=oneshot`, `RemainAfterExit=yes`,
   `After=docker.service`, `PartOf=docker.service`, `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
   `ExecStop=/usr/sbin/nft delete table ip pi_lock`.
@@ -232,6 +233,9 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 
 - [ ] **Step 1:** `bash deploy/lock-check.sh ready` on the Mac. Expected: all ok. If not, stop: the owner's DNS/CA
   steps are not done.
+- [ ] **Step 1b:** Repoint Uptime Kuma's two monitors that use closing ports: "Pi Hub Web App" `http://10.0.0.30` →
+  `http://127.0.0.1/healthz`, "Grafana Dashboards" `http://10.0.0.30:3000` → `http://127.0.0.1:3000/api/health`
+  (in Kuma's UI, or its DB with Kuma stopped and a copy kept).
 - [ ] **Step 2:** Ask the owner for the go (a network change on the Pi and the PC). Then release the hub
   (`git push pi main`) and run `ssh -t pi sudo python3 /opt/pi-hub/current/deploy/pi-lock.py apply`, then
   `ssh -t pi sudo bash /opt/pi-hub/current/deploy/install.sh` (Caddy drop-in), then the Paperless script with

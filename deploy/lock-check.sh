@@ -22,7 +22,7 @@ r=$(code "http://$PI/home-ca.crt")
 [ "$r" = 200 ] && say "http://$PI/home-ca.crt" ok || say "http://$PI/home-ca.crt" "got $r"
 
 if [ "$MODE" = locked ]; then
-  for p in 3000 3001 3002 7745 8091 8099 8581 9090 9100 9115 9120 9898; do
+  for p in 3000 3001 3002 7745 8099 8581 9090 9100 9115 9120 9898; do
     r=$(code "http://$PI:$p/")
     [ "$r" = 000 ] && say "$PI:$p closed" ok || say "$PI:$p closed" "answered $r"
   done

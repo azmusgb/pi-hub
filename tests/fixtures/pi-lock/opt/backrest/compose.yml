@@ -1,0 +1,27 @@
+# Backrest: a web UI for restic. Nightly encrypted, versioned backups of the Pi (hub backups, settings, Docker apps,
+# the Paperless snapshots) into /mnt/usb1/backups/restic/pi. The Mac backs up into /mnt/usb1/backups/restic/mac over SFTP.
+name: backrest
+services:
+  backrest:
+    image: garethgeorge/backrest:latest
+    restart: unless-stopped
+    ports:
+      - "9898:9898"
+    environment:
+      BACKREST_DATA: /data
+      BACKREST_CONFIG: /config/config.json
+      XDG_CACHE_HOME: /cache
+      BACKREST_PORT: 0.0.0.0:9898
+      TZ: America/New_York
+    volumes:
+      - /opt/backrest/config:/config
+      - /opt/backrest/data:/data
+      - /opt/backrest/cache:/cache
+      - /mnt/usb1/backups/restic:/repos
+      - /var/backups/pi-hub:/sources/pi-hub-backups:ro
+      - /etc:/sources/etc:ro
+      - /opt:/sources/opt:ro
+      - /mnt/usb1/bambuddy:/sources/bambuddy:ro
+      - /mnt/usb1/homebox:/sources/homebox:ro
+      - /mnt/usb1/backups/paperless:/sources/paperless:ro
+      - /mnt/usb1/netmon:/sources/netmon:ro

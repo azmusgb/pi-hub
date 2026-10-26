@@ -1,0 +1,106 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: netmon-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *default-logging
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /mnt/usb1:/mnt/usb1:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)'
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: netmon-blackbox-exporter
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *default-logging
+    cap_add:
+      - NET_RAW
+    volumes:
+      - /opt/netmon/blackbox/config.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: netmon-prometheus
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 1024m
+    cpus: 1.0
+    logging: *default-logging
+    volumes:
+      - /opt/netmon/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/netmon/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - /mnt/usb1/netmon/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=180d'
+      # Only on the Pi itself: Grafana and Pi Hub read it locally (both use host networking).
+      - '--web.listen-address=127.0.0.1:9091'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: netmon-grafana
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      # Only used when Grafana first creates its database; the live password is in /etc/pi-hub/secrets/grafana_admin.
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-change-me-on-first-start}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      # The front gate (Caddy on this Pi, https://network.home.arpa) signs the owner in as `bill`. Host networking
+      # means only processes on the Pi itself come from 127.0.0.1, and the header's name is a secret shared with
+      # Caddy (GF_AUTH_PROXY_HEADER_NAME, from the env_file below), so other local services can't forge it.
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_PROPERTY=username
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=false
+      - GF_AUTH_PROXY_WHITELIST=127.0.0.1
+    env_file:
+      - /etc/pi-hub/secrets/grafana_gate.env
+    volumes:
+      - /opt/netmon/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - /opt/netmon/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - /opt/netmon/grafana/dashboards:/var/lib/grafana-dashboards:ro
+      - /mnt/usb1/netmon/grafana:/var/lib/grafana
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: netmon-uptime-kuma
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    environment:
+      - PORT=3001
+    volumes:
+      - /mnt/usb1/netmon/uptime-kuma:/app/data

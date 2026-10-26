@@ -1,0 +1,19 @@
+{
+    "bridge": {
+        "name": "Homebridge A26D",
+        "username": "0E:00:00:00:00:00",
+        "port": 51125,
+        "pin": "000-00-000"
+    },
+    "accessories": [],
+    "platforms": [
+        {
+            "name": "Config",
+            "port": 8581,
+            "platform": "config"
+        },
+        {
+            "platform": "Ring"
+        }
+    ]
+}
