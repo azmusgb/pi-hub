@@ -9,7 +9,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CADDYFILE = os.path.join(ROOT, "deploy", "caddy", "Caddyfile")
-MACHINE_PATHS = ["/api/now", "/api/now/*", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]
+MACHINE_PATHS = ["/api/now", "/api/now/*", "/api/needs", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]
 
 pytestmark = pytest.mark.skipif(not shutil.which("caddy"), reason="caddy not installed")
 

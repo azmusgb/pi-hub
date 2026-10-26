@@ -148,7 +148,7 @@ http:// {
 		header Content-Type application/x-x509-ca-cert
 		file_server
 	}
-	@machine path /api/now /api/now/* /api/webhook/bambuddy /api/shortcut/* /healthz
+	@machine path /api/now /api/now/* /api/needs /api/webhook/bambuddy /api/shortcut/* /healthz
 	handle @machine {
 		reverse_proxy 127.0.0.1:8100
 	}
