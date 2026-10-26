@@ -142,8 +142,10 @@ function workshopKioskConsole(d, cam) {
     camHud
   );
 
+  // "Layer 93 / 150" wraps as one piece, never "Layer 93 /" over "150".
   const jobSubtitle = isPrinting && p.left
-    ? `Done in about ${p.left}${finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""}${p.layer_num ? ` · Layer ${p.layer_num} / ${p.total_layers || '?'}` : ""}`
+    ? [`Done in about ${p.left}${finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""}`,
+       p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null]
     : (p.job_name ? `Job: ${p.job_name}` : (p.detail || "Ready for next print"));
 
   const progressSection = isPrinting ? h("div", {

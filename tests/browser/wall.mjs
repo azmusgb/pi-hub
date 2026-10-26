@@ -48,12 +48,12 @@ const CAMERA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height=
   <g fill="#c9a24a"><rect x="560" y="470" width="70" height="50" rx="6"/><rect x="650" y="470" width="70" height="50" rx="6"/></g>
   <rect x="600" y="230" width="90" height="140" rx="8" fill="#5a5f68"/><path d="M630 370 l15 40 l15 -40 Z" fill="#9aa0a8"/></svg>`;
 
-async function stub(page, printer, needs = NEEDS) {
+async function stub(page, printer, needs = NEEDS, camera = true) {
   const json = (body) => (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/now', json(now(PRINTERS[printer])));
   await page.route('**/api/outside', json(OUTSIDE));
   await page.route('**/api/home', json(HOME));
-  await page.route('**/api/camera', json({ ok: true, source: 'Pi' }));
+  await page.route('**/api/camera', json(camera ? { ok: true, source: 'Pi' } : { ok: false }));
   await page.route('**/api/needs', json(needs));
   await page.route('**/api/camera.jpg*', (route) => route.fulfill({ contentType: 'image/svg+xml', body: CAMERA_SVG }));
 }
@@ -64,16 +64,17 @@ const runs = STUB
   ? [...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'idle', at: '2026-10-26T12:48:00', shot: `after-${n}` })),
      ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', shot: n === 'tv1080' ? 'after-tv1080-printing' : null })),
      { n: 'tv1080', w: 1920, h: 1080, printer: 'printing', at: '2026-10-26T22:48:00', shot: 'after-tv1080-night' },
-     { n: 'laptop', w: 1280, h: 800, printer: 'idle', at: '2026-10-26T12:48:00', shot: 'after-laptop-all-clear', clear: true }]
+     { n: 'laptop', w: 1280, h: 800, printer: 'idle', at: '2026-10-26T12:48:00', shot: 'after-laptop-all-clear', clear: true },
+     ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null }))]
   : SIZES.map(([n, w, h]) => ({ n, w, h, printer: null, shot: `live-${n}` }));
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}`;
+  const where = `${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
-  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS);
+  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS, !run.noCamera);
   await page.goto(`${BASE}/wall`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.wall-board[data-printing]', { timeout: 15000 }).catch(() => problems.push(`${where}: the wall never loaded`));
   await page.waitForTimeout(400);
@@ -98,6 +99,8 @@ for (const run of runs) {
       small,
       areas: { print: area('.wall-print'), needs: area('.wall-needs'), house: area('.wall-house') },
       tops: { needs: r('.wall-needs')?.top, print: r('.wall-print')?.top, house: r('.wall-house')?.top },
+      camNone: document.querySelector('.kiosk-cam-none') ? r('.kiosk-cam-container')?.height : null,
+      layer: (() => { const s = document.querySelector('.kiosk-sub .nowrap'); return s ? { text: s.textContent, lines: s.getClientRects().length } : null; })(),
     };
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
@@ -111,9 +114,12 @@ for (const run of runs) {
   if (run.printer === 'printing') {
     const { print, needs, house } = m.areas;
     const wide = w > h && w >= 1000 && h >= 500;
-    if (wide && print < Math.max(needs, house)) problems.push(`${where}: the printer tile isn't the largest while printing`);
+    // The printer is largest for its picture; with no picture it is only as tall as its words.
+    if (wide && !run.noCamera && print < Math.max(needs, house)) problems.push(`${where}: the printer tile isn't the largest while printing`);
     if (w < h && !(m.tops.print > m.tops.needs && m.tops.print < m.tops.house)) problems.push(`${where}: the printer isn't first after Needs you while printing`);
   }
+  if (run.printer === 'printing' && STUB && (!m.layer || m.layer.lines !== 1)) problems.push(`${where}: "${m.layer?.text}" breaks across lines`);
+  if (run.noCamera && !(m.camNone > 0 && m.camNone <= 140)) problems.push(`${where}: no picture, but the camera box is ${Math.round(m.camNone ?? 0)} px tall`);
   if (run.shot) {
     const axe = await new AxeBuilder({ page }).exclude('.kiosk-cam-img').analyze();
     for (const v of axe.violations.filter((v) => ["serious", "critical"].includes(v.impact))) problems.push(`${where}: axe ${v.id} (${v.nodes.map((x) => x.target.join(" ")).join(", ")})`);

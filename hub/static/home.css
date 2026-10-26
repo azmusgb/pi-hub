@@ -190,6 +190,13 @@ body.wall.night { filter: brightness(0.55); }
 /* No picture: a quiet panel in the theme's colours, so the words keep their contrast. */
 .kiosk-cam-container:has(> .kiosk-cam-none) { background: var(--surface-2); box-shadow: none; }
 .kiosk-cam-container > .kiosk-cam-none { color: var(--text-2); }
+/* No picture: only as tall as its line and the temperatures under it, never a large empty box. */
+#view .kiosk-cam-container:has(> .kiosk-cam-none) { flex: none; aspect-ratio: auto; min-height: 0; display: flex; flex-direction: column; }
+.kiosk-cam-container:has(> .kiosk-cam-none) > .kiosk-hud-overlay { position: static; background: none; backdrop-filter: none; color: var(--text); }
+.kiosk-cam-container:has(> .kiosk-cam-none) .kiosk-hud-chip { background: var(--surface); border-color: var(--line); }
+.kiosk-cam-container:has(> .kiosk-cam-none) > .kiosk-cam-none { padding: .8rem 1rem .2rem; }
+.wall-board > .wall-print:has(.kiosk-cam-none) { align-self: start; }
+.nowrap { white-space: nowrap; }
 .kiosk-cam-img {
   width: 100%;
   height: 100%;
