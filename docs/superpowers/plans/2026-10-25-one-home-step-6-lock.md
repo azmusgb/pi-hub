@@ -62,7 +62,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 3. **HomeKit and DNS keep working:** only Homebridge's UI host and AdGuard's web address change. Pinned in Task 3
    (`test_homebridge_bridge_port_untouched`, `test_adguard_dns_untouched`).
 4. **Docker restarts or the Pi reboots:** the Bambuddy rule must come back after Docker rebuilds its chains. Pinned
-   in Task 4 (the unit loads `Before=docker.service`, independent of it, with no `PartOf`; `test_rule_survives_docker_restart`
+   in Task 4 (the unit loads `Before=docker.service`, independent of it, with no `PartOf`; checked live in Task 6 Step 3
    is the live step in Task 6).
 5. **A browser on the old address with a path** (`http://10.0.0.30/workshop`): it lands on the same page on the
    gate, not on Home. Pinned in Task 2 (`test_browsers_keep_their_path`).
@@ -100,7 +100,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 - Test: `tests/test_caddy_lock.py`
 
 **Interfaces:**
-- Produces: `MACHINE_PATHS = ["/api/now", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]`
+- Produces: `MACHINE_PATHS = ["/api/now", "/api/now/*", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]`
   as the one list, in a comment at the top of the `http://` site and in the test.
 
 - [ ] **Step 1: Write the failing tests.** They run `caddy adapt --config deploy/caddy/Caddyfile` (skip when `caddy`
@@ -191,7 +191,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   input chain (docker-proxy's own sockets), IPv6 only from ::1 (security review).
 
 - [ ] **Step 1: Failing tests:** `test_bambuddy_allow_list` (the file names exactly those four sources and
-  `ct original proto-dst 8000`, and the table is `ip pi_lock`, not `ip filter`);
+  `ct original proto-dst 8000`, and the table is `inet pi_lock`, not `ip filter`);
   `test_apply_installs_the_firewall_unit` (with `--root`, the unit and the rule land under
   `etc/systemd/system/` and `etc/pi-lock/`); `test_undo_removes_it`.
 - [ ] **Step 2: Run** them. Expected: FAIL.
@@ -245,8 +245,8 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   /opt/pi-hub/current/deploy/gate-check.sh'` (Expected: all ok), `node tests/browser/structure.mjs
   https://home.home.arpa` (Expected: All 28 views pass), Local AI's Materials and Documents cards still show data
   (`curl -s https://10.0.0.21/healthz` plus its Paperless/Bambuddy status), `ssh pi 'sudo systemctl restart docker
-  && sleep 20 && sudo nft list table ip pi_lock'` (Expected: the table is there:
-  `test_rule_survives_docker_restart`).
+  && sleep 20 && sudo nft list table inet pi_lock'` (Expected: the table is there).
 - [ ] **Step 4:** If any check fails and the cause is not a one-line fix: `pi-lock.py undo`, Paperless `-Undo`, and
   `git revert` the Caddy change, release; record what failed.
-- [ ] **Step 5:** Docs, commit, release; update memory (`one-home-gate.md`).
+- [ ] **Step 5:** Docs, commit, release; update memory (`one-home-gate.md`). In `docs/operations.md`: a netmon deploy
+  re-applies the lock (netmon branch `step6-lock`, merge it at lock time); merge appliance-ui `step6-lock` and sync it.

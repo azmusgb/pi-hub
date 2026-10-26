@@ -1,0 +1,12 @@
+# AdGuard Home: blocks ads and trackers for the whole house (DNS on port 53). Web UI on port 3002 (Grafana has 3000).
+# Host networking, so the stats show each device by its own address.
+name: adguard
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    restart: unless-stopped
+    network_mode: host
+    command: ["--no-check-update", "-c", "/opt/adguardhome/conf/AdGuardHome.yaml", "-w", "/opt/adguardhome/work", "--web-addr", "0.0.0.0:3002"]
+    volumes:
+      - /opt/adguard/conf:/opt/adguardhome/conf
+      - /mnt/usb1/adguard/work:/opt/adguardhome/work

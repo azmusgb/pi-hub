@@ -175,3 +175,43 @@ def test_a_firewall_that_fails_to_load_is_reported(root, monkeypatch, capsys):
     monkeypatch.setattr(pi_lock.subprocess, "run", run_)
     with pytest.raises(SystemExit):
         pi_lock.restart([pi_lock.FIREWALL], "apply")
+
+
+# Final review fixes.
+def test_adguard_web_flag_on_loopback(root):
+    # --web-addr on AdGuard's command line wins over http.address in its yaml.
+    run(root, "apply")
+    text = (root / "opt/adguard/compose.yml").read_text()
+    assert '"--web-addr", "127.0.0.1:3002"' in text and "0.0.0.0:3002" not in text
+
+
+def test_apply_restarts_every_locked_target(root):
+    # A re-run after an interrupted apply finds no file to change, but must still bring every tool up locked.
+    run(root, "apply")
+    assert sorted(pi_lock.targets(root)) == sorted({rel for _, rel, _ in pi_lock.EDITS})
+
+
+def test_undo_keeps_what_the_apps_changed_since(root):
+    run(root, "apply")
+    yaml = root / "opt/adguard/conf/AdGuardHome.yaml"
+    yaml.write_text(yaml.read_text() + "filters_update_interval: 12\n")
+    hb = root / "var/lib/homebridge/config.json"
+    c = json.loads(hb.read_text())
+    c["accessories"].append({"name": "New lamp"})
+    hb.write_text(json.dumps(c, indent=4) + "\n")
+    run(root, "undo")
+    assert "filters_update_interval: 12" in yaml.read_text() and "  address: 0.0.0.0:3002\n" in yaml.read_text()
+    c = json.loads(hb.read_text())
+    assert c["accessories"] == [{"name": "New lamp"}]
+    assert "host" not in next(p for p in c["platforms"] if p["platform"] == "config")
+
+
+def test_a_file_replaced_after_the_lock_becomes_the_new_original(root):
+    # netmon's deploy copies a fresh docker-compose.yml over the locked one, then runs apply again: undo must later
+    # restore that fresh file, not the one from before the first lock.
+    run(root, "apply")
+    fresh = (FIXTURES / "opt/netmon/docker-compose.yml").read_text() + "# a newer netmon\n"
+    (root / "opt/netmon/docker-compose.yml").write_text(fresh)
+    run(root, "apply")
+    run(root, "undo")
+    assert (root / "opt/netmon/docker-compose.yml").read_text() == fresh

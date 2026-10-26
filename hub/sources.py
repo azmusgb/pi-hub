@@ -110,8 +110,8 @@ def _netmon():
         "orbi_ext_ip": orbi_info.get("external_ip"),
         "orbi_down_mbps": orbi_info.get("calc_down_mbps"),
         "orbi_up_mbps": orbi_info.get("calc_up_mbps"),
-        "grafana_url": "http://10.0.0.30:3000",
-        "uptime_kuma_url": "http://10.0.0.30:3001/status/home",
+        "grafana_url": "https://network.home.arpa/",
+        "uptime_kuma_url": "https://status.home.arpa/status/home",
     }
 
 

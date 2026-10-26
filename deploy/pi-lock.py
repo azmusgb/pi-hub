@@ -11,6 +11,7 @@ Edits are text edits, line by line (the Pi has no PyYAML), and each is idempoten
 Plan: docs/superpowers/plans/2026-10-25-one-home-step-6-lock.md
 """
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -70,6 +71,11 @@ def homebridge_ui(text):
     return json.dumps(c, indent=4) + "\n"
 
 
+def adguard_flag(text):
+    """AdGuard's --web-addr on its command line wins over http.address in its yaml."""
+    return text.replace('"--web-addr", "0.0.0.0:3002"', '"--web-addr", "127.0.0.1:3002"')
+
+
 def orbi_exporter(text):
     return text.replace('HTTPServer(("0.0.0.0", LISTEN_PORT)', 'HTTPServer(("127.0.0.1", LISTEN_PORT)')
 
@@ -86,6 +92,7 @@ EDITS = [
      lambda t: add_item(t, "blackbox-exporter", "command", "'--web.listen-address=127.0.0.1:9115'")),
     ("Orbi exporter :9120", "opt/netmon/scripts/orbi_exporter.py", orbi_exporter),
     ("AdGuard web :3002", "opt/adguard/conf/AdGuardHome.yaml", adguard_web),
+    ("AdGuard web flag", "opt/adguard/compose.yml", adguard_flag),
     ("Homebridge UI :8581", "var/lib/homebridge/config.json", homebridge_ui),
     ("Cockpit :9090", "etc/systemd/system/cockpit.socket.d/listen.conf",
      "# one home, step 6 (pi-lock.py): Cockpit only through the gate\n[Socket]\nListenStream=\nListenStream=127.0.0.1:9090\n"),
@@ -94,7 +101,19 @@ EDITS = [
     ("Bambuddy :8000 rule", "etc/pi-lock/firewall.nft", (HERE / "pi-lock-firewall.nft").read_text()),
     ("Bambuddy :8000 unit", FIREWALL, (HERE / "pi-lock-firewall.service").read_text()),
 ]
-COMPOSE = {"opt/homebox/compose.yml", "opt/backrest/compose.yml", NETMON}
+COMPOSE = {"opt/homebox/compose.yml", "opt/backrest/compose.yml", NETMON, "opt/adguard/compose.yml"}
+
+# The apps rewrite these files themselves (AdGuard's filters and clients, Homebridge's plugins). If one changed after
+# the lock, undo takes back only the lock's own edit instead of restoring the whole file.
+def _homebridge_open(text):
+    c = json.loads(text)
+    ui = next(p for p in c.get("platforms", []) if p.get("platform") == "config")
+    ui.pop("host", None)
+    return json.dumps(c, indent=4) + "\n"
+
+
+UNLOCK = {"opt/adguard/conf/AdGuardHome.yaml": lambda t: t.replace("\n  address: 127.0.0.1:3002\n", "\n  address: 0.0.0.0:3002\n"),
+          "var/lib/homebridge/config.json": _homebridge_open}
 RESTART = {"opt/netmon/scripts/orbi_exporter.py": "orbi-exporter", "opt/adguard/conf/AdGuardHome.yaml": "adguard",
            "var/lib/homebridge/config.json": "homebridge",
            "etc/systemd/system/cockpit.socket.d/listen.conf": "cockpit.socket",
@@ -125,22 +144,57 @@ def apply(root):
             new = change(old)
         if new == old:
             continue
-        if old is not None and not backup.exists():
+        stamp = root / BACKUPS / (rel + ".applied")
+        replaced = backup.exists() and stamp.exists() and old is not None and _hash(old) != stamp.read_text()
+        if old is not None and (not backup.exists() or replaced):
+            # First lock, or the file was replaced since (a netmon deploy): what is here now is the original.
             backup.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, backup)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(new)
+        _stamp(root, rel, new)
         changed.append(rel)
         print(f"{name:24} locked")
     return changed
 
 
+def _hash(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _stamp(root, rel, text):
+    """What the file looked like right after the lock wrote it."""
+    s = root / BACKUPS / (rel + ".applied")
+    s.parent.mkdir(parents=True, exist_ok=True)
+    s.write_text(_hash(text))
+
+
+def targets(root):
+    """Every file whose edit is in place: on the Pi, apply brings each one up again, so a re-run after an
+    interrupted apply still finishes the job (restarts and `up -d` are safe to repeat)."""
+    out = []
+    for _, rel, change in EDITS:
+        if state(root, rel, change) == "locked" and rel not in out:
+            out.append(rel)
+    return out
+
+
 def undo(root):
-    changed = []
+    changed, kept = [], []
     for _, rel, change in EDITS:
         p, backup = root / rel, root / BACKUPS / rel
+        stamp = root / BACKUPS / (rel + ".applied")
+        if rel in changed or rel in kept:
+            continue
         if backup.exists():
-            shutil.copy2(backup, p)
+            if not stamp.exists() or not p.exists() or _hash(p.read_text()) == stamp.read_text():
+                shutil.copy2(backup, p)
+            elif rel in UNLOCK:
+                p.write_text(UNLOCK[rel](p.read_text()))
+            else:
+                print(f"changed since the lock, left as it is: /{rel} (the original is in /{BACKUPS}/{rel})")
+                kept.append(rel)
+                continue
         elif isinstance(change, str) and p.exists():
             p.unlink()
             if not any(p.parent.iterdir()):
@@ -149,7 +203,8 @@ def undo(root):
             continue
         if rel not in changed:
             changed.append(rel)
-    shutil.rmtree(root / BACKUPS, ignore_errors=True)
+    if not kept:
+        shutil.rmtree(root / BACKUPS, ignore_errors=True)
     return changed
 
 
@@ -194,6 +249,8 @@ def main(argv=None):
         # Before its file goes: stopping runs its ExecStop, which deletes the table.
         subprocess.run(["systemctl", "disable", "--now", "pi-lock-firewall"], check=False)
     changed = apply(root) if a.action == "apply" else undo(root)
+    if a.action == "apply":
+        changed = targets(root)
     if a.root == "/" and changed:
         restart(changed, a.action)
     return 0

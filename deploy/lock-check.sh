@@ -30,7 +30,7 @@ if [ "$MODE" = locked ]; then
   [ "$r" = 000 ] && say "Paperless 10.0.0.21:8010 closed" ok || say "Paperless 10.0.0.21:8010 closed" "answered $r"
   r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' "http://$PI/workshop")
   [ "$r" = "308 https://home.home.arpa/workshop" ] && say "old address → same page on the gate" ok || say "old address → same page on the gate" "got $r"
-  for path in /api/shortcut/x /api/webhook/bambuddy; do
+  for path in /api/shortcut/x /api/webhook/bambuddy /api/now/poster/0.jpg; do
     r=$(code "http://$PI$path")
     case "$r" in 000|301|302|307|308) say "http://$PI$path still served" "got $r" ;; *) say "http://$PI$path still served" ok ;; esac
   done
