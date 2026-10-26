@@ -40,27 +40,10 @@ export function redirectFor(path) {
 export const railItems = () => SECTIONS.map((s) => s.key);
 export const phoneTabs = () => [...PHONE];
 
-// Each tool by its gate name when the hub itself was opened on one; otherwise its old address, which keeps working
-// until the names resolve on every device (step 6 retires them).
-const OLD = {
-  assistant: "https://10.0.0.21/",
-  paperless: "http://10.0.0.21:8010/",
-  bambuddy: ":8000",
-  homebox: ":7745",
-  backups: ":9898",
-  network: ":3000",
-  status: ":3001",
-  adguard: ":3002",
-  devices: ":8581",
-  pi: "https://{host}:9090/",
-  scan: "/scan/",
-};
-
-export function toolUrl(name, host = globalThis.location?.hostname || "") {
-  if (host === "home.arpa" || host.endsWith(".home.arpa")) return `https://${name}.home.arpa/`;
-  const old = OLD[name] || "/";
-  if (old.startsWith(":")) return `http://${host}${old}/`;
-  return old.replace("{host}", host);
+// Each tool by its gate name. The old IP:port addresses were retired in step 6 (one home), so the address the hub was
+// opened on no longer matters; `host` stays for resolveLink's callers.
+export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
+  return `https://${name}.home.arpa/`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).

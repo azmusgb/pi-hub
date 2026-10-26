@@ -79,8 +79,8 @@ test('the Home badge equals the Needs you count', () => {
   assert.equal(by(all()).needs.count, Number(homeBadge(NEEDS)));
 });
 
-test('links use the old addresses when the hub is opened by IP', () => {
-  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'http://10.0.0.30:8000/');
+test('links use the gate names even when the hub is opened by IP (step 6)', () => {
+  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'https://bambuddy.home.arpa/');
 });
 
 test('Needs you says when it could not check, even with nothing else to show', () => {
