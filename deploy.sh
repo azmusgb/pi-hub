@@ -16,12 +16,6 @@ sudo mkdir -p /opt/netmon
 sudo cp -r /tmp/netmon/* /opt/netmon/
 sudo rm -rf /tmp/netmon
 
-# One home, step 6: once the Pi is locked (pi-lock.py apply ran), the files just copied are unlocked again: lock
-# them before anything starts. pi-lock brings Grafana, Kuma, the exporters and the Orbi exporter up on 127.0.0.1.
-if [ -d /var/backups/pi-lock ]; then
-  echo "Re-applying the Pi lock..."
-  sudo python3 /opt/pi-hub/current/deploy/pi-lock.py apply
-fi
 
 echo "Installing CLI diagnostic shortcuts to /usr/local/bin..."
 sudo install -m 755 /opt/netmon/scripts/* /usr/local/bin/
@@ -42,6 +36,14 @@ sudo rm -f /etc/cron.daily/netmon-backup
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
 sudo docker-compose up -d --remove-orphans
+
+# One home, step 6: once the Pi is locked (pi-lock.py apply ran), the files just copied are unlocked again: lock
+# them last, after every copy and restart above, so nothing later in this script can reopen a port. pi-lock
+# brings Grafana, Kuma, the exporters and the Orbi exporter up on 127.0.0.1.
+if [ -d /var/backups/pi-lock ]; then
+  echo "Re-applying the Pi lock..."
+  sudo python3 /opt/pi-hub/current/deploy/pi-lock.py apply
+fi
 
 echo "Reloading Prometheus..."
 curl -s -X POST http://localhost:9091/-/reload || true
