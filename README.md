@@ -39,6 +39,8 @@ git diff --check
 
 JavaScript tests use Node's built-in test runner. The browser modules declare `type: module` in `hub/static/js/package.json`. Release tests simulate the Pi filesystem and commands in temporary directories; they do not deploy to a real Pi.
 
+The wall display has its own browser check across phone, tablet, laptop, TV and portrait-monitor sizes: start the app locally as above, then `cd tests/browser && node wall.mjs http://127.0.0.1:8765 --stub` (stubbed data; without `--stub` it reads the given hub's live data).
+
 For interface changes, also check phone, tablet and desktop layouts, keyboard navigation, unavailable-service feedback and refresh behaviour. The release gate checks HTTP responses; it does not replace browser or hardware acceptance checks.
 
 
