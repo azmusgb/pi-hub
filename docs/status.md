@@ -185,4 +185,8 @@ Plan `docs/superpowers/plans/2026-10-25-one-home-step-5-look.md`. Kit appliance-
 - **Kit:** the contrast gate now covers status chips, the danger button and the header badge on their own tints (4.5:1), field borders (3:1) and accent text on its tint; four light status colours darker; new `--ui-field-line` and `--ui-header-total`.
 - **Pi Hub (live):** colours, font and components from the kit (`hub/static/ui`, checked by `verify.py`); amber only on the printer band (`--band-accent`), which is a card again; the wall passes contrast in daylight; a styled signed-out Scan page. Browser check: 28 views (now including the wall) pass.
 - **Local AI:** PR #390 (green in local CI: 824 unit tests, 52/52 browser suites) carries the kit's dark colours in its one stylesheet; waiting for the owner's `npm run ship -- 390`.
-- **Later (from the review):** the kit gate doesn't yet check the real `accentSoft` tint or the `surface-2` background; signed-out Scan follows the device theme; a few old navy/warm values remain in Local AI and the hub's shadows.
+- **Later (from the review), done 25 Oct (hub 8f7144c, kit 1.2.0, Local AI #390):** the kit gate doesn't yet check the real `accentSoft` tint or the `surface-2` background; signed-out Scan follows the device theme; a few old navy/warm values remain in Local AI and the hub's shadows.
+  Kit 1.2.0 checks every pair on the well and accent text on `accentSoft` (eight colours nudged). Hub shadows and the
+  backdrop use the kit's ink; the kiosk light uses `--warn`; Scan reads `hub-theme` via `/static/js/saved-theme.js`.
+  Found on the way: the hub's `--*-rgb` triples were comma-separated but used as `rgb(var(--x-rgb) / a)`, which is
+  invalid, so 30 tints, borders and shadows never rendered; they are now `r g b` and a test keeps them so.
