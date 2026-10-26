@@ -164,8 +164,11 @@ def restart(changed, action):
     """On the real Pi: bring the changed tools up on their new address."""
     sh = lambda *a: subprocess.run(a, check=False)  # noqa: E731 — keep going; status shows what didn't take
     sh("systemctl", "daemon-reload")
-    if FIREWALL in changed and action == "apply":
-        sh("systemctl", "enable", "--now", "pi-lock-firewall")
+    if action == "apply" and ({FIREWALL, "etc/pi-lock/firewall.nft"} & set(changed)):
+        # restart, not enable --now: a rule changed under a running unit must load too.
+        sh("systemctl", "enable", "pi-lock-firewall")
+        if sh("systemctl", "restart", "pi-lock-firewall").returncode:
+            raise SystemExit("pi-lock: the Bambuddy rule didn't load; see `systemctl status pi-lock-firewall`")
     for rel in changed:
         if rel in COMPOSE:
             sh("docker", "compose", "-f", "/" + rel, "up", "-d")

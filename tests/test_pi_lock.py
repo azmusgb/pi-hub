@@ -129,22 +129,29 @@ NFT = ROOT / "deploy" / "pi-lock-firewall.nft"
 
 def test_bambuddy_allow_list():
     text = NFT.read_text()
-    assert "table ip pi_lock" in text and "table ip filter" not in text
-    assert "hook forward priority filter - 1" in text
-    rule = next(x for x in text.splitlines() if "drop" in x)
-    assert "ct original proto-dst 8000" in rule
-    allowed = re.search(r"\{([^}]*)\}", rule).group(1).replace(" ", "").split(",")
-    assert sorted(allowed) == sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.30", "10.0.0.21", "10.0.0.16"])
+    assert "table inet pi_lock {" in text and "table ip filter" not in text
+    assert "hook forward priority filter - 1" in text and "hook input priority filter - 1" in text
+    want = sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.30", "10.0.0.21", "10.0.0.16"])
+    rules = [x for x in text.splitlines() if x.strip().endswith("drop")]
+    # Docker's NAT path (forward, the port the caller dialled) and docker-proxy's own sockets (input), IPv4 and IPv6.
+    fwd = next(x for x in rules if "ct original proto-dst 8000" in x and "ip saddr" in x)
+    inp = next(x for x in rules if "tcp dport 8000" in x and "ip saddr" in x)
+    for rule in (fwd, inp):
+        assert sorted(re.search(r"\{([^}]*)\}", rule).group(1).replace(" ", "").split(",")) == want
+    assert any("tcp dport 8000" in x and "ip6 saddr != ::1" in x for x in rules)
+    assert any("ct original proto-dst 8000" in x and "meta nfproto ipv6" in x for x in rules)
 
 
 def test_apply_installs_the_firewall_unit(root):
     run(root, "apply")
     assert (root / "etc/pi-lock/firewall.nft").read_text() == NFT.read_text()
     unit = (root / "etc/systemd/system/pi-lock-firewall.service").read_text()
-    for line in ("After=docker.service", "PartOf=docker.service", "Type=oneshot", "RemainAfterExit=yes",
-                 "ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft", "ExecStop=/usr/sbin/nft delete table ip pi_lock",
+    for line in ("Before=docker.service", "Type=oneshot", "RemainAfterExit=yes",
+                 "ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft", "ExecStop=/usr/sbin/nft delete table inet pi_lock",
                  "WantedBy=multi-user.target"):
         assert line in unit, line
+    # Stopping or restarting Docker must never take the rule down with it: only pi-lock.py undo removes it.
+    assert "PartOf=" not in unit and "BindsTo=" not in unit
 
 
 def test_undo_removes_it(root):
@@ -152,3 +159,19 @@ def test_undo_removes_it(root):
     run(root, "undo")
     assert not (root / "etc/pi-lock").exists()
     assert not (root / "etc/systemd/system/pi-lock-firewall.service").exists()
+
+
+def test_a_changed_rule_is_reloaded_on_apply(root, monkeypatch):
+    calls = []
+    monkeypatch.setattr(pi_lock.subprocess, "run", lambda a, **k: calls.append(list(a)) or type("R", (), {"returncode": 0})())
+    pi_lock.restart(["etc/pi-lock/firewall.nft"], "apply")
+    assert ["systemctl", "enable", "pi-lock-firewall"] in calls
+    assert ["systemctl", "restart", "pi-lock-firewall"] in calls
+
+
+def test_a_firewall_that_fails_to_load_is_reported(root, monkeypatch, capsys):
+    def run_(a, **k):
+        return type("R", (), {"returncode": 1 if list(a[:2]) == ["systemctl", "restart"] else 0})()
+    monkeypatch.setattr(pi_lock.subprocess, "run", run_)
+    with pytest.raises(SystemExit):
+        pi_lock.restart([pi_lock.FIREWALL], "apply")
