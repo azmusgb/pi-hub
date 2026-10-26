@@ -70,3 +70,7 @@ def test_the_printer_shows_once_in_needs_you():
     # Without a print event, the most urgent printer row stays (still only one).
     n = needs.build([], feed, 1_800_000_000, issues)
     assert [i["title"] for i in n["items"]] == ["Bambu X2D", "Needs you"]
+
+
+def test_side_by_side_tool_links_have_room():
+    assert re.search(r"\.tool-link \+ \.tool-link \{[^}]*margin-left: 1rem", css("home.css"))

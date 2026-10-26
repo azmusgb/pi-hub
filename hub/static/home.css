@@ -814,6 +814,7 @@ body:not(.wall) .page-now { display: block; }
 /* "Open <tool> ↗": the small product line under a task (one home, Words). */
 .home-card-link, .tool-link { color: var(--accent-strong); font-weight: 600; font-size: .9rem; }
 .tool-link { display: inline-block; margin-top: .75rem; padding-block: .35rem; }
+.tool-link + .tool-link { margin-left: 1rem; }
 .tool-link:focus-visible { outline: none; box-shadow: var(--ring); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) :is(.home-card-link, .tool-link) { color: var(--accent); } }
 :root[data-theme="dark"] :is(.home-card-link, .tool-link) { color: var(--accent); }
