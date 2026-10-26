@@ -3,7 +3,7 @@
 import { api, clockTime, h, post, settle, weatherIcon } from "./core.js";
 import { issueTopic, splitIssues } from "./experience.js";
 import { tile } from "./control.js";
-import { homeCards } from "./home-cards.js";
+import { homeCards, labLink } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
@@ -67,6 +67,7 @@ export function band(p, cam = null) {
     ? ["Done in about ", h("strong", {}, p.left), finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
     : [p.detail || ""];
   const cls = p.state === "printing" ? "band is-printing" : "band";
+  const lab = labLink(p);
 
   const camElement = (cam && cam.ok) ? h("a", {
     href: "/workshop?from=home",
@@ -102,6 +103,7 @@ export function band(p, cam = null) {
           h("div", { class: "line-bead", style: `width:${pct}%` }),
           h("div", { class: "line-nozzle", style: `left:${pct}%` })),
         h("p", { class: "band-detail" }, ...detail),
+        lab ? h("a", { class: "tool-link", href: lab.href, target: "_blank", rel: "noopener" }, lab.label) : null,
         temps
       ),
       camElement
@@ -320,7 +322,8 @@ function homeCard(c, cam, onDone) {
     showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
     c.action?.do ? cardButton(c.action, onDone)
       : c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
-    c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null);
+    c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null,
+    c.lab ? h("a", { class: "home-card-link meta", ...go(c.lab.href) }, c.lab.label) : null);
 }
 
 export function mount(state) {

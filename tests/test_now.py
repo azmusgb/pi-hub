@@ -225,3 +225,41 @@ def test_camera_says_why_when_the_printer_shares_no_video(monkeypatch):
     assert c.get("/api/camera").json()["reason"] == "printer_unreachable"
     monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: True)
     assert c.get("/api/camera").json()["reason"] is None
+
+
+# ---- Print lab link: the printer card links Local AI's Print lab while a lab experiment is printing ----
+
+def test_lab_link_only_while_a_lab_experiment_prints():
+    lab = {"experiment": "E-020"}
+    assert now.printer(HEALTHY, None, lab)["lab"] == lab
+    paused = {**HEALTHY, "x2d_state": "Paused"}
+    assert now.printer(paused, None, lab)["lab"] == lab
+    idle = {**HEALTHY, "x2d_state": "Idle"}
+    assert "lab" not in now.printer(idle, None, lab)
+    assert "lab" not in now.printer(HEALTHY, None, None)
+
+
+def test_localai_lab_reads_the_projects_feed(monkeypatch):
+    feed = {"projects": [{"name": "other", "live": None}, {"name": "hex-tile", "live": {"experiment": "E-020", "state": "printing"}}]}
+    monkeypatch.setattr(sources, "_localai_lab_projects", lambda: feed)
+    sources._cache.pop("localai-lab", None)
+    assert sources.localai_lab() == {"experiment": "E-020"}
+    for bad in ({"projects": [{"live": {"experiment": "<img src=x>"}}]}, {"projects": [{"live": None}]}, {"projects": "x"}, None):
+        monkeypatch.setattr(sources, "_localai_lab_projects", lambda bad=bad: bad)
+        sources._cache.pop("localai-lab", None)
+        assert sources.localai_lab() is None
+
+    def down():
+        raise OSError("no route")
+    monkeypatch.setattr(sources, "_localai_lab_projects", down)
+    sources._cache.pop("localai-lab", None)
+    assert sources.localai_lab() is None
+
+
+def test_now_and_workshop_carry_the_lab_link(monkeypatch):
+    monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
+    monkeypatch.setattr(sources, "bambuddy_printer", lambda: None)
+    monkeypatch.setattr(sources, "localai_lab", lambda: {"experiment": "E-020"})
+    c = TestClient(hub_app.app)
+    assert c.get("/api/now").json()["printer"]["lab"] == {"experiment": "E-020"}
+    assert c.get("/api/workshop").json()["printer"]["lab"] == {"experiment": "E-020"}

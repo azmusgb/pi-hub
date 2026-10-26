@@ -7,6 +7,7 @@
 """
 import json
 import os
+import re
 import ssl
 import threading
 import time
@@ -186,6 +187,33 @@ def _localai_feed():
 
 def localai_feed():
     return cached("localai-feed", 30, _localai_feed)
+
+
+LAB_EXPERIMENT = re.compile(r"E-\d{1,6}")
+
+
+def _localai_lab_projects():
+    # Local AI's print lab list: each project with `live`, the experiment that is printing (Print lab page, 26 Oct).
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request("https://10.0.0.21/api/lab/projects", headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=4, context=ctx) as r:
+        return json.loads(r.read(256 * 1024))
+
+
+def _localai_lab():
+    projects = (_localai_lab_projects() or {}).get("projects")
+    for p in projects if isinstance(projects, list) else []:
+        exp = ((p or {}).get("live") or {}).get("experiment") if isinstance(p, dict) else None
+        if isinstance(exp, str) and LAB_EXPERIMENT.fullmatch(exp):
+            return {"experiment": exp}
+    return None
+
+
+def localai_lab():
+    """The print lab experiment that is printing, as {"experiment": "E-020"}, or None (none, or Local AI is quiet)."""
+    return cached("localai-lab", 30, _localai_lab)
 
 
 def _world():

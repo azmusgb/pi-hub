@@ -20,7 +20,7 @@ def printer_actions(b):
                                 ("resume", state == "PAUSE")) if fits]
 
 
-def printer(s, b=None):
+def printer(s, b=None, lab=None):
     if s is None and b is None:
         return {"state": "none", "headline": "No status yet",
                 "detail": "The Pi's status service isn't answering."}
@@ -66,6 +66,10 @@ def printer(s, b=None):
         res["filament_type"] = b.get("filament_type")
         res["filament_color"] = b.get("filament_color")
         res["bambuddy_connected"] = b.get("connected")
+
+    # Local AI's Print lab, while one of its experiments is the print running now.
+    if lab and res["state"] in ("printing", "paused"):
+        res["lab"] = lab
 
     res["actions"] = printer_actions(b)
     if "resume" in res["actions"]:
@@ -128,7 +132,7 @@ def summary(found):
     return f"{len(found)} things need a look" if bad else f"{len(found)} small things to check"
 
 
-def build(s, sessions, sampler, disk_free, network=None, bambuddy=None):
+def build(s, sessions, sampler, disk_free, network=None, bambuddy=None, lab=None):
     found = issues(s)
     svc = (s or {}).get("services") or {}
     drive_ok = (s or {}).get("drive_state") == "Connected"
@@ -139,7 +143,7 @@ def build(s, sessions, sampler, disk_free, network=None, bambuddy=None):
         "status_available": s is not None or bambuddy is not None,
         "summary": summary(found),
         "issues": found,
-        "printer": printer(s, bambuddy),
+        "printer": printer(s, bambuddy, lab),
         "network": network,
         "movies": {
             "tone": _tone(svc.get("plex") and drive_ok, warn=svc.get("plex")) if movie_known else "warn",
