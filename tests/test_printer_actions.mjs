@@ -72,3 +72,29 @@ test('a refresh that draws new buttons mid-action cannot send a second request',
   await first;
   assert.equal(printerBusy(), false);
 });
+
+// The wall's printer badge says what the printer is doing, not "IDLE" whenever it isn't printing (look review, 25 Oct).
+test('kioskBadge names each printer state', async () => {
+  const { kioskBadge } = await import('../hub/static/js/printer-actions.js');
+  assert.deepEqual(kioskBadge({ state: 'printing' }), { label: 'PRINTING', tone: 'ok' });
+  assert.deepEqual(kioskBadge({ state: 'paused' }), { label: 'PAUSED', tone: 'warn' });
+  assert.deepEqual(kioskBadge({ state: 'error' }), { label: 'NEEDS ATTENTION', tone: 'bad' });
+  assert.deepEqual(kioskBadge({ state: 'stopped', actions: ['clear'] }), { label: 'CLEAR THE PLATE', tone: 'warn' });
+  assert.deepEqual(kioskBadge({ state: 'stopped' }), { label: 'STOPPED', tone: 'text-3' });
+  assert.deepEqual(kioskBadge({ state: 'idle' }), { label: 'IDLE', tone: 'text-3' });
+  assert.deepEqual(kioskBadge({}), { label: 'NO STATUS', tone: 'text-3' });
+});
+
+test('the wall camera falls back to words when there is no picture', async () => {
+  const fs = await import('node:fs');
+  const now = fs.readFileSync(new URL('../hub/static/js/now.js', import.meta.url), 'utf8');
+  assert.match(now, /cam && cam\.ok\s*\?\s*h\("img"/);
+  assert.match(now, /onerror/);
+  assert.match(now, /No picture from the printer right now/);
+});
+
+test('the first printer action is the primary button', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../hub/static/js/printer-actions.js', import.meta.url), 'utf8');
+  assert.match(src, /i \? "btn ghost" : "btn btn--primary"/);
+});

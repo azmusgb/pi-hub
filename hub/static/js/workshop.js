@@ -98,7 +98,8 @@ function shelf(spools) {
     return h("li", { class: "spool", dataset: { low: String(s.low) } },
       h("span", { class: "swatch", style: `background:${s.hex || "#888"}`, "aria-hidden": "true" }),
       h("span", { class: "spool-main" }, h("strong", {}, s.colour), h("span", { class: "meta" }, [s.material, s.brand].filter(Boolean).join(", "))),
-      h("span", { class: "spool-left" }, h("span", { class: "meter" }, h("i", { style: `width:${pct}%`, dataset: { tone: s.low ? "bad" : pct < 35 ? "warn" : "ok" } })),
+      // An unweighed spool's amount is unknown: no bar rather than a full green one.
+      h("span", { class: "spool-left" }, s.measured ? h("span", { class: "meter" }, h("i", { style: `width:${pct}%`, dataset: { tone: s.low ? "bad" : pct < 35 ? "warn" : "ok" } })) : null,
         h("span", { class: "grams" }, s.measured ? `${s.grams_left} g` : "not weighed")));
   });
   return card("Filament", { cls: "wide", pill: low.length ? `${low.length} running low` : spools.length ? `${spools.length} spools` : null, tone: low.length ? "bad" : "ok" },

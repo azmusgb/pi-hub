@@ -359,7 +359,7 @@ kbd {
   position: fixed; inset: 0; z-index: var(--z-palette);
   display: grid; place-items: center; padding: 1.5rem;
 }
-.modal-backdrop { position: absolute; inset: 0; background: rgba(10, 8, 5, .55); backdrop-filter: blur(6px); }
+.modal-backdrop { position: absolute; inset: 0; background: rgb(var(--shade-rgb) / .55); backdrop-filter: blur(6px); }
 .modal-panel {
   position: relative; width: 100%; max-width: 440px;
   padding: 1.5rem; border-radius: var(--r-lg);
@@ -422,7 +422,7 @@ kbd {
 .palette[hidden] { display: none; }
 .palette-backdrop {
   position: absolute; inset: 0;
-  background: rgba(10, 8, 5, .48);
+  background: rgb(var(--shade-rgb) / .48);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: fade-in .2s var(--smooth);
@@ -489,7 +489,7 @@ kbd {
 .shortcuts[hidden] { display: none; }
 .shortcuts-backdrop {
   position: absolute; inset: 0;
-  background: rgba(10, 8, 5, .48); backdrop-filter: blur(8px);
+  background: rgb(var(--shade-rgb) / .48); backdrop-filter: blur(8px);
 }
 .shortcuts-panel {
   position: relative; width: 100%; max-width: 520px;

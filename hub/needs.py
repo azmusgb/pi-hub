@@ -6,6 +6,7 @@ import re
 
 PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
+ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 
 
@@ -54,4 +55,10 @@ def build(events, feed, now, issues=()):
     if p:
         items.append(p)
     items.sort(key=lambda i: (ORDER[i["tone"]], -i["ts"]))
+    # One row for the printer: the hub's own print event first, else the most urgent of the others that name it
+    # (Local AI's "Heads up", the Pi's alert for the X2D say the same thing).
+    printer = [i for i in items if i["source"] == "Printer" or ABOUT_PRINTER.search(f'{i["title"]} {i["detail"]}')]
+    if len(printer) > 1:
+        keep = next((i for i in printer if i["source"] == "Printer"), printer[0])
+        items = [i for i in items if i is keep or i not in printer]
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k != "ts"} for i in items], "unread": unread}

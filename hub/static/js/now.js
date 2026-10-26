@@ -7,7 +7,7 @@ import { homeCards } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
-import { PRINTER_ACTIONS, printerBusy, runPrinterAction } from "./printer-actions.js";
+import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 
 export const every = 15;
 
@@ -114,6 +114,7 @@ function workshopKioskConsole(d, cam, home, state) {
   const w = d.workshop || {};
   const isPrinting = p.state === "printing" || p.state === "paused";
   const pct = p.progress || 0;
+  const badge = kioskBadge(p);
 
   const camHud = h("div", { class: "kiosk-hud-overlay" },
     p.nozzle_temp !== undefined && p.nozzle_temp !== null
@@ -128,13 +129,16 @@ function workshopKioskConsole(d, cam, home, state) {
     w.display ? h("span", { class: "kiosk-hud-chip", style: "margin-left: auto; opacity: 0.85;" }, `WS350 Screen: ${w.display}`) : null
   );
 
+  // No picture (the camera bridge is down, or the image fails to load): say so in words, not a broken-image icon.
+  const noPicture = () => h("p", { class: "kiosk-cam-none" }, "No picture from the printer right now.");
   const camContainer = h("div", { class: "kiosk-cam-container" },
-    h("img", {
+    cam && cam.ok ? h("img", {
       class: "kiosk-cam-img",
       src: `/api/camera.jpg?t=${Date.now()}`,
       alt: "Workshop live nozzle camera",
-      loading: "eager"
-    }),
+      loading: "eager",
+      onerror: (e) => e.target.replaceWith(noPicture()),
+    }) : noPicture(),
     (cam && cam.ok) ? h("span", { class: "kiosk-cam-badge" }, "● LIVE") : null,
     camHud
   );
@@ -168,8 +172,8 @@ function workshopKioskConsole(d, cam, home, state) {
           h("span", { style: "font-size: 1.15rem;" }, "🖨️"),
           h("h2", { style: "margin: 0; font-size: 1.15rem; font-weight: 700;" }, "Bambu X2D Workshop"),
           h("span", {
-            style: `font-size: .6875rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--${isPrinting ? 'ok' : 'text-3'}) 15%, transparent); color: var(--${isPrinting ? 'ok' : 'text-3'});`
-          }, isPrinting ? "PRINTING" : "IDLE")
+            style: `font-size: .6875rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--${badge.tone}) 15%, transparent); color: var(--${badge.tone});`
+          }, badge.label)
         ),
         h("p", { style: "margin: .35rem 0 0; color: var(--text-2); font-size: .875rem;" }, jobSubtitle)
       ),
@@ -193,7 +197,7 @@ function workshopLightCard(light, state) {
     h("span", { class: "meta", style: "font-size: .75rem; margin-top: .1rem;" }, "Govee Workbench Illumination")
   );
   const stateLabel = h("span", {
-    style: `font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: color-mix(in srgb, ${isOn ? 'var(--warn)' : 'var(--text-3)'} 20%, transparent); color: ${isOn ? 'var(--warn)' : 'var(--text-3)'}; margin-right: .75rem;`
+    style: `font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: color-mix(in srgb, ${isOn ? 'var(--accent)' : 'var(--text-3)'} 20%, transparent); color: ${isOn ? 'var(--accent)' : 'var(--text-3)'}; margin-right: .75rem;`
   }, isOn ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off");
   const btnAction = h("span", { class: "chip", style: "font-size: .8rem; font-weight: 700;" }, isOn ? "Turn Off" : "Turn On");
 
@@ -207,8 +211,8 @@ function workshopLightCard(light, state) {
         light.on = !light.on;
         toggleBtn.classList.toggle("is-on", light.on);
         stateLabel.textContent = light.on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
-        stateLabel.style.background = `color-mix(in srgb, ${light.on ? 'var(--warn)' : 'var(--text-3)'} 20%, transparent)`;
-        stateLabel.style.color = light.on ? 'var(--warn)' : 'var(--text-3)';
+        stateLabel.style.background = `color-mix(in srgb, ${light.on ? 'var(--accent)' : 'var(--text-3)'} 20%, transparent)`;
+        stateLabel.style.color = light.on ? 'var(--accent)' : 'var(--text-3)';
         bulbIcon.style.opacity = light.on ? "1" : "0.45";
         btnAction.textContent = light.on ? "Turn Off" : "Turn On";
       } catch (e) {

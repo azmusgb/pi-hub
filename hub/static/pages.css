@@ -17,7 +17,7 @@ body.wall .stage { padding-bottom: 0; }
 .stack { display: grid; gap: 1.5rem; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .empty { color: var(--muted); margin: 0.2rem 0; }
-.note { margin: 0.6rem 0 0; padding: 0.6rem 0.8rem; border-radius: 12px; background: rgb(var(--warn-rgb) / 0.1); color: var(--warn-ink); }
+.note { margin: 0.6rem 0 0; padding: 0.6rem 0.8rem; border-radius: 12px; background: rgb(var(--warn-rgb) / 0.1); color: var(--text); border-left: 3px solid var(--warn); }
 .dot { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--muted); flex: none; }
 .dot[data-tone="ok"] { background: var(--ok); }
 .dot[data-tone="warn"] { background: var(--warn); }
@@ -29,10 +29,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: 0; border-radius: 12px; padding: 0.7rem 1.2rem; min-height: 44px;
   background: var(--pei); color: var(--on-pei); font-weight: 800;
 }
-/* White on the light theme's amber is 4.2:1; the deeper amber passes. Dark keeps dark text on light amber. */
+/* Light theme: the deeper accent under white text; dark keeps dark text on the light accent. */
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .primary { background: var(--pei-deep); } }
 :root[data-theme="light"] .primary { background: var(--pei-deep); }
-.primary:hover { background: #dcbd80; }
+.primary:hover { background: color-mix(in srgb, var(--pei) 88%, var(--text)); }
 .primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .ghost { border: 1px solid var(--acrylic-edge); background: transparent; border-radius: 10px; padding: 0.45rem 0.8rem; min-height: 40px; color: var(--ink); }
 .ghost:hover { background: var(--acrylic); }
