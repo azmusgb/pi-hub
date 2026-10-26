@@ -1,0 +1,16 @@
+#!/usr/sbin/nft -f
+# One home, step 6 (lock): Bambuddy's :8000 answers only its machine callers. The browser way in is the gate,
+# https://bambuddy.home.arpa (Caddy reaches it on 127.0.0.1). Its own table, so Docker rebuilding `ip filter` never
+# removes it; it runs just before Docker's forward rules and sees the address the caller dialled (ct original).
+#   127.0.0.0/8, 172.16.0.0/12  the Pi itself and its containers
+#   10.0.0.30                   the Pi by its LAN address (Uptime Kuma, on host networking)
+#   10.0.0.21                   the PC: Local AI's Materials and printer control, with Bambuddy API keys
+#   10.0.0.16                   the Mac: print-lab (needs a DHCP reservation on the Orbi)
+table ip pi_lock
+delete table ip pi_lock
+table ip pi_lock {
+	chain bambuddy {
+		type filter hook forward priority filter - 1; policy accept;
+		meta l4proto tcp ct original proto-dst 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16 } drop
+	}
+}

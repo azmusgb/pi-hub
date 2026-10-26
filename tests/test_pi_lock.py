@@ -2,6 +2,7 @@
 config files (tests/fixtures/pi-lock, secrets removed) under --root."""
 import importlib.util
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -119,3 +120,35 @@ def test_pi_status_binds_from_the_environment():
     src = (ROOT / "deploy" / "pi-status.py").read_text()
     assert 'os.environ.get("PI_STATUS_BIND", "0.0.0.0")' in src
     assert 'ThreadingHTTPServer(("0.0.0.0"' not in src
+
+
+# Bambuddy keeps :8000 for its machine callers only (Task 4): a table of its own, so Docker rebuilding its chains
+# never removes it.
+NFT = ROOT / "deploy" / "pi-lock-firewall.nft"
+
+
+def test_bambuddy_allow_list():
+    text = NFT.read_text()
+    assert "table ip pi_lock" in text and "table ip filter" not in text
+    assert "hook forward priority filter - 1" in text
+    rule = next(x for x in text.splitlines() if "drop" in x)
+    assert "ct original proto-dst 8000" in rule
+    allowed = re.search(r"\{([^}]*)\}", rule).group(1).replace(" ", "").split(",")
+    assert sorted(allowed) == sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.30", "10.0.0.21", "10.0.0.16"])
+
+
+def test_apply_installs_the_firewall_unit(root):
+    run(root, "apply")
+    assert (root / "etc/pi-lock/firewall.nft").read_text() == NFT.read_text()
+    unit = (root / "etc/systemd/system/pi-lock-firewall.service").read_text()
+    for line in ("After=docker.service", "PartOf=docker.service", "Type=oneshot", "RemainAfterExit=yes",
+                 "ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft", "ExecStop=/usr/sbin/nft delete table ip pi_lock",
+                 "WantedBy=multi-user.target"):
+        assert line in unit, line
+
+
+def test_undo_removes_it(root):
+    run(root, "apply")
+    run(root, "undo")
+    assert not (root / "etc/pi-lock").exists()
+    assert not (root / "etc/systemd/system/pi-lock-firewall.service").exists()

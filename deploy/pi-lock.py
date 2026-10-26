@@ -18,6 +18,8 @@ import subprocess
 from pathlib import Path
 
 BACKUPS = "var/backups/pi-lock"
+HERE = Path(__file__).resolve().parent
+FIREWALL = "etc/systemd/system/pi-lock-firewall.service"
 NETMON = "opt/netmon/docker-compose.yml"
 
 
@@ -89,6 +91,8 @@ EDITS = [
      "# one home, step 6 (pi-lock.py): Cockpit only through the gate\n[Socket]\nListenStream=\nListenStream=127.0.0.1:9090\n"),
     ("pi-status :8099", "etc/systemd/system/pi-status.service.d/lock.conf",
      "# one home, step 6 (pi-lock.py): pi-status only for the hub\n[Service]\nEnvironment=PI_STATUS_BIND=127.0.0.1\n"),
+    ("Bambuddy :8000 rule", "etc/pi-lock/firewall.nft", (HERE / "pi-lock-firewall.nft").read_text()),
+    ("Bambuddy :8000 unit", FIREWALL, (HERE / "pi-lock-firewall.service").read_text()),
 ]
 COMPOSE = {"opt/homebox/compose.yml", "opt/backrest/compose.yml", NETMON}
 RESTART = {"opt/netmon/scripts/orbi_exporter.py": "orbi-exporter", "opt/adguard/conf/AdGuardHome.yaml": "adguard",
@@ -149,10 +153,19 @@ def undo(root):
     return changed
 
 
-def restart(changed):
+def check_firewall():
+    """On the real Pi, before anything changes: the rule must parse, or nothing is applied."""
+    r = subprocess.run(["nft", "-c", "-f", str(HERE / "pi-lock-firewall.nft")], capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit("pi-lock: the Bambuddy rule doesn't check out, nothing changed:\n" + r.stderr)
+
+
+def restart(changed, action):
     """On the real Pi: bring the changed tools up on their new address."""
     sh = lambda *a: subprocess.run(a, check=False)  # noqa: E731 — keep going; status shows what didn't take
     sh("systemctl", "daemon-reload")
+    if FIREWALL in changed and action == "apply":
+        sh("systemctl", "enable", "--now", "pi-lock-firewall")
     for rel in changed:
         if rel in COMPOSE:
             sh("docker", "compose", "-f", "/" + rel, "up", "-d")
@@ -172,9 +185,14 @@ def main(argv=None):
         for name, rel, change in EDITS:
             print(f"{name:24} {state(root, rel, change)}")
         return 0
+    if a.root == "/" and a.action == "apply":
+        check_firewall()
+    if a.root == "/" and a.action == "undo" and (root / FIREWALL).exists():
+        # Before its file goes: stopping runs its ExecStop, which deletes the table.
+        subprocess.run(["systemctl", "disable", "--now", "pi-lock-firewall"], check=False)
     changed = apply(root) if a.action == "apply" else undo(root)
     if a.root == "/" and changed:
-        restart(changed)
+        restart(changed, a.action)
     return 0
 
 

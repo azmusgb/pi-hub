@@ -1,0 +1,13 @@
+[Unit]
+Description=One home lock: Bambuddy :8000 only for its machine callers (pi-lock.py)
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft
+ExecStop=/usr/sbin/nft delete table ip pi_lock
+
+[Install]
+WantedBy=multi-user.target
