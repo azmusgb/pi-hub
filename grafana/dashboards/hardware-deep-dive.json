@@ -64,7 +64,7 @@
       "title": "Uptime Kuma",
       "tooltip": "Open Uptime Kuma",
       "type": "link",
-      "url": "http://10.0.0.30:3001"
+      "url": "https://status.home.arpa/"
     }
   ],
   "refresh": "5s",
