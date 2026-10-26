@@ -3,7 +3,7 @@
 
     sudo python3 pi-lock.py apply    rebind every tool (backs up each file it changes, once)
     sudo python3 pi-lock.py undo     put every file back from those backups and restart what changed
-    sudo python3 pi-lock.py status   one line per change: locked / open / missing
+    sudo python3 pi-lock.py status   one line per change: locked / open / missing / unrecognised
 
 Edits are text edits, line by line (the Pi has no PyYAML), and each is idempotent. Backups live in
 /var/backups/pi-lock/<the file's path>; the first one is kept, so a second apply never overwrites the original.
@@ -120,14 +120,26 @@ RESTART = {"opt/netmon/scripts/orbi_exporter.py": "orbi-exporter", "opt/adguard/
            "etc/systemd/system/pi-status.service.d/lock.conf": "pi-status"}
 
 
-def state(root, rel, change):
+# What each edit leaves in its file. An edit that changes nothing is only "locked" if this is there; otherwise the file
+# isn't in the shape the edit knows (an unquoted port, a different address) and the tool may still be open.
+MARKS = {"Homebox :7745": '"127.0.0.1:7745:', "Backrest :9898": '"127.0.0.1:9898:',
+         "Grafana :3000": "GF_SERVER_HTTP_ADDR=127.0.0.1", "Uptime Kuma :3001": "UPTIME_KUMA_HOST=127.0.0.1",
+         "node_exporter :9100": "--web.listen-address=127.0.0.1:9100",
+         "blackbox :9115": "--web.listen-address=127.0.0.1:9115",
+         "Orbi exporter :9120": '("127.0.0.1", LISTEN_PORT)', "AdGuard web :3002": "  address: 127.0.0.1:3002\n",
+         "AdGuard web flag": '"--web-addr", "127.0.0.1:3002"', "Homebridge UI :8581": '"host": "127.0.0.1"'}
+
+
+def state(root, name, rel, change):
     p = root / rel
     if isinstance(change, str):
         return "locked" if p.exists() and p.read_text() == change else "open"
     if not p.exists():
         return "missing"
     text = p.read_text()
-    return "locked" if change(text) == text else "open"
+    if change(text) != text:
+        return "open"
+    return "locked" if MARKS[name] in text else "unrecognised"
 
 
 def apply(root):
@@ -173,8 +185,8 @@ def targets(root):
     """Every file whose edit is in place: on the Pi, apply brings each one up again, so a re-run after an
     interrupted apply still finishes the job (restarts and `up -d` are safe to repeat)."""
     out = []
-    for _, rel, change in EDITS:
-        if state(root, rel, change) == "locked" and rel not in out:
+    for name, rel, change in EDITS:
+        if state(root, name, rel, change) == "locked" and rel not in out:
             out.append(rel)
     return out
 
@@ -241,7 +253,7 @@ def main(argv=None):
     root = Path(a.root)
     if a.action == "status":
         for name, rel, change in EDITS:
-            print(f"{name:24} {state(root, rel, change)}")
+            print(f"{name:24} {state(root, name, rel, change)}")
         return 0
     if a.root == "/" and a.action == "apply":
         check_firewall()

@@ -39,7 +39,7 @@ the PC; bash + curl for the check.
 | 22 | ssh (PC backup pull, admin) | open |
 | 53 | AdGuard DNS | open (the names depend on it) |
 | 80, 443 | Caddy, the gate | open |
-| 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
+| 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab), the Workshop display 10.0.0.124 (clears the plate itself when the PC is off). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
 | 8091 | X2D camera frames | open: the Workshop display (10.0.0.124) reads `http://10.0.0.30:8091/x2d/frame.jpg` (found during Task 3) |
 | 32400 | Plex | open (players on the TV and phones need it; not a gated tool) |
 | 51125, 45665 | Homebridge's HomeKit bridges | open (HomeKit needs them); only the UI, 8581, closes |
@@ -84,7 +84,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   - `ready` and `locked`: `dig +short home.home.arpa` is `10.0.0.30`; `https://home.home.arpa/healthz` → 200 with
     a trusted certificate; `http://10.0.0.30/api/now` is not a redirect (any of 200/401/403);
     `http://10.0.0.30/home-ca.crt` → 200.
-  - `locked` only: each of `10.0.0.30:` 3000 3001 3002 7745 8091 8099 8581 9090 9100 9115 9120 9898 refuses or
+  - `locked` only: each of `10.0.0.30:` 3000 3001 3002 7745 8099 8581 9090 9100 9115 9120 9898 refuses or
     times out (curl code `000`); `10.0.0.21:8010` → `000`; `http://10.0.0.30/workshop` → 308 with
     `Location: https://home.home.arpa/workshop`; `http://10.0.0.30/api/shortcut/x` and
     `/api/webhook/bambuddy` (GET) → not 308; `10.0.0.30:8000` from the Mac → 200 only if this Mac's address is in
@@ -184,7 +184,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 **Interfaces:**
 - The rule file adds `table inet pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
   Docker's own) that drops `ct original proto-dst 8000` unless `ip saddr` is in
-  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16 }` (10.0.0.30: Uptime Kuma, on host networking, checks `http://10.0.0.30:8000`). A separate table is used so Docker rebuilding
+  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124 }` (10.0.0.124: the Workshop display's PC-off plate clear; 10.0.0.30: Uptime Kuma, on host networking, checks `http://10.0.0.30:8000`). A separate table is used so Docker rebuilding
   `ip filter` never removes it. The unit is `Type=oneshot`, `RemainAfterExit=yes`,
   `Before=docker.service` (no `PartOf`: a Docker stop must not drop it), `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
   `ExecStop=/usr/sbin/nft delete table inet pi_lock`. The table is `inet`, with a forward chain (Docker's NAT) and an

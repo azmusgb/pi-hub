@@ -131,7 +131,7 @@ def test_bambuddy_allow_list():
     text = NFT.read_text()
     assert "table inet pi_lock {" in text and "table ip filter" not in text
     assert "hook forward priority filter - 1" in text and "hook input priority filter - 1" in text
-    want = sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.30", "10.0.0.21", "10.0.0.16"])
+    want = sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.30", "10.0.0.21", "10.0.0.16", "10.0.0.124"])
     rules = [x for x in text.splitlines() if x.strip().endswith("drop")]
     # Docker's NAT path (forward, the port the caller dialled) and docker-proxy's own sockets (input), IPv4 and IPv6.
     fwd = next(x for x in rules if "ct original proto-dst 8000" in x and "ip saddr" in x)
@@ -140,6 +140,8 @@ def test_bambuddy_allow_list():
         assert sorted(re.search(r"\{([^}]*)\}", rule).group(1).replace(" ", "").split(",")) == want
     assert any("tcp dport 8000" in x and "ip6 saddr != ::1" in x for x in rules)
     assert any("ct original proto-dst 8000" in x and "meta nfproto ipv6" in x for x in rules)
+    # Only connections Docker forwarded to a published port (DNAT), not anything else the Pi might ever route.
+    assert all("ct status dnat" in x for x in rules if "ct original" in x)
 
 
 def test_apply_installs_the_firewall_unit(root):
@@ -215,3 +217,14 @@ def test_a_file_replaced_after_the_lock_becomes_the_new_original(root):
     run(root, "apply")
     run(root, "undo")
     assert (root / "opt/netmon/docker-compose.yml").read_text() == fresh
+
+
+def test_a_file_the_lock_does_not_recognise_is_not_called_locked(root, capsys):
+    # A port written without quotes doesn't match the edit; status must say so rather than "locked".
+    p = root / "opt/homebox/compose.yml"
+    p.write_text(p.read_text().replace('"7745:7745"', "7745:7745"))
+    run(root, "apply")
+    capsys.readouterr()
+    run(root, "status")
+    line = next(x for x in capsys.readouterr().out.splitlines() if x.startswith("Homebox"))
+    assert line.split()[-1] == "unrecognised"
