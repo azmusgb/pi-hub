@@ -30,30 +30,38 @@ def _printer(events, now):
         if e["kind"] == "print_finished":
             if now - e["ts"] > PRINT_HOURS * 3600:
                 return None
-            return {"source": "Printer", "tone": "attention", "title": "Clear the plate",
+            return {"id": "printer:plate", "source": "Printer", "tone": "attention", "title": "Clear the plate",
                     "detail": print_detail(e.get("detail"), "Finished"), "link": "/workshop", "ts": e["ts"]}
         if e["kind"] == "print_failed":
             if now - e["ts"] > PRINT_HOURS * 3600:
                 return None
-            return {"source": "Printer", "tone": "bad", "title": "The print failed",
+            return {"id": "printer:failed", "source": "Printer", "tone": "bad", "title": "The print failed",
                     "detail": print_detail(e.get("detail"), "Failed"), "link": "/workshop", "ts": e["ts"]}
     return None
 
 
 def build(events, feed, now, issues=()):
-    items = [{"source": "Pi Hub", "tone": i["tone"] if i.get("tone") in ORDER else "warn", "title": i["what"],
+    items = [{"id": "pi:" + i["what"], "source": "Pi Hub", "tone": i["tone"] if i.get("tone") in ORDER else "warn", "title": i["what"],
               "detail": i.get("say", ""), "link": "/pi", "ts": now} for i in issues]
     unread = []
     if feed is None:
         unread.append("Local AI")
     else:
         for c in feed.get("cards") or []:
-            if c.get("tone") in ORDER:
-                items.append({"source": "Local AI", "tone": c["tone"], "title": str(c.get("title", ""))[:80],
-                              "detail": str(c.get("text", ""))[:200], "link": ASSISTANT, "ts": now})
+            tone = "warn" if c.get("tone") == "warning" else c.get("tone")
+            if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
+                continue
+            items.append({"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
+                          "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
+                          "link": ASSISTANT, "ts": now})
     p = _printer(events or [], now)
     if p:
         items.append(p)
+    seen = {}
+    for i in items:  # ids stay unique within a build (cards without their own id fall back to their kind)
+        n = seen[i["id"]] = seen.get(i["id"], 0) + 1
+        if n > 1:
+            i["id"] = f'{i["id"]}#{n}'
     items.sort(key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     # One row for the printer: the hub's own print event first, else the most urgent of the others that name it
     # (Local AI's "Heads up", the Pi's alert for the X2D say the same thing).
