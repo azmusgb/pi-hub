@@ -28,7 +28,22 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
       for (const v of axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))) {
         problems.push(`${where}: axe ${v.id} (${v.nodes.length})`);
       }
-      if (path === WALL) { await page.screenshot({ path: `${OUT}${key}-${width}-${colorScheme}.png` }); continue; }
+      if (path === WALL) {
+        // Wide screens: the wall's cards use the whole width, not a narrow column beside an empty one.
+        if (width >= 1200) {
+          const used = await page.evaluate(() => {
+            const head = document.querySelector('.wall-head').getBoundingClientRect(), rows = document.querySelector('.now-layout').getBoundingClientRect();
+            return rows.width / head.width;
+          });
+          if (used < 0.9) problems.push(`${where}: the wall's cards use ${Math.round(used * 100)}% of its width`);
+        }
+        await page.screenshot({ path: `${OUT}${key}-${width}-${colorScheme}.png` }); continue;
+      }
+      // The header (with the clock) and the footer line up with the content's right edge.
+      if (width >= 861) {
+        const edges = await page.evaluate(() => ['.top', '#view', '.foot'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().right)));
+        if (Math.max(...edges) - Math.min(...edges) > 2) problems.push(`${where}: header, content and footer end at ${edges.join(', ')}`);
+      }
       const assistant = page.locator(width < 861 ? '.top-assistant' : '.rail-assistant');
       if (!(await assistant.isVisible())) problems.push(`${where}: Assistant not visible`);
       if (await assistant.locator('.nav-badge').count()) problems.push(`${where}: Assistant has a badge`);

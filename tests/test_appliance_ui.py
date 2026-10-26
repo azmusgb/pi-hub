@@ -49,7 +49,7 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v94" in sw
+    assert "pi-hub-shell-v95" in sw
 
 
 def _kit():
