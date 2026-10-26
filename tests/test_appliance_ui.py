@@ -49,7 +49,7 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v92" in sw
+    assert "pi-hub-shell-v93" in sw
 
 
 def _kit():
@@ -122,3 +122,11 @@ def test_colour_triples_are_space_separated():
     bad = [f"{os.path.basename(p)}: {m}" for p in glob.glob(os.path.join(STATIC, "*.css"))
            for m in re.findall(r"--[a-z-]+-rgb:\s*[^;]*,[^;]*;", open(p).read())]
     assert bad == []
+
+
+def test_meter_fill_starts_at_3_to_1_on_the_well():
+    # The fill's light end is the status colour at 85% over white: at 70% it was 2.95 on the light well (3:1 needed).
+    css = open(os.path.join(STATIC, "enhance.css")).read()
+    for tone, var in (("ok", "ok"), ("warn", "warn"), ("danger", "danger")):
+        rule = re.search(r"\.meter--%s \.meter-bar::after\s*\{([^}]*)\}" % tone, css).group(1)
+        assert f"color-mix(in srgb, var(--{var}) 85%, white)" in rule, tone

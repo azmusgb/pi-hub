@@ -208,9 +208,9 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
   border-radius: inherit;
   transition: width .5s var(--spring);
 }
-.meter--ok .meter-bar::after    { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 70%, white), var(--ok)); }
-.meter--warn .meter-bar::after  { background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 70%, white), var(--warn)); }
-.meter--danger .meter-bar::after { background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 70%, white), var(--danger)); }
+.meter--ok .meter-bar::after    { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 85%, white), var(--ok)); }
+.meter--warn .meter-bar::after  { background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 85%, white), var(--warn)); }
+.meter--danger .meter-bar::after { background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 85%, white), var(--danger)); }
 
 /* ---------- Gauge ---------- */
 .gauge {
