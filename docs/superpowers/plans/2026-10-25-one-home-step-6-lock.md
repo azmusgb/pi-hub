@@ -62,7 +62,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 3. **HomeKit and DNS keep working:** only Homebridge's UI host and AdGuard's web address change. Pinned in Task 3
    (`test_homebridge_bridge_port_untouched`, `test_adguard_dns_untouched`).
 4. **Docker restarts or the Pi reboots:** the Bambuddy rule must come back after Docker rebuilds its chains. Pinned
-   in Task 4 (the unit runs `After=docker.service` with `PartOf=docker.service`; `test_rule_survives_docker_restart`
+   in Task 4 (the unit loads `Before=docker.service`, independent of it, with no `PartOf`; `test_rule_survives_docker_restart`
    is the live step in Task 6).
 5. **A browser on the old address with a path** (`http://10.0.0.30/workshop`): it lands on the same page on the
    gate, not on Home. Pinned in Task 2 (`test_browsers_keep_their_path`).
@@ -182,12 +182,13 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   `tests/test_pi_lock.py`
 
 **Interfaces:**
-- The rule file adds `table ip pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
+- The rule file adds `table inet pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
   Docker's own) that drops `ct original proto-dst 8000` unless `ip saddr` is in
   `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16 }` (10.0.0.30: Uptime Kuma, on host networking, checks `http://10.0.0.30:8000`). A separate table is used so Docker rebuilding
   `ip filter` never removes it. The unit is `Type=oneshot`, `RemainAfterExit=yes`,
-  `After=docker.service`, `PartOf=docker.service`, `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
-  `ExecStop=/usr/sbin/nft delete table ip pi_lock`.
+  `Before=docker.service` (no `PartOf`: a Docker stop must not drop it), `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
+  `ExecStop=/usr/sbin/nft delete table inet pi_lock`. The table is `inet`, with a forward chain (Docker's NAT) and an
+  input chain (docker-proxy's own sockets), IPv6 only from ::1 (security review).
 
 - [ ] **Step 1: Failing tests:** `test_bambuddy_allow_list` (the file names exactly those four sources and
   `ct original proto-dst 8000`, and the table is `ip pi_lock`, not `ip filter`);
