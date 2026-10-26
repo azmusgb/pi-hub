@@ -32,7 +32,15 @@ function needsCard(needs) {
   };
 }
 
+// Local AI's Print lab for the experiment printing now (the hub reads it from Local AI's lab list), or null.
+export function labLink(p, host) {
+  const id = p?.lab?.experiment;
+  if (typeof id !== "string" || !/^E-\d{1,6}$/.test(id)) return null;
+  return { label: `Print lab: ${id} ↗`, href: `${toolUrl("assistant", host)}#printLab?e=${id}` };
+}
+
 function workshopCard(p, at, host) {
+  const lab = labLink(p, host);
   const done = Number.isFinite(p?.minutes_left)
     ? new Date(at.getTime() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
   const status = p?.state === "printing" ? `Printing, ${p.progress}%${done ? ` · done ${done}` : ""}`
@@ -43,10 +51,10 @@ function workshopCard(p, at, host) {
   const tone = p?.state === "error" ? "bad" : ["printing", "idle", "stopped"].includes(p?.state) ? "ok" : "warn";
   if (p?.actions?.includes("clear")) {  // finished or failed: the plate comes first
     return { key: "workshop", title: "Bambu X2D", status: p.headline, tone: p.state === "error" ? "bad" : "warn",
-      action: { label: "Clear the plate", do: "clear" }, link: { label: "Workshop", href: "/workshop" } };
+      action: { label: "Clear the plate", do: "clear" }, link: { label: "Workshop", href: "/workshop" }, lab };
   }
   return { key: "workshop", title: "Bambu X2D", status, tone,
-    action: { label: "Open Bambuddy ↗", href: toolUrl("bambuddy", host) }, link: { label: "Workshop", href: "/workshop" } };
+    action: { label: "Open Bambuddy ↗", href: toolUrl("bambuddy", host) }, link: { label: "Workshop", href: "/workshop" }, lab };
 }
 
 function mediaCard(movies, latest) {
