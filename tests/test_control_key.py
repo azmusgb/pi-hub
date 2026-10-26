@@ -47,3 +47,41 @@ def test_a_reply_without_a_key_stops():
     with pytest.raises(SystemExit) as e:
         control_key.make_key(URL, "bill", "pw", call)
     assert "bb_secret" not in str(e.value) and str(e.value)
+
+
+# The saved password went stale when Bambuddy's sign-in was set up (25 Oct: "HTTP 401 to auth/login"): the owner is asked
+# in their own terminal instead, never in chat.
+def refusing(good_user, good_pw):
+    calls, ok = fake_bambuddy()
+
+    def call(method, url, body, headers):
+        if url.endswith("/api/v1/auth/login") and (body["username"], body["password"]) != (good_user, good_pw):
+            raise control_key.LoginRefused("Bambuddy said HTTP 401 to auth/login.")
+        return ok(method, url, body, headers)
+    return calls, call
+
+
+def test_a_stale_saved_password_falls_back_to_asking():
+    asked = []
+    _, call = refusing("bill", "typed")
+    ask = lambda: asked.append(1) or ("bill", "typed")  # noqa: E731
+    assert control_key.get_key(URL, "bill", "stale", ask, call) == "bb_secret"
+    assert asked == [1]
+
+
+def test_no_saved_password_asks_straight_away():
+    _, call = refusing("owner", "typed")
+    assert control_key.get_key(URL, "bill", None, lambda: ("owner", "typed"), call) == "bb_secret"
+
+
+def test_a_wrong_typed_password_stops_without_showing_it():
+    _, call = refusing("bill", "right")
+    with pytest.raises(SystemExit) as e:
+        control_key.get_key(URL, "bill", "stale", lambda: ("bill", "wrong-secret"), call)
+    assert "wrong-secret" not in str(e.value) and "stale" not in str(e.value) and str(e.value)
+
+
+def test_without_a_terminal_it_does_not_ask():
+    _, call = refusing("bill", "typed")
+    with pytest.raises(SystemExit):
+        control_key.get_key(URL, "bill", "stale", None, call)

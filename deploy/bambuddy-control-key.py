@@ -3,9 +3,11 @@
 
     sudo python3 /opt/pi-hub/current/deploy/bambuddy-control-key.py
 
-It signs in to Bambuddy as `bill` with the password in /etc/pi-hub/secrets/bambuddy_admin, makes an API key that
+It signs in to Bambuddy as `bill` with the password in /etc/pi-hub/secrets/bambuddy_admin; if that is missing or
+Bambuddy refuses it, it asks for the username and password in this terminal (never echoed). It makes an API key that
 can only control printer 1 ("Pi Hub control"), and writes it to /etc/pi-hub/secrets/bambuddy_control_key
 (root:pi-hub 640). It never prints the password or the key. If the key file already has a key, it does nothing."""
+import getpass
 import grp
 import json
 import os
@@ -22,6 +24,10 @@ FLAGS_OFF = ("can_queue", "can_read_status", "can_manage_library", "can_manage_i
              "can_send_notifications")
 
 
+class LoginRefused(SystemExit):
+    """Bambuddy turned the username and password down."""
+
+
 def _call(method, url, body, headers):
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method=method,
                                  headers={"Content-Type": "application/json", **headers})
@@ -29,7 +35,8 @@ def _call(method, url, body, headers):
         with urllib.request.urlopen(req, timeout=10) as r:
             return json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
-        raise SystemExit(f"Bambuddy said HTTP {e.code} to {url.split('/api/v1/')[-1]}.")
+        msg = f"Bambuddy said HTTP {e.code} to {url.split('/api/v1/')[-1]}."
+        raise (LoginRefused if e.code in (401, 403) and url.endswith("/auth/login") else SystemExit)(msg)
     except OSError:
         raise SystemExit("Bambuddy isn't answering on the Pi (port 8000).")
 
@@ -47,6 +54,29 @@ def make_key(url, user, password, call=_call):
     return key
 
 
+def get_key(url, user, saved, ask, call=_call):
+    """The saved password first; if there is none or Bambuddy refuses it, ask once (ask is None without a terminal)."""
+    if saved:
+        try:
+            return make_key(url, user, saved, call)
+        except LoginRefused:
+            if ask is None:
+                raise SystemExit("Bambuddy refused the saved password. Run this in a terminal (ssh -t) to type it.")
+    elif ask is None:
+        raise SystemExit("No saved Bambuddy password. Run this in a terminal (ssh -t) to type it.")
+    typed_user, typed = ask()
+    try:
+        return make_key(url, typed_user or user, typed, call)
+    except LoginRefused:
+        raise SystemExit("Bambuddy didn't accept that username and password. Nothing was made; run it again to retry.")
+
+
+def _ask():
+    print("Bambuddy refused the saved password (or there is none). Sign in to Bambuddy:")
+    who = input(f"  Bambuddy username [{USER}]: ").strip()
+    return who, getpass.getpass("  Bambuddy password (not shown): ")
+
+
 def main():
     if os.geteuid() != 0:
         raise SystemExit("Run it with sudo.")
@@ -57,9 +87,12 @@ def main():
                 return
     except OSError:
         pass
-    with open(ADMIN_FILE) as f:
-        password = f.read().strip()
-    key = make_key(URL, USER, password)
+    try:
+        with open(ADMIN_FILE) as f:
+            saved = f.read().strip()
+    except OSError:
+        saved = None
+    key = get_key(URL, USER, saved, _ask if sys.stdin.isatty() else None)
     os.umask(0o077)
     with open(KEY_FILE, "w") as f:
         f.write(key + "\n")
