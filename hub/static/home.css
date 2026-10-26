@@ -273,10 +273,7 @@ body.wall.night { filter: brightness(0.55); }
 /* Home layout, typography, and spatial balance */
 
 /* ---- Overall Layout Grid ---- */
-#view {
-  max-width: 1280px;
-  margin: 0 auto;
-}
+/* #view takes the stage's width (pages.css), like the header and the footer, so all three end at one edge. */
 
 .now-layout {
   display: grid;
