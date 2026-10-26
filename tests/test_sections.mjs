@@ -76,3 +76,18 @@ test('assistantButton says the PC is off only when Local AI is down', () => {
   assert.deepEqual(assistantButton('Ready'), { label: 'Assistant', disabled: false });
   assert.deepEqual(assistantButton(undefined), { label: 'Assistant', disabled: false });
 });
+
+test('assistantHref never cuts an emoji in half', () => {
+  // A lone surrogate makes encodeURIComponent throw, so the button would stop working on that page.
+  const facts = 'x'.repeat(283) + '😀 more facts after the cut';  // the emoji straddles the 299th unit
+  const href = assistantHref('home.home.arpa', 'Home', facts);
+  const ctx = decodeURIComponent(href.split('context=')[1]);
+  assert.ok(ctx.length <= 300 && ctx.endsWith('…'));
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(ctx));
+});
+
+test('the Assistant state is checked again when the page comes back into view', async () => {
+  const fs = await import('node:fs');
+  const main = fs.readFileSync(new URL('../hub/static/js/main.js', import.meta.url), 'utf8');
+  assert.match(main, /addEventListener\("visibilitychange", \(\) => \{ if \(!document\.hidden\) checkAssistant\(\); \}\)/);
+});

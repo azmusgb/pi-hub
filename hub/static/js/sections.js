@@ -74,7 +74,11 @@ export function resolveLink(href, host = globalThis.location?.hostname || "") {
 const CONTEXT_MAX = 300;
 export function assistantHref(host, title, facts) {
   let text = `Pi Hub › ${title}${facts ? `: ${facts}` : ""}`.replace(/\s+/g, " ").trim();
-  if (text.length > CONTEXT_MAX) text = text.slice(0, CONTEXT_MAX - 1) + "…";
+  if (text.length > CONTEXT_MAX) {
+    let cut = CONTEXT_MAX - 1;
+    if (/[\uD800-\uDBFF]/.test(text[cut - 1])) cut -= 1;  // never half an emoji: encodeURIComponent throws on one
+    text = text.slice(0, cut) + "…";
+  }
   return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
 }
 

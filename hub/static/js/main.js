@@ -28,7 +28,8 @@ for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
   for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
   a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
-// "The PC is off" while the Pi's status service says Local AI is down; checked now and every minute.
+// "The PC is off" while the Pi's status service says Local AI is down; checked now, every minute, and when the page
+// comes back into view (a phone wakes with an hour-old answer otherwise).
 async function checkAssistant() {
   const r = await api("/api/assistant").catch(() => null);
   const { label, disabled } = assistantButton(r?.state);
@@ -42,6 +43,7 @@ async function checkAssistant() {
 }
 checkAssistant();
 setInterval(checkAssistant, 60_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
