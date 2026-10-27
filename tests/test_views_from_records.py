@@ -1,6 +1,7 @@
 """Home, the wall, Needs you and Source responses read the records, so no two of them can disagree."""
 import os
 import tempfile
+import time
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 os.environ.setdefault("HUB_DB", os.path.join(tempfile.mkdtemp(), "hub.db"))
@@ -76,6 +77,35 @@ def test_a_failed_print_links_to_the_workshop_without_a_fix(client):
     issue = d["issues"][0]
     assert issue["what"] == "Bambu X2D" and issue["href"] == "/workshop" and "fix" not in issue
     assert d["printer"]["state"] == "error" and d["printer"]["actions"] == ["clear"]
+
+
+def _quiet_pi(after=600):
+    """A refresh's records, then pi-status stops answering: every record it feeds goes stale."""
+    before = records_from(QUIET, bud(), NET_PC_ON)
+    return {id: (records.merge(r, None, T + after) if r["source"] == "pi_status" else r) for id, r in before.items()}
+
+
+def test_a_quiet_source_is_one_issue_not_one_per_thing(client):
+    client.held.update(_quiet_pi())
+    issues = client.get("/api/now").json()["issues"]
+    since = time.strftime("%H:%M", time.localtime(T))
+    assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/pi",
+                       "say": f"Isn't answering since {since}. Last readings for Local AI, Workshop display, "
+                              "Raspberry Pi, Movies drive, Movie copy from the PC, Smart-home controls "
+                              "are shown as they were."}]
+    items = client.get("/api/needs").json()["items"]
+    assert [(i["id"], i["title"], i["tone"], i["link"]) for i in items] == [
+        ("pi:source:pi_status", "The Pi's status service", "warn", "/pi")]
+    assert items[0]["detail"] == issues[0]["say"]
+
+
+def test_one_stale_record_keeps_its_own_issue(client):
+    before = records_from(QUIET, bud(), NET_PC_ON)
+    client.held.update(before, pi=records.merge(before["pi"], None, T + 600))
+    issues = client.get("/api/now").json()["issues"]
+    assert [i["what"] for i in issues] == ["Raspberry Pi"]
+    assert "not answering since" in issues[0]["say"]
+    assert [i["id"] for i in client.get("/api/needs").json()["items"]] == ["pi:Raspberry Pi"]
 
 
 def test_a_fix_comes_from_the_records_action():

@@ -152,6 +152,7 @@ def _bambuddy():
             "wifi_signal": data.get("wifi_signal"),
             "bambuddy_state": data.get("state"),
             "awaiting_plate_clear": bool(data.get("awaiting_plate_clear")),
+            "remaining_time": data.get("remaining_time"),  # minutes; absent or None between prints
         }
     except Exception:
         return None

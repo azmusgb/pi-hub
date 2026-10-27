@@ -1,10 +1,11 @@
 """Builds the Now screen's data: one plain-words summary plus each area's state.
 
 Every area says what's wrong in words a person can act on, and copes with a
-missing source (it says so instead of guessing). Home and the wall read the records
-(build); printer() and issues() read pi-status directly for the Workshop page, the
-morning digest and Ask, which don't read the records yet.
+missing source (it says so instead of guessing). Home, the wall and the Workshop page
+read the records (build, printer_from); printer() and issues() read pi-status directly
+for the morning digest and Ask, which don't read the records yet.
 """
+import time
 
 
 def _tone(ok, warn=False):
@@ -169,6 +170,14 @@ def _say(rec):
     return f"{head}{'' if head.endswith(('.', '!', '?', ':')) else '.'} {cause}"
 
 
+def _left(minutes):
+    """Bambuddy's minutes left as the page's words ("1 h 5 min", "12 min"); the page puts "Done in about" first."""
+    if minutes is None:
+        return ""
+    h, m = divmod(int(minutes), 60)
+    return " ".join(x for x in (f"{h} h" if h else "", f"{m} min" if m or not h else "") if x)
+
+
 def issue_from(rec):
     """One record that needs a look, as an issue on Home and a row in Needs you."""
     from .records import LABELS
@@ -180,12 +189,39 @@ def issue_from(rec):
     return out
 
 
+def quiet_source(source, recs):
+    """One issue for a source that has gone quiet with two or more of its records stale."""
+    from .records import LABELS, SOURCE_NAMES
+    since = time.strftime("%H:%M", time.localtime(max(r["as_of"] for r in recs)))
+    labels = ", ".join(LABELS.get(r["id"], r["id"]) for r in recs)
+    return {"tone": "warn", "what": SOURCE_NAMES.get(source, source), "href": "/pi",
+            "say": f"Isn't answering since {since}. Last readings for {labels} are shown as they were."}
+
+
+def issue_items(problems):
+    """(key, issue) per row, in the order of `problems`: key is the record's id, or "source:<source>" for one row
+    standing for every stale record of a source that has gone quiet (two or more of them)."""
+    stale = {}
+    for r in problems:
+        if r.get("stale"):
+            stale.setdefault(r["source"], []).append(r)
+    out, done = [], set()
+    for r in problems:
+        group = stale.get(r["source"], []) if r.get("stale") else []
+        if len(group) < 2:
+            out.append((r["id"], issue_from(r)))
+        elif r["source"] not in done:
+            done.add(r["source"])
+            out.append(("source:" + r["source"], quiet_source(r["source"], group)))
+    return out
+
+
 def issues_from(recs):
     """Things that need a person, most urgent first; with no records at all, the hub can't check anything."""
     from .records import problems
     if not recs:
         return [dict(UNAVAILABLE)]
-    return [issue_from(r) for r in problems(recs)]
+    return [i for _, i in issue_items(problems(recs))]
 
 
 # record state -> the printer card's state words (now.js, home-cards.js, printer-actions.js)
@@ -215,9 +251,9 @@ def printer_from(rec):
     actions = [] if stale else [a["name"] for a in rec.get("actions") or []]
     state = PRINTER_STATE.get(rec["state"], "none")
     pct = d.get("last_progress") if rec["state"] == "failed" else d.get("progress")
+    minutes = d.get("minutes_left") if state == "printing" and not stale else None
     res = {"state": state, "headline": rec["headline"], "progress": pct if isinstance(pct, (int, float)) else 0,
-           # Bambuddy gives no time left, and the record doesn't guess one: the page then shows `detail`
-           "left": "", "minutes_left": None,
+           "left": _left(minutes), "minutes_left": minutes,
            "detail": _printer_detail(rec, actions), "stale": stale,
            "temperatures": {"nozzle": d.get("nozzle"), "nozzle_target": d.get("nozzle_target"),
                             "bed": d.get("bed"), "bed_target": d.get("bed_target")},

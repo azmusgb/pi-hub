@@ -4,7 +4,7 @@ went offline", "display is back"), and the records already say what is still wro
 the printer record's own "clear the plate"."""
 import re
 
-from .now import issue_from
+from .now import issue_items
 
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
@@ -27,10 +27,10 @@ def build(events, feed, now, problems=()):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
     knows when the plate is cleared."""
     items = []
-    for rec in problems:
-        i = issue_from(rec)
-        items.append({"id": "pi:" + i["what"], "source": HUB, "tone": i["tone"], "title": i["what"],
-                      "detail": i["say"], "link": i["href"], "ts": now, "thing": rec["id"]})
+    for key, i in issue_items(list(problems)):
+        id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
+        items.append({"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
+                      "detail": i["say"], "link": i["href"], "ts": now, "thing": key})
     unread = []
     if feed is None:
         unread.append("Local AI")

@@ -323,7 +323,7 @@ def api_workshop():
     prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
     week = int(time.time()) - 7 * 86400
     return fresh({
-        "printer": now.printer(s, sources.bambuddy_printer(), sources.localai_lab()),
+        "printer": now.printer_from(records.get("printer")),  # the same card /api/now gives
         "prints": prints,
         "week": {
             "finished": sum(1 for p in prints if p["outcome"] == "finished" and (p["ended"] or 0) >= week),

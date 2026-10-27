@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 os.environ["HUB_NO_SAMPLER"] = "1"
 os.environ.setdefault("HUB_DB", os.path.join(__import__("tempfile").mkdtemp(), "hub.db"))
 
@@ -196,11 +198,49 @@ def test_bambuddy_status_carries_state_and_plate_flag(monkeypatch):
     assert b["bambuddy_state"] == "FINISH" and b["awaiting_plate_clear"] is True
 
 
+def hold(monkeypatch, held):
+    monkeypatch.setattr(records, "all", lambda: held)
+    monkeypatch.setattr(records, "get", lambda id: held.get(id))
+
+
 def test_workshop_printer_has_bambuddy_actions(monkeypatch):
-    monkeypatch.setattr(sources, "pi_status", lambda: {"x2d_state": "Idle"})
-    monkeypatch.setattr(sources, "bambuddy_printer", lambda: B)
+    hold(monkeypatch, recs({"x2d_state": "Idle"}, bud("FINISH", progress=100, awaiting=True)))
+    monkeypatch.setattr(sources, "bambuddy_printer", lambda: pytest.fail("/api/workshop reads the printer record"))
     r = TestClient(hub_app.app).get("/api/workshop")
     assert r.json()["printer"]["actions"] == ["clear"]
+
+
+@pytest.mark.parametrize("b", [bud("RUNNING", progress=42), bud("FAILED", progress=40, awaiting=True), bud("IDLE"), None])
+def test_workshop_and_now_show_the_same_printer(monkeypatch, b):
+    hold(monkeypatch, recs(b=b))
+    monkeypatch.setattr(sources, "plex_sessions", lambda: [])
+    monkeypatch.setattr(sources, "network_metrics", lambda: None)
+    c = TestClient(hub_app.app)
+    assert c.get("/api/workshop").json()["printer"] == c.get("/api/now").json()["printer"]
+
+
+def test_bambuddy_status_carries_remaining_time(monkeypatch):
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: {"connected": True, "state": "RUNNING", "remaining_time": 65})
+    assert sources._bambuddy()["remaining_time"] == 65
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: {"connected": True, "state": "IDLE"})
+    assert sources._bambuddy()["remaining_time"] is None
+
+
+@pytest.mark.parametrize("minutes, left", [(65, "1 h 5 min"), (12, "12 min"), (60, "1 h"), (0, "0 min"), (None, "")])
+def test_time_left_comes_from_bambuddy(minutes, left):
+    p = now.build(recs(b={**RUNNING, "remaining_time": minutes}), [], {}, None)["printer"]
+    # the page writes "Done in about <left>", so left carries no "about" of its own
+    assert (p["minutes_left"], p["left"]) == (minutes, left)
+
+
+def test_no_time_left_unless_printing_and_fresh():
+    assert now.build(recs(b=bud("RUNNING", progress=42)), [], {}, None)["printer"]["left"] == ""  # Bambuddy gave none
+    paused = now.build(recs(b={**bud("PAUSE", progress=42), "remaining_time": 30}), [], {}, None)["printer"]
+    assert paused["minutes_left"] is None and paused["left"] == ""
+    held = recs(b={**RUNNING, "remaining_time": 30})
+    held["printer"] = records.merge(held["printer"], None, 1000 + 600)
+    stale = now.build(held, [], {}, None)["printer"]
+    assert stale["minutes_left"] is None and stale["left"] == ""
 
 
 def test_a_printer_error_with_the_plate_waiting_still_says_so():
@@ -273,8 +313,7 @@ def test_localai_lab_reads_the_projects_feed(monkeypatch):
 
 
 def test_now_and_workshop_carry_the_lab_link(monkeypatch):
-    held = recs(lab={"experiment": "E-020"})
-    monkeypatch.setattr(records, "all", lambda: held)
+    hold(monkeypatch, recs(lab={"experiment": "E-020"}))
     monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
     monkeypatch.setattr(sources, "bambuddy_printer", lambda: None)
     monkeypatch.setattr(sources, "localai_lab", lambda: {"experiment": "E-020"})

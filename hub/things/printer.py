@@ -32,6 +32,11 @@ def _pct(v):
     return v if isinstance(v, (int, float)) else 0
 
 
+def _minutes(v):
+    """Bambuddy's remaining_time (minutes), or None when it gives none."""
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
 def _raw(b):
     return b.get("bambuddy_state") or b.get("state")
 
@@ -110,7 +115,8 @@ def printer(b, s, lab, prev, now):
               "nozzle_target": b.get("nozzle_target"), "bed": b.get("bed_temp"),
               "bed_target": b.get("bed_target"), "ams_humidity": b.get("ams_humidity"),
               "filament_type": b.get("filament_type"), "filament_color": b.get("filament_color"),
-              "attempt": attempt, "started": started, "last_progress": last, "bambuddy_state": _raw(b)}
+              "attempt": attempt, "started": started, "last_progress": last, "bambuddy_state": _raw(b),
+              "minutes_left": _minutes(b.get("remaining_time"))}
     if inferred:
         detail["inferred"] = True
     # a reprint after a normal finish (cleared or not) is a new print, attempt 1
