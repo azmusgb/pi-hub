@@ -114,3 +114,32 @@ def test_problems_are_worst_then_oldest_first():
         "internet": records.merge(None, records.make("internet", "ok", "Internet OK", "netmon"), 300),
     }, 300)
     assert [r["id"] for r in records.problems()] == ["pc", "workshop_display", "adguard"]
+
+
+def _drive(state):
+    return records.make("movies_drive", state, state, "pi_status")
+
+
+def test_a_stale_record_takes_the_new_state_at_once():  # R16
+    a = dict(records.merge(None, _drive("connected"), 0), stale=True)  # as load() leaves it
+    b = records.merge(a, _drive("not_mounted"), 30)
+    assert (b["state"], b["since"]) == ("not_mounted", 30)
+    silent = records.merge(records.merge(None, _drive("connected"), 0), None, 200)  # a source quiet too long
+    assert silent["stale"] and records.merge(silent, _drive("missing"), 230)["state"] == "missing"
+
+
+def test_a_stale_record_clears_a_pending_change():  # R16
+    a = records.merge(None, _drive("connected"), 0)
+    records.merge(a, _drive("missing"), 30)  # one check of missing pending
+    b = records.merge(dict(a, stale=True), _drive("connected"), 60)
+    c = records.merge(b, _drive("missing"), 90)
+    assert c["state"] == "connected"  # the earlier pending check didn't carry over
+
+
+def test_missing_and_not_mounted_count_as_one_dropout_for_the_debounce():  # R18
+    a = records.merge(None, _drive("connected"), 0)
+    b = records.merge(a, _drive("missing"), 30)
+    c = records.merge(b, _drive("not_mounted"), 60)
+    assert (c["state"], c["since"]) == ("not_mounted", 60)
+    d = records.merge(c, _drive("missing"), 90)  # moving between the two needs no second check
+    assert (d["state"], d["since"]) == ("missing", 90)

@@ -228,6 +228,18 @@ def test_pc_down_fires_on_the_network_not_on_local_ai(fired, pushed):
     assert fired.kinds()[-1] == "pc_back"
 
 
+def test_one_unknown_netmon_reading_does_not_skip_the_pc_grace(fired):  # R15
+    step(T, IDLE, first=True)
+    step(T + 30, inputs(netmon={"status": "ok"}))  # no win_ok in this answer
+    off = inputs(netmon=dict(GOOD["netmon"], win_ok=False))
+    for t in range(T + 60, T + 60 + 300, 30):
+        step(t, off)
+        assert records.get("pc")["state"] == "on", t
+    assert "pc_down" not in fired.kinds()
+    step(T + 60 + 300, off)
+    assert fired == ["pc_down"]
+
+
 def test_a_short_pc_blip_fires_nothing(fired):
     step(T, IDLE, first=True)
     off = inputs(netmon=dict(GOOD["netmon"], win_ok=False))
@@ -262,6 +274,57 @@ def test_plex_homebridge_and_heat(fired):
     step(T + 60, bad)
     step(T + 90, bad)
     assert sorted(fired.details()) == [("homebridge_stopped", ""), ("pi_hot", "80 °C"), ("plex_stopped", "")]
+
+
+def test_a_hot_pi_slowed_by_heat_fires_once_and_again_after_cooling(fired):  # R17
+    step(T, IDLE, first=True)
+    hot = inputs(pi={"pi_temp": 82, "pi_power": "Slowed by heat"})
+    cool = inputs(pi={"pi_temp": 60, "pi_power": "Slowed by heat earlier"})
+    for i in range(1, 6):
+        step(T + 30 * i, hot)
+    assert fired.details() == [("pi_hot", "82 °C")]
+    for i in range(6, 9):
+        step(T + 30 * i, cool)
+    for i in range(9, 12):
+        step(T + 30 * i, hot)
+    assert fired == ["pi_hot", "pi_hot"]
+
+
+def test_a_hot_pi_with_a_power_problem_still_fires_pi_hot(fired):  # R17
+    step(T, IDLE, first=True)
+    for i in range(1, 4):
+        step(T + 30 * i, inputs(pi={"pi_temp": 80, "pi_power": "Under-voltage"}))
+    assert records.get("pi")["state"] == "power"
+    assert fired.details() == [("pi_hot", "80 °C")]
+
+
+def test_a_pi_already_hot_at_start_is_not_news(fired):  # R17
+    step(T, inputs(pi={"pi_temp": 82}), first=True)
+    step(T + 30, inputs(pi={"pi_temp": 83}))
+    assert fired == []
+
+
+def test_restart_with_the_drive_and_plex_not_yet_up_fires_nothing(fired):  # R16
+    records.refresh(T, inputs=IDLE)  # before the restart: drive connected, Plex idle
+    records._reset_memory()
+    records.load()
+    booting = inputs(pi={"drive_state": "Not mounted", "services": {"plex": False, "homebridge": True}})
+    step(T + 600, booting, first=True)
+    assert records.get("movies_drive")["state"] == "not_mounted" and records.get("plex")["state"] == "stopped"
+    step(T + 630, booting)
+    step(T + 660, booting)
+    assert fired == []
+
+
+def test_a_one_off_failure_says_its_own_progress(fired, monkeypatch):  # R19
+    monkeypatch.setattr(events, "PRINT_DEDUPE", 0)  # the test's two failures are seconds apart in real time
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 40)))
+    step(T + 60, inputs(bambuddy=bud("FAILED", 40, awaiting=True)))
+    step(T + 90, IDLE)  # plate cleared
+    assert events._last_progress == {}
+    step(T + 2000, inputs(bambuddy=bud("FAILED", 70, awaiting=True)))  # reported without a live print seen
+    assert fired.details() == [("print_failed", "at 40%"), ("print_failed", "at 70%")]
 
 
 def test_unknown_readings_fire_nothing(fired):

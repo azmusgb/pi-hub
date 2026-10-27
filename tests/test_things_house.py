@@ -149,3 +149,32 @@ def test_weather():
 def test_sources_come_from_the_records_table():
     assert house.pc({"win_ok": True}, None, T)["source"] == records.SOURCE["pc"]
     assert house.weather({"now": {"temp": 1}})["source"] == "weather"
+
+
+def test_one_unknown_reading_keeps_the_pc_grace():  # R15
+    on = merged(house.pc({"win_ok": True}, None, T))
+    unk = merged(house.pc({"win_ok": None}, on, T + 30), at=T + 30)
+    assert unk["state"] == "unknown" and unk["detail"]["last_state"] == "on"
+    first = merged(house.pc({"win_ok": False}, unk, T + 60), at=T + 60)
+    assert first["state"] == "on" and first["cause"].startswith("Not answering")
+    assert house.pc({"win_ok": False}, first, T + 60 + 299)["state"] == "on"
+    assert house.pc({"win_ok": False}, first, T + 60 + 300)["state"] == "off"
+
+
+def test_an_unknown_reading_keeps_the_down_clock():  # R15
+    on = merged(house.pc({"win_ok": True}, None, T))
+    failing = merged(house.pc({"win_ok": False}, on, T), at=T)
+    unk = merged(house.pc({"win_ok": None}, failing, T + 30), at=T + 30)
+    assert unk["detail"] == {"last_state": "on", "down_since": T}
+    assert house.pc({"win_ok": False}, unk, T + 300)["state"] == "off"
+    off = merged(house.pc({"win_ok": False}, unk, T + 300), at=T + 300)
+    unk2 = merged(house.pc({"win_ok": None}, off, T + 330), at=T + 330)
+    assert house.pc({"win_ok": False}, unk2, T + 360)["state"] == "off"
+
+
+def test_heat_wins_over_heat_power_flags():  # R17
+    assert house.pi({"pi_temp": 82, "pi_power": "Slowed by heat"})["state"] == "hot"
+    assert house.pi({"pi_temp": 82, "pi_power": "Slowed by heat earlier"})["state"] == "hot"
+    assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage earlier"})["state"] == "hot"
+    assert house.pi({"pi_temp": 60, "pi_power": "Slowed by heat earlier"})["state"] == "power"
+    assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage"})["state"] == "power"

@@ -33,16 +33,28 @@ def _restart(name, label):
     return [{"name": name, "label": label, "confirm": True}]
 
 
+def _pc_state(prev):
+    """The last state the PC record said something about; an unknown record remembers the one before it."""
+    if not prev:
+        return None
+    return prev["detail"].get("last_state") if prev["state"] == "unknown" else prev["state"]
+
+
 def pc(net, prev, now):
     if net is None:
         return None
     ok = _get(net, "win_ok")
+    was = _pc_state(prev)
     if ok is None:
-        return _unknown("pc")
+        # one odd reading mustn't restart (or skip) the 5-minute grace: keep what was known
+        detail = {"last_state": was} if was in ("on", "off") else {}
+        if detail and prev["detail"].get("down_since"):
+            detail["down_since"] = prev["detail"]["down_since"]
+        return _rec("pc", "unknown", "No reading", detail=detail)
     if ok:
         return _rec("pc", "on", "The PC is on")
-    since = (prev["detail"].get("down_since") if prev and prev["state"] in ("on", "off") else None) or now
-    if prev and prev["state"] == "on" and now - since < PC_DOWN_AFTER:
+    since = (prev["detail"].get("down_since") if was in ("on", "off") else None) or now
+    if was == "on" and now - since < PC_DOWN_AFTER:
         return _rec("pc", "on", "The PC is on", detail={"down_since": since},
                     cause=f"Not answering on the network for {int((now - since) // 60)} min")
     return _rec("pc", "off", "The PC is off", detail={"down_since": since},
@@ -80,6 +92,10 @@ def pi(s):
         return _unknown("pi")
     headline = f"Pi {temp:.0f} °C"
     detail = {"temp": temp, "power": power}
+    # pi-status says "Slowed by heat" while hot, and "... earlier" flags stick until a reboot: heat wins over those
+    heat_flag = power == "Slowed by heat" or str(power).endswith("earlier")
+    if temp >= HOT_AT and heat_flag:
+        return _rec("pi", "hot", headline, cause=f"Running hot at {temp:.0f} °C.", detail=detail)
     if power != "Good":
         return _rec("pi", "power", headline, cause=f"Power problem: {power}.", detail=detail)
     if temp >= HOT_AT:

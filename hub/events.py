@@ -311,11 +311,13 @@ LIVE = {"printing", "paused"}
 FINISHED_AT = 97  # percent; a print that ended below this was stopped early
 _last = {}  # thing -> its last state outside UNSURE, as on_changes saw it (only events.run's thread)
 _last_progress = {}  # "printer" -> the progress last seen while printing or paused; survives an offline gap
+_hot = {}  # "pi" -> whether the Pi's last temperature reading was at or above house.HOT_AT
 
 
 def _forget():
     _last.clear()
     _last_progress.clear()
+    _hot.clear()
 
 
 # thing -> [(new states, states it mustn't come from, trigger)]; the printer has its own rules below
@@ -325,8 +327,7 @@ ON = {
                      ({"connected"}, {"connected"}, "drive_back")],
     "plex": [({"stopped"}, {"stopped"}, "plex_stopped")],
     "devices": [({"stopped"}, {"stopped"}, "homebridge_stopped")],
-    "pi": [({"hot"}, {"hot"}, "pi_hot")],
-}
+}  # pi_hot follows the Pi's temperature, whatever its state: see _note_heat
 
 
 def _printer(before, new, rec):
@@ -338,8 +339,8 @@ def _printer(before, new, rec):
         attempt = d.get("attempt") or 1
         return "print_started", f"attempt {attempt}" if attempt > 1 else ""
     pct = _last_progress.get("printer")
-    failed = ("print_failed", f"at {pct if pct is not None else d.get('last_progress') or 0}%")
     if before in LIVE and new in ("idle", "finished", "failed"):
+        failed = ("print_failed", f"at {pct if pct is not None else d.get('last_progress') or 0}%")
         if new == "finished" or d.get("bambuddy_state") == "FINISH":
             return "print_finished", ""
         if new == "failed" or d.get("bambuddy_state") == "FAILED" or (pct is not None and pct < FINISHED_AT):
@@ -347,8 +348,8 @@ def _printer(before, new, rec):
         return "print_finished", ""
     if new == "finished":
         return "print_finished", ""
-    if new == "failed":
-        return failed
+    if new == "failed":  # no live print seen before it: the record's own progress
+        return "print_failed", f"at {d.get('last_progress') or 0}%"
     return None
 
 
@@ -379,21 +380,32 @@ def on_changes(changes, first):
             continue
         if ch["id"] == "printer":
             hit = _printer(before, new, ch["record"])
+            if before in LIVE and new not in LIVE:  # the print ended: its progress is spent
+                _last_progress.pop("printer", None)
             if hit:
                 _fire(*hit, dedupe=PRINT_DEDUPE)
             continue
         for states, not_from, kind in ON[ch["id"]]:
             if new in states and before not in not_from:
-                _fire(kind, _detail(kind, ch["record"]))
+                _fire(kind, "")
     # remembered after this cycle's changes, so the next cycle's end of a print sees the last live progress
     _note_progress()
+    _note_heat(first)
 
 
-def _detail(kind, rec):
-    d = rec.get("detail") or {}
-    if kind == "pi_hot" and d.get("temp") is not None:
-        return f"{d['temp']} °C"
-    return ""
+def _note_heat(first):
+    """pi_hot when the Pi's temperature crosses HOT_AT upwards. The temperature is read from the record,
+    whose state is debounced (it keeps the old reading until a change has held two checks), and works
+    whatever the state, since pi-status may report a power problem while the Pi is hot."""
+    from .things.house import HOT_AT
+    rec = records.get("pi")
+    temp = ((rec or {}).get("detail") or {}).get("temp")
+    if not isinstance(temp, (int, float)) or rec.get("stale"):
+        return
+    was, hot = _hot.get("pi"), temp >= HOT_AT
+    _hot["pi"] = hot
+    if hot and was is False and not first:
+        _fire("pi_hot", f"{temp} °C")
 
 
 # ---- Watching for changes ----

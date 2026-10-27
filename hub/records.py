@@ -108,16 +108,24 @@ def _not_answering(prev, now):
     return rec
 
 
+# kind -> {state: group}: states the debounce counts as one value (the old Watcher's drive connected yes/no)
+SAME_FOR_DEBOUNCE = {"movies_drive": {"missing": "not_connected", "not_mounted": "not_connected"}}
+
+
 def _settled_state(id, prev, state):
-    """The state to record: a debounced kind keeps the old one until the new one has been seen twice."""
-    if id not in DEBOUNCED or prev is None or state == prev["state"]:
+    """The state to record: a debounced kind keeps the old one until the new one has been seen twice.
+    The debounce is between fresh readings: after a stale record (a restart, or a source that went
+    quiet) the new reading counts at once."""
+    group = SAME_FOR_DEBOUNCE.get(id, {})
+    value = group.get(state, state)
+    if id not in DEBOUNCED or prev is None or prev.get("stale") or value == group.get(prev["state"], prev["state"]):
         _pending.pop(id, None)
         return state
-    seen = _pending[id][1] + 1 if id in _pending and _pending[id][0] == state else 1
+    seen = _pending[id][1] + 1 if id in _pending and _pending[id][0] == value else 1
     if seen >= 2:
         _pending.pop(id, None)
         return state
-    _pending[id] = (state, seen)
+    _pending[id] = (value, seen)
     return prev["state"]
 
 
