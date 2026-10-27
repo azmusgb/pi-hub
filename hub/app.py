@@ -1,5 +1,8 @@
 """Pi Hub: the home hub web app."""
+import asyncio
+import json
 import os
+import queue
 import re
 import base64
 import hmac
@@ -9,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
@@ -89,6 +92,53 @@ def api_now():
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
     return fresh(data)
+
+
+# ---- Records ----
+
+STREAM_PING = 15  # seconds of quiet before the stream sends a comment, so proxies keep it open
+STREAM_SLICE = 1  # how often the stream looks for a vanished client
+
+
+def records_body():
+    recs = records.all()
+    return {"as_of": time.time(), "records": [recs[k] for k in records.KINDS if k in recs]}
+
+
+@app.get("/api/records")
+def api_records():
+    return fresh(records_body())
+
+
+async def records_stream(request, ping=None):
+    """The snapshot, then each change as it happens, a ping when quiet; unsubscribes when the client leaves."""
+    ping = STREAM_PING if ping is None else ping
+    q = records.subscribe()
+    try:
+        yield "event: snapshot\ndata: " + json.dumps(records_body()) + "\n\n"
+        quiet = 0.0
+        while True:
+            if await request.is_disconnected():
+                return
+            wait = min(STREAM_SLICE, max(ping - quiet, 0.01))
+            try:
+                change = await asyncio.to_thread(q.get, True, wait)
+            except queue.Empty:
+                quiet += wait
+                if quiet >= ping:
+                    quiet = 0.0
+                    yield ": ping\n\n"
+                continue
+            quiet = 0.0
+            yield "event: change\ndata: " + json.dumps(change) + "\n\n"
+    finally:
+        records.unsubscribe(q)
+
+
+@app.get("/api/records/stream")
+async def api_records_stream(request: Request):
+    return StreamingResponse(records_stream(request), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/needs")
