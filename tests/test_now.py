@@ -6,7 +6,8 @@ os.environ.setdefault("HUB_DB", os.path.join(__import__("tempfile").mkdtemp(), "
 from fastapi.testclient import TestClient  # noqa: E402
 
 from hub import app as hub_app  # noqa: E402
-from hub import now, sources  # noqa: E402
+from hub import now, records, sources  # noqa: E402
+from tests.helpers_records import bud, records_from  # noqa: E402
 
 HEALTHY = {
     "x2d_state": "Printing", "x2d_progress": 42, "x2d_left": "1 h 05 min", "x2d_minutes_left": 65,
@@ -15,44 +16,52 @@ HEALTHY = {
     "drive_resets": 2, "drive_errors": 0, "movies": 151, "pi_temp": 55.0, "pi_power": "Good",
     "pi_uptime_h": 3.0, "updates": 0,
     "services": {"plex": True, "homebridge": True, "docker": True, "cockpit": True},
+    "mirror": {"last_ok": 1000},
 }
+RUNNING = bud("RUNNING", progress=42)
+
+
+def recs(s=HEALTHY, b=RUNNING, **kw):
+    return records_from(s, b, **kw)
 
 
 def test_healthy_house_says_everything_is_running():
-    d = now.build(HEALTHY, [], {}, 12.0)
+    d = now.build(recs(), [], {}, 12.0)
     assert d["summary"] == "Everything's running"
     assert d["issues"] == []
-    assert d["printer"]["headline"] == "Printing, 42%"
-    assert d["printer"]["left"] == "1 h 05 min"
+    assert d["printer"]["headline"] == "Printing HEX_TILE_v72, 42%"
+    assert d["printer"]["progress"] == 42
+    assert d["printer"]["left"] == ""  # Bambuddy gives no time left; the record doesn't guess one
     assert d["movies"]["count"] == 151
 
 
 def test_missing_drive_and_down_pc_are_issues_with_instructions():
     s = dict(HEALTHY, drive_state="Missing", ai_state="Down", movies=None)
-    d = now.build(s, [], {}, 12.0)
-    whats = [i["what"] for i in d["issues"]]
-    assert whats == ["Movies drive", "Windows PC"]
-    assert "plug it back in" in d["issues"][0]["say"]
-    assert "breaker" in d["issues"][1]["say"]
+    d = now.build(recs(s), [], {}, 12.0)
+    say = {i["what"]: i["say"] for i in d["issues"]}
+    assert set(say) == {"Movies drive", "Local AI"}
+    assert all(i["tone"] == "bad" for i in d["issues"])
+    assert "plug it back in" in say["Movies drive"]
+    assert "the PC may be off" in say["Local AI"]  # NETMON gave no PC reading
     assert d["summary"] == "2 things need a look"
 
 
 def test_stopped_service_is_named():
     s = dict(HEALTHY, services={"plex": False, "homebridge": True})
-    d = now.build(s, [], {}, 12.0)
+    d = now.build(recs(s), [], {}, 12.0)
     assert d["summary"] == "Movies need a look"
     assert d["movies"]["tone"] == "bad"
 
 
 def test_no_status_service_still_builds_a_page():
-    d = now.build(None, None, {}, None)
+    d = now.build({}, None, {}, None)
     assert d["printer"]["state"] == "none"
     assert d["issues"][0]["what"] == "Home status unavailable"
 
 
 def test_network_metrics_included_when_available():
     net = {"status": "ok", "orbi_ms": 2.1, "wan_ms": 8.3}
-    d = now.build(HEALTHY, [], {}, 12.0, network=net)
+    d = now.build(recs(), [], {}, 12.0, network=net)
     assert d["network"] == net
 
 
@@ -64,7 +73,10 @@ def test_printer_states_read_as_plain_words():
 
 
 def test_api_now_and_pages(monkeypatch):
-    monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
+    held = recs()
+    monkeypatch.setattr(records, "all", lambda: held)
+    monkeypatch.setattr(sources, "pi_status", lambda: (_ for _ in ()).throw(AssertionError("/api/now reads the records")))
+    monkeypatch.setattr(sources, "bambuddy_printer", lambda: (_ for _ in ()).throw(AssertionError("records")))
     monkeypatch.setattr(sources, "plex_sessions", lambda: [{"title": "Alien", "who": "Bill", "device": "TV",
                                                             "state": "playing", "progress": 30, "minutes_left": 80}])
     c = TestClient(hub_app.app)
@@ -81,11 +93,11 @@ def test_api_now_and_pages(monkeypatch):
 
 
 def test_missing_status_does_not_claim_devices_are_offline():
-    d = now.build(None, None, {}, None)
+    d = now.build({}, None, {}, None)
     assert d["status_available"] is False
     assert d["issues"][0]["href"] == "/pi"
     assert "Restart" not in d["issues"][0]["say"]
-    assert now.build(HEALTHY, [], {}, 12)["status_available"] is True
+    assert now.build(recs(), [], {}, 12)["status_available"] is True
 
 
 def test_printer_error_links_to_workshop_instead_of_system_restart():
@@ -109,13 +121,14 @@ def test_bambuddy_telemetry_enriches_printer_status():
         "filament_type": "PETG",
         "filament_color": "161616FF",
     }
-    d = now.build(HEALTHY, [], {}, 12.0, bambuddy=b)
+    d = now.build(recs(b=b), [], {}, 12.0)
     p = d["printer"]
     assert p["nozzle_temp"] == 215.0
+    assert p["temperatures"] == {"nozzle": 215.0, "nozzle_target": 220.0, "bed": 60.0, "bed_target": 60.0}
     assert p["bed_temp"] == 60.0
     assert p["layer_num"] == 42
     assert p["total_layers"] == 660
-    assert p["job_name"] == "test_bracket.3mf"
+    assert p["job_name"] == "test_bracket"  # the record keeps the job's name without the file ending
     assert p["filament_type"] == "PETG"
     assert p["bambuddy_connected"] is True
 
@@ -260,9 +273,13 @@ def test_localai_lab_reads_the_projects_feed(monkeypatch):
 
 
 def test_now_and_workshop_carry_the_lab_link(monkeypatch):
+    held = recs(lab={"experiment": "E-020"})
+    monkeypatch.setattr(records, "all", lambda: held)
     monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
     monkeypatch.setattr(sources, "bambuddy_printer", lambda: None)
     monkeypatch.setattr(sources, "localai_lab", lambda: {"experiment": "E-020"})
     c = TestClient(hub_app.app)
     assert c.get("/api/now").json()["printer"]["lab"] == {"experiment": "E-020"}
+    idle = recs(b=bud("IDLE"), lab={"experiment": "E-020"})
+    assert "lab" not in now.build(idle, [], {}, None)["printer"]
     assert c.get("/api/workshop").json()["printer"]["lab"] == {"experiment": "E-020"}

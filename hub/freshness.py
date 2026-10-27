@@ -55,20 +55,40 @@ def observe(key, ttl, fn):
     return value
 
 
-def snapshot(configured=None):
+def _row(key, label, value, state):
+    return {"key": key, "label": label, "state": state,
+            "checked_at": value.get("checked_at"), "confirmed_at": value.get("confirmed_at"),
+            "reading": value.get("reading"), "max_age": value.get("ttl")}
+
+
+def _from_record(rec):
+    from . import records
+    return {"key": rec["id"], "label": records.LABELS.get(rec["id"], rec["id"]),
+            "state": "stale" if rec.get("stale") else "current",
+            "checked_at": rec["as_of"], "confirmed_at": rec["as_of"], "reading": rec["headline"],
+            "max_age": records.STALE_AFTER.get(rec["source"])}
+
+
+def snapshot(configured=None, recs=None):
+    """Source responses. With `recs` (the records), one row per record, then the calendar and any source set up
+    as not configured; without, every source's last response as observed here."""
     stamp = time.time()
     with _lock:
         values = {k: dict(v) for k, v in _readings.items()}
+    configured = configured or {}
     out = []
+    if recs is not None:
+        from . import records
+        out = [_from_record(recs[k]) for k in records.KINDS if k in recs]
     for key, label in LABELS.items():
         value = values.get(key, {})
         state = "not_checked"
-        if configured and configured.get(key) is False:
+        if configured.get(key) is False:
             value, state = {}, "not_configured"
+        elif recs is not None and key != "calendar":
+            continue  # the records cover it
         elif value:
             state = "unavailable" if not value["answered"] else \
                 "stale" if stamp - value["checked_at"] > value["ttl"] else "current"
-        out.append({"key": key, "label": label, "state": state,
-                    "checked_at": value.get("checked_at"), "confirmed_at": value.get("confirmed_at"),
-                    "reading": value.get("reading"), "max_age": value.get("ttl")})
+        out.append(_row(key, label, value, state))
     return {"as_of": stamp, "readings": out}

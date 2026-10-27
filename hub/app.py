@@ -75,7 +75,7 @@ def _say(fn, *args):
 def api_freshness():
     return fresh(freshness.snapshot({"home": bool(auth.get("homebridge_login")),
                                      "weather": bool(auth.get("place")),
-                                     "calendar": bool(auth.get("calendar_url"))}))
+                                     "calendar": bool(auth.get("calendar_url"))}, records.all()))
 
 
 # ---- Now ----
@@ -86,8 +86,7 @@ def api_now():
         disk = sources.disk_free_gb("/")
     except OSError:
         disk = None
-    data = now.build(sources.pi_status(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics(), sources.bambuddy_printer(),
-                     sources.localai_lab())
+    data = now.build(records.all(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics())
     data["reminders"] = reminders.due_today()
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
@@ -143,7 +142,7 @@ async def api_records_stream(request: Request):
 
 @app.get("/api/needs")
 def api_needs():
-    return fresh(needs.build(events.recent(40), sources.localai_feed(), int(time.time()), now.issues(sources.pi_status())))
+    return fresh(needs.build((), sources.localai_feed(), int(time.time()), records.problems()))
 
 
 @app.get("/api/system/backups")
@@ -821,7 +820,7 @@ def say(text):
 @app.get("/api/shortcut/status")
 def api_shortcut_status(request: Request):
     _shortcut(request)
-    d = now.build(sources.pi_status(), sources.plex_sessions(), {}, None)
+    d = now.build(records.all(), sources.plex_sessions(), {}, None)
     parts = [d["summary"] + "."]
     parts += [f"{i['what']}: {i['say']}" for i in d["issues"][:2]]
     p = d["printer"]

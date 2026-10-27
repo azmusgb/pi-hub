@@ -67,11 +67,12 @@ def local_ai(s, pc_rec):
     state = {"Ready": "ready", "Busy": "busy", "Down": "down"}.get(_get(s, "ai_state"))
     if not state:
         return _unknown("local_ai")
+    detail = {"models": _get(s, "ai_models"), "waiting": _get(s, "ai_waiting")}
     if state != "down":
-        return _rec("local_ai", state, "Local AI is " + state)
+        return _rec("local_ai", state, "Local AI is " + state, detail=detail)
     cause = ("The PC is on; Local AI itself isn't answering." if pc_rec and pc_rec["state"] == "on"
              else "Local AI isn't answering; the PC may be off.")
-    return _rec("local_ai", "down", "Local AI isn't answering", cause=cause)
+    return _rec("local_ai", "down", "Local AI isn't answering", cause=cause, detail=detail)
 
 
 def workshop_display(s):
@@ -81,7 +82,8 @@ def workshop_display(s):
     if not state:
         return _unknown("workshop_display")
     return _rec("workshop_display", state,
-                "The touchscreen is online" if state == "online" else "The touchscreen is offline.")
+                "The touchscreen is online" if state == "online" else "The touchscreen is offline.",
+                detail={"firmware": _get(s, "display_firmware")})
 
 
 def pi(s):
@@ -91,7 +93,7 @@ def pi(s):
     if not isinstance(temp, (int, float)) or power is None:
         return _unknown("pi")
     headline = f"Pi {temp:.0f} °C"
-    detail = {"temp": temp, "power": power}
+    detail = {"temp": temp, "power": power, "updates": _get(s, "updates"), "uptime_h": _get(s, "pi_uptime_h")}
     # pi-status says "Slowed by heat" while hot, and "... earlier" flags stick until a reboot: heat wins over those
     heat_flag = power == "Slowed by heat" or str(power).endswith("earlier")
     if temp >= HOT_AT and heat_flag:
@@ -110,13 +112,15 @@ def movies_drive(s):
         _get(s, "drive_state"))
     if not state:
         return _unknown("movies_drive")
+    # what Home's movies block shows besides the state (pi-status's library count, free space, resets)
+    detail = {"movies": _get(s, "movies"), "free": _get(s, "drive_free"), "resets": _get(s, "drive_resets")}
     if state == "not_mounted":
-        return _rec("movies_drive", state, "The movies drive isn't mounted",
+        return _rec("movies_drive", state, "The movies drive isn't mounted", detail=detail,
                     actions=[{"name": "remount:movies", "label": "Remount it", "confirm": False}])
     if state == "missing":
-        return _rec("movies_drive", state, "The movies drive is missing",
+        return _rec("movies_drive", state, "The movies drive is missing", detail=detail,
                     cause="Unplug it, wait 10 seconds and plug it back in.")
-    return _rec("movies_drive", state, "The movies drive is connected")
+    return _rec("movies_drive", state, "The movies drive is connected", detail=detail)
 
 
 def movie_copy(s, now):

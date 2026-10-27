@@ -34,3 +34,12 @@ def inputs(pi=None, **kw):
     if pi:
         out["pi_status"] = dict(PI, **pi)
     return out
+
+
+def records_from(pi_status, bambuddy=None, net=None, now=T, **other):
+    """The records the hub would hold after one refresh with these answers (other sources: None unless given)."""
+    from hub import things
+    answers = {"bambuddy": bambuddy, "pi_status": pi_status, "netmon": net, "lab": None, "sessions": None,
+               "paper": None, "weather": None, "adguard": None, "backups": None, "camera": None, **other}
+    built = things.build_all(answers, {}, now)
+    return {id: records.merge(None, rec, now) for id, rec in built.items() if rec is not None}

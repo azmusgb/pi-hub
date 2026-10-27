@@ -226,9 +226,9 @@ def get(id):
         return dict(r) if r else None
 
 
-def problems():
-    """Things that need a look: problems first, then the longest-standing first."""
-    bad = [r for r in all().values() if LEVEL[r["severity"]] >= LEVEL["attention"]]
+def problems(recs=None):
+    """Things that need a look: problems first, then the longest-standing first (of `recs`, or the stored records)."""
+    bad = [r for r in (all() if recs is None else recs).values() if LEVEL[r["severity"]] >= LEVEL["attention"]]
     return sorted(bad, key=lambda r: (-LEVEL[r["severity"]], r["since"]))
 
 

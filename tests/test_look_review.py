@@ -60,16 +60,19 @@ def test_an_unweighed_spool_has_no_full_bar():
 
 
 def test_the_printer_shows_once_in_needs_you():
+    from hub import records
+    from tests.helpers_records import PI, bud, records_from
     feed = {"cards": [{"kind": "watch", "title": "Heads up", "text": "The printer stopped with an error", "tone": "attention"},
                       {"kind": "needs", "title": "Needs you", "text": "Approve the E-009 print.", "tone": "attention"}]}
-    issues = [{"what": "Bambu X2D", "say": "Check the printer's screen.", "tone": "bad"}]
-    events = [{"ts": 1_800_000_000 - 600, "kind": "print_failed", "detail": "at 24%"}]
-    n = needs.build(events, feed, 1_800_000_000, issues)
+    quiet = dict(PI, mirror={"last_ok": 1_800_000_000})
+    failed = records.problems(records_from(quiet, bud("FAILED", progress=24, awaiting=True), now=1_800_000_000))
+    n = needs.build([], feed, 1_800_000_000, failed)
     titles = [i["title"] for i in n["items"]]
-    assert titles == ["The print failed", "Needs you"], titles
-    # Without a print event, the most urgent printer row stays (still only one).
-    n = needs.build([], feed, 1_800_000_000, issues)
-    assert [i["title"] for i in n["items"]] == ["Bambu X2D", "Needs you"]
+    # the hub's own printer record wins over Local AI's echo of it (it was the hub's print event before the records)
+    assert titles == ["Bambu X2D", "Needs you"], titles
+    # Without a printer record, Local AI's row about the printer stays (still only one).
+    n = needs.build([], feed, 1_800_000_000, [])
+    assert [i["title"] for i in n["items"]] == ["Heads up", "Needs you"]
 
 
 def test_side_by_side_tool_links_have_room():
