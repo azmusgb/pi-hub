@@ -3,7 +3,7 @@
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 import { homeCards, labLink, needsSummary } from "./home-cards.js";
-import { plainInternet } from "./wording.js";
+import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
@@ -125,7 +125,7 @@ function workshopKioskConsole(d, cam) {
     p.bed_temp !== undefined && p.bed_temp !== null
       ? chip(`🛏️ Bed: ${p.bed_temp}°C${p.bed_target ? ` / ${p.bed_target}°C` : ""}`) : null,
     p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null,
-    w.display ? h("span", { class: "kiosk-hud-chip kiosk-hud-chip--end" }, `WS350 Screen: ${w.display}`) : null
+    w.display ? h("span", { class: "kiosk-hud-chip kiosk-hud-chip--end" }, `Workshop display: ${workshopDisplayLabel(w.display)}`) : null
   );
 
   // No picture (the camera bridge is down, or the image fails to load): say so in words, not a broken-image icon.
@@ -136,6 +136,10 @@ function workshopKioskConsole(d, cam) {
       src: `/api/camera.jpg?t=${Date.now()}`,
       alt: "Workshop live nozzle camera",
       loading: "eager",
+      onload: (e) => {  // the box takes the picture's own shape
+        const { naturalWidth: nw, naturalHeight: nh } = e.target;
+        if (nw && nh) e.target.parentNode?.style.setProperty("--cam-ar", `${nw} / ${nh}`);
+      },
       onerror: (e) => e.target.replaceWith(noPicture()),
     }) : noPicture(),
     (cam && cam.ok) ? h("span", { class: "kiosk-cam-badge" }, "● LIVE") : null,
@@ -166,13 +170,13 @@ function workshopKioskConsole(d, cam) {
       h("div", { class: "kiosk-title" },
         h("div", { class: "kiosk-name" },
           h("span", { "aria-hidden": "true" }, "🖨️"),
-          h("h2", {}, "Bambu X2D Workshop"),
+          h("h2", {}, "Bambu X2D"),
           h("span", { class: "kiosk-badge", dataset: { tone: badge.tone } }, badge.label)),
         isPrinting ? h("p", { class: "kiosk-pct" }, `${pct}%`) : null,
         h("p", { class: "kiosk-sub" }, jobSubtitle)),
       h("div", { class: "kiosk-links" },
         h("a", { class: "chip", href: "/workshop", "data-link": true }, "Workshop History"),
-        h("a", { class: "chip", href: "/bambuddy", "data-link": true }, "Bambuddy ↗"))),
+        h("a", { class: "chip", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"))),
     progressSection,
     camContainer
   );

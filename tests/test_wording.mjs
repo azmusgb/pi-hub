@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet } from '../hub/static/js/wording.js';
+import { readFileSync } from 'node:fs';
+import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -132,4 +133,19 @@ test('a print row length: running shows none, ended falls back to start and end'
 test('the week pill never invents zeros when the print log is missing', () => {
   assert.deepEqual(weekPill({ finished: 2, hours: 3 }), { pill: '2 finished this week', tone: 'ok' });
   assert.deepEqual(weekPill(null), { pill: 'No answer', tone: 'warn' });
+});
+
+test('the workshop display chip says on, off, or the word as it came', () => {
+  assert.equal(workshopDisplayLabel('Online'), 'on');
+  assert.equal(workshopDisplayLabel('Offline'), 'off');
+  assert.equal(workshopDisplayLabel('Sleeping'), 'Sleeping');
+});
+
+test('the wall printer tile: short title, real external Bambuddy link, new HUD wording', () => {
+  const now = readFileSync(new URL('../hub/static/js/now.js', import.meta.url), 'utf8');
+  assert.match(now, /h\("h2", \{\}, "Bambu X2D"\)/);
+  assert.doesNotMatch(now, /Bambu X2D Workshop|WS350/);
+  assert.match(now, /`Workshop display: \$\{workshopDisplayLabel\(w\.display\)\}`/);
+  assert.match(now, /href: toolUrl\("bambuddy"\), target: "_blank", rel: "noopener" \}, "Open Bambuddy ↗"/);
+  assert.doesNotMatch(now, /href: "\/bambuddy"/);
 });
