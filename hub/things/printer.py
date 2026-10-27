@@ -9,6 +9,7 @@ from .. import records
 from ..now import printer_actions
 
 FINISHED_AT = 97  # percent; an idle printer that stopped below this didn't finish
+FAILED_HOLD = 24 * 3600  # seconds an inferred failure stays failed while Bambuddy keeps saying idle
 ATTEMPT_WINDOW = 15 * 60  # seconds in which the same job starting again is another attempt
 
 LABELS = {"clear": "Clear the plate", "pause": "Pause the print", "resume": "Resume the print"}
@@ -31,7 +32,7 @@ def _pct(v):
     return v if isinstance(v, (int, float)) else 0
 
 
-def _state(b, prev):
+def _state(b, prev, now):
     if not b.get("connected"):
         return "offline"
     raw = b.get("bambuddy_state") or b.get("state")
@@ -41,6 +42,8 @@ def _state(b, prev):
     if raw == "FAILED":
         return "failed" if done else "idle"
     state = BAMBUDDY.get(raw, "unknown")
+    if state == "idle" and prev and prev["state"] == "failed" and now - prev["since"] < FAILED_HOLD:
+        return "failed"
     if state == "idle" and prev and prev["state"] in ("printing", "paused") \
             and _pct(prev["detail"].get("last_progress")) < FINISHED_AT:
         return "failed"
@@ -73,15 +76,18 @@ def _disagree(s, state):
 def printer(b, s, lab, prev, now):
     if b is None:
         return None
-    state = _state(b, prev)
+    state = _state(b, prev, now)
     job = _job(b.get("job_name"))
     live = state in ("printing", "paused")
     was_live = bool(prev) and prev["state"] in ("printing", "paused")
     inferred = state == "failed" and was_live and b.get("bambuddy_state") == "IDLE"
+    held = state == "failed" and bool(prev) and prev["state"] == "failed" and b.get("bambuddy_state") == "IDLE"
     pct = _pct(b.get("progress"))
-    last = prev["detail"].get("last_progress", pct) if inferred else pct
+    last = prev["detail"].get("last_progress", pct) if (inferred or held) else pct
     carried = prev["detail"].get("started") if was_live else None
     started = carried if (carried and (live or state == "failed")) else (now if live else None)
+    if held:
+        started = prev["detail"].get("started")
     attempt = _attempt(job, state, prev, now)
     detail = {"job": job, "progress": b.get("progress"), "layer": b.get("layer_num"),
               "total_layers": b.get("total_layers"), "nozzle": b.get("nozzle_temp"),
@@ -92,7 +98,9 @@ def printer(b, s, lab, prev, now):
     if live and lab is not None:
         detail["lab"] = lab
     cause = ""
-    if state == "failed":
+    if held:
+        cause = prev["cause"]
+    elif state == "failed":
         mins = int((now - started) // 60) if started else 0
         cause = f"Stopped at {_clock(now)} after {mins} min; the printer gave no reason."
     actions = [{"name": a, "label": LABELS[a], "confirm": False} for a in printer_actions(b)]

@@ -97,3 +97,28 @@ def test_lab_only_while_printing_or_paused():
 
 def test_no_answer_from_bambuddy_returns_none():
     assert printer.printer(None, {"x2d_state": "Printing"}, None, None, T) is None
+
+
+def _inferred_failure():
+    return merged(printer.printer(IDLE_V72, None, None, printing_at(23), T0 + 600), at=T0 + 600)
+
+
+def test_an_inferred_failure_holds_until_24_hours():
+    f = _inferred_failure()
+    for dt in (60, 23 * 3600):
+        r = printer.printer(IDLE_V72, None, None, f, T0 + 600 + dt)
+        assert r["state"] == "failed" and r["cause"] == f["cause"]
+        assert r["headline"] == f["headline"]
+        assert records_merge(f, r, T0 + 600 + dt)["since"] == f["since"]
+    assert printer.printer(IDLE_V72, None, None, f, T0 + 600 + printer.FAILED_HOLD)["state"] == "idle"
+
+
+def test_a_new_print_after_an_inferred_failure_is_printing():
+    f = _inferred_failure()
+    r = printer.printer(RUNNING_V72, None, None, f, T0 + 700)
+    assert r["state"] == "printing" and r["detail"]["attempt"] == 2
+
+
+def records_merge(prev, new, now):
+    from hub import records
+    return records.merge(prev, new, now)
