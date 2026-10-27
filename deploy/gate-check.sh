@@ -1,6 +1,7 @@
 #!/bin/bash
 # Checks the front gate on the Pi (run as root): every name refuses a signed-out visit and lets the owner in, a forged
-# identity header sent to Grafana from the LAN gets nothing, and the old address still reaches the hub.
+# identity header sent to Grafana from the LAN gets nothing, and the old address still reaches the hub. A tool's first
+# visit trades a one-time code for its own host-only cookie.
 # Usage: sudo bash gate-check.sh
 set -uo pipefail
 CA=/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
@@ -17,7 +18,8 @@ cleanup() {
 import sqlite3
 d = sqlite3.connect("/var/lib/pi-hub/hub.db")
 for (h,) in d.execute("SELECT token_hash FROM sessions WHERE device = 'gate-check' AND role = 'owner'").fetchall():
-    d.execute("DELETE FROM gate_codes WHERE owner_hash = ?", (h,))
+    try: d.execute("DELETE FROM gate_codes WHERE owner_hash = ?", (h,))
+    except sqlite3.OperationalError: pass  # no gate_codes table yet; the sessions cleanup below still runs
     d.execute("DELETE FROM sessions WHERE role = 'gate' AND device = ?", ("gate:" + h,))
 d.execute("DELETE FROM sessions WHERE device = 'gate-check'")
 d.commit()

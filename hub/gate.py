@@ -2,7 +2,7 @@
 any *.home.arpa tool loads. Signed in as the owner → 200 with X-Remote-User; otherwise → the hub's sign-in, which
 sends you back to where you were. home.arpa is a public suffix, so no cookie can span its names: each tool gets its own
 host-only `hub_gate` cookie, handed over by a one-time code (`hub_gate_code`) that the gate spends on that tool's host."""
-from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 HOME = "https://home.home.arpa/"
 COOKIE = "hub_gate"
@@ -21,9 +21,9 @@ def on_home_arpa(host):
 
 
 def with_code(url, code):
+    """The URL with the code appended raw (it is URL-safe), leaving the rest of the query as it was."""
     u = urlsplit(url)
-    query = urlencode(parse_qsl(u.query, keep_blank_values=True) + [(CODE_PARAM, code)])
-    return urlunsplit(u._replace(query=query))
+    return urlunsplit(u._replace(query=f"{u.query}&{CODE_PARAM}={code}" if u.query else f"{CODE_PARAM}={code}"))
 
 
 def split_code(url):

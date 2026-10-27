@@ -173,6 +173,16 @@ def test_spending_a_code_revokes_the_tools_previous_token(client):
     assert client.get("/api/gate", cookies={"hub_gate": old}, follow_redirects=False).status_code == 302
 
 
+def test_a_replayed_code_with_a_live_cookie_is_dropped_from_the_address(client):
+    signin(client, "home.home.arpa")
+    nxt = urlsplit(renew(client, "https://bambuddy.home.arpa/x").json()["next"])
+    client.cookies.clear()
+    cookie = gate_cookie(gate_get(client, "bambuddy.home.arpa", f"{nxt.path}?{nxt.query}"))
+    r = gate_get(client, "bambuddy.home.arpa", f"{nxt.path}?{nxt.query}", cookies={"hub_gate": cookie})
+    assert r.status_code == 302 and r.headers["location"] == "https://bambuddy.home.arpa/x"
+    assert not r.headers.get_list("set-cookie")
+
+
 def test_gate_helpers_add_and_strip_the_code():
     assert gate.with_code("https://a.home.arpa/x?y=1", "c1") == "https://a.home.arpa/x?y=1&hub_gate_code=c1"
     assert gate.with_code("https://a.home.arpa/", "c1") == "https://a.home.arpa/?hub_gate_code=c1"
@@ -180,6 +190,8 @@ def test_gate_helpers_add_and_strip_the_code():
     assert gate.split_code("https://a.home.arpa/?hub_gate_code=c1") == ("https://a.home.arpa/", "c1")
     assert gate.split_code("https://a.home.arpa/?flag&hub_gate_code=x")[0] == "https://a.home.arpa/?flag"
     assert gate.split_code("https://a.home.arpa/?/route&hub_gate_code=x")[0] == "https://a.home.arpa/?/route"
+    for u in ("https://a.home.arpa/?flag", "https://a.home.arpa/?/route", "https://a.home.arpa/?q=a%20b", "https://a.home.arpa/x"):
+        assert gate.split_code(gate.with_code(u, "c-1_x")) == (u, "c-1_x")
     assert gate.split_code("https://a.home.arpa/?y=1") == ("https://a.home.arpa/?y=1", None)
 
 

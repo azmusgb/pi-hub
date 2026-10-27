@@ -649,17 +649,21 @@ def api_gate(request: Request):
     """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes. A hand-off code in the address is
     spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
     url, code = gate.split_code(gate.original_url(request.headers))
+    h = auth.session(request.cookies.get(auth.COOKIE))
+    ok = auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
         loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
-        token = auth.redeem_gate_code(code, host) if urlsplit(loc).hostname == host else None
+        same = urlsplit(loc).hostname == host
+        token = auth.redeem_gate_code(code, host) if same else None
         if token:
             auth.sign_out(request.cookies.get(gate.COOKIE))  # this tool's previous token, if the browser sent one
             resp = Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
             resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.LIFETIME["owner"]))
             return resp
-    h = auth.session(request.cookies.get(auth.COOKIE))
-    if auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner"):
+        if ok and same:  # a spent code on an already signed-in visit: drop it from the tool's address
+            return Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
+    if ok:
         return Response(status_code=200, headers={"X-Remote-User": "bill", "Cache-Control": "no-store"})
     return Response(status_code=302, headers={"Location": gate.signin_url(request.headers), "Cache-Control": "no-store"})
 

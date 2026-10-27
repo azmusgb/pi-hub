@@ -297,6 +297,7 @@ async function gateSignIn() {
   const q = new URLSearchParams(location.search);
   if (q.get("signin") !== "owner") return;
   const next = safeNext(q.get("next") || "");
+  const hash = location.hash;  // the gate's redirect carried the tool's #fragment; replaceState would drop it
   history.replaceState({}, "", location.pathname);
   if (!(await ensure("owner")) || !next) return;
   // Already signed in here, but the tool sent us back: the tool's gate cookie is missing or stale. Ask for a fresh hand-off once; if the
@@ -307,7 +308,7 @@ async function gateSignIn() {
   try { sessionStorage.setItem("gateTries", JSON.stringify([...tries, Date.now()])); } catch { /* private mode */ }
   const r = await fetch("/api/gate/renew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next }) }).catch(() => null);
   const to = r && r.ok ? safeNext((await r.json().catch(() => ({}))).next) : null;
-  if (to) location.replace(to);
+  if (to) location.replace(new URL(to).hash ? to : to + hash);
   else toast("Couldn't sign in to the other tools. Open https://home.home.arpa and try again.", "bad");
 }
 
