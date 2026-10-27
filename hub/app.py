@@ -9,7 +9,7 @@ import hmac
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
@@ -620,32 +620,42 @@ def _device(request: Request):
     return "A browser"
 
 
-def _signed_in(token, role, host=""):
+def _signed_in(token, role):
     resp = fresh({"role": role})
     resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
-    shared = gate.cookie_kwargs(host, auth.LIFETIME[role])
-    if shared and role == "owner":  # signed in through the front gate: a gate-only token for every *.home.arpa tool
-        resp.set_cookie(gate.COOKIE, auth.gate_session(token), **shared)
     return resp
 
 
 @app.post("/api/gate/renew")
-def api_gate_renew(request: Request):
-    """A signed-in owner on home.home.arpa whose gate cookie is missing or stale gets a new one, so the sign-in
-    hand-back never bounces between a tool and the hub."""
+async def api_gate_renew(request: Request):
+    """A signed-in owner on home.home.arpa asks to open a tool: hand back its address with a one-time code that the
+    gate spends on that tool's own host (a cookie can't span home.arpa names), so the sign-in hand-back never bounces."""
     need(request, "owner")
-    shared = gate.cookie_kwargs(request.headers.get("host", ""), auth.LIFETIME["owner"])
-    if not shared:
+    if not gate.on_home_arpa(request.headers.get("host", "")):
         raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
-    auth.sign_out(request.cookies.get(gate.COOKIE))  # the stale one, if any
-    resp = fresh({"ok": True})
-    resp.set_cookie(gate.COOKIE, auth.gate_session(request.cookies.get(auth.COOKIE)), **shared)
-    return resp
+    b = await request.json()
+    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None)
+    host = urlsplit(nxt).hostname
+    if nxt == gate.HOME or host == "home.home.arpa":
+        raise HTTPException(400, "That isn't one of the other tools.")
+    code = auth.gate_code(request.cookies.get(auth.COOKIE), host)
+    if not code:
+        raise HTTPException(401, "Sign in as the owner first.")
+    return fresh({"next": gate.with_code(nxt, code)})
 
 
 @app.get("/api/gate")
 def api_gate(request: Request):
-    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes."""
+    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes. A hand-off code in the address is
+    spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
+    url, code = gate.split_code(gate.original_url(request.headers))
+    if code:
+        host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
+        token = auth.redeem_gate_code(code, host)
+        if token:
+            resp = Response(status_code=302, headers={"Location": url, "Cache-Control": "no-store"})
+            resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.LIFETIME["owner"]))
+            return resp
     h = auth.session(request.cookies.get(auth.COOKIE))
     if auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner"):
         return Response(status_code=200, headers={"X-Remote-User": "bill", "Cache-Control": "no-store"})
@@ -675,7 +685,7 @@ async def api_setup(request: Request):
         raise HTTPException(400, str(e))
     token, role = auth.sign_in(request.client.host, _device(request), password=b.get("owner_password"))
     auth.log(role, _device(request), "setup", "The hub was set up.")
-    return _signed_in(token, role, request.headers.get("host", ""))
+    return _signed_in(token, role)
 
 
 @app.post("/api/signin")
@@ -688,7 +698,7 @@ async def api_signin(request: Request):
             token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
     except PermissionError as e:
         raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
-    return _signed_in(token, role, request.headers.get("host", ""))
+    return _signed_in(token, role)
 
 
 @app.post("/api/signout")
@@ -697,7 +707,6 @@ def api_signout(request: Request):
     auth.sign_out(request.cookies.get(gate.COOKIE))
     resp = fresh({"role": "none"})
     resp.delete_cookie(auth.COOKIE, path="/")
-    resp.delete_cookie(gate.COOKIE, path="/", domain=gate.DOMAIN, secure=True, httponly=True, samesite="lax")
     return resp
 
 

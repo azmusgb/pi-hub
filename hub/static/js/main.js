@@ -299,14 +299,14 @@ async function gateSignIn() {
   const next = safeNext(q.get("next") || "");
   history.replaceState({}, "", location.pathname);
   if (!(await ensure("owner")) || !next) return;
-  // Already signed in here, but the tool sent us back: the gate cookie is missing or stale. Renew it once; if the
+  // Already signed in here, but the tool sent us back: the tool's gate cookie is missing or stale. Ask for a fresh hand-off once; if the
   // tool still sends us back within a minute, say so instead of bouncing.
   let tries = [];
   try { tries = JSON.parse(sessionStorage.getItem("gateTries") || "[]").filter((t) => Date.now() - t < 60000); } catch { /* private mode */ }
   if (tries.length >= 2) { toast("This browser isn't keeping the sign-in for the other tools. Check that it allows cookies for home.arpa.", "bad"); return; }
   try { sessionStorage.setItem("gateTries", JSON.stringify([...tries, Date.now()])); } catch { /* private mode */ }
-  const r = await fetch("/api/gate/renew", { method: "POST" }).catch(() => null);
-  if (r && r.ok) location.replace(next);
+  const r = await fetch("/api/gate/renew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next }) }).catch(() => null);
+  if (r && r.ok) location.replace((await r.json()).next);
   else toast("Couldn't sign in to the other tools. Open https://home.home.arpa and try again.", "bad");
 }
 

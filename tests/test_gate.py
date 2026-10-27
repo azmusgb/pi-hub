@@ -1,5 +1,6 @@
 import os
 import tempfile
+from urllib.parse import unquote, urlsplit
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 _tmp = tempfile.mkdtemp()
@@ -42,6 +43,24 @@ def gate_cookie(r):
     return None
 
 
+def gate_get(client, host, uri, **kw):
+    return client.get("/api/gate", follow_redirects=False,
+                      headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": host, "X-Forwarded-Uri": uri}, **kw)
+
+
+def renew(client, next_url):
+    return client.post("/api/gate/renew", json={"next": next_url},
+                       headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
+
+
+def tool_token(client, host="bambuddy.home.arpa"):
+    """A tool's host-only gate token for the signed-in owner: renew, then spend the code at the gate."""
+    nxt = urlsplit(renew(client, f"https://{host}/").json()["next"])
+    token = gate_cookie(gate_get(client, host, f"{nxt.path}?{nxt.query}"))
+    assert token
+    return token
+
+
 def test_safe_next_only_allows_home_arpa():
     assert gate.safe_next("https://bambuddy.home.arpa/x?y=1") == "https://bambuddy.home.arpa/x?y=1"
     for bad in ("https://evil.com", "//evil.com", "http://bambuddy.home.arpa/", "https://home.arpa.evil.com", "",
@@ -66,8 +85,9 @@ def test_gate_redirect_never_points_outside_home_arpa(client):
 
 def test_gate_lets_the_owner_through_with_either_cookie(client):
     r = signin(client, "home.home.arpa")
-    session_token, gate_token = r.cookies.get("hub_session"), gate_cookie(r)
-    assert gate_token and gate_token != session_token  # the cookie every tool sees is not the hub session
+    session_token = r.cookies.get("hub_session")
+    gate_token = tool_token(client)
+    assert gate_token != session_token  # the cookie a tool sees is not the hub session
     client.cookies.clear()
     for name, token in (("hub_gate", gate_token), ("hub_session", session_token)):
         r = client.get("/api/gate", cookies={name: token})
@@ -75,7 +95,8 @@ def test_gate_lets_the_owner_through_with_either_cookie(client):
 
 
 def test_a_gate_token_is_never_a_hub_session(client):
-    gate_token = gate_cookie(signin(client, "home.home.arpa"))
+    signin(client, "home.home.arpa")
+    gate_token = tool_token(client)
     client.cookies.clear()
     assert client.get("/api/me", cookies={"hub_session": gate_token}).json()["role"] == "none"
     # and an owner's hub session put in the gate cookie isn't a gate token
@@ -91,61 +112,76 @@ def test_gate_refuses_household_and_unknown_tokens(client):
     assert client.get("/api/gate", cookies={"hub_gate": "not-a-token"}, follow_redirects=False).status_code == 302
 
 
-def test_signin_on_home_arpa_sets_the_gate_cookie_and_signout_clears_it(client):
-    r = signin(client, "home.home.arpa")
-    header = [c for c in r.headers.get_list("set-cookie") if c.startswith("hub_gate=")]
-    assert header and "Domain=.home.arpa" in header[0] and "Secure" in header[0]
-    assert "HttpOnly" in header[0] and "SameSite=lax" in header[0]
-    client.cookies.clear()
-    gate_token = gate_cookie(r)
-    client.cookies.clear()
-    r = signin(client, "10.0.0.30")
-    assert not any(c.startswith("hub_gate=") for c in r.headers.get_list("set-cookie"))
-    client.cookies.clear()
-    assert not any(c.startswith("hub_gate=") for c in signin(client, "home.home.arpa", pin="123456").headers.get_list("set-cookie"))
-    client.cookies.set("hub_gate", gate_token)
-    r = client.post("/api/signout", headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
-    assert any(c.startswith("hub_gate=") and "Max-Age=0" in c and "Domain=.home.arpa" in c
-               for c in r.headers.get_list("set-cookie"))
-    client.cookies.clear()
-    assert client.get("/api/gate", cookies={"hub_gate": gate_token}, follow_redirects=False).status_code == 302  # revoked
-
-
-def test_a_signed_in_owner_can_renew_a_missing_gate_token(client):
-    # Signed in at home.home.arpa but with no (or a stale) gate cookie: the sign-in hand-back renews it instead of
-    # bouncing between the tool and the hub.
+def test_renew_hands_back_next_with_a_code_and_the_gate_spends_it(client):
     signin(client, "home.home.arpa")
-    headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
-    r = client.post("/api/gate/renew", headers=headers)
-    assert r.status_code == 200
+    r = renew(client, "https://bambuddy.home.arpa/x?y=1")
+    assert r.status_code == 200 and gate_cookie(r) is None
+    nxt = urlsplit(r.json()["next"])
+    assert (nxt.hostname, nxt.path) == ("bambuddy.home.arpa", "/x") and "y=1" in nxt.query
     client.cookies.clear()
-    assert client.get("/api/gate", cookies={"hub_gate": gate_cookie(r)}).status_code == 200
+    g = gate_get(client, "bambuddy.home.arpa", f"{nxt.path}?{nxt.query}")
+    assert g.status_code == 302 and g.headers["location"] == "https://bambuddy.home.arpa/x?y=1"
+    assert g.headers["cache-control"] == "no-store"
+    cookie = [c for c in g.headers.get_list("set-cookie") if c.startswith("hub_gate=")][0]
+    assert "Domain" not in cookie and "Secure" in cookie and "HttpOnly" in cookie and "SameSite=lax" in cookie
+    assert gate_get(client, "bambuddy.home.arpa", "/x?y=1", cookies={"hub_gate": gate_cookie(g)}).status_code == 200
+    again = gate_get(client, "bambuddy.home.arpa", f"{nxt.path}?{nxt.query}")   # replayed code
+    assert again.status_code == 302 and "hub_gate_code" not in unquote(again.headers["location"])
+    assert again.headers["location"].startswith("https://home.home.arpa/?signin=owner&next=")
+
+
+def test_renew_refuses_unsafe_or_hub_destinations(client):
+    signin(client, "home.home.arpa")
+    for bad in ("http://bambuddy.home.arpa/", "https://evil.com/", "https://home.home.arpa/", "not a url"):
+        assert renew(client, bad).status_code == 400
+
+
+def test_signin_and_signout_never_send_a_domain_cookie(client):
+    r = signin(client, "home.home.arpa")
+    assert not any(c.startswith("hub_gate=") for c in r.headers.get_list("set-cookie"))
+    r = client.post("/api/signout", headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
+    assert not any("Domain=.home.arpa" in c for c in r.headers.get_list("set-cookie"))
+
+
+def test_a_code_is_only_good_for_its_own_host(client):
+    signin(client, "home.home.arpa")
+    nxt = urlsplit(renew(client, "https://bambuddy.home.arpa/").json()["next"])
+    client.cookies.clear()
+    other = gate_get(client, "assistant.home.arpa", f"/?{nxt.query}")
+    assert other.status_code == 302 and gate_cookie(other) is None
+    assert gate_get(client, "Bambuddy.home.arpa:443", f"/?{nxt.query}").status_code == 302  # still unspent
+
+
+def test_gate_helpers_add_and_strip_the_code():
+    assert gate.with_code("https://a.home.arpa/x?y=1", "c1") == "https://a.home.arpa/x?y=1&hub_gate_code=c1"
+    assert gate.with_code("https://a.home.arpa/", "c1") == "https://a.home.arpa/?hub_gate_code=c1"
+    assert gate.split_code("https://a.home.arpa/x?y=1&hub_gate_code=c1&z=2") == ("https://a.home.arpa/x?y=1&z=2", "c1")
+    assert gate.split_code("https://a.home.arpa/?hub_gate_code=c1") == ("https://a.home.arpa/", "c1")
+    assert gate.split_code("https://a.home.arpa/?y=1") == ("https://a.home.arpa/?y=1", None)
 
 
 def test_renewing_the_gate_needs_the_owner_on_home_arpa(client):
     headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
-    assert client.post("/api/gate/renew", headers=headers).status_code == 401
+    body = {"next": "https://bambuddy.home.arpa/"}
+    assert client.post("/api/gate/renew", json=body, headers=headers).status_code == 401
     signin(client, "home.home.arpa", pin="123456")
-    assert client.post("/api/gate/renew", headers=headers).status_code == 401
+    assert client.post("/api/gate/renew", json=body, headers=headers).status_code == 401
     client.cookies.clear()
     signin(client, "10.0.0.30")
-    r = client.post("/api/gate/renew", headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
+    r = client.post("/api/gate/renew", json=body, headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
     assert r.status_code == 400 and gate_cookie(r) is None
 
 
 def test_signing_out_revokes_every_gate_token_from_that_sign_in(client):
     headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
-    r = signin(client, "home.home.arpa")
-    session, first = r.cookies.get("hub_session"), gate_cookie(r)
+    session = signin(client, "home.home.arpa").cookies.get("hub_session")
+    first, second = tool_token(client), tool_token(client, "assistant.home.arpa")
     client.cookies.clear()
-    renewed = gate_cookie(client.post("/api/gate/renew", headers=headers,
-                                      cookies={"hub_session": session, "hub_gate": first}))
+    assert client.get("/api/gate", cookies={"hub_gate": first}).status_code == 200
+    client.post("/api/signout", headers=headers, cookies={"hub_session": session})  # without the tokens in hand
     client.cookies.clear()
-    assert client.get("/api/gate", cookies={"hub_gate": first}, follow_redirects=False).status_code == 302  # replaced
-    assert client.get("/api/gate", cookies={"hub_gate": renewed}).status_code == 200
-    client.post("/api/signout", headers=headers, cookies={"hub_session": session})  # without `renewed` in hand
-    client.cookies.clear()
-    assert client.get("/api/gate", cookies={"hub_gate": renewed}, follow_redirects=False).status_code == 302
+    for t in (first, second):
+        assert client.get("/api/gate", cookies={"hub_gate": t}, follow_redirects=False).status_code == 302
 
 
 def test_a_gate_token_never_outlives_its_sign_in(client):
@@ -154,9 +190,9 @@ def test_a_gate_token_never_outlives_its_sign_in(client):
     db = sqlite3.connect(os.environ["HUB_DB"])
     (owner,) = db.execute("SELECT expires FROM sessions WHERE role = 'owner'").fetchone()
     db.execute("UPDATE sessions SET expires = ? WHERE role = 'owner'", (owner - 3600,)); db.commit()
-    r = client.post("/api/gate/renew", headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
+    tool_token(client)
     (gate_expires,) = db.execute("SELECT expires FROM sessions WHERE role = 'gate' ORDER BY rowid DESC").fetchone()
-    assert gate_expires <= owner - 3600 and r.status_code == 200
+    assert gate_expires <= owner - 3600
 
 
 def test_a_gate_code_is_spent_once_on_its_own_host(client):
