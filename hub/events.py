@@ -1,13 +1,17 @@
 """Notices what changes in the house and runs the household's rules on it.
 
-Every 30 seconds it compares the current state with the last one. A change has to last two
-checks (a minute) before it counts, so blips don't fire rules. The Windows PC has to be
-down for 5 minutes, since Local AI restarts quickly and the room's breaker trips don't.
+Every 30 seconds the records are refreshed (hub/records.py) and their changes become today's
+triggers: a print starting or ending, the PC, the movies drive, Plex, Homebridge, the Pi's heat.
+The records keep the existing debounce (a change has to last two checks) and the PC has to be
+off the network for 5 minutes. The Watcher still checks the movie copy, the Paperless backup,
+spools, the network alerts and the weather.
 """
+import sys
 import time
+import traceback
 import urllib.request
 
-from . import auth, db, sources
+from . import auth, db, records, sources
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (ts INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT);
@@ -62,7 +66,7 @@ MESSAGES = {
     "print_started": ("X2D print started", ""),
     "drive_dropped": ("Movies drive dropped out", "Unplug it, wait 10 seconds and plug it back in."),
     "drive_back": ("Movies drive is back", "Plex can play movies again."),
-    "pc_down": ("Windows PC is down", "Local AI has been unreachable for 5 minutes. Check the PC or the room's breaker."),
+    "pc_down": ("Windows PC is down", "It hasn't answered on the network for 5 minutes. Check the PC or the room's breaker."),
     "pc_back": ("Windows PC is back", ""),
     "plex_stopped": ("Plex stopped", "Restart it from the hub's Pi page."),
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
@@ -297,6 +301,58 @@ def recent(limit=40):
     return db.rows("SELECT ts, kind, detail FROM events ORDER BY ts DESC, rowid DESC LIMIT ?", limit)
 
 
+# ---- Record changes become triggers ----
+
+# states that say nothing about the thing (it isn't answering, or answered something odd); a trigger
+# compares with the last state that did say something, so a source dropping out and coming back
+# doesn't report the same print or dropout twice
+UNSURE = {"unknown", "offline"}
+_last = {}  # thing -> its last state outside UNSURE, as on_changes saw it (only events.run's thread)
+
+# thing -> [(new states, states it mustn't come from, trigger)]
+ON = {
+    "printer": [({"printing"}, {"printing", "paused"}, "print_started"),
+                ({"finished"}, set(), "print_finished"),
+                ({"failed"}, set(), "print_failed")],
+    "pc": [({"off"}, {"off"}, "pc_down"), ({"on"}, {"on"}, "pc_back")],
+    "movies_drive": [({"missing", "not_mounted"}, {"missing", "not_mounted"}, "drive_dropped"),
+                     ({"connected"}, {"connected"}, "drive_back")],
+    "plex": [({"stopped"}, {"stopped"}, "plex_stopped")],
+    "devices": [({"stopped"}, {"stopped"}, "homebridge_stopped")],
+    "pi": [({"hot"}, {"hot"}, "pi_hot")],
+}
+
+
+def _detail(kind, rec):
+    d = rec.get("detail") or {}
+    if kind == "print_started" and (d.get("attempt") or 1) > 1:
+        return f"attempt {d['attempt']}"
+    if kind == "print_failed":
+        return f"at {d.get('last_progress') or 0}%"
+    if kind == "pi_hot" and d.get("temp") is not None:
+        return f"{d['temp']} °C"
+    return ""
+
+
+def on_changes(changes, first):
+    """Fires today's triggers for the records that changed. The first refresh after a start fires
+    nothing: a print already under way, or a PC already off, isn't news."""
+    for ch in changes:
+        new = ch["new"]
+        if ch["id"] not in ON or new in UNSURE:
+            continue
+        before = _last.get(ch["id"]) or (ch["old"] if ch["old"] not in UNSURE else None)
+        _last[ch["id"]] = new
+        if first or before is None or before == new:
+            continue
+        for states, not_from, kind in ON[ch["id"]]:
+            if new in states and before not in not_from:
+                try:
+                    fire(kind, _detail(kind, ch["record"]), dedupe=PRINT_DEDUPE if kind.startswith("print_") else 0)
+                except Exception:
+                    traceback.print_exc(file=sys.stderr)
+
+
 # ---- Watching for changes ----
 
 class Watcher:
@@ -306,10 +362,6 @@ class Watcher:
         self.paperless_stale = False
         self.low_spools = None  # Bambuddy spool ids seen low; None until the first answer
         self.pending = {}
-        self.pc_down_since = None
-        self.pc_reported = None
-        self.last_print = None
-        self.last_progress = 0
         self.alerts_seen = None
         self.rain_day = None
         self.freeze_day = None
@@ -343,10 +395,10 @@ class Watcher:
         self.low_spools = set(low)
 
     def check(self, s, now=None):
+        """The movie copy, the Paperless backup and the spools (the rest comes from the records)."""
         now = now or time.time()
         if s is None:
             return
-        svc = s.get("services") or {}
         mirror = s.get("mirror") or {}
         if mirror.get("last_ok"):
             stale = now - mirror["last_ok"] > MIRROR_STALE
@@ -360,50 +412,6 @@ class Watcher:
             if stale and not self.paperless_stale:
                 fire("paperless_stale")
             self.paperless_stale = stale
-        if s.get("drive_state") in ("Connected", "Missing", "Not mounted"):
-            if self._steady("drive", s["drive_state"] == "Connected"):
-                fire("drive_back" if self.seen["drive"] else "drive_dropped")
-        else:
-            self.pending.pop("drive", None)
-        for key in ("plex", "homebridge"):
-            if isinstance(svc.get(key), bool):
-                if self._steady(key, svc[key]) and not self.seen[key]:
-                    fire(f"{key}_stopped")
-            else:
-                self.pending.pop(key, None)
-        if s.get("pi_temp") is not None:
-            if self._steady("hot", s["pi_temp"] > 75) and self.seen["hot"]:
-                fire("pi_hot", f"{s['pi_temp']} °C")
-        else:
-            self.pending.pop("hot", None)
-
-        pc_up = s.get("ai_state") in ("Ready", "Busy")
-        if s.get("ai_state") not in ("Ready", "Busy", "Down"):
-            self.pc_down_since = None
-        elif pc_up:
-            self.pc_down_since = None
-            if self.pc_reported is False:
-                fire("pc_back")
-            self.pc_reported = True
-        else:
-            self.pc_down_since = self.pc_down_since or now
-            if now - self.pc_down_since >= 300 and self.pc_reported is not False:
-                fire("pc_down")
-                self.pc_reported = False
-
-        state = s.get("x2d_state")
-        if state == "Printing":
-            # The first reading after the hub starts only learns the state: a print already under way isn't new.
-            if self.last_print is not None and self.last_print not in ("Printing", "Paused"):
-                fire("print_started", dedupe=PRINT_DEDUPE)
-            self.last_progress = s.get("x2d_progress") or 0
-        elif self.last_print in ("Printing", "Paused") and state in ("Idle", "Stopped", "Error"):
-            if state == "Error" or (state in ("Stopped", "Idle", "No status") and self.last_progress < 97):
-                fire("print_failed", f"at {self.last_progress}%", dedupe=PRINT_DEDUPE)
-            else:
-                fire("print_finished", dedupe=PRINT_DEDUPE)
-        if state in ("Printing", "Paused", "Idle", "Stopped", "Error"):
-            self.last_print = state
 
     def check_network(self, alerts, now=None):
         if alerts is None:
@@ -439,7 +447,14 @@ class Watcher:
 def run(every=30):
     w = Watcher()
     time.sleep(20)
+    first = True  # the first refresh after the hub starts only learns the state
     while True:
+        try:
+            changes = records.refresh()
+            is_first, first = first, False
+            on_changes(changes, is_first)
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
         try:
             w.check(sources.pi_status())
         except Exception:

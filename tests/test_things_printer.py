@@ -39,6 +39,12 @@ def test_agreement_or_silence_is_no_disagreement():
     assert printer.printer(IDLE_V72, {"x2d_state": "Stopped"}, None, None, T)["disagree"] == ""
 
 
+def test_an_odd_pi_status_answer_is_no_disagreement():
+    for odd in ("not a dict", ["x"], 7):
+        r = printer.printer(RUNNING_V72, odd, None, None, T)
+        assert r["state"] == "printing" and r["disagree"] == ""
+
+
 def test_idle_below_97_after_printing_is_a_failure():
     prev = printing_at(23)
     r = printer.printer(IDLE_V72, None, None, prev, T0 + 600)

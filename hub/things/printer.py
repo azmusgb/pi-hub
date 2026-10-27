@@ -80,7 +80,7 @@ def _headline(state, job, pct, attempt):
 
 
 def _disagree(s, state):
-    said = (s or {}).get("x2d_state")
+    said = s.get("x2d_state") if isinstance(s, dict) else None  # an odd answer from pi-status says nothing
     if not said or PI_STATUS.get(said) == state:
         return ""
     return f"pi-status reports {said}; Bambuddy reports {state}"

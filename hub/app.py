@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -21,6 +21,11 @@ app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
+    try:
+        records.load()  # the last known state, marked stale, before the loop's first refresh
+    except Exception:
+        import traceback
+        traceback.print_exc()
     threading.Thread(target=sampler.run, daemon=True).start()
     threading.Thread(target=recorder.run, args=(sampler,), daemon=True).start()
     threading.Thread(target=events.run, daemon=True).start()

@@ -166,6 +166,39 @@ def store(recs, now):
     return changes
 
 
+def _about(id):
+    return "the printer" if id == "printer" else LABELS.get(id, id)
+
+
+def _hub(recs, prev, now):
+    """The hub's own record: a disagreement between two sources that has lasted DISAGREE_AFTER is attention."""
+    # A hub record remembered from before a restart says nothing about now: its clocks start again.
+    before = prev["detail"].get("disagree_since", {}) if prev and not prev.get("stale") else {}
+    since = {id: before.get(id, now) for id, r in recs.items()
+             if r is not None and id != "hub" and r.get("disagree") and not r.get("stale")}
+    lasting = sorted((t, id) for id, t in since.items() if now - t >= DISAGREE_AFTER)
+    detail = {"disagree_since": since}
+    if not lasting:
+        return make("hub", "ok", "All sources agree", "hub", detail=detail)
+    id = lasting[0][1]
+    return make("hub", "disagreement", f"Two sources disagree about {_about(id)}", "hub",
+                cause=recs[id]["disagree"], detail=detail)
+
+
+def refresh(now=None, inputs=None):
+    """One pass of the loop: read every source once, build and merge every record, store them; returns the
+    changes. The only caller of merge and store (events.run's thread), so records change in one place."""
+    from . import things
+    now = time.time() if now is None else now
+    if inputs is None:
+        inputs = things.gather()
+    prev = all()
+    built = things.build_all(inputs, prev, now)
+    recs = {id: merge(prev.get(id), new, now) for id, new in built.items()}
+    recs["hub"] = merge(prev.get("hub"), _hub(recs, prev.get("hub"), now), now)
+    return store(recs, now)
+
+
 def load():
     """After a restart: what the table remembers, all marked stale, with nothing written to the log."""
     ready()

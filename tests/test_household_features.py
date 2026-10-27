@@ -160,17 +160,21 @@ def test_parallel_first_requests_migrate_each_column_once():
 
 
 def test_unknown_device_readings_do_not_trigger_automations(monkeypatch):
+    from hub import records
+    from tests.helpers_records import bud, inputs
+    records._reset_memory()
+    events._last.clear()
     fired=[]
     monkeypatch.setattr(events,'fire',lambda kind,*a,**k:fired.append(kind))
-    watcher=events.Watcher()
-    good={'drive_state':'Connected','services':{'plex':True,'homebridge':True},'pi_temp':50,'ai_state':'Ready','x2d_state':'Printing','x2d_progress':50}
-    watcher.check(good,1000)
-    fired.clear()
+    good=inputs(bambuddy=bud('RUNNING',50))
+    events.on_changes(records.refresh(1000,inputs=good),first=True)
+    unknown=inputs(bambuddy=None,netmon={'status':'ok'},
+                   pi_status={'drive_state':'Unknown','services':{},'ai_state':'Unknown','x2d_state':'No status'})
     for stamp in (1030,1060,2000):
-        watcher.check({'drive_state':'Unknown','services':{},'ai_state':'Unknown','x2d_state':'No status'},stamp)
+        events.on_changes(records.refresh(stamp,inputs=unknown),first=False)
     assert fired==[]
-    assert watcher.last_print=='Printing'
-    watcher.check({**good,'x2d_state':'Idle'},2030)
+    assert records.get('printer')['state']=='printing'
+    events.on_changes(records.refresh(2030,inputs=inputs(bambuddy=bud('IDLE',0))),first=False)
     assert fired==['print_failed']
 
 
