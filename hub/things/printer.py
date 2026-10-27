@@ -32,17 +32,22 @@ def _pct(v):
     return v if isinstance(v, (int, float)) else 0
 
 
+def _raw(b):
+    return b.get("bambuddy_state") or b.get("state")
+
+
 def _state(b, prev, now):
     if not b.get("connected"):
         return "offline"
-    raw = b.get("bambuddy_state") or b.get("state")
+    raw = _raw(b)
     done = bool(b.get("awaiting_plate_clear"))
     if raw == "FINISH":
         return "finished" if done else "idle"
     if raw == "FAILED":
         return "failed" if done else "idle"
     state = BAMBUDDY.get(raw, "unknown")
-    if state == "idle" and prev and prev["state"] == "failed" and now - prev["since"] < FAILED_HOLD:
+    if state == "idle" and prev and prev["state"] == "failed" and prev["detail"].get("inferred") \
+            and now - prev["since"] < FAILED_HOLD:
         return "failed"
     if state == "idle" and prev and prev["state"] in ("printing", "paused") \
             and _pct(prev["detail"].get("last_progress")) < FINISHED_AT:
@@ -50,17 +55,25 @@ def _state(b, prev, now):
     return state
 
 
+def _chained(prev):
+    """The previous record belongs to a print attempt chain (not a finished-and-cleared plate)."""
+    return bool(prev) and prev["state"] in ("printing", "paused", "failed", "idle") \
+        and not prev["detail"].get("from_finished")
+
+
 def _attempt(job, state, prev, now):
-    if state != "printing" or not prev or prev["state"] == "printing":
-        return prev["detail"].get("attempt", 1) if prev and state == "printing" else 1
-    again = prev["state"] in ("failed", "idle") and prev["detail"].get("job") == job \
-        and now - prev["since"] < ATTEMPT_WINDOW
-    return prev["detail"].get("attempt", 1) + 1 if again else 1
+    if not _chained(prev) or state not in ("printing", "paused", "failed", "idle"):
+        return 1
+    count = prev["detail"].get("attempt") or 1
+    if state in ("failed", "idle") or prev["state"] in ("printing", "paused"):
+        return count
+    again = prev["detail"].get("job") == job and now - prev["since"] < ATTEMPT_WINDOW
+    return count + 1 if again else 1
 
 
 def _headline(state, job, pct, attempt):
     if state == "printing":
-        return f"Printing {job}, {pct}%" + (f", attempt {attempt}" if attempt > 1 else "")
+        return f"Printing {job or 'a print'}, {pct}%" + (f", attempt {attempt}" if attempt > 1 else "")
     return {"paused": f"Paused at {pct}%", "finished": "Done: clear the plate",
             "failed": f"Stopped at {pct}%: clear the plate", "idle": "Idle",
             "offline": "The printer isn't connected to Bambuddy"}.get(state, "The printer's state isn't known")
@@ -77,17 +90,20 @@ def printer(b, s, lab, prev, now):
     if b is None:
         return None
     state = _state(b, prev, now)
-    job = _job(b.get("job_name"))
     live = state in ("printing", "paused")
     was_live = bool(prev) and prev["state"] in ("printing", "paused")
-    inferred = state == "failed" and was_live and b.get("bambuddy_state") == "IDLE"
-    held = state == "failed" and bool(prev) and prev["state"] == "failed" and b.get("bambuddy_state") == "IDLE"
+    was_failed = bool(prev) and prev["state"] == "failed"
+    old = prev["detail"] if prev else {}
+    job = _job(b.get("job_name")) or (old.get("job") if state in ("failed", "idle") else None)
     pct = _pct(b.get("progress"))
-    last = prev["detail"].get("last_progress", pct) if (inferred or held) else pct
-    carried = prev["detail"].get("started") if was_live else None
-    started = carried if (carried and (live or state == "failed")) else (now if live else None)
-    if held:
-        started = prev["detail"].get("started")
+    inferred = state == "failed" and _raw(b) == "IDLE" and (was_live or was_failed)
+    if state == "failed" and was_failed:  # still the same stop: keep what we said the first time
+        inferred, started, last = bool(old.get("inferred")), old.get("started"), old.get("last_progress", pct)
+    elif state == "failed" and was_live:
+        inferred, started, last = _raw(b) == "IDLE", old.get("started"), old.get("last_progress", pct)
+    else:
+        started = (old.get("started") if was_live else None) or (now if live else None)
+        last = pct
     attempt = _attempt(job, state, prev, now)
     detail = {"job": job, "progress": b.get("progress"), "layer": b.get("layer_num"),
               "total_layers": b.get("total_layers"), "nozzle": b.get("nozzle_temp"),
@@ -95,14 +111,20 @@ def printer(b, s, lab, prev, now):
               "bed_target": b.get("bed_target"), "ams_humidity": b.get("ams_humidity"),
               "filament_type": b.get("filament_type"), "filament_color": b.get("filament_color"),
               "attempt": attempt, "started": started, "last_progress": last}
+    if inferred:
+        detail["inferred"] = True
+    if state == "idle" and (_raw(b) == "FINISH" or (prev and (prev["state"] == "finished" or (
+            prev["state"] == "idle" and old.get("from_finished"))))):
+        detail["from_finished"] = True
     if live and lab is not None:
         detail["lab"] = lab
-    cause = ""
-    if held:
+    if state == "failed" and was_failed:
         cause = prev["cause"]
     elif state == "failed":
         mins = int((now - started) // 60) if started else 0
         cause = f"Stopped at {_clock(now)} after {mins} min; the printer gave no reason."
+    else:
+        cause = ""
     actions = [{"name": a, "label": LABELS[a], "confirm": False} for a in printer_actions(b)]
     return records.make("printer", state, _headline(state, job, last if state == "failed" else pct, attempt),
                         "bambuddy", cause=cause, actions=actions, detail=detail,

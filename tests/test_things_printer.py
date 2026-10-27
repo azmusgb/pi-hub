@@ -122,3 +122,65 @@ def test_a_new_print_after_an_inferred_failure_is_printing():
 def records_merge(prev, new, now):
     from hub import records
     return records.merge(prev, new, now)
+
+
+def test_paused_then_resumed_keeps_the_attempt():
+    stopped = merged(printer.printer(IDLE_V72, None, None, printing_at(10), T0), at=T0)
+    p2 = merged(printer.printer(RUNNING_V72, None, None, stopped, T0 + 60), at=T0 + 60)
+    paused = merged(printer.printer(bud("PAUSE", 20), None, None, p2, T0 + 120), at=T0 + 120)
+    assert paused["detail"]["attempt"] == 2
+    assert printer.printer(RUNNING_V72, None, None, paused, T0 + 180)["detail"]["attempt"] == 2
+
+
+def test_two_restarts_make_attempt_3():
+    rec = merged(printer.printer(IDLE_V72, None, None, printing_at(10), T0), at=T0)
+    t = T0
+    for _ in range(1):
+        t += 60
+        run = merged(printer.printer(bud("RUNNING", 10), None, None, rec, t), at=t)
+        t += 60
+        rec = merged(printer.printer(IDLE_V72, None, None, run, t), at=t)
+    t += 60
+    assert printer.printer(RUNNING_V72, None, None, rec, t)["detail"]["attempt"] == 3
+
+
+def test_blank_job_name_while_idle_keeps_the_chain():
+    stopped = merged(printer.printer(IDLE_V72, None, None, printing_at(10), T0), at=T0)
+    blank = merged(printer.printer(bud("IDLE", 0, job=None), None, None, stopped, T0 + 30), at=T0 + 30)
+    assert blank["detail"]["job"] == "HEX_TILE_v72"
+    assert printer.printer(RUNNING_V72, None, None, blank, T0 + 60)["detail"]["attempt"] == 2
+
+
+def test_a_persisting_real_failed_keeps_its_cause_and_start():
+    first = merged(printer.printer(bud("FAILED", 30, awaiting=True), None, None, printing_at(30), T0 + 600), at=T0 + 600)
+    again = printer.printer(bud("FAILED", 30, awaiting=True), None, None, first, T0 + 1200)
+    assert again["state"] == "failed" and again["cause"] == first["cause"]
+    assert again["detail"]["started"] == first["detail"]["started"] == T0
+
+
+def test_paused_then_idle_below_97_is_failed():
+    paused = merged(printer.printer(bud("PAUSE", 40), None, None, None, T0), at=T0)
+    assert printer.printer(IDLE_V72, None, None, paused, T0 + 60)["state"] == "failed"
+
+
+def test_finished_cleared_restart_is_attempt_1():
+    done = merged(printer.printer(bud("FINISH", 100, awaiting=True), None, None, printing_at(99), T0), at=T0)
+    cleared = merged(printer.printer(IDLE_V72, None, None, done, T0 + 30), at=T0 + 30)
+    assert cleared["state"] == "idle"
+    again = printer.printer(RUNNING_V72, None, None, cleared, T0 + 300)
+    assert again["detail"]["attempt"] == 1
+    cleared2 = merged(printer.printer(bud("FINISH", 100), None, None, None, T0), at=T0)
+    assert printer.printer(RUNNING_V72, None, None, cleared2, T0 + 300)["detail"]["attempt"] == 1
+
+
+def test_real_failed_then_idle_is_idle_not_held():
+    f = merged(printer.printer(bud("FAILED", 30, awaiting=True), None, None, printing_at(30), T0 + 60), at=T0 + 60)
+    assert "inferred" not in f["detail"]
+    assert printer.printer(IDLE_V72, None, None, f, T0 + 120)["state"] == "idle"
+
+
+def test_missing_progress_and_job_name_do_not_crash():
+    r = printer.printer(bud("RUNNING", None, job=None), None, None, None, T)
+    assert r["state"] == "printing" and r["detail"]["job"] is None
+    prev = merged(r)
+    assert printer.printer(bud("IDLE", None, job=None), None, None, prev, T + 5)["state"] == "failed"
