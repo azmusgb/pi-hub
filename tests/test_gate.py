@@ -157,3 +157,30 @@ def test_a_gate_token_never_outlives_its_sign_in(client):
     r = client.post("/api/gate/renew", headers={"Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
     (gate_expires,) = db.execute("SELECT expires FROM sessions WHERE role = 'gate' ORDER BY rowid DESC").fetchone()
     assert gate_expires <= owner - 3600 and r.status_code == 200
+
+
+def test_a_gate_code_is_spent_once_on_its_own_host(client):
+    owner = signin(client, "home.home.arpa").cookies.get("hub_session")
+    code = auth.gate_code(owner, "bambuddy.home.arpa")
+    assert auth.redeem_gate_code(code, "assistant.home.arpa") is None      # wrong host: refused, not spent
+    token = auth.redeem_gate_code(code, "bambuddy.home.arpa")
+    assert token and auth.session(token, gate=True)
+    assert auth.redeem_gate_code(code, "bambuddy.home.arpa") is None       # spent
+
+
+def test_a_gate_code_expires_and_dies_with_its_sign_in(client, monkeypatch):
+    owner = signin(client, "home.home.arpa").cookies.get("hub_session")
+    old = auth.gate_code(owner, "bambuddy.home.arpa")
+    real = auth.time.time
+    monkeypatch.setattr(auth.time, "time", lambda: real() + auth.GATE_CODE_SECONDS + 1)
+    assert auth.redeem_gate_code(old, "bambuddy.home.arpa") is None
+    monkeypatch.undo()
+    code = auth.gate_code(owner, "bambuddy.home.arpa")
+    auth.sign_out(owner)
+    assert auth.redeem_gate_code(code, "bambuddy.home.arpa") is None
+
+
+def test_only_a_live_owner_gets_a_gate_code(client):
+    household = signin(client, "home.home.arpa", pin="123456").cookies.get("hub_session")
+    assert auth.gate_code(household, "bambuddy.home.arpa") is None
+    assert auth.gate_code("not-a-token", "bambuddy.home.arpa") is None

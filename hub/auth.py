@@ -16,6 +16,7 @@ LIFETIME = {"kid": 30 * 86400, "household": 30 * 86400, "owner": 12 * 3600}
 RANK = {"none": 0, "kid": 1, "household": 2, "owner": 3}
 PERSON_ROLE = {"adult": "household", "kid": "kid"}
 MAX_TRIES, LOCK_SECONDS = 5, 600
+GATE_CODE_SECONDS = 30
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -28,6 +29,9 @@ CREATE TABLE IF NOT EXISTS shortcut_keys (
 );
 CREATE TABLE IF NOT EXISTS people (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, pin TEXT NOT NULL, created INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gate_codes (
+  code_hash TEXT PRIMARY KEY, owner_hash TEXT NOT NULL, host TEXT NOT NULL, expires INTEGER NOT NULL
 );
 """
 
@@ -217,10 +221,48 @@ def gate_session(owner_token):
     return token
 
 
+def gate_code(owner_token, host):
+    """A one-time code (good GATE_CODE_SECONDS) that `host`'s tool trades for its own gate token. Browsers won't share
+    a cookie across *.home.arpa, so each tool redeems this on its own host. None when owner_token isn't a live owner."""
+    owner = session(owner_token)
+    if not owner or owner["role"] != "owner":
+        return None
+    code = secrets.token_urlsafe(32)
+    now = int(time.time())
+    db.run("INSERT INTO gate_codes (code_hash, owner_hash, host, expires) VALUES (?, ?, ?, ?)",
+           hashlib.sha256(code.encode()).hexdigest(), hashlib.sha256(owner_token.encode()).hexdigest(), host,
+           now + GATE_CODE_SECONDS)
+    db.run("DELETE FROM gate_codes WHERE expires < ?", now)
+    return code
+
+
+def redeem_gate_code(code, host):
+    """Spends a gate code for a new gate token, same as gate_session makes. A code is refused, and kept, on any other
+    host; on its own host it is spent whatever follows. None when expired or its owner sign-in has ended."""
+    if not code:
+        return None
+    _ready()
+    h = hashlib.sha256(code.encode()).hexdigest()
+    row = db.one("SELECT owner_hash, host, expires FROM gate_codes WHERE code_hash = ?", h)
+    if not row or row["host"] != host:
+        return None
+    if db.run("DELETE FROM gate_codes WHERE code_hash = ?", h).rowcount != 1:
+        return None  # a concurrent redeem spent it first
+    now = int(time.time())
+    owner = db.one("SELECT role, expires FROM sessions WHERE token_hash = ?", row["owner_hash"])
+    if row["expires"] < now or not owner or owner["role"] != "owner" or owner["expires"] < now:
+        return None
+    token = secrets.token_urlsafe(32)
+    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'gate', ?, ?, ?)",
+           hashlib.sha256(token.encode()).hexdigest(), now, owner["expires"], "gate:" + row["owner_hash"])
+    return token
+
+
 def sign_out(token):
-    """Ends a session; for an owner sign-in, also every gate token it made."""
+    """Ends a session; for an owner sign-in, also every gate token and unspent gate code it made."""
     if token:
         h = hashlib.sha256(token.encode()).hexdigest()
+        db.run("DELETE FROM gate_codes WHERE owner_hash = ?", h)
         db.run("DELETE FROM sessions WHERE token_hash = ? OR (role = 'gate' AND device = ?)", h, "gate:" + h)
 
 
