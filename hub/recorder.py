@@ -1,10 +1,10 @@
-"""Every minute: keep a sample for the charts, and note print and drive changes."""
+"""Every minute: keep a sample for the charts, and note print and drive changes (prints from the printer's record)."""
 import os
 import threading
 import time
 import urllib.request
 
-from . import db, sources
+from . import db, records, sources
 
 KEEP_DAYS = 7
 
@@ -54,6 +54,21 @@ def record_print(state, progress, now, error=None):
     capture_print_photo(open_print["id"])
 
 
+def printer_state(rec):
+    """The printer's record in the words record_print knows (state, progress), or None when the record
+    can't say: no record yet, a silent Bambuddy, or a printer that is offline or unknown."""
+    if not rec or rec.get("stale"):
+        return None
+    d = rec.get("detail") or {}
+    if rec["state"] in ("printing", "paused"):
+        return ("Printing" if rec["state"] == "printing" else "Paused"), d.get("progress")
+    if rec["state"] == "failed":  # an inferred failure is a stop; Bambuddy's own FAILED is an error
+        return ("Stopped" if d.get("inferred") else "Error"), d.get("last_progress")
+    if rec["state"] in ("idle", "finished"):
+        return "Idle", d.get("progress")
+    return None
+
+
 def record_drive(present, now):
     last = db.one("SELECT kind FROM drive_events ORDER BY ts DESC LIMIT 1")
     kind = "back" if present else "dropped"
@@ -69,7 +84,9 @@ def tick(sampler):
     if s:
         drive = 1 if s.get("drive_state") == "Connected" else 0
         record_drive(bool(drive), now)
-        record_print(s.get("x2d_state"), s.get("x2d_progress"), now, s.get("x2d_error"))
+    said = printer_state(records.get("printer"))  # the same record the card shows
+    if said:
+        record_print(said[0], said[1], now, (s or {}).get("x2d_error"))
     last = lambda xs: xs[-1] if xs else None  # noqa: E731
     db.run("INSERT OR REPLACE INTO samples (ts, cpu, mem, temp, drive) VALUES (?, ?, ?, ?, ?)",
            now, last(snap["cpu_series"]), last(snap["mem_series"]), last(snap["temp_series"]), drive)

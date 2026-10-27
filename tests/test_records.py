@@ -143,3 +143,44 @@ def test_missing_and_not_mounted_count_as_one_dropout_for_the_debounce():  # R18
     assert (c["state"], c["since"]) == ("not_mounted", 60)
     d = records.merge(c, _drive("missing"), 90)  # moving between the two needs no second check
     assert (d["state"], d["since"]) == ("missing", 90)
+
+
+def test_a_failing_database_still_returns_and_tells_the_changes(monkeypatch, capsys):  # R34
+    from hub import events
+    q = records.subscribe()
+
+    def busy():
+        raise __import__("sqlite3").OperationalError("database is locked")
+    monkeypatch.setattr(records.db, "transaction", busy)
+    p = records.merge(None, records.make("printer", "failed", "Stopped at 23%", "bambuddy"), 1000)
+    changes = records.store({"printer": p}, 1000)
+    assert [c["new"] for c in changes] == ["failed"] and q.get_nowait()["new"] == "failed"
+    assert records.get("printer")["state"] == "failed"
+    assert "database is locked" in capsys.readouterr().err
+    seen = []
+    monkeypatch.setattr(events, "_printer", lambda before, new, rec: seen.append((before, new)))
+    events._forget()
+    events._last["printer"] = "printing"
+    events.on_changes(changes, first=False)  # the alert's trigger still runs
+    assert seen == [("printing", "failed")]
+
+
+def _row_as_of(id):
+    import json
+    return json.loads(db.one("SELECT body FROM records WHERE id = ?", id)["body"])["as_of"]
+
+
+def test_an_unchanged_record_is_rewritten_only_every_5_minutes():  # R36
+    def at(t, headline="On"):
+        prev = records.get("pc")
+        records.store({"pc": records.merge(prev, records.make("pc", "on", headline, "netmon"), t)}, t)
+    at(1000)
+    at(1030)
+    at(1060)
+    assert _row_as_of("pc") == 1000 and records.get("pc")["as_of"] == 1060
+    at(1090, headline="On, busy")  # the body changed: written at once
+    assert _row_as_of("pc") == 1090
+    at(1120, headline="On, busy")
+    assert _row_as_of("pc") == 1090
+    at(1090 + records.REWRITE_AFTER, headline="On, busy")
+    assert _row_as_of("pc") == 1090 + records.REWRITE_AFTER

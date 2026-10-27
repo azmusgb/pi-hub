@@ -20,10 +20,17 @@ def _backups():
     return sources.cached("helper-backups", 300, lambda: actions.helper("backups:ages", timeout=5))
 
 
+def _lab():
+    """The print lab's view, asked only while the printer's current record is printing or paused."""
+    from .. import sources
+    rec = records.get("printer")
+    return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
+
+
 def _fetchers():
     from .. import outside, printing, sources
-    return {"bambuddy": sources.bambuddy_printer, "pi_status": sources.pi_status,
-            "netmon": sources.network_metrics, "lab": sources.localai_lab, "sessions": sources.plex_sessions,
+    return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
+            "netmon": sources.network_metrics, "lab": _lab, "sessions": sources.plex_sessions,
             "paper": printing.printer_state, "weather": outside.weather, "adguard": _adguard,
             "backups": _backups, "camera": sources.camera_health}
 

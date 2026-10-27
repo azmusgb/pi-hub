@@ -123,10 +123,10 @@ def _netmon():
 BAMBUDDY_PRINTER_URL = os.environ.get("HUB_BAMBUDDY_PRINTER_URL", "http://127.0.0.1:8000/api/v1/printers/1/status")
 
 
-def _bambuddy():
+def _bambuddy(timeout=1):
     try:
         from . import bambuddy
-        data = _get_json(BAMBUDDY_PRINTER_URL, bambuddy.headers(), timeout=1)
+        data = _get_json(BAMBUDDY_PRINTER_URL, bambuddy.headers(), timeout=timeout)
         if not data or not isinstance(data, dict):
             return None
         temps = data.get("temperatures") or {}
@@ -158,8 +158,9 @@ def _bambuddy():
         return None
 
 
-def bambuddy_printer():
-    return cached("bambuddy_printer", 3, _bambuddy)
+def bambuddy_printer(timeout=1):
+    """The printer as Bambuddy sees it. Pages keep the 1 s timeout; the records loop can wait longer (3 s)."""
+    return cached("bambuddy_printer", 3, lambda: _bambuddy(timeout))
 
 
 def network_metrics():

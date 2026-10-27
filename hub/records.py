@@ -6,8 +6,10 @@ the hub last heard from its source. A source that goes quiet never turns a thing
 """
 import json
 import queue
+import sys
 import threading
 import time
+import traceback
 
 from . import db
 
@@ -74,6 +76,8 @@ _lock = threading.Lock()
 _records = {}
 _pending = {}  # id -> (state, checks seen) for a debounced change that hasn't counted yet
 _subscribers = []
+_written = {}  # id -> (body without as_of, when) as last written to the records table
+REWRITE_AFTER = 300  # seconds; an unchanged record's row is still rewritten this often
 
 
 def ready():
@@ -84,6 +88,7 @@ def _reset_memory():
     with _lock:
         _records.clear()
         _pending.clear()
+        _written.clear()
 
 
 def make(id, state, headline, source, *, cause="", actions=None, detail=None, disagree=""):
@@ -145,8 +150,8 @@ def merge(prev, new, now):
 
 
 def store(recs, now):
-    """Saves records; returns what changed (state or severity), after writing each change to the log."""
-    ready()
+    """Saves records; returns what changed (state or severity), after writing each change to the log.
+    A database that fails is logged, and the changes still go to the subscribers and the caller."""
     changes = []
     with _lock:
         for id, rec in recs.items():
@@ -159,19 +164,41 @@ def store(recs, now):
                                 "severity": rec["severity"], "headline": rec["headline"],
                                 "cause": rec["cause"], "record": rec})
         subscribers = list(_subscribers)
-    with db.transaction() as c:
-        for id, rec in recs.items():
-            if rec is not None:
-                c.execute("INSERT OR REPLACE INTO records (id, body) VALUES (?, ?)", (id, json.dumps(rec)))
-        for ch in changes:
-            c.execute("INSERT INTO record_events (ts, thing, old, new, severity, headline, cause) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      (ch["ts"], ch["id"], ch["old"], ch["new"], ch["severity"], ch["headline"], ch["cause"]))
-        c.execute("DELETE FROM record_events WHERE ts < ?", (int(now) - 30 * 86400,))
+    rows = _rows_to_write(recs, now)
+    try:
+        ready()
+        with db.transaction() as c:
+            for id, (body, _) in rows.items():
+                c.execute("INSERT OR REPLACE INTO records (id, body) VALUES (?, ?)", (id, body))
+            for ch in changes:
+                c.execute("INSERT INTO record_events (ts, thing, old, new, severity, headline, cause) "
+                          "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          (ch["ts"], ch["id"], ch["old"], ch["new"], ch["severity"], ch["headline"], ch["cause"]))
+            c.execute("DELETE FROM record_events WHERE ts < ?", (int(now) - 30 * 86400,))
+    except Exception:  # a busy or stalled database mustn't lose the changes: the alerts still go out
+        traceback.print_exc(file=sys.stderr)
+    else:
+        with _lock:
+            _written.update({id: (same, now) for id, (_, same) in rows.items()})
     for ch in changes:
         for q in subscribers:
             q.put(ch)
     return changes
+
+
+def _rows_to_write(recs, now):
+    """id -> (row body, body without as_of) for the records whose row needs writing: the body changed
+    (as_of aside) or the row is REWRITE_AFTER old."""
+    out = {}
+    with _lock:
+        for id, rec in recs.items():
+            if rec is None:
+                continue
+            same = json.dumps({k: v for k, v in rec.items() if k != "as_of"}, sort_keys=True)
+            last = _written.get(id)
+            if last is None or last[0] != same or now - last[1] >= REWRITE_AFTER:
+                out[id] = (json.dumps(rec), same)
+    return out
 
 
 def _about(id):

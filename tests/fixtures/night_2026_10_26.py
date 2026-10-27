@@ -24,6 +24,8 @@ def _printer(t):
         return bud("RUNNING", min(10, 1 + int((t - hm(1, 20)) // 66)), job="HEX_TILE_v72")
     if t < hm(1, 36):
         return bud("IDLE", 10, job="HEX_TILE_v72")  # stopped at 10%: a failure
+    if t < hm(1, 37):
+        return bud("PREPARE", 0, job="HEX_TILE_v72")  # heating and levelling: two cycles
     if t < hm(2, 1):
         return bud("RUNNING", min(11, 1 + int((t - hm(1, 36)) // 150)), job="HEX_TILE_v72")
     if t < hm(2, 3):

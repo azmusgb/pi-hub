@@ -13,7 +13,12 @@ FAILED_HOLD = 24 * 3600  # seconds an inferred failure stays failed while Bambud
 ATTEMPT_WINDOW = 15 * 60  # seconds in which the same job starting again is another attempt
 
 LABELS = {"clear": "Clear the plate", "pause": "Pause the print", "resume": "Resume the print"}
-BAMBUDDY = {"RUNNING": "printing", "PAUSE": "paused", "IDLE": "idle"}
+BAMBUDDY = {"RUNNING": "printing", "PAUSE": "paused", "IDLE": "idle",
+            "PREPARE": "printing", "SLICING": "printing", "INIT": "printing"}  # the last three: starting
+STARTING = {"PREPARE", "SLICING", "INIT"}  # heating, levelling or slicing before the first layer
+UNSURE = ("unknown", "offline")
+# what a record carries about its print attempt chain; an unknown or offline record keeps them
+CHAIN = ("job", "attempt", "started", "last_progress", "failed_at", "after_failure", "inferred", "from_finished")
 PI_STATUS = {"Printing": "printing", "Paused": "paused", "Idle": "idle", "Stopped": "idle", "Error": "failed"}
 
 
@@ -52,7 +57,7 @@ def _state(b, prev, now):
         return "failed" if done else "idle"
     state = BAMBUDDY.get(raw, "unknown")
     if state == "idle" and prev and prev["state"] == "failed" and prev["detail"].get("inferred") \
-            and now - prev["since"] < FAILED_HOLD:
+            and now - _failed_at(prev) < FAILED_HOLD:
         return "failed"
     if state == "idle" and prev and prev["state"] in ("printing", "paused") \
             and _pct(prev["detail"].get("last_progress")) < FINISHED_AT:
@@ -83,9 +88,27 @@ def _attempt(job, state, prev, now):
     return count + 1 if again else 1
 
 
-def _headline(state, job, pct, attempt):
+def _known(prev):
+    """The last record that knew the printer's state: an unknown or offline record carries it in last_known."""
+    if prev and prev["state"] in UNSURE:
+        return prev["detail"].get("last_known")
+    return prev
+
+
+def _remember(known):
+    """What an unknown or offline record keeps of the last known one."""
+    if not known:
+        return None
+    return {"state": known["state"], "since": known["since"], "cause": known.get("cause", ""),
+            "detail": {k: known["detail"][k] for k in CHAIN if k in known["detail"]}}
+
+
+def _headline(state, job, pct, attempt, starting=False):
+    again = f", attempt {attempt}" if attempt > 1 else ""
+    if state == "printing" and starting:
+        return f"Starting {job or 'a print'}" + again
     if state == "printing":
-        return f"Printing {job or 'a print'}, {pct}%" + (f", attempt {attempt}" if attempt > 1 else "")
+        return f"Printing {job or 'a print'}, {pct}%" + again
     return {"paused": f"Paused at {pct}%", "finished": "Done: clear the plate",
             "failed": f"Stopped at {pct}%: clear the plate", "idle": "Idle",
             "offline": "The printer isn't connected to Bambuddy"}.get(state, "The printer's state isn't known")
@@ -103,6 +126,7 @@ def _disagree(s, state):
 def printer(b, s, lab, prev, now):
     if b is None:
         return None
+    prev = _known(prev)  # judge by the last known record: an unknown or offline one in between says nothing
     state = _state(b, prev, now)
     live = state in ("printing", "paused")
     was_live = bool(prev) and prev["state"] in ("printing", "paused")
@@ -138,6 +162,13 @@ def printer(b, s, lab, prev, now):
     if _raw(b) == "FINISH" or (state == "idle" and prev and (prev["state"] == "finished" or (
             prev["state"] == "idle" and old.get("from_finished")))):
         detail["from_finished"] = True
+    if state == "printing" and _raw(b) in STARTING:
+        detail["starting"] = True
+    if state in UNSURE and prev:  # the chain goes on through a gap: keep it, and the record it came from
+        for k in CHAIN:
+            detail.pop(k, None)
+        detail.update({k: old[k] for k in CHAIN if k in old})
+        detail["last_known"] = _remember(prev)
     if live and lab is not None:
         detail["lab"] = lab
     if state == "failed" and was_failed:
@@ -148,6 +179,7 @@ def printer(b, s, lab, prev, now):
     else:
         cause = ""
     actions = [{"name": a, "label": LABELS[a], "confirm": False} for a in printer_actions(b)]
-    return records.make("printer", state, _headline(state, job, last if state == "failed" else pct, attempt),
+    pct_said = last if state == "failed" else pct
+    return records.make("printer", state, _headline(state, job, pct_said, attempt, detail.get("starting", False)),
                         "bambuddy", cause=cause, actions=actions, detail=detail,
                         disagree=_disagree(s, state))

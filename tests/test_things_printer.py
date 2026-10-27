@@ -246,3 +246,67 @@ def test_failed_then_idle_then_running_within_15_min_of_the_failure_is_attempt_2
 def test_the_same_after_15_min_is_attempt_1():
     idle = _failed_then_idle()
     assert printer.printer(RUNNING_V72, None, None, idle, T0 + printer.ATTEMPT_WINDOW)["detail"]["attempt"] == 1
+
+
+# ---- R33: starting states, and judging by the last known record ----
+
+def _run(steps, prev=None, at=T0):
+    """Feeds Bambuddy readings 30 s apart through the builder and merge; returns the last record."""
+    for b in steps:
+        prev = records_merge(prev, printer.printer(b, None, None, prev, at), at)
+        at += 30
+    return prev
+
+
+def test_prepare_slicing_and_init_are_a_print_starting():
+    for raw in ("PREPARE", "SLICING", "INIT"):
+        r = printer.printer(bud(raw, 0), None, None, None, T)
+        assert r["state"] == "printing" and r["detail"]["starting"] is True
+        assert r["headline"] == "Starting HEX_TILE_v72"
+    assert "starting" not in printer.printer(RUNNING_V72, None, None, None, T)["detail"]
+
+
+def test_a_stop_then_prepare_then_running_is_attempt_2():
+    # the repro: RUNNING 10, 11, IDLE 11, IDLE 0, PREPARE 0, RUNNING 1
+    steps = [bud("RUNNING", 10), bud("RUNNING", 11), bud("IDLE", 11), bud("IDLE", 0)]
+    failed = _run(steps)
+    starting = _run([bud("PREPARE", 0)], failed, T0 + 120)
+    assert starting["state"] == "printing" and starting["detail"]["attempt"] == 2
+    assert starting["headline"] == "Starting HEX_TILE_v72, attempt 2"
+    running = _run([bud("RUNNING", 1)], starting, T0 + 150)
+    assert running["detail"]["attempt"] == 2 and running["headline"] == "Printing HEX_TILE_v72, 1%, attempt 2"
+
+
+def test_running_11_idle_prepare_running_is_attempt_2():
+    r = _run([bud("RUNNING", 11), bud("IDLE", 11), bud("PREPARE", 0), bud("RUNNING", 1)])
+    assert r["state"] == "printing" and r["detail"]["attempt"] == 2
+
+
+def test_printing_then_unknown_then_idle_at_40_is_an_inferred_failure():
+    printing = _run([bud("RUNNING", 30), bud("RUNNING", 40)])
+    unknown = _run([bud("WEIRD", 40)], printing, T0 + 60)
+    assert unknown["state"] == "unknown" and unknown["detail"]["attempt"] == 1
+    assert unknown["detail"]["last_progress"] == 40 and unknown["detail"]["started"] == T0
+    assert unknown["detail"]["last_known"]["state"] == "printing"
+    r = printer.printer(bud("IDLE", 0), None, None, unknown, T0 + 600)
+    assert r["state"] == "failed" and r["detail"]["inferred"] is True
+    assert r["headline"] == "Stopped at 40%: clear the plate"
+    assert r["cause"] == f"Stopped at {hm(T0 + 600)} after 10 min; the printer gave no reason."
+
+
+def test_offline_mid_chain_keeps_the_attempt():
+    failed = _run([bud("RUNNING", 10), bud("IDLE", 0)])
+    attempt2 = _run([bud("RUNNING", 1)], failed, T0 + 300)
+    assert attempt2["detail"]["attempt"] == 2
+    gone = _run([bud("RUNNING", 5, connected=False), bud("RUNNING", 5, connected=False)], attempt2, T0 + 330)
+    assert gone["state"] == "offline" and gone["detail"]["attempt"] == 2
+    back = _run([bud("RUNNING", 6)], gone, T0 + 390)
+    assert back["state"] == "printing" and back["detail"]["attempt"] == 2
+    assert back["detail"]["started"] == T0 + 300 and back["headline"].endswith(", attempt 2")
+
+
+def test_an_inferred_failure_held_through_an_unknown_reading():
+    f = _inferred_failure()
+    unknown = _run([bud("WEIRD", 0)], f, T0 + 700)
+    r = printer.printer(IDLE_V72, None, None, unknown, T0 + 800)
+    assert r["state"] == "failed" and r["cause"] == f["cause"] and r["detail"]["failed_at"] == T0 + 600

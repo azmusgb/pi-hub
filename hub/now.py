@@ -172,8 +172,8 @@ def _say(rec):
 
 def _left(minutes):
     """Bambuddy's minutes left as the page's words ("1 h 5 min", "12 min"); the page puts "Done in about" first."""
-    if minutes is None:
-        return ""
+    if minutes is None or int(minutes) <= 0:
+        return ""  # nothing left to say: "Done in about 0 min" reads wrong
     h, m = divmod(int(minutes), 60)
     return " ".join(x for x in (f"{h} h" if h else "", f"{m} min" if m or not h else "") if x)
 

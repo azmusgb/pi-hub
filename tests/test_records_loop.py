@@ -86,6 +86,36 @@ def test_a_stop_and_restart_fires_failed_then_started_attempt_2(fired):
                                ("print_started", "attempt 2")]
 
 
+def test_a_start_through_prepare_fires_print_started_once(fired):  # R33
+    step(T, IDLE, first=True)
+    step(T + 30, inputs(bambuddy=bud("PREPARE", 0)))
+    assert records.get("printer")["headline"] == "Starting HEX_TILE_v72"
+    step(T + 60, inputs(bambuddy=bud("PREPARE", 0)))
+    step(T + 90, inputs(bambuddy=bud("RUNNING", 1)))
+    step(T + 120, inputs(bambuddy=bud("RUNNING", 2)))
+    assert fired.details() == [("print_started", "")]
+
+
+def test_a_stop_and_restart_through_prepare_is_attempt_2(fired):  # R33
+    step(T, IDLE, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 11)))
+    step(T + 60, inputs(bambuddy=bud("IDLE", 11)))
+    step(T + 90, inputs(bambuddy=bud("PREPARE", 0)))
+    step(T + 120, inputs(bambuddy=bud("RUNNING", 1)))
+    assert fired.details() == [("print_started", ""), ("print_failed", "at 11%"),
+                               ("print_started", "attempt 2")]
+
+
+def test_printing_then_unknown_then_idle_is_a_failed_record(fired):  # R33, review item 3
+    step(T, IDLE, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 40)))
+    step(T + 60, inputs(bambuddy=bud("WEIRD", 40)))
+    step(T + 90, inputs(bambuddy=bud("IDLE", 0)))
+    rec = records.get("printer")
+    assert rec["state"] == "failed" and rec["detail"]["inferred"] is True
+    assert fired.details() == [("print_started", ""), ("print_failed", "at 40%")]
+
+
 def test_a_finish_and_an_early_stop_are_told_apart(fired):
     step(T, IDLE, first=True)
     step(T + 30, inputs(bambuddy=bud("RUNNING", 40)))
@@ -426,6 +456,7 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
     monkeypatch.setattr(actions, "helper", lambda name, timeout=None: calls.append(name) or {"from": name})
     sources._cache.pop("helper-adguard", None)
     sources._cache.pop("helper-backups", None)
+    records.refresh(T, inputs=PRINTING)  # the lab is asked only while the printer is printing or paused
     got = things.gather()
     assert set(got) == {"bambuddy", "pi_status", "netmon", "lab", "sessions", "paper", "weather", "adguard",
                         "backups", "camera"}
@@ -435,6 +466,23 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
                                     "camera", "adguard:stats", "backups:ages"])
     things.gather()  # the helper reports are shared with /api/network/adguard and /api/system/backups for 5 min
     assert calls.count("adguard:stats") == 1 and calls.count("backups:ages") == 1
+
+
+def test_the_loop_gives_bambuddy_3_s_and_asks_the_lab_only_mid_print(monkeypatch):  # R36
+    from hub import sources
+    timeouts, labs = [], []
+    monkeypatch.setattr(sources, "_get_json", lambda url, headers=None, timeout=4: timeouts.append(timeout))
+    monkeypatch.setattr(sources, "localai_lab", lambda: labs.append(1) or {"experiment": "E-020"})
+    sources._cache.pop("bambuddy_printer", None)
+    assert things._fetchers()["bambuddy"]() is None and timeouts == [3]
+    sources._cache.pop("bambuddy_printer", None)
+    sources.bambuddy_printer()  # a page's call keeps the short timeout
+    assert timeouts == [3, 1]
+    assert things._lab() is None and labs == []  # no printer record yet
+    records.refresh(T, inputs=IDLE)
+    assert things._lab() is None and labs == []
+    records.refresh(T + 30, inputs=PRINTING)
+    assert things._lab() == {"experiment": "E-020"} and labs == [1]
 
 
 # ---- the hub's own record: sources that disagree ----
@@ -534,3 +582,44 @@ def test_the_watcher_no_longer_reads_printer_pc_drive_or_services(monkeypatch, f
         w.check(bad, now=T + 30 * i)
     w.check(dict(bad, x2d_state="Idle"), now=T + 1000)
     assert fired == []
+
+
+# ---- R35: the prints history comes from the printer's record ----
+
+class _Sampler:
+    def snapshot(self):
+        return {"cpu_series": [], "mem_series": [], "temp_series": []}
+
+
+def _tick(monkeypatch, at, inp):
+    from hub import recorder
+    records.refresh(at, inputs=inp)
+    monkeypatch.setattr(recorder.time, "time", lambda: at)
+    monkeypatch.setattr(recorder.sources, "pi_status", lambda: inp["pi_status"])
+    recorder.tick(_Sampler())
+
+
+def test_a_print_in_the_records_is_a_print_in_the_history(monkeypatch):
+    from hub import db
+    no_status = {"x2d_state": "No status"}  # pi-status says nothing; the record still drives the history
+    _tick(monkeypatch, T, inputs(pi=no_status))
+    assert db.rows("SELECT * FROM prints") == []
+    _tick(monkeypatch, T + 60, inputs(pi=no_status, bambuddy=bud("PREPARE", 0)))
+    _tick(monkeypatch, T + 120, inputs(pi=no_status, bambuddy=bud("RUNNING", 60)))
+    _tick(monkeypatch, T + 180, inputs(pi=no_status, bambuddy=bud("RUNNING", 99)))
+    _tick(monkeypatch, T + 240, inputs(pi=no_status, bambuddy=bud("FINISH", 100, awaiting=True)))
+    p = db.one("SELECT * FROM prints")
+    assert p["started"] == T + 60 and p["ended"] == T + 240 and p["outcome"] == "finished" and p["progress"] == 99
+    _tick(monkeypatch, T + 300, inputs(pi=no_status, bambuddy=bud("IDLE", 0)))
+    _tick(monkeypatch, T + 2000, inputs(pi=no_status, bambuddy=bud("RUNNING", 30, job="OTHER.gcode.3mf")))
+    _tick(monkeypatch, T + 2060, inputs(pi=no_status, bambuddy=bud("IDLE", 0)))  # stopped early
+    last = db.one("SELECT * FROM prints ORDER BY id DESC LIMIT 1")
+    assert last["started"] == T + 2000 and last["ended"] == T + 2060 and last["outcome"] == "stopped"
+
+
+def test_an_offline_or_silent_printer_leaves_the_history_alone(monkeypatch):
+    from hub import db
+    _tick(monkeypatch, T, inputs(bambuddy=bud("RUNNING", 40)))
+    _tick(monkeypatch, T + 60, inputs(bambuddy=bud("RUNNING", 40, connected=False)))
+    _tick(monkeypatch, T + 1000, inputs(bambuddy=None))
+    assert db.one("SELECT ended FROM prints")["ended"] is None

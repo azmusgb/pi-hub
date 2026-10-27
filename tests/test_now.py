@@ -226,7 +226,7 @@ def test_bambuddy_status_carries_remaining_time(monkeypatch):
     assert sources._bambuddy()["remaining_time"] is None
 
 
-@pytest.mark.parametrize("minutes, left", [(65, "1 h 5 min"), (12, "12 min"), (60, "1 h"), (0, "0 min"), (None, "")])
+@pytest.mark.parametrize("minutes, left", [(65, "1 h 5 min"), (12, "12 min"), (60, "1 h"), (0, ""), (None, "")])
 def test_time_left_comes_from_bambuddy(minutes, left):
     p = now.build(recs(b={**RUNNING, "remaining_time": minutes}), [], {}, None)["printer"]
     # the page writes "Done in about <left>", so left carries no "about" of its own
