@@ -105,6 +105,7 @@ def _netmon():
         "wan_ms": wan_ms,
         "dns_ms": dns_ms,
         "win_ms": win_ms,
+        "win_ok": success.get("10.0.0.21"),
         "printer_ms": printer_ms,
         "orbi_model": orbi_info.get("model", "RBR750"),
         "orbi_uptime": orbi_info.get("uptime_human"),
