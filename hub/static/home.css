@@ -72,7 +72,7 @@ body.wall.night { filter: brightness(0.55); }
 .wall-board .net-headline { font-size: 1.05em; }
 .wall-board .status-list { gap: 0; }
 .wall-board .status-list li { padding: .3em 0; gap: .5em; }
-.wall-board .status-list li .meta { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wall-board .status-list li .meta { display: none; }  /* name and latency only; the descriptions were always cut off */
 .wall-board .status-list li > strong, .wall-board .status-side { white-space: nowrap; }
 .wall-board .net-panel > p.meta { margin: 0; }
 
@@ -279,6 +279,8 @@ body.wall.night { filter: brightness(0.55); }
 .kiosk-light-toggle-btn.is-on .kiosk-light-bulb { opacity: 1; }
 .kiosk-light-name { display: flex; flex-direction: column; flex: 1; min-width: 0; text-align: left; }
 .kiosk-light-name strong, .kiosk-light-name .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wall-board .kiosk-light-name strong { white-space: normal; overflow: visible; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wall-board .kiosk-light-name .meta { display: none; }
 .kiosk-light-name .meta { font-size: .75em; color: var(--text-2); font-weight: 500; }
 .kiosk-light-state { font-size: .8em; font-weight: 700; padding: .2em .6em; border-radius: 999px; white-space: nowrap;
   background: color-mix(in srgb, var(--text-3) 20%, transparent); color: var(--text-3); }
@@ -345,6 +347,8 @@ body.wall.night { filter: brightness(0.55); }
   }
   .wall-board[data-printing="1"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr); }
   .wall-board > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
+  /* The left column's cards share its height instead of leaving the lower half empty. */
+  .wall-board[data-layout="wall"] > .wall-extra { align-content: stretch; }
   .wall-board > .wall-print { grid-row: 2 / 4; }
   .wall-board > .wall-house { grid-row: 2 / 4; grid-template-columns: minmax(0, 1fr); }
   /* The toolbar sits in the header strip's top-right corner, above the weather. */
@@ -357,6 +361,10 @@ body.wall.night { filter: brightness(0.55); }
   /* Idle: the printer tile is only as tall as its 16:9 picture. */
   .wall-board[data-printing="0"] > .wall-print { align-self: start; }
   .wall-board[data-printing="0"] .kiosk-cam-container { flex: none; aspect-ratio: 16 / 9; }
+  /* Wall layout: the camera box takes the picture's own shape (--cam-ar is set when the image loads), so no black bands. */
+  .wall-board[data-layout="wall"] > .wall-print { align-self: start; }
+  .wall-board[data-layout="wall"] .kiosk-console { flex: none; }
+  .wall-board[data-layout="wall"] .kiosk-cam-container { flex: none; min-height: 0; aspect-ratio: var(--cam-ar, 16 / 9); }
 }
 
 /* Weather */

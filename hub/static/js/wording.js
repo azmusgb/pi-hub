@@ -113,3 +113,11 @@ export function plainInternet(net) {
   const speed = Number.isFinite(net.orbi_down_mbps) ? ` · ${Math.round(net.orbi_down_mbps)} Mbps down${up}` : "";
   return `Internet OK${speed}`;
 }
+
+// The workshop screen's state in the HUD: "on" / "off"; any other word is shown as it came.
+export function workshopDisplayLabel(v) {
+  const t = String(v ?? "").trim();
+  if (/^online$/i.test(t)) return "on";
+  if (/^offline$/i.test(t)) return "off";
+  return t;
+}
