@@ -306,7 +306,8 @@ async function gateSignIn() {
   if (tries.length >= 2) { toast("This browser isn't keeping the sign-in for the other tools. Check that it allows cookies for home.arpa.", "bad"); return; }
   try { sessionStorage.setItem("gateTries", JSON.stringify([...tries, Date.now()])); } catch { /* private mode */ }
   const r = await fetch("/api/gate/renew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next }) }).catch(() => null);
-  if (r && r.ok) location.replace((await r.json()).next);
+  const to = r && r.ok ? safeNext((await r.json().catch(() => ({}))).next) : null;
+  if (to) location.replace(to);
   else toast("Couldn't sign in to the other tools. Open https://home.home.arpa and try again.", "bad");
 }
 

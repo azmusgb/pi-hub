@@ -651,9 +651,11 @@ def api_gate(request: Request):
     url, code = gate.split_code(gate.original_url(request.headers))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
-        token = auth.redeem_gate_code(code, host)
+        loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
+        token = auth.redeem_gate_code(code, host) if urlsplit(loc).hostname == host else None
         if token:
-            resp = Response(status_code=302, headers={"Location": url, "Cache-Control": "no-store"})
+            auth.sign_out(request.cookies.get(gate.COOKIE))  # this tool's previous token, if the browser sent one
+            resp = Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
             resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.LIFETIME["owner"]))
             return resp
     h = auth.session(request.cookies.get(auth.COOKIE))

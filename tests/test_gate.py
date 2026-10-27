@@ -149,7 +149,28 @@ def test_a_code_is_only_good_for_its_own_host(client):
     client.cookies.clear()
     other = gate_get(client, "assistant.home.arpa", f"/?{nxt.query}")
     assert other.status_code == 302 and gate_cookie(other) is None
-    assert gate_get(client, "Bambuddy.home.arpa:443", f"/?{nxt.query}").status_code == 302  # still unspent
+    ok = gate_get(client, "Bambuddy.home.arpa:443", f"/?{nxt.query}")  # still unspent; case and port normalized
+    assert gate_cookie(ok) and not ok.headers["location"].startswith("https://home.home.arpa/")
+
+
+def test_a_forwarded_host_cannot_redirect_a_spent_code_elsewhere(client):
+    signin(client, "home.home.arpa")
+    nxt = urlsplit(renew(client, "https://bambuddy.home.arpa/").json()["next"])
+    client.cookies.clear()
+    r = gate_get(client, "bambuddy.home.arpa:@evil.com", f"/?{nxt.query}")
+    assert gate_cookie(r) is None and "evil.com" not in urlsplit(r.headers["location"]).hostname
+    assert gate_cookie(gate_get(client, "bambuddy.home.arpa", f"/?{nxt.query}"))  # the code was not spent
+
+
+def test_spending_a_code_revokes_the_tools_previous_token(client):
+    signin(client, "home.home.arpa")
+    old = tool_token(client)
+    nxt = urlsplit(renew(client, "https://bambuddy.home.arpa/").json()["next"])
+    client.cookies.clear()
+    new = gate_cookie(gate_get(client, "bambuddy.home.arpa", f"/?{nxt.query}", cookies={"hub_gate": old}))
+    client.cookies.clear()
+    assert client.get("/api/gate", cookies={"hub_gate": new}).status_code == 200
+    assert client.get("/api/gate", cookies={"hub_gate": old}, follow_redirects=False).status_code == 302
 
 
 def test_gate_helpers_add_and_strip_the_code():
@@ -157,6 +178,8 @@ def test_gate_helpers_add_and_strip_the_code():
     assert gate.with_code("https://a.home.arpa/", "c1") == "https://a.home.arpa/?hub_gate_code=c1"
     assert gate.split_code("https://a.home.arpa/x?y=1&hub_gate_code=c1&z=2") == ("https://a.home.arpa/x?y=1&z=2", "c1")
     assert gate.split_code("https://a.home.arpa/?hub_gate_code=c1") == ("https://a.home.arpa/", "c1")
+    assert gate.split_code("https://a.home.arpa/?flag&hub_gate_code=x")[0] == "https://a.home.arpa/?flag"
+    assert gate.split_code("https://a.home.arpa/?/route&hub_gate_code=x")[0] == "https://a.home.arpa/?/route"
     assert gate.split_code("https://a.home.arpa/?y=1") == ("https://a.home.arpa/?y=1", None)
 
 

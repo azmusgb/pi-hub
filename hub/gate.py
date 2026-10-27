@@ -2,7 +2,7 @@
 any *.home.arpa tool loads. Signed in as the owner → 200 with X-Remote-User; otherwise → the hub's sign-in, which
 sends you back to where you were. home.arpa is a public suffix, so no cookie can span its names: each tool gets its own
 host-only `hub_gate` cookie, handed over by a one-time code (`hub_gate_code`) that the gate spends on that tool's host."""
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 HOME = "https://home.home.arpa/"
 COOKIE = "hub_gate"
@@ -27,14 +27,15 @@ def with_code(url, code):
 
 
 def split_code(url):
-    """The URL without any hub_gate_code, and the first code value (None when there is none)."""
+    """The URL without any hub_gate_code, and the first code value (None when there is none). The rest of the query
+    is left byte for byte."""
     u = urlsplit(url)
-    pairs = parse_qsl(u.query, keep_blank_values=True)
-    codes = [v for k, v in pairs if k == CODE_PARAM]
-    if not codes:
+    parts = u.query.split("&") if u.query else []
+    mine = [p for p in parts if p.partition("=")[0] == CODE_PARAM]
+    if not mine:
         return url, None
-    query = urlencode([(k, v) for k, v in pairs if k != CODE_PARAM])
-    return urlunsplit(u._replace(query=query)), codes[0]
+    rest = "&".join(p for p in parts if p.partition("=")[0] != CODE_PARAM)
+    return urlunsplit(u._replace(query=rest)), unquote(mine[0].partition("=")[2])
 
 
 def safe_next(url):
