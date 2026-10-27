@@ -45,7 +45,7 @@ display's touchscreen layout (it adopts the names and the shared printer actions
 | D2 | One menu by task: **Home · Workshop · Documents · Media · Home & network · System**, plus an **Assistant** button. Paper printing sits under Documents, 3D printing under Workshop. |
 | D3 | Names under `home.arpa`, answered by AdGuard on the Pi; away from home through Tailscale split DNS to the same AdGuard. |
 | D4 | **Caddy on the Pi** fronts every name with HTTPS from its own CA, trusted once on the iPhone and the Mac. |
-| D5 | One sign-in: Caddy `forward_auth` asks **Pi Hub** (existing owner password and sessions); the session cookie is scoped to `.home.arpa`. No new identity service. |
+| D5 | One sign-in: Caddy `forward_auth` asks **Pi Hub** (existing owner password and sessions); the session cookie is scoped to `.home.arpa`. No new identity service. *Note: browsers refuse a `Domain=.home.arpa` cookie (home.arpa is a public suffix); since 27 Oct 2026 each tool gets its own host-only cookie via a one-time code, see docs/superpowers/plans/2026-10-27-gate-per-tool-cookie.md.* |
 | D6 | Tools that accept a trusted front-gate login use it (Grafana auth proxy, Paperless remote user). The rest keep their own login behind the gate, once per browser. |
 | D7 | "Needs you" lives on Home, with a count badge on the Home tab (not on the Assistant button). |
 | D8 | The hub reads other apps through their APIs and never copies their data; each app stays its own record. |
@@ -93,6 +93,7 @@ display's touchscreen layout (it adopts the names and the shared printer actions
   - 302 to `https://home.home.arpa/signin?next=<url>` otherwise.
 - **Sessions:** Pi Hub sets its session cookie with `Domain=.home.arpa; Secure; HttpOnly; SameSite=Lax`, alongside
   the current cookie, so `http://pi` keeps working during the move. Sign-out clears both.
+  *Note: browsers refuse a `Domain=.home.arpa` cookie (home.arpa is a public suffix); since 27 Oct 2026 each tool gets its own host-only cookie via a one-time code, see docs/superpowers/plans/2026-10-27-gate-per-tool-cookie.md.*
 
 **Trusted-header logins** (only on the gate's side; the gate strips any client-sent `X-Remote-User`):
 - Grafana: `auth.proxy` with header `X-WEBAUTH-USER`.
