@@ -49,7 +49,8 @@ def test_workshop_says_when_bambuddy_is_silent(monkeypatch):
 def test_a_row_has_a_photo_when_its_file_exists(monkeypatch):
     now = int(time.time())
     stub(monkeypatch, [item(41, started=now - 100, ended=now), item(42, started=None)])
-    open(os.path.join(os.environ["HUB_PRINTS_DIR"], "41.jpg"), "wb").write(b"\xff\xd8x")
+    os.makedirs(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log"))
+    open(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log", "41.jpg"), "wb").write(b"\xff\xd8x")
     d = TestClient(hub_app.app).get("/api/workshop").json()
     assert {p["id"]: p["has_photo"] for p in d["prints"]} == {41: True, 42: False}
 
@@ -117,17 +118,38 @@ def test_photo_capture_takes_the_newest_print_and_never_overwrites(monkeypatch):
         def __exit__(self, *a): return False
     monkeypatch.setattr(recorder.urllib.request, "urlopen", lambda *a, **k: R())
     recorder._capture_now()
-    assert waits == [20] and open(os.path.join(d, "77.jpg"), "rb").read() == b"\xff\xd8new"
-    open(os.path.join(d, "77.jpg"), "wb").write(b"\xff\xd8old")
+    assert waits == [20] and open(os.path.join(d, "print-log", "77.jpg"), "rb").read() == b"\xff\xd8new"
+    open(os.path.join(d, "print-log", "77.jpg"), "wb").write(b"\xff\xd8old")
     recorder._capture_now()
-    assert open(os.path.join(d, "77.jpg"), "rb").read() == b"\xff\xd8old"
+    assert open(os.path.join(d, "print-log", "77.jpg"), "rb").read() == b"\xff\xd8old"
 
 
 def test_photo_route_404_then_200(monkeypatch):
     c = TestClient(hub_app.app)
     assert c.get("/api/prints/555/photo.jpg").status_code == 404
-    open(os.path.join(os.environ["HUB_PRINTS_DIR"], "555.jpg"), "wb").write(b"\xff\xd8z")
+    os.makedirs(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log"))
+    open(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log", "555.jpg"), "wb").write(b"\xff\xd8z")
     assert c.get("/api/prints/555/photo.jpg").status_code == 200
+
+
+def test_an_old_table_photo_is_not_a_print_log_photo(monkeypatch):
+    d = os.environ["HUB_PRINTS_DIR"]
+    open(os.path.join(d, "26.jpg"), "wb").write(b"\xff\xd8old")
+    now = int(time.time())
+    stub(monkeypatch, [item(26, started=now - 100, ended=now)])
+    c = TestClient(hub_app.app)
+    assert c.get("/api/workshop").json()["prints"][0]["has_photo"] is False
+    assert c.get("/api/prints/26/photo.jpg").status_code == 404
+    os.makedirs(os.path.join(d, "print-log"))
+    open(os.path.join(d, "print-log", "26.jpg"), "wb").write(b"\xff\xd8new")
+    assert c.get("/api/workshop").json()["prints"][0]["has_photo"] is True
+    assert c.get("/api/prints/26/photo.jpg").content == b"\xff\xd8new"
+
+
+def test_photo_route_refuses_a_non_integer_id():
+    c = TestClient(hub_app.app)
+    for bad in ("..%2Fx", "x", "1.5"):
+        assert c.get(f"/api/prints/{bad}/photo.jpg").status_code in (404, 422)
 
 
 def test_no_hub_module_touches_the_prints_table():

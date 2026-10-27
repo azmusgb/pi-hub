@@ -82,7 +82,7 @@ def test_print_photo_endpoint():
     from hub import app as hub_app
     c = TestClient(hub_app.app)
     assert c.get("/api/prints/999/photo.jpg").status_code == 404
-    prints_dir = recorder.prints_dir()
+    prints_dir = recorder.photos_dir()
     os.makedirs(prints_dir, exist_ok=True)
     with open(os.path.join(prints_dir, "999.jpg"), "wb") as f:
         f.write(b"\xff\xd8\xff\xe0testjpeg")

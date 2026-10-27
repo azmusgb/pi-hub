@@ -319,7 +319,7 @@ def api_workshop():
     w = sources.world() or {}
     models = (w.get("models") or {})
     log = bambuddy.prints(20)  # None when Bambuddy doesn't answer
-    prints = [dict(p, has_photo=os.path.exists(os.path.join(recorder.prints_dir(), f"{p['id']}.jpg"))) for p in log or []]
+    prints = [dict(p, has_photo=os.path.exists(os.path.join(recorder.photos_dir(), f"{p['id']}.jpg"))) for p in log or []]
     this_week = [p for p in prints if (p["started"] or 0) >= int(time.time()) - 7 * 86400]
     return fresh({
         "printer": now.printer_from(records.get("printer")),  # the same card /api/now gives
@@ -354,7 +354,7 @@ def api_printer_action(action: str, request: Request):
 
 @app.get("/api/prints/{pid}/photo.jpg")
 def api_print_photo(pid: int):
-    path = os.path.join(recorder.prints_dir(), f"{pid}.jpg")
+    path = os.path.join(recorder.photos_dir(), f"{pid}.jpg")
     if not os.path.exists(path):
         raise HTTPException(404, "No photo for this print.")
     with open(path, "rb") as f:

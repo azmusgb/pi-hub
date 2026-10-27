@@ -14,6 +14,11 @@ def prints_dir():
     return os.environ.get("HUB_PRINTS_DIR", default_dir)
 
 
+def photos_dir():
+    """Print-log photos live in their own folder: the old prints table's <id>.jpg files in prints_dir() mean other prints."""
+    return os.path.join(prints_dir(), "print-log")
+
+
 def _capture_now():
     """Wait for the printer to show the finished plate, then keep one photo named for Bambuddy's newest print."""
     try:
@@ -21,8 +26,8 @@ def _capture_now():
         newest = bambuddy.prints(1)
         if not newest:
             return
-        os.makedirs(prints_dir(), exist_ok=True)
-        target = os.path.join(prints_dir(), f"{newest[0]['id']}.jpg")
+        os.makedirs(photos_dir(), exist_ok=True)
+        target = os.path.join(photos_dir(), f"{newest[0]['id']}.jpg")
         if os.path.exists(target):
             return
         camera_url = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
