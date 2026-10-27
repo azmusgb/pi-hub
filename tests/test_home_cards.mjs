@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { homeCards, homeBadge, labLink } from '../hub/static/js/home-cards.js';
+import { homeCards, homeBadge, labLink, needsSummary } from '../hub/static/js/home-cards.js';
 
 const AT = new Date(2026, 9, 25, 13, 50);
 const NOW = {
@@ -127,4 +127,15 @@ test('while a lab experiment prints, the printer card links Local AI\'s Print la
   const odd = { ...NOW, printer: { ...NOW.printer, lab: { experiment: '"><img src=x>' } } };
   assert.equal(by(all({ now: odd })).workshop.lab, null);
   assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }, '10.0.0.30'), { label: 'Print lab: E-7 ↗', href: 'https://10.0.0.21/#printLab?e=E-7' });
+});
+
+test("Home's summary line counts what Needs you lists, so the two never disagree (iPad, 27 Oct)", () => {
+  const item = (title, tone) => ({ title, tone, detail: '' });
+  // the 27 Oct screenshot: the summary said 2 while Needs you listed 3
+  assert.equal(needsSummary({ count: 3, items: [item('Bambu X2D', 'bad'), item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, '2 things need a look'), '3 things need a look');
+  assert.equal(needsSummary({ count: 2, items: [item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, 'Ad blocking needs a look'), '2 small things to check');
+  assert.equal(needsSummary({ count: 1, items: [item('Ad blocking', 'warn')] }, 'x'), 'Ad blocking needs a look');
+  assert.equal(needsSummary({ count: 1, items: [item('Worth a look', 'warn')] }, 'x'), '1 small thing to check');
+  assert.equal(needsSummary({ count: 0, items: [] }, "Everything's running"), "Everything's running");
+  assert.equal(needsSummary(null, 'Home status is unavailable'), 'Home status is unavailable');  // Needs you didn't answer
 });
