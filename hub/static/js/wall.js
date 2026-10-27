@@ -49,3 +49,19 @@ export function upcoming(events, now = Date.now(), n = 4) {
 
 // The printer counts as busy (its tile gets the most room) while it prints or is paused mid-print.
 export const printing = (p) => p?.state === "printing" || p?.state === "paused";
+
+// The desk layout (an iPad beside a desk, 27 Oct): the camera large, the rest small. `?layout=desk` turns it on and the
+// device remembers it; `?layout=wall` turns it off. Nothing else changes a display's layout, so a wall stays a wall.
+export function wallLayout(search = "", stored = null) {
+  const asked = new URLSearchParams(search).get("layout");
+  if (asked === "desk" || asked === "wall") return { layout: asked, remember: asked };
+  return { layout: stored === "desk" ? "desk" : "wall", remember: null };
+}
+
+// The desk's way to the print lab (Local AI): the experiment printing when the hub knows it, and "Judge" once it's done.
+export function deskLab(p, labBase) {
+  const id = typeof p?.lab?.experiment === "string" && /^E-\d{1,6}$/.test(p.lab.experiment) ? p.lab.experiment : null;
+  const judge = p?.state === "finished";
+  const label = judge ? `Judge ${id || "it"} in the print lab ↗` : `Print lab${id ? `: ${id}` : ""} ↗`;
+  return { label, href: `${labBase}#printLab${id ? `?e=${id}` : ""}`, judge };
+}

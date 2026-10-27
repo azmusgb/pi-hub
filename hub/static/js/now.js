@@ -7,7 +7,7 @@ import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
-import { clockParts, nextHours, printing, upcoming, wallNeeds } from "./wall.js";
+import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNeeds } from "./wall.js";
 
 export const every = 15;
 
@@ -226,12 +226,24 @@ function setWallClock(state) {
   state.wallDate.textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 
+function deskLayout() {
+  let stored = null;
+  try { stored = localStorage.getItem("pi_wall_layout"); } catch {}
+  const { layout, remember } = wallLayout(window.location.search, stored);
+  if (remember) try { localStorage.setItem("pi_wall_layout", remember); } catch {}
+  return layout === "desk";
+}
+
 function wallView() {
   try { return localStorage.getItem("pi_wall_view") || "workshop"; } catch { return "workshop"; }
 }
 
 // One quiet toolbar in a corner: Workshop Focus (or Ambient Home), Kiosk (full screen) and Exit wall display.
 function wallToolbar(state) {
+  const exit = h("a", { href: "/", class: "kiosk-btn", "data-link": true }, "← Exit wall display");
+  // The desk has one view, and iPad Safari has no full screen for pages (Add to Home Screen gives it): back to the
+  // wall's layout instead.
+  if (state.desk) return [h("a", { href: "/wall?layout=wall", class: "kiosk-btn" }, "Wall layout"), exit];
   const view = wallView();
   const toggleViewBtn = h("button", {
     type: "button",
@@ -254,7 +266,6 @@ function wallToolbar(state) {
     }
   }, "⛶ Kiosk");
 
-  const exit = h("a", { href: "/", class: "kiosk-btn", "data-link": true }, "← Exit wall display");
   return [toggleViewBtn, fullscreenBtn, exit];
 }
 
@@ -367,6 +378,7 @@ export function mount(state) {
   if (isWallMode()) {
     // The wall board: the clock and weather, Needs you, the printer and camera, the house, extra tiles for tall
     // screens and one toolbar. home.css places them by the screen's shape.
+    state.desk = deskLayout();
     renderWallHeader(state, null);
     state.wallNeeds = h("section", { class: "wall-tile wall-needs", "aria-labelledby": "wall-needs-title" });
     renderWallNeeds(state, undefined);
@@ -374,7 +386,7 @@ export function mount(state) {
     state.wallHouse = h("div", { class: "wall-house" });
     state.wallExtra = h("div", { class: "wall-extra" });
     state.wallTools = h("nav", { class: "wall-tools", "aria-label": "Wall display" }, ...wallToolbar(state));
-    state.wallBoard = h("div", { class: "wall-board" },
+    state.wallBoard = h("div", { class: "wall-board", dataset: { layout: state.desk ? "desk" : "wall" } },
       state.wallHead, state.wallNeeds, state.wallPrint, state.wallHouse, state.wallExtra, state.wallTools);
     state.summary.hidden = true;
     state._clockTimer = setInterval(() => { if (state.wallHM) setWallClock(state); }, 1000);
@@ -473,6 +485,17 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   state.wallTools.replaceChildren(...wallToolbar(state));
   state.wallPrint.replaceChildren(workshopKioskConsole(d, cam));
 
+  if (state.desk) {
+    // The desk: the workshop light and the way to the print lab; the camera has the rest of the screen.
+    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
+    const lab = deskLab(d.printer, toolUrl("assistant"));
+    state.wallExtra.replaceChildren();
+    state.wallHouse.replaceChildren(...[
+      workshopLightCard(shopLight),
+      h("a", { class: `btn desk-lab${lab.judge ? " btn--primary" : ""}`, href: lab.href, target: "_blank", rel: "noopener" }, lab.label),
+    ].filter(Boolean));
+    return;
+  }
   if (wallView() === "workshop") {
     const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
     const others = displayAccessories.filter(a => a.id !== shopLight?.id);

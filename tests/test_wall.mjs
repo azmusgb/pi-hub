@@ -1,7 +1,7 @@
 // The wall display's words (wall fits any screen, 26 Oct): the clock's parts, the Needs you tile and the extra tiles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockParts, nextHours, printing, upcoming, wallNeeds } from '../hub/static/js/wall.js';
+import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNeeds } from '../hub/static/js/wall.js';
 
 test('the clock splits the time from a small AM/PM, and 24-hour clocks have none', () => {
   assert.deepEqual(clockParts(new Date(2026, 9, 26, 12, 38), 'en-US'), { hm: '12:38', ampm: 'PM' });
@@ -45,4 +45,23 @@ test('the printer counts as busy while printing or paused', () => {
   assert.equal(printing({ state: 'paused' }), true);
   assert.equal(printing({ state: 'idle' }), false);
   assert.equal(printing(undefined), false);
+});
+
+test('the desk layout is chosen by ?layout=desk, remembered on the device, and ?layout=wall goes back', () => {
+  assert.deepEqual(wallLayout('?layout=desk', null), { layout: 'desk', remember: 'desk' });
+  assert.deepEqual(wallLayout('', 'desk'), { layout: 'desk', remember: null });
+  assert.deepEqual(wallLayout('?layout=wall', 'desk'), { layout: 'wall', remember: 'wall' });
+  assert.deepEqual(wallLayout('', null), { layout: 'wall', remember: null });  // a wall display is never moved
+  assert.deepEqual(wallLayout('?layout=sideways', null), { layout: 'wall', remember: null });
+});
+
+test('the desk links to the print lab, and asks to judge a finished print', () => {
+  const lab = 'https://10.0.0.21/';
+  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }, lab),
+    { label: 'Print lab: E-024 ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: false });
+  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }, lab),
+    { label: 'Judge E-024 in the print lab ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: true });
+  assert.deepEqual(deskLab({ state: 'finished' }, lab), { label: 'Judge it in the print lab ↗', href: 'https://10.0.0.21/#printLab', judge: true });
+  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
+  assert.deepEqual(deskLab(null, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
 });
