@@ -27,6 +27,22 @@ def printer(s, b=None, lab=None):
     state = (s or {}).get("x2d_state")
     pct = (s or {}).get("x2d_progress") or 0
     left = (s or {}).get("x2d_left") or ""
+
+    # Fall back to Bambuddy when Local AI has no useful printer state.
+    # Bambuddy is already the source for live X2D telemetry and controls.
+    known_local_states = {"Printing", "Paused", "Error", "Stopped", "Idle"}
+    if state not in known_local_states and isinstance(b, dict) and b.get("connected"):
+        bambuddy_state = b.get("bambuddy_state") or b.get("state")
+        state = {
+            "RUNNING": "Printing",
+            "PAUSE": "Paused",
+            "FINISH": "Idle",
+            "FAILED": "Error",
+            "IDLE": "Idle",
+        }.get(bambuddy_state, state)
+
+        if b.get("progress") is not None:
+            pct = b.get("progress")
     if state == "Printing":
         res = {"state": "printing", "progress": pct, "headline": f"Printing, {pct}%",
                "left": left, "minutes_left": (s or {}).get("x2d_minutes_left")}

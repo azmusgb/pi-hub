@@ -7,6 +7,7 @@ import re
 PRINT_HOURS = 24  # a finished or failed print asks for a day, until step 3 knows when the plate is cleared
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
+ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 
 
@@ -69,4 +70,18 @@ def build(events, feed, now, issues=()):
     if len(printer) > 1:
         keep = next((i for i in printer if i["source"] == "Printer"), printer[0])
         items = [i for i in items if i is keep or i not in printer]
+
+    # Local AI and Pi Hub can both report the Workshop touchscreen outage.
+    # Keep the Pi Hub item because it is the direct device-status source.
+    workshop_display = [
+        i for i in items
+        if ABOUT_WORKSHOP_DISPLAY.search(f'{i["title"]} {i["detail"]}')
+    ]
+    if len(workshop_display) > 1:
+        keep = next(
+            (i for i in workshop_display if i["source"] == "Pi Hub"),
+            workshop_display[0]
+        )
+        items = [i for i in items if i is keep or i not in workshop_display]
+
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k != "ts"} for i in items], "unread": unread}
