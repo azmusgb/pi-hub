@@ -425,38 +425,9 @@ def api_camera():
         raise HTTPException(503, "The camera isn't sending pictures right now.")
 
 
-PRINTER_IP = os.environ.get("HUB_PRINTER_IP", "10.0.0.136")
-
-
-def _printer_port_open(port):
-    import socket
-    try:
-        with socket.create_connection((PRINTER_IP, port), timeout=1):
-            return True
-    except OSError:
-        return False
-
-
-def _camera_reason():
-    """Why there's no picture, when the printer can say: its video port (322, "LAN Only Liveview") is closed while
-    its status port (8883) answers, or it doesn't answer at all."""
-    if _printer_port_open(322):
-        return None
-    return "liveview_off" if _printer_port_open(8883) else "printer_unreachable"
-
-
 @app.get("/api/camera")
 def api_camera_health():
-    import json as _json
-    import urllib.request
-    try:
-        with urllib.request.urlopen(f"{CAMERA}/x2d/health.json", timeout=3) as r:
-            h = _json.load(r)
-        ok = bool(h.get("ok"))
-        return fresh({"ok": ok, "source": h.get("source"), "since": h.get("since"), "reason": None if ok else _camera_reason(),
-                      "sources": {k: {"up": v.get("up"), "fresh": v.get("fresh")} for k, v in (h.get("sources") or {}).items()}})
-    except OSError:
-        return fresh({"ok": False, "source": None, "sources": {}, "reason": _camera_reason()})
+    return fresh(sources.camera_health())
 
 
 # ---- Print ----

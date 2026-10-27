@@ -219,11 +219,14 @@ def test_camera_says_why_when_the_printer_shares_no_video(monkeypatch):
         raise OSError("no bridge")
     monkeypatch.setattr(ur, "urlopen", down)
     c = TestClient(hub_app.app)
-    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: port != 322)
+    sources._cache.clear()
+    monkeypatch.setattr(sources, "_printer_port_open", lambda port: port != 322)
     assert c.get("/api/camera").json()["reason"] == "liveview_off"
-    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: False)
+    sources._cache.clear()
+    monkeypatch.setattr(sources, "_printer_port_open", lambda port: False)
     assert c.get("/api/camera").json()["reason"] == "printer_unreachable"
-    monkeypatch.setattr(hub_app, "_printer_port_open", lambda port: True)
+    sources._cache.clear()
+    monkeypatch.setattr(sources, "_printer_port_open", lambda port: True)
     assert c.get("/api/camera").json()["reason"] is None
 
 
