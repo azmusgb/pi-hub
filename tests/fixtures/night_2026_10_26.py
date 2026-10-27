@@ -7,7 +7,7 @@ import time
 
 from tests.helpers_records import bud, inputs
 
-START, END = (0, 2, 0), (2, 3, 30)
+START, END = (0, 2, 0), (2, 3, 30)  # the printer idle, not after a failure, well before 01:20
 
 
 def at(h, m, s=0):

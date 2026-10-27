@@ -61,9 +61,16 @@ def _state(b, prev, now):
 
 
 def _chained(prev):
-    """The previous record belongs to a print attempt chain (not a finished-and-cleared plate)."""
-    return bool(prev) and prev["state"] in ("printing", "paused", "failed", "idle") \
-        and not prev["detail"].get("from_finished")
+    """The previous record belongs to a print attempt chain: a print under way, a failure, or the idle
+    that directly followed a failure. A plain idle (or a finished plate) never starts a chain."""
+    if not prev or prev["detail"].get("from_finished"):
+        return False
+    return prev["state"] in ("printing", "paused", "failed") or \
+        (prev["state"] == "idle" and bool(prev["detail"].get("after_failure")))
+
+
+def _failed_at(prev):
+    return prev["detail"].get("failed_at") or prev["since"]
 
 
 def _attempt(job, state, prev, now):
@@ -72,7 +79,7 @@ def _attempt(job, state, prev, now):
     count = prev["detail"].get("attempt") or 1
     if state in ("failed", "idle") or prev["state"] in ("printing", "paused"):
         return count
-    again = prev["detail"].get("job") == job and now - prev["since"] < ATTEMPT_WINDOW
+    again = prev["detail"].get("job") == job and now - _failed_at(prev) < ATTEMPT_WINDOW
     return count + 1 if again else 1
 
 
@@ -88,6 +95,8 @@ def _disagree(s, state):
     said = s.get("x2d_state") if isinstance(s, dict) else None  # an odd answer from pi-status says nothing
     if not said or PI_STATUS.get(said) == state:
         return ""
+    if said not in PI_STATUS and state not in ("printing", "paused"):
+        return ""  # "No status" while the printer is idle or away isn't a contradiction
     return f"pi-status reports {said}; Bambuddy reports {state}"
 
 
@@ -119,6 +128,12 @@ def printer(b, s, lab, prev, now):
               "minutes_left": _minutes(b.get("remaining_time"))}
     if inferred:
         detail["inferred"] = True
+    if state == "failed":
+        detail["failed_at"] = _failed_at(prev) if was_failed else now
+    elif state == "idle" and prev and prev["state"] in ("failed", "idle") and (
+            prev["state"] == "failed" or prev["detail"].get("after_failure")):
+        detail["after_failure"] = True
+        detail["failed_at"] = _failed_at(prev)
     # a reprint after a normal finish (cleared or not) is a new print, attempt 1
     if _raw(b) == "FINISH" or (state == "idle" and prev and (prev["state"] == "finished" or (
             prev["state"] == "idle" and old.get("from_finished")))):

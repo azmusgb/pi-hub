@@ -205,3 +205,44 @@ def test_a_reprint_after_a_normal_finish_is_attempt_1():
     plain = merged(printer.printer(bud("FINISH", 100), None, None, printing_at(99), T0), at=T0)
     assert plain["state"] == "idle" and plain["detail"]["from_finished"] is True
     assert printer.printer(RUNNING_V72, None, None, plain, T0 + 60)["detail"]["attempt"] == 1
+
+
+# ---- R30: an unknown pi-status word contradicts Bambuddy only while it is printing or paused ----
+
+def test_no_status_is_a_disagreement_only_while_printing_or_paused():
+    no_status = {"x2d_state": "No status"}
+    assert printer.printer(IDLE_V72, no_status, None, None, T)["disagree"] == ""
+    assert printer.printer(bud("RUNNING"), no_status, None, None, T)["disagree"] == \
+        "pi-status reports No status; Bambuddy reports printing"
+    assert printer.printer(bud("PAUSE"), no_status, None, None, T)["disagree"] == \
+        "pi-status reports No status; Bambuddy reports paused"
+    assert printer.printer(bud("IDLE", connected=False), no_status, None, None, T)["disagree"] == ""
+    assert printer.printer(IDLE_V72, {"x2d_state": "Printing"}, None, None, T)["disagree"] == \
+        "pi-status reports Printing; Bambuddy reports idle"
+
+
+# ---- R31: an attempt chain continues only from a failure, or the idle that directly followed one ----
+
+def test_a_plain_idle_never_chains():
+    idle = merged(printer.printer(IDLE_V72, None, None, None, T0), at=T0)
+    assert idle["state"] == "idle" and "after_failure" not in idle["detail"]
+    again = printer.printer(RUNNING_V72, None, None, idle, T0 + 300)
+    assert again["detail"]["attempt"] == 1 and "attempt" not in again["headline"]
+
+
+def _failed_then_idle(failed_at=T0):
+    failed = merged(printer.printer(bud("FAILED", 30, awaiting=True), None, None, printing_at(30), failed_at), at=failed_at)
+    return merged(printer.printer(IDLE_V72, None, None, failed, failed_at + 60), at=failed_at + 60)
+
+
+def test_failed_then_idle_then_running_within_15_min_of_the_failure_is_attempt_2():
+    idle = _failed_then_idle()
+    assert idle["state"] == "idle" and idle["detail"]["after_failure"] is True and idle["detail"]["failed_at"] == T0
+    idle2 = merged(printer.printer(IDLE_V72, None, None, idle, T0 + 90), at=T0 + 90)  # stays marked while idle
+    assert idle2["detail"]["after_failure"] is True and idle2["detail"]["failed_at"] == T0
+    assert printer.printer(RUNNING_V72, None, None, idle2, T0 + 600)["detail"]["attempt"] == 2
+
+
+def test_the_same_after_15_min_is_attempt_1():
+    idle = _failed_then_idle()
+    assert printer.printer(RUNNING_V72, None, None, idle, T0 + printer.ATTEMPT_WINDOW)["detail"]["attempt"] == 1

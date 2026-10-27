@@ -37,10 +37,11 @@ def env(monkeypatch):
     time.tzset()
 
 
-def replay(until):
-    """Drives the loop as events.run does: first=True only on the first cycle."""
-    for i, (t, inp) in enumerate(night.night(until)):
-        events.on_changes(records.refresh(t, inputs=inp), first=(i == 0))
+def replay(until, since=None):
+    """Drives the loop as events.run does: first=True only on the first cycle of the night."""
+    for t, inp in night.night(until):
+        if since is None or t >= since:
+            events.on_changes(records.refresh(t, inputs=inp), first=(t == night.at(*night.START)))
 
 
 @pytest.fixture
@@ -89,7 +90,12 @@ def test_needs_home_and_wall_agree(client):
 
 
 def test_the_hub_flags_the_disagreement():
-    replay(night.at(1, 25))
+    replay(night.at(1, 19, 30))  # idle, and pi-status's "No status" contradicts nothing
+    assert records.get("hub")["state"] == "ok"
+    assert records.get("printer")["detail"]["attempt"] == 1
+    replay(night.at(1, 20), since=night.at(1, 19, 30) + 30)
+    assert records.get("printer")["headline"] == "Printing HEX_TILE_v72, 1%"
+    replay(night.at(1, 25), since=night.at(1, 20) + 30)
     hub = records.get("hub")
     assert (hub["state"], hub["severity"]) == ("disagreement", "attention")
     assert hub["headline"] == "Two sources disagree about the printer"
