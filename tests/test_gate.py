@@ -251,18 +251,22 @@ def test_sign_out_works_before_anything_else_has_touched_the_database(tmp_path, 
 
 
 def test_a_gate_code_whose_owner_has_expired_is_refused(client):
+    import hashlib
     import sqlite3
     owner = signin(client, "home.home.arpa").cookies.get("hub_session")
     code = auth.gate_code(owner, "bambuddy.home.arpa")
     db = sqlite3.connect(os.environ["HUB_DB"])
-    db.execute("UPDATE sessions SET expires = ? WHERE role = 'owner'", (int(auth.time.time()) - 60,)); db.commit()
+    db.execute("UPDATE sessions SET expires = ? WHERE token_hash = ?",
+               (int(auth.time.time()) - 60, hashlib.sha256(owner.encode()).hexdigest())); db.commit()
     assert auth.redeem_gate_code(code, "bambuddy.home.arpa") is None
 
 
 def test_a_redeemed_gate_token_ends_when_its_owner_does(client):
+    import hashlib
     import sqlite3
     owner = signin(client, "home.home.arpa").cookies.get("hub_session")
     token = auth.redeem_gate_code(auth.gate_code(owner, "bambuddy.home.arpa"), "bambuddy.home.arpa")
     db = sqlite3.connect(os.environ["HUB_DB"])
-    (owner_expires,) = db.execute("SELECT expires FROM sessions WHERE role = 'owner'").fetchone()
+    (owner_expires,) = db.execute("SELECT expires FROM sessions WHERE token_hash = ?",
+                                  (hashlib.sha256(owner.encode()).hexdigest(),)).fetchone()
     assert auth.session(token, gate=True)["expires"] == owner_expires
