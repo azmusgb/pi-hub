@@ -65,6 +65,9 @@ def projects():
     return sources.cached("bambuddy_projects", 60, _projects)
 
 
+FETCH = 100  # entries per fetch; prints(limit) trims from these
+
+
 def status_word(status):
     if status is None:
         return "Unknown"
@@ -85,11 +88,13 @@ def _print(e):
             "error": e.get("failure_reason"), "lab": {"exp": m["exp"], "build": m["build"]} if m else None}
 
 
-def _prints(limit):
-    items = sources._get_json(f"{URL}/api/v1/print-log/?limit={limit}", headers(), timeout=3)["items"]
+def _prints():
+    items = sources._get_json(f"{URL}/api/v1/print-log/?limit={FETCH}", headers(), timeout=3)["items"]
     return [_print(e) for e in sorted(items, key=lambda e: e["id"], reverse=True)]
 
 
 def prints(limit=50):
     """Every print attempt, newest first, or None when Bambuddy doesn't answer."""
-    return sources.cached("bambuddy_prints", 60, lambda: _prints(limit))
+    # One fetch of the newest FETCH serves every limit, so callers asking for 1, 20 and 50 in a minute share it.
+    items = sources.cached("bambuddy_prints", 60, _prints)
+    return None if items is None else items[:limit]

@@ -35,7 +35,7 @@ def test_item_shape_and_utc_epoch(monkeypatch):
     seen = []
     _serve(monkeypatch, [_entry()], seen)
     [p] = bambuddy.prints(limit=10)
-    assert seen == [bambuddy.URL + "/api/v1/print-log/?limit=10"]
+    assert seen == [bambuddy.URL + "/api/v1/print-log/?limit=100"]
     assert p["started"] == 1793133390
     assert p["ended"] == 1793133390 + 1800
     assert p["word"] == "Finished" and p["seconds"] == 1800 and p["grams"] == 12.5
@@ -59,3 +59,11 @@ def test_none_when_bambuddy_down(monkeypatch):
         raise OSError("down")
     monkeypatch.setattr(sources, "_get_json", boom)
     assert bambuddy.prints() is None
+
+
+def test_limits_share_one_fetch(monkeypatch):
+    seen = []
+    _serve(monkeypatch, [_entry(id=i) for i in range(1, 31)], seen)
+    assert len(bambuddy.prints(1)) == 1
+    assert len(bambuddy.prints(20)) == 20
+    assert len(seen) == 1
