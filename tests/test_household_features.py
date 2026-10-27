@@ -163,7 +163,7 @@ def test_unknown_device_readings_do_not_trigger_automations(monkeypatch):
     from hub import records
     from tests.helpers_records import bud, inputs
     records._reset_memory()
-    events._last.clear()
+    events._forget()
     fired=[]
     monkeypatch.setattr(events,'fire',lambda kind,*a,**k:fired.append(kind))
     good=inputs(bambuddy=bud('RUNNING',50))

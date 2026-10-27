@@ -21,7 +21,7 @@ BASE = {"x2d_state": "Idle", "x2d_progress": 0, "drive_state": "Connected", "ai_
 def fresh_db(monkeypatch):
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
     records._reset_memory()
-    events._last.clear()
+    events._forget()
     fired = []
     monkeypatch.setattr(events, "push", lambda *a, **k: fired.append(a) or "Sent.")
     yield fired

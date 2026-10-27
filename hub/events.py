@@ -307,13 +307,19 @@ def recent(limit=40):
 # compares with the last state that did say something, so a source dropping out and coming back
 # doesn't report the same print or dropout twice
 UNSURE = {"unknown", "offline"}
+LIVE = {"printing", "paused"}
+FINISHED_AT = 97  # percent; a print that ended below this was stopped early
 _last = {}  # thing -> its last state outside UNSURE, as on_changes saw it (only events.run's thread)
+_last_progress = {}  # "printer" -> the progress last seen while printing or paused; survives an offline gap
 
-# thing -> [(new states, states it mustn't come from, trigger)]
+
+def _forget():
+    _last.clear()
+    _last_progress.clear()
+
+
+# thing -> [(new states, states it mustn't come from, trigger)]; the printer has its own rules below
 ON = {
-    "printer": [({"printing"}, {"printing", "paused"}, "print_started"),
-                ({"finished"}, set(), "print_finished"),
-                ({"failed"}, set(), "print_failed")],
     "pc": [({"off"}, {"off"}, "pc_down"), ({"on"}, {"on"}, "pc_back")],
     "movies_drive": [({"missing", "not_mounted"}, {"missing", "not_mounted"}, "drive_dropped"),
                      ({"connected"}, {"connected"}, "drive_back")],
@@ -323,15 +329,41 @@ ON = {
 }
 
 
-def _detail(kind, rec):
+def _printer(before, new, rec):
+    """The print trigger for a printer change, as (kind, detail), or None. A print that was live and is
+    now idle, finished or failed ended one way or the other: Bambuddy's FINISH is a finish, its FAILED
+    (or a failed record) is a failure, otherwise the last progress seen while printing decides."""
     d = rec.get("detail") or {}
-    if kind == "print_started" and (d.get("attempt") or 1) > 1:
-        return f"attempt {d['attempt']}"
-    if kind == "print_failed":
-        return f"at {d.get('last_progress') or 0}%"
-    if kind == "pi_hot" and d.get("temp") is not None:
-        return f"{d['temp']} °C"
-    return ""
+    if new == "printing" and before not in LIVE:
+        attempt = d.get("attempt") or 1
+        return "print_started", f"attempt {attempt}" if attempt > 1 else ""
+    pct = _last_progress.get("printer")
+    failed = ("print_failed", f"at {pct if pct is not None else d.get('last_progress') or 0}%")
+    if before in LIVE and new in ("idle", "finished", "failed"):
+        if new == "finished" or d.get("bambuddy_state") == "FINISH":
+            return "print_finished", ""
+        if new == "failed" or d.get("bambuddy_state") == "FAILED" or (pct is not None and pct < FINISHED_AT):
+            return failed
+        return "print_finished", ""
+    if new == "finished":
+        return "print_finished", ""
+    if new == "failed":
+        return failed
+    return None
+
+
+def _note_progress():
+    rec = records.get("printer")
+    if rec and rec["state"] in LIVE:
+        p = (rec.get("detail") or {}).get("last_progress")
+        _last_progress["printer"] = p if isinstance(p, (int, float)) else 0
+
+
+def _fire(kind, detail, dedupe=0):
+    try:
+        fire(kind, detail, dedupe=dedupe)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
 
 
 def on_changes(changes, first):
@@ -339,18 +371,29 @@ def on_changes(changes, first):
     nothing: a print already under way, or a PC already off, isn't news."""
     for ch in changes:
         new = ch["new"]
-        if ch["id"] not in ON or new in UNSURE:
+        if (ch["id"] not in ON and ch["id"] != "printer") or new in UNSURE:
             continue
         before = _last.get(ch["id"]) or (ch["old"] if ch["old"] not in UNSURE else None)
         _last[ch["id"]] = new
         if first or before is None or before == new:
             continue
+        if ch["id"] == "printer":
+            hit = _printer(before, new, ch["record"])
+            if hit:
+                _fire(*hit, dedupe=PRINT_DEDUPE)
+            continue
         for states, not_from, kind in ON[ch["id"]]:
             if new in states and before not in not_from:
-                try:
-                    fire(kind, _detail(kind, ch["record"]), dedupe=PRINT_DEDUPE if kind.startswith("print_") else 0)
-                except Exception:
-                    traceback.print_exc(file=sys.stderr)
+                _fire(kind, _detail(kind, ch["record"]))
+    # remembered after this cycle's changes, so the next cycle's end of a print sees the last live progress
+    _note_progress()
+
+
+def _detail(kind, rec):
+    d = rec.get("detail") or {}
+    if kind == "pi_hot" and d.get("temp") is not None:
+        return f"{d['temp']} °C"
+    return ""
 
 
 # ---- Watching for changes ----

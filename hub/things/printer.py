@@ -110,11 +110,12 @@ def printer(b, s, lab, prev, now):
               "nozzle_target": b.get("nozzle_target"), "bed": b.get("bed_temp"),
               "bed_target": b.get("bed_target"), "ams_humidity": b.get("ams_humidity"),
               "filament_type": b.get("filament_type"), "filament_color": b.get("filament_color"),
-              "attempt": attempt, "started": started, "last_progress": last}
+              "attempt": attempt, "started": started, "last_progress": last, "bambuddy_state": _raw(b)}
     if inferred:
         detail["inferred"] = True
-    if state == "idle" and (_raw(b) == "FINISH" or (prev and (prev["state"] == "finished" or (
-            prev["state"] == "idle" and old.get("from_finished"))))):
+    # a reprint after a normal finish (cleared or not) is a new print, attempt 1
+    if _raw(b) == "FINISH" or (state == "idle" and prev and (prev["state"] == "finished" or (
+            prev["state"] == "idle" and old.get("from_finished")))):
         detail["from_finished"] = True
     if live and lab is not None:
         detail["lab"] = lab

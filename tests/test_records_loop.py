@@ -39,7 +39,7 @@ class Fired:
 def pushed(monkeypatch):
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
     records._reset_memory()
-    events._last.clear()
+    events._forget()
     sent = []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
     events.ready()
@@ -149,6 +149,62 @@ def test_bambuddy_silent_mid_print_then_idle_is_a_failure(fired):
     assert records.get("printer")["state"] == "printing" and records.get("printer")["stale"]
     step(T + 1030, IDLE)
     assert fired.details() == [("print_failed", "at 50%")]
+
+
+# ---- R11: on_changes tells a finish from a failure itself, as the Watcher did ----
+
+def test_idle_after_99_percent_is_a_finish(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 99)))
+    step(T + 60, IDLE)
+    assert fired == ["print_finished"]
+
+
+def test_finish_without_awaiting_plate_clear_is_a_finish(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 99)))
+    step(T + 60, inputs(bambuddy=bud("FINISH", 100)))
+    assert records.get("printer")["state"] == "idle"
+    assert fired == ["print_finished"]
+
+
+def test_failed_without_awaiting_plate_clear_is_a_failure(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 99)))
+    step(T + 60, inputs(bambuddy=bud("FAILED", 99)))
+    assert records.get("printer")["state"] == "idle"
+    assert fired.details() == [("print_failed", "at 99%")]
+
+
+def test_offline_then_idle_below_97_is_a_failure(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 40)))
+    step(T + 60, inputs(bambuddy=bud("RUNNING", 40, connected=False)))
+    step(T + 90, IDLE)
+    assert fired.details() == [("print_failed", "at 40%")]
+
+
+def test_offline_then_idle_at_98_is_a_finish(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("RUNNING", 98)))
+    step(T + 60, inputs(bambuddy=bud("RUNNING", 98, connected=False)))
+    step(T + 90, IDLE)
+    assert fired == ["print_finished"]
+
+
+def test_a_failure_then_the_plate_cleared_fires_once(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("FAILED", 10, awaiting=True)))
+    step(T + 60, IDLE)
+    step(T + 90000, IDLE)
+    assert fired.details() == [("print_failed", "at 10%")]
+
+
+def test_paused_then_stopped_is_a_failure(fired):
+    step(T, PRINTING, first=True)
+    step(T + 30, inputs(bambuddy=bud("PAUSE", 60)))
+    step(T + 60, IDLE)
+    assert fired.details() == [("print_failed", "at 60%")]
 
 
 # ---- the house triggers ----

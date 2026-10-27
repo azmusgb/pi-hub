@@ -190,3 +190,18 @@ def test_missing_progress_and_job_name_do_not_crash():
     assert r["state"] == "printing" and r["detail"]["job"] is None
     prev = merged(r)
     assert printer.printer(bud("IDLE", None, job=None), None, None, prev, T + 5)["state"] == "failed"
+
+
+def test_the_record_keeps_bambuddys_own_state():
+    assert printer.printer(bud("FAILED", 30), None, None, None, T)["detail"]["bambuddy_state"] == "FAILED"
+    assert printer.printer(RUNNING_V72, None, None, None, T)["detail"]["bambuddy_state"] == "RUNNING"
+
+
+def test_a_reprint_after_a_normal_finish_is_attempt_1():
+    done = merged(printer.printer(bud("FINISH", 100, awaiting=True), None, None, printing_at(99), T0), at=T0)
+    assert done["detail"]["from_finished"] is True
+    again = printer.printer(RUNNING_V72, None, None, done, T0 + 60)
+    assert again["detail"]["attempt"] == 1
+    plain = merged(printer.printer(bud("FINISH", 100), None, None, printing_at(99), T0), at=T0)
+    assert plain["state"] == "idle" and plain["detail"]["from_finished"] is True
+    assert printer.printer(RUNNING_V72, None, None, plain, T0 + 60)["detail"]["attempt"] == 1
