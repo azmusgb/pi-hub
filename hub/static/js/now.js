@@ -2,7 +2,7 @@
 // Home & network and System. The wall display keeps its own layout.
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
-import { homeCards, labLink } from "./home-cards.js";
+import { homeCards, labLink, needsSummary } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
@@ -461,6 +461,7 @@ export async function load(state) {
     settle(api("/api/movies/latest"), 4000, null),
   ]).then(([needs, backups, latest]) => {
     if (needs) setNeeds(needs);
+    if (needs && state.summary.isConnected) state.summary.textContent = needsSummary(needs, d.summary);
     state.extra = { needs, backups, latest };
     if (state.cards.isConnected) draw(state.extra);
   });
