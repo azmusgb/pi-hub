@@ -8,6 +8,17 @@ Home, Movies, Devices, Lists, Print, Workshop, Weather, symptom guides, alerts, 
 
 Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devices and Home, device-local alert badges, compact issue summaries, and expandable movie/print details. Fix actions ask for confirmation and show a persistent outcome on Help. Expanded movie details remain open across refreshes.
 
+## Control room piece 1: records — 27 October
+
+Release `b69c678` (spec `superpowers/specs/2026-10-27-control-room-design.md`, plan `superpowers/plans/2026-10-27-control-room-1-records.md`):
+
+- **One record per thing.** 16 records (printer, camera, workshop display, PC, Local AI, Pi, movies drive, movie copy, internet, AdGuard, backups, Plex, devices, document printer, weather, and the hub itself), each from one designated source, kept in memory and in the `records` table. `GET /api/records` lists them; `GET /api/records/stream` sends changes as server-sent events (nothing uses the stream yet).
+- **Home, the wall, Needs you, Help › Source responses and the Workshop printer card read records**, so they can no longer disagree. The printer's state comes from Bambuddy only; pi-status can only add a "two sources disagree" note.
+- **Alerts come from record changes.** The PC is down only when it is off the network for 5 minutes (not when Local AI is down); the Pi-hot alert fires; a silent source is one "isn't answering" item; a stop and restart of the same job within 15 minutes is attempt 2; INIT without a job (power-on) is idle.
+- Not yet: the morning digest and the Assistant still read pi-status; the pages do not grey out a stale record; Home can say "Everything's running" for under a minute after a restart.
+
+Checked live on 27 October at 11:09–11:11: the Pi's gate passed 390 tests; `/api/records` listed 16 records 30 s after the restart, none stale at 11:11 (oldest 9 s); Home and Needs you both listed AdGuard (down) and the printer camera (no picture), and both said the printer was idle, as its record did; Help listed the same readings, all current except the unconfigured calendar; the wall browser check passed all 7 views. Not checked live: a print starting, failing or restarting (covered by replaying the night of 26–27 October in tests).
+
 ## Freshness and recovery follow-up — 22 October
 
 - Source-response panels on Home, Movies, Devices, Workshop, Print, Weather and Help show successful response ages, unavailable checks, expired readings and missing setup separately.
