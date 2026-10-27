@@ -1,14 +1,12 @@
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
-import { toolUrl } from "./sections.js";
+import { printLabUrl, toolUrl } from "./sections.js";
 import { firstFew } from "./section-links.js";
-import { printOutcome } from "./wording.js";
+import { printLabText, printWords } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
 
 export const every = 15;
-
-const OUTCOME = { finished: ["Finished", "ok"], stopped: ["Stopped", "warn"], failed: ["Failed", "bad"] };
 
 export function mount(state) {
   state.band = h("div");
@@ -54,7 +52,7 @@ function camera(c) {
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.
 function printRow(p) {
-  const [label, tone] = printOutcome(p) || (p.ended ? (OUTCOME[p.outcome] || ["Ended", "warn"]) : ["Printing", "ok"]);
+  const [label, tone] = printWords(p);
   const used = p.grams ? `${Math.round(p.grams)} g of filament` + (p.cost ? `, $${p.cost.toFixed(2)}` : "") : null;
   const photo = p.has_photo ? h("a", {
     href: `/api/prints/${p.id}/photo.jpg`,
@@ -75,10 +73,13 @@ function printRow(p) {
   const row = h("li", { class: "log-row print-row" },
     h("span", { class: "dot", dataset: { tone } }),
     h("span", { class: "log-main" }, h("strong", {}, label),
+      h("span", { class: "meta" }, p.name),
       h("span", { class: "meta" }, when(p.started)),
+      p.lab ? h("a", { class: "meta", href: printLabUrl(p.lab.exp), target: "_blank", rel: "noopener" }, printLabText(p))
+        : h("span", { class: "meta" }, printLabText(p)),
       p.error ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(p.error.replace(/^HMS_/, ""))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`) : null,
       used ? h("span", { class: "meta" }, used) : null),
-    h("span", { class: "log-side" }, photo, p.ended ? duration(p.ended - p.started) : `${p.progress}% so far`));
+    h("span", { class: "log-side" }, photo, p.seconds ? duration(p.seconds) : p.ended ? "" : "Printing now"));
   return row;
 }
 
@@ -156,7 +157,8 @@ export async function load(state) {
   );
   state.body.replaceChildren(...[
     card("Print history", { pill: `${d.week.finished} finished this week`, tone: "ok", cls: "wide" },
-      ...(prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once the hub has seen one start.")]),
+      ...(d.prints_available === false ? [h("p", { class: "meta" }, "Bambuddy isn't answering, so the print history can't be shown right now.")]
+        : prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
       h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
         (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : ""))),
     projectsCard(pr.available ? pr.projects : null),

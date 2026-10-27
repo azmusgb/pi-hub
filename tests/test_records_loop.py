@@ -584,7 +584,7 @@ def test_the_watcher_no_longer_reads_printer_pc_drive_or_services(monkeypatch, f
     assert fired == []
 
 
-# ---- R35: the prints history comes from the printer's record ----
+# ---- R35: the print photo is taken when the printer's record says a print ended ----
 
 class _Sampler:
     def snapshot(self):
@@ -599,27 +599,31 @@ def _tick(monkeypatch, at, inp):
     recorder.tick(_Sampler())
 
 
-def test_a_print_in_the_records_is_a_print_in_the_history(monkeypatch):
-    from hub import db
-    no_status = {"x2d_state": "No status"}  # pi-status says nothing; the record still drives the history
+def test_a_print_in_the_records_ends_with_one_photo(monkeypatch):
+    from hub import recorder
+    shots = []
+    monkeypatch.setattr(recorder, "capture_print_photo", lambda: shots.append(1))
+    monkeypatch.setattr(recorder, "_printing", False)
+    no_status = {"x2d_state": "No status"}  # pi-status says nothing; the record still drives the photo
     _tick(monkeypatch, T, inputs(pi=no_status))
-    assert db.rows("SELECT * FROM prints") == []
     _tick(monkeypatch, T + 60, inputs(pi=no_status, bambuddy=bud("PREPARE", 0)))
     _tick(monkeypatch, T + 120, inputs(pi=no_status, bambuddy=bud("RUNNING", 60)))
     _tick(monkeypatch, T + 180, inputs(pi=no_status, bambuddy=bud("RUNNING", 99)))
+    assert shots == []
     _tick(monkeypatch, T + 240, inputs(pi=no_status, bambuddy=bud("FINISH", 100, awaiting=True)))
-    p = db.one("SELECT * FROM prints")
-    assert p["started"] == T + 60 and p["ended"] == T + 240 and p["outcome"] == "finished" and p["progress"] == 99
     _tick(monkeypatch, T + 300, inputs(pi=no_status, bambuddy=bud("IDLE", 0)))
+    assert shots == [1]
     _tick(monkeypatch, T + 2000, inputs(pi=no_status, bambuddy=bud("RUNNING", 30, job="OTHER.gcode.3mf")))
     _tick(monkeypatch, T + 2060, inputs(pi=no_status, bambuddy=bud("IDLE", 0)))  # stopped early
-    last = db.one("SELECT * FROM prints ORDER BY id DESC LIMIT 1")
-    assert last["started"] == T + 2000 and last["ended"] == T + 2060 and last["outcome"] == "stopped"
+    assert shots == [1, 1]
 
 
-def test_an_offline_or_silent_printer_leaves_the_history_alone(monkeypatch):
-    from hub import db
+def test_an_offline_or_silent_printer_takes_no_photo(monkeypatch):
+    from hub import recorder
+    shots = []
+    monkeypatch.setattr(recorder, "capture_print_photo", lambda: shots.append(1))
+    monkeypatch.setattr(recorder, "_printing", False)
     _tick(monkeypatch, T, inputs(bambuddy=bud("RUNNING", 40)))
     _tick(monkeypatch, T + 60, inputs(bambuddy=bud("RUNNING", 40, connected=False)))
     _tick(monkeypatch, T + 1000, inputs(bambuddy=None))
-    assert db.one("SELECT ended FROM prints")["ended"] is None
+    assert shots == []

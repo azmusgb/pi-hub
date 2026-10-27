@@ -63,6 +63,11 @@ export function toolUrl(name, host = globalThis.location?.hostname || "") {
   return old.replace("{host}", host);
 }
 
+// Local AI's Print lab, opened on one experiment.
+export function printLabUrl(exp, host = globalThis.location?.hostname || "") {
+  return `${toolUrl("assistant", host)}#printLab?e=${exp}`;
+}
+
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).
 export function resolveLink(href, host = globalThis.location?.hostname || "") {
   const m = /^tool:([a-z]+)\/?(.*)$/.exec(href || "");

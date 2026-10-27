@@ -1,7 +1,7 @@
 """The morning digest: one phone message with what happened overnight and what needs doing."""
 import time
 
-from . import auth, db, events, filament, now, outside, sources
+from . import auth, bambuddy, db, events, filament, now, outside, sources
 
 
 def build(hours=16):
@@ -20,11 +20,12 @@ def build(hours=16):
             lines.append(f"Frost advisory: Freezing tonight (down to {w.get('tonight_low', 32)}°).")
         for a in (w.get("alerts") or [])[:2]:
             lines.append(f"Weather warning: {a['event']}.")
-    prints = db.rows("SELECT outcome FROM prints WHERE ended >= ?", since)
-    if prints:
-        done = sum(1 for p in prints if p["outcome"] == "finished")
-        other = len(prints) - done
-        lines.append(f"Prints overnight: {done} finished" + (f", {other} stopped" if other else "") + ".")
+    overnight = [p for p in bambuddy.prints(bambuddy.FETCH) or [] if (p["ended"] or 0) >= since]
+    if overnight:
+        count = lambda status: sum(1 for p in overnight if p["status"] == status)  # noqa: E731
+        lines.append(f"Prints overnight: {count('completed')} finished"
+                     + (f", {count('failed')} failed" if count("failed") else "")
+                     + (f", {count('cancelled')} cancelled" if count("cancelled") else "") + ".")
     printer = now.printer(s)
     if printer["state"] == "printing":
         lines.append(f"The X2D is {printer['headline'].lower()}, {printer.get('left') or 'time left unknown'} to go.")

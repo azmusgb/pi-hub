@@ -78,9 +78,14 @@ export function mergeDropouts(alerts) {
   return out;
 }
 
-export function printOutcome(p) {
-  if (!p.ended || !p.started) return null;
-  return p.ended - p.started < 60 ? ["Cancelled at start", "warn"] : null;
+// A print-log row: Bambuddy's own word for how it ended, in a tone (finished and printing ok, failed bad, the rest warn).
+const PRINT_TONES = { completed: "ok", printing: "ok", failed: "bad" };
+export function printWords(p) {
+  return [p.word || "Unknown", PRINT_TONES[p.status] || "warn"];
+}
+
+export function printLabText(p) {
+  return p.lab ? `${p.lab.exp} · ${p.lab.build}` : "Outside the lab";
 }
 
 export function plainInternet(net) {

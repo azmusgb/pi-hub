@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agoText, applianceLabel, groupAppliances, mergeDropouts, printOutcome, plainInternet } from '../hub/static/js/wording.js';
+import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, plainInternet } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -45,13 +45,6 @@ test('a device that drops out and comes back many times in a day is one line', (
   assert.equal(out[1].title, 'X2D print finished');
   const once = mergeDropouts(alerts.slice(0, 2));
   assert.deepEqual(once.map((a) => a.title), ['Workshop display is back', 'Workshop display went offline']);
-});
-
-test('a print that ran for no time reads as cancelled at the start', () => {
-  assert.deepEqual(printOutcome({ started: 100, ended: 130, outcome: 'finished' }), ['Cancelled at start', 'warn']);
-  assert.deepEqual(printOutcome({ started: 100, ended: 130, outcome: 'stopped' }), ['Cancelled at start', 'warn']);
-  assert.equal(printOutcome({ started: 100, ended: 3940, outcome: 'finished' }), null);
-  assert.equal(printOutcome({ started: 100, ended: null }), null);
 });
 
 test('the internet summary is in plain words', () => {
@@ -107,4 +100,17 @@ test('an appliance switch shown on its own carries the appliance name', () => {
 
 test('a missing upload speed is left out, not shown as 0', () => {
   assert.equal(plainInternet({ status: 'ok', wan_ms: 9, orbi_down_mbps: 20.4, orbi_up_mbps: null }), 'Internet OK · 20 Mbps down');
+});
+
+test('a print row reads its word from the print log and its tone from the status', () => {
+  assert.deepEqual(printWords({ status: 'completed', word: 'Finished' }), ['Finished', 'ok']);
+  assert.deepEqual(printWords({ status: 'failed', word: 'Failed' }), ['Failed', 'bad']);
+  assert.deepEqual(printWords({ status: 'cancelled', word: 'Cancelled' }), ['Cancelled', 'warn']);
+  assert.deepEqual(printWords({ status: 'printing', word: 'Printing' }), ['Printing', 'ok']);
+  assert.deepEqual(printWords({ status: 'skipped', word: 'Skipped' }), ['Skipped', 'warn']);
+});
+
+test('a print row says which lab build it is, or that it is outside the lab', () => {
+  assert.equal(printLabText({ lab: { exp: 'E-023', build: 'BLD-023-01' } }), 'E-023 · BLD-023-01');
+  assert.equal(printLabText({ lab: null }), 'Outside the lab');
 });

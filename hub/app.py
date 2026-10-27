@@ -4,7 +4,6 @@ import json
 import os
 import queue
 import re
-import base64
 import hmac
 import threading
 import time
@@ -319,15 +318,16 @@ def api_workshop():
     s = sources.pi_status()
     w = sources.world() or {}
     models = (w.get("models") or {})
-    filament.ready()
-    prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
-    week = int(time.time()) - 7 * 86400
+    log = bambuddy.prints(20)  # None when Bambuddy doesn't answer
+    prints = [dict(p, has_photo=os.path.exists(os.path.join(recorder.prints_dir(), f"{p['id']}.jpg"))) for p in log or []]
+    this_week = [p for p in prints if (p["started"] or 0) >= int(time.time()) - 7 * 86400]
     return fresh({
         "printer": now.printer_from(records.get("printer")),  # the same card /api/now gives
         "prints": prints,
+        "prints_available": log is not None,
         "week": {
-            "finished": sum(1 for p in prints if p["outcome"] == "finished" and (p["ended"] or 0) >= week),
-            "hours": round(sum(((p["ended"] or time.time()) - p["started"]) for p in prints if p["started"] >= week) / 3600, 1),
+            "finished": sum(1 for p in this_week if p["status"] == "completed"),
+            "hours": round(sum((p["seconds"] if p["seconds"] is not None else time.time() - p["started"]) for p in this_week) / 3600, 1),
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
         "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer
@@ -354,9 +354,7 @@ def api_printer_action(action: str, request: Request):
 
 @app.get("/api/prints/{pid}/photo.jpg")
 def api_print_photo(pid: int):
-    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
-    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
-    path = os.path.join(prints_dir, f"{pid}.jpg")
+    path = os.path.join(recorder.prints_dir(), f"{pid}.jpg")
     if not os.path.exists(path):
         raise HTTPException(404, "No photo for this print.")
     with open(path, "rb") as f:
@@ -403,56 +401,19 @@ async def api_webhook_bambuddy(request: Request):
     event_type = (body.get("event") or body.get("event_type") or "").lower().strip()
     title = body.get("title") or "Bambu 3D Printer"
     msg = body.get("message") or ""
-    image_b64 = body.get("image")
-    variables = body.get("variables") if isinstance(body.get("variables"), dict) else {}
-
-    now_ts = int(time.time())
 
     # Handle completion
     if event_type in ("print_complete", "print_finished", "completed"):
-        recorder.record_print("Printing", 100, now_ts)
-        recorder.record_print("Idle", 0, now_ts)
-        open_print = db.one("SELECT id FROM prints WHERE ended IS NOT NULL ORDER BY id DESC LIMIT 1")
-        print_id = open_print["id"] if open_print else None
-
-        # If an image was attached in base64, save it directly
-        if image_b64 and print_id:
-            try:
-                img_data = base64.b64decode(image_b64)
-                if img_data.startswith(b"\xff\xd8"):
-                    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
-                    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
-                    os.makedirs(prints_dir, exist_ok=True)
-                    target = os.path.join(prints_dir, f"{print_id}.jpg")
-                    with open(target, "wb") as f:
-                        f.write(img_data)
-                    db.run("UPDATE prints SET has_photo = 1 WHERE id = ?", print_id)
-            except Exception:
-                pass
-
-        # If filament usage is provided by Bambuddy, record it
-        filament_used = variables.get("filament_used") or variables.get("filament_used_grams")
-        if filament_used and print_id:
-            try:
-                grams = float(filament_used)
-                db.run("UPDATE prints SET grams = ? WHERE id = ?", grams, print_id)
-            except Exception:
-                pass
-
         events.fire("print_finished", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_finished"})
 
     # Handle failures / cancelled
     elif event_type in ("print_failed", "print_stopped", "failed", "cancelled", "stopped"):
-        progress = variables.get("progress") or 0
-        error_code = variables.get("error_code") or variables.get("hms_code")
-        recorder.record_print("Error", progress, now_ts, error=error_code)
         events.fire("print_failed", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_failed"})
 
     # Handle print started
     elif event_type in ("print_start", "print_started", "started"):
-        recorder.record_print("Printing", 0, now_ts)
         events.fire("print_started", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_started"})
 
