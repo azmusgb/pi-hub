@@ -5,7 +5,7 @@ import ssl
 import time
 import urllib.request
 
-from . import db, events, now, sources
+from . import bambuddy, db, events, now, sources
 
 CHAT_URL = "https://10.0.0.21/api/chat"
 
@@ -104,9 +104,10 @@ def context():
 
     for e in events.recent(8):
         lines.append(f"Event {_when(e['ts'])}: {events.TRIGGERS.get(e['kind'], e['kind'])}{' ' + e['detail'] if e['detail'] else ''}.")
-    for pr in db.rows("SELECT started, ended, outcome, progress FROM prints ORDER BY id DESC LIMIT 3"):
-        lines.append(f"3D Print started {_when(pr['started'])}: {pr['outcome'] or 'still going'}" +
-                     (f", took {round((pr['ended'] - pr['started']) / 60)} min" if pr["ended"] else "") + ".")
+    for pr in (bambuddy.prints(3) or []):
+        when = f" started {_when(pr['started'])}" if pr["started"] else ""
+        took = f", took {round((pr['ended'] - pr['started']) / 60)} min" if pr["ended"] and pr["started"] else ""
+        lines.append(f"3D print {pr['name']}{when}: {pr['word']}{took}.")
     return "\n".join(lines)
 
 

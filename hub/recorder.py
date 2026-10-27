@@ -1,57 +1,63 @@
-"""Every minute: keep a sample for the charts, and note print and drive changes (prints from the printer's record)."""
+"""Every minute: keep a sample for the charts, and note print and drive changes (the print photo from the printer's record)."""
 import os
 import threading
 import time
 import urllib.request
 
-from . import db, records, sources
+from . import bambuddy, db, records, sources
 
 KEEP_DAYS = 7
 
 
-def capture_print_photo(print_id):
-    def _do():
-        try:
-            default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
-            prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
-            os.makedirs(prints_dir, exist_ok=True)
-            target = os.path.join(prints_dir, f"{print_id}.jpg")
-            camera_url = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
-            with urllib.request.urlopen(f"{camera_url}/x2d/frame.jpg", timeout=3) as r:
-                if r.status == 200:
-                    data = r.read(400 * 1024)
-                    if data.startswith(b"\xff\xd8"):
-                        with open(target, "wb") as f:
-                            f.write(data)
-                        db.run("UPDATE prints SET has_photo = 1 WHERE id = ?", print_id)
-        except Exception:
-            pass
-    threading.Thread(target=_do, daemon=True).start()
+def prints_dir():
+    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
+    return os.environ.get("HUB_PRINTS_DIR", default_dir)
 
 
-def record_print(state, progress, now, error=None):
-    open_print = db.one("SELECT * FROM prints WHERE ended IS NULL ORDER BY id DESC LIMIT 1")
+def photos_dir():
+    """Print-log photos live in their own folder: the old prints table's <id>.jpg files in prints_dir() mean other prints."""
+    return os.path.join(prints_dir(), "print-log")
+
+
+def _capture_now():
+    """Wait for the printer to show the finished plate, then keep one photo named for Bambuddy's newest print."""
+    try:
+        time.sleep(20)
+        with sources._lock:
+            sources._cache.pop("bambuddy_prints", None)  # the minute-old fetch still names the previous print
+        newest = bambuddy.prints(1)
+        if not newest:
+            return
+        os.makedirs(photos_dir(), exist_ok=True)
+        target = os.path.join(photos_dir(), f"{newest[0]['id']}.jpg")
+        if os.path.exists(target):
+            return
+        camera_url = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
+        with urllib.request.urlopen(f"{camera_url}/x2d/frame.jpg", timeout=3) as r:
+            if r.status == 200:
+                data = r.read(400 * 1024)
+                if data.startswith(b"\xff\xd8"):
+                    with open(target, "xb") as f:
+                        f.write(data)
+    except Exception:
+        pass
+
+
+def capture_print_photo():
+    threading.Thread(target=_capture_now, daemon=True).start()  # the 20 s wait must not hold up the minute sampler
+
+
+_printing = False  # was the printer printing at the last look; Bambuddy's print log holds everything else
+
+
+def record_print(state, progress, now, error=None):  # progress and error are kept for the callers' signature
+    """Notice a print ending (printing or paused, then not) and take its photo."""
+    global _printing
     if state in ("Printing", "Paused"):
-        if open_print:
-            db.run("UPDATE prints SET progress = MAX(progress, ?) WHERE id = ?", progress or 0, open_print["id"])
-        else:
-            db.run("INSERT INTO prints (started, progress) VALUES (?, ?)", now, progress or 0)
-        return
-    if not open_print:
-        return
-    if state == "No status" and now - open_print["started"] < 60:
-        return
-    if state == "Error":
-        outcome = "failed"
-    elif state == "Stopped":
-        outcome = "stopped" if open_print["progress"] < 97 else "finished"
-    else:
-        outcome = "finished" if open_print["progress"] >= 97 else "stopped"
-    from . import filament
-    filament.ready()
-    db.run("UPDATE prints SET ended = ?, outcome = ?, error = ? WHERE id = ?", now, outcome,
-           (error or None) if outcome == "failed" else None, open_print["id"])
-    capture_print_photo(open_print["id"])
+        _printing = True
+    elif _printing:
+        _printing = False
+        capture_print_photo()
 
 
 def printer_state(rec):

@@ -1,6 +1,8 @@
 """Bambuddy (Docker on the Pi, port 8000) is the record for spools and projects; the hub only reads them.
 Bambuddy takes each print's filament off its spool by itself, so nothing here writes."""
 import os
+import re
+from datetime import datetime, timezone
 
 from . import sources
 
@@ -9,6 +11,10 @@ URL = os.environ.get("HUB_BAMBUDDY_URL", "http://127.0.0.1:8000")
 # only), kept root:pi-hub 640 like the Plex token. Without the file the hub reads as before.
 KEY_FILE = os.environ.get("HUB_BAMBUDDY_KEY_FILE", "/etc/pi-hub/secrets/bambuddy_api_key")
 LOW_PCT = 15  # Bambuddy's own default when a spool has no threshold of its own
+
+# Lab prints are named <project>_<experiment>_<build>; anything else is just a print.
+LAB_NAME = re.compile(r"^(?P<project>[a-z0-9-]+)_(?P<exp>E-\d{3,})_(?P<build>BLD-\d{3,}-\d{2,})$")
+STATUS_WORDS = {"completed": "Finished", "failed": "Failed", "cancelled": "Cancelled", "printing": "Printing"}
 
 
 def headers():
@@ -57,3 +63,38 @@ def _projects():
 
 def projects():
     return sources.cached("bambuddy_projects", 60, _projects)
+
+
+FETCH = 100  # entries per fetch; prints(limit) trims from these
+
+
+def status_word(status):
+    if status is None:
+        return "Unknown"
+    return STATUS_WORDS.get(status) or str(status).capitalize()
+
+
+def _epoch(ts):
+    """Bambuddy's timestamps are naive ISO strings in UTC."""
+    return int(datetime.fromisoformat(ts).replace(tzinfo=timezone.utc).timestamp()) if ts else None
+
+
+def _print(e):
+    m = LAB_NAME.match(e.get("print_name") or "")
+    return {"id": e["id"], "archive": e.get("archive_id"), "name": e.get("print_name") or "Untitled",
+            "status": e.get("status"), "word": status_word(e.get("status")),
+            "started": _epoch(e.get("started_at")), "ended": _epoch(e.get("completed_at")),
+            "seconds": e.get("duration_seconds"), "grams": e.get("filament_used_grams"), "cost": e.get("cost"),
+            "error": e.get("failure_reason"), "lab": {"exp": m["exp"], "build": m["build"]} if m else None}
+
+
+def _prints():
+    items = sources._get_json(f"{URL}/api/v1/print-log/?limit={FETCH}", headers(), timeout=3)["items"]
+    return [_print(e) for e in sorted(items, key=lambda e: e["id"], reverse=True)]
+
+
+def prints(limit=50):
+    """Every print attempt, newest first, or None when Bambuddy doesn't answer."""
+    # One fetch of the newest FETCH serves every limit, so callers asking for 1, 20 and 50 in a minute share it.
+    items = sources.cached("bambuddy_prints", 60, _prints)
+    return None if items is None else items[:limit]
