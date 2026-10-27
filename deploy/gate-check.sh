@@ -10,6 +10,20 @@ say() { printf '%-34s %s\n' "$1" "$2"; [ "$2" = ok ] || fail=1; }
 get() { curl -s --max-time 10 --cacert "$CA" --resolve "$1.home.arpa:443:127.0.0.1" -o /dev/null -w '%{http_code} %{redirect_url}' "${@:2}" "https://$1.home.arpa/"; }
 size() { curl -s --max-time 10 --cacert "$CA" --resolve "$1.home.arpa:443:127.0.0.1" -o /dev/null -w '%{size_download}' -L --max-redirs 3 "${@:2}" "https://$1.home.arpa/"; }
 
+JAR=
+cleanup() {
+  [ -z "$JAR" ] || rm -f "$JAR"
+  python3 - <<'PY'
+import sqlite3
+d = sqlite3.connect("/var/lib/pi-hub/hub.db")
+for (h,) in d.execute("SELECT token_hash FROM sessions WHERE device = 'gate-check' AND role = 'owner'").fetchall():
+    d.execute("DELETE FROM gate_codes WHERE owner_hash = ?", (h,))
+    d.execute("DELETE FROM sessions WHERE role = 'gate' AND device = ?", ("gate:" + h,))
+d.execute("DELETE FROM sessions WHERE device = 'gate-check'")
+d.commit()
+PY
+}
+trap cleanup EXIT
 # A short-lived gate token (what a signed-in owner's browser holds) for the signed-in checks, removed at the end.
 TOKEN=$(python3 - <<'PY'
 import hashlib, secrets, sqlite3, time
@@ -24,30 +38,6 @@ PY
 # token to a host a redirect points at.
 JAR=$(mktemp); chmod 600 "$JAR"
 for n in "${NAMES[@]}"; do printf '%s.home.arpa\tFALSE\t/\tTRUE\t0\thub_gate\t%s\n' "$n" "$TOKEN" >> "$JAR"; done
-# For the hand-off check: a short-lived owner-shaped session and a one-time code bound to it for bambuddy.home.arpa.
-CODE=$(python3 - <<'PY'
-import hashlib, secrets, sqlite3, time
-o = secrets.token_urlsafe(32); c = secrets.token_urlsafe(32); now = int(time.time())
-h = lambda v: hashlib.sha256(v.encode()).hexdigest()
-db = sqlite3.connect("/var/lib/pi-hub/hub.db")
-db.execute("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'owner', ?, ?, 'gate-check')", (h(o), now, now + 120))
-db.execute("INSERT INTO gate_codes (code_hash, owner_hash, host, expires) VALUES (?, ?, 'bambuddy.home.arpa', ?)", (h(c), h(o), now + 120))
-db.commit(); print(c)
-PY
-)
-cleanup() {
-  rm -f "$JAR"
-  python3 - <<'PY'
-import sqlite3
-d = sqlite3.connect("/var/lib/pi-hub/hub.db")
-for (h,) in d.execute("SELECT token_hash FROM sessions WHERE device = 'gate-check' AND role = 'owner'").fetchall():
-    d.execute("DELETE FROM gate_codes WHERE owner_hash = ?", (h,))
-    d.execute("DELETE FROM sessions WHERE role = 'gate' AND device = ?", ("gate:" + h,))
-d.execute("DELETE FROM sessions WHERE device = 'gate-check'")
-d.commit()
-PY
-}
-trap cleanup EXIT
 
 r=$(get home); [ "${r%% *}" = 200 ] && say "home (open)" ok || say "home (open)" "got $r"
 for n in "${NAMES[@]}"; do
@@ -59,13 +49,31 @@ for n in "${NAMES[@]}"; do
   # An empty page means the tool didn't recognise the name it was asked for.
   b=$(size "$n" -b "$JAR"); [ "${b:-0}" -gt 0 ] && say "$n shows a page" ok || say "$n shows a page" "empty"
 done
-# A tool's first visit redeems the one-time code: back to the clean URL with a host-only cookie (no Domain).
+# A tool's first visit redeems a one-time code: back to the clean URL with a host-only cookie (no Domain). The owner-shaped
+# session and the code bound to it for bambuddy.home.arpa are made just now (cleanup removes them), so they can't expire early.
+CODE=$(python3 - <<'PY'
+import hashlib, secrets, sqlite3, time
+o = secrets.token_urlsafe(32); c = secrets.token_urlsafe(32); now = int(time.time())
+h = lambda v: hashlib.sha256(v.encode()).hexdigest()
+db = sqlite3.connect("/var/lib/pi-hub/hub.db")
+db.execute("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'owner', ?, ?, 'gate-check')", (h(o), now, now + 120))
+db.execute("INSERT INTO gate_codes (code_hash, owner_hash, host, expires) VALUES (?, ?, 'bambuddy.home.arpa', ?)", (h(c), h(o), now + 120))
+db.commit(); print(c)
+PY
+)
 h=$(curl -s --max-time 10 --cacert "$CA" --resolve bambuddy.home.arpa:443:127.0.0.1 -D - -o /dev/null \
   -w 'RESULT %{http_code} %{redirect_url}\n' "https://bambuddy.home.arpa/?hub_gate_code=$CODE" | tr -d '\r')
-sc=$(printf '%s\n' "$h" | grep -i '^set-cookie: hub_gate=')
-if [ "$(printf '%s\n' "$h" | sed -n 's/^RESULT //p')" = "302 https://bambuddy.home.arpa/" ] && [ -n "$sc" ] && ! printf '%s' "$sc" | grep -qi 'domain='; then
-  say "bambuddy code hand-off" ok
-else say "bambuddy code hand-off" "got $(printf '%s' "$h" | sed -n 's/^RESULT //p') ${sc:-no cookie}"; fi
+res=$(printf '%s\n' "$h" | sed -n 's/^RESULT //p')
+# Judge each hub_gate= line on its own: it passes with a non-empty value and no Domain. Never print the cookie or the code.
+ck=absent
+while IFS= read -r line; do
+  v=${line#*:}; v=${v# }; v=${v#hub_gate=}; v=${v%%;*}
+  if printf '%s' "$line" | grep -qi ';[[:space:]]*domain='; then [ "$ck" = ok ] || ck="has Domain"
+  elif [ -z "$v" ]; then [ "$ck" = ok ] || [ "$ck" = "has Domain" ] || ck=empty
+  else ck=ok; fi
+done < <(printf '%s\n' "$h" | grep -i '^set-cookie: hub_gate=')
+if [ "$res" = "302 https://bambuddy.home.arpa/" ] && [ "$ck" = ok ]; then say "bambuddy code hand-off" ok
+else say "bambuddy code hand-off" "got ${res//hub_gate_code=[^&]*/hub_gate_code=…}; cookie $ck"; fi
 # Grafana trusts X-WEBAUTH-USER, so it must only be reachable through the gate: from the LAN it's closed or ignores it.
 r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.30:3000/api/user)
 case "$r" in 000|401) say "grafana not open to a forged header" ok ;; *) say "grafana not open to a forged header" "got $r" ;; esac
