@@ -319,3 +319,12 @@ def test_init_without_a_job_is_the_printer_powering_on_not_a_print():
     assert r["state"] == "idle" and "inferred" not in r["detail"]
     assert printer.printer(bud("INIT", 0, job=""), None, None, None, T)["state"] == "idle"
     assert printer.printer(bud("INIT", 0), None, None, None, T)["state"] == "printing"
+
+
+def test_whole_number_progress_reads_without_a_decimal():
+    # Bambuddy sends progress as a float: 0.0 must read "0%", not "0.0%"
+    r = printer.printer(bud("RUNNING", 0.0), None, None, None, T)
+    assert r["headline"] == "Printing HEX_TILE_v72, 0%"
+    assert r["detail"]["progress"] == 0 and isinstance(r["detail"]["progress"], int)
+    assert printer.printer(bud("PAUSE", 16.0), None, None, None, T)["headline"] == "Paused at 16%"
+    assert printer.printer(bud("RUNNING", 16.5), None, None, None, T)["headline"] == "Printing HEX_TILE_v72, 16.5%"

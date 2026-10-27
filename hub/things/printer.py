@@ -33,8 +33,13 @@ def _job(name):
     return name
 
 
+def _whole(v):
+    """Bambuddy sends progress as a float: 16.0 reads as 16."""
+    return int(v) if isinstance(v, float) and v.is_integer() else v
+
+
 def _pct(v):
-    return v if isinstance(v, (int, float)) else 0
+    return _whole(v) if isinstance(v, (int, float)) else 0
 
 
 def _minutes(v):
@@ -145,7 +150,7 @@ def printer(b, s, lab, prev, now):
         started = (old.get("started") if was_live else None) or (now if live else None)
         last = pct
     attempt = _attempt(job, state, prev, now)
-    detail = {"job": job, "progress": b.get("progress"), "layer": b.get("layer_num"),
+    detail = {"job": job, "progress": _whole(b.get("progress")), "layer": b.get("layer_num"),
               "total_layers": b.get("total_layers"), "nozzle": b.get("nozzle_temp"),
               "nozzle_target": b.get("nozzle_target"), "bed": b.get("bed_temp"),
               "bed_target": b.get("bed_target"), "ams_humidity": b.get("ams_humidity"),
