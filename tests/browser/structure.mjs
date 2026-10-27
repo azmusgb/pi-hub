@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 
 const BASE = process.argv[2] || 'http://10.0.0.30';
 const OUT = new URL('./out/', import.meta.url).pathname;
-// The wall (kiosk) has no menu or Assistant button: only its contrast and fit are checked.
+// The wall (kiosk) has no menu or Assistant button: only its contrast and fit are checked (wall.mjs checks each screen size).
 const WALL = '/wall';
 const PAGES = { '/wall': 'wall', '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
 mkdirSync(OUT, { recursive: true });
@@ -32,8 +32,9 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
         // Wide screens: the wall's cards use the whole width, not a narrow column beside an empty one.
         if (width >= 1200) {
           const used = await page.evaluate(() => {
-            const head = document.querySelector('.wall-head').getBoundingClientRect(), rows = document.querySelector('.now-layout').getBoundingClientRect();
-            return rows.width / head.width;
+            const head = document.querySelector('.wall-head').getBoundingClientRect();
+            const tiles = ['.wall-needs', '.wall-print', '.wall-house'].map((q) => document.querySelector(q).getBoundingClientRect());
+            return (Math.max(...tiles.map((r) => r.right)) - Math.min(...tiles.map((r) => r.left))) / head.width;
           });
           if (used < 0.9) problems.push(`${where}: the wall's cards use ${Math.round(used * 100)}% of its width`);
         }

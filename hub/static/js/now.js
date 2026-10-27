@@ -1,13 +1,13 @@
 // Home: the one-line answer, then six cards (one home, "Home cards"): Needs you, Workshop, Documents, Media,
 // Home & network and System. The wall display keeps its own layout.
-import { api, clockTime, h, post, settle, weatherIcon } from "./core.js";
-import { issueTopic, splitIssues } from "./experience.js";
+import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
-import { homeCards } from "./home-cards.js";
+import { homeCards, labLink } from "./home-cards.js";
 import { plainInternet } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
+import { clockParts, nextHours, printing, upcoming, wallNeeds } from "./wall.js";
 
 export const every = 15;
 
@@ -67,6 +67,7 @@ export function band(p, cam = null) {
     ? ["Done in about ", h("strong", {}, p.left), finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
     : [p.detail || ""];
   const cls = p.state === "printing" ? "band is-printing" : "band";
+  const lab = labLink(p);
 
   const camElement = (cam && cam.ok) ? h("a", {
     href: "/workshop?from=home",
@@ -102,6 +103,7 @@ export function band(p, cam = null) {
           h("div", { class: "line-bead", style: `width:${pct}%` }),
           h("div", { class: "line-nozzle", style: `left:${pct}%` })),
         h("p", { class: "band-detail" }, ...detail),
+        lab ? h("a", { class: "tool-link", href: lab.href, target: "_blank", rel: "noopener" }, lab.label) : null,
         temps
       ),
       camElement
@@ -109,24 +111,21 @@ export function band(p, cam = null) {
   );
 }
 
-function workshopKioskConsole(d, cam, home, state) {
+function workshopKioskConsole(d, cam) {
   const p = d.printer || {};
   const w = d.workshop || {};
-  const isPrinting = p.state === "printing" || p.state === "paused";
+  const isPrinting = printing(p);
   const pct = p.progress || 0;
   const badge = kioskBadge(p);
+  const chip = (text) => h("span", { class: "kiosk-hud-chip" }, text);
 
   const camHud = h("div", { class: "kiosk-hud-overlay" },
     p.nozzle_temp !== undefined && p.nozzle_temp !== null
-      ? h("span", { class: "kiosk-hud-chip" }, `🌡️ Nozzle: ${p.nozzle_temp}°C${p.nozzle_target ? ` / ${p.nozzle_target}°C` : ""}`)
-      : null,
+      ? chip(`🌡️ Nozzle: ${p.nozzle_temp}°C${p.nozzle_target ? ` / ${p.nozzle_target}°C` : ""}`) : null,
     p.bed_temp !== undefined && p.bed_temp !== null
-      ? h("span", { class: "kiosk-hud-chip" }, `🛏️ Bed: ${p.bed_temp}°C${p.bed_target ? ` / ${p.bed_target}°C` : ""}`)
-      : null,
-    p.ams_humidity !== undefined && p.ams_humidity !== null
-      ? h("span", { class: "kiosk-hud-chip" }, `💧 AMS: ${p.ams_humidity}% RH`)
-      : null,
-    w.display ? h("span", { class: "kiosk-hud-chip", style: "margin-left: auto; opacity: 0.85;" }, `WS350 Screen: ${w.display}`) : null
+      ? chip(`🛏️ Bed: ${p.bed_temp}°C${p.bed_target ? ` / ${p.bed_target}°C` : ""}`) : null,
+    p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null,
+    w.display ? h("span", { class: "kiosk-hud-chip kiosk-hud-chip--end" }, `WS350 Screen: ${w.display}`) : null
   );
 
   // No picture (the camera bridge is down, or the image fails to load): say so in words, not a broken-image icon.
@@ -143,77 +142,64 @@ function workshopKioskConsole(d, cam, home, state) {
     camHud
   );
 
-  const headline = isPrinting
-    ? `Printing: ${pct}%`
-    : (p.headline || "Idle · Ready for Print");
-
+  // "Layer 93 / 150" wraps as one piece, never "Layer 93 /" over "150".
   const jobSubtitle = isPrinting && p.left
-    ? `Done in about ${p.left}${finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""}${p.layer_num ? ` · Layer ${p.layer_num} / ${p.total_layers || '?'}` : ""}`
+    ? [`Done in about ${p.left}${finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""}`,
+       p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null]
     : (p.job_name ? `Job: ${p.job_name}` : (p.detail || "Ready for next print"));
 
   const progressSection = isPrinting ? h("div", {
-    class: "line",
+    class: "line kiosk-line",
     role: "progressbar",
     "aria-label": "Print progress",
     "aria-valuemin": 0,
     "aria-valuemax": 100,
     "aria-valuenow": pct,
-    style: "margin: .75rem 0;"
   },
     h("div", { class: "line-track" }),
     h("div", { class: "line-bead", style: `width:${pct}%` }),
     h("div", { class: "line-nozzle", style: `left:${pct}%` })
   ) : null;
 
-  return h("div", { class: "kiosk-console" },
-    h("div", { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .75rem; flex-wrap: wrap; gap: .5rem;" },
-      h("div", {},
-        h("div", { style: "display: flex; gap: .5rem; align-items: center;" },
-          h("span", { style: "font-size: 1.15rem;" }, "🖨️"),
-          h("h2", { style: "margin: 0; font-size: 1.15rem; font-weight: 700;" }, "Bambu X2D Workshop"),
-          h("span", {
-            style: `font-size: .6875rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--${badge.tone}) 15%, transparent); color: var(--${badge.tone});`
-          }, badge.label)
-        ),
-        h("p", { style: "margin: .35rem 0 0; color: var(--text-2); font-size: .875rem;" }, jobSubtitle)
-      ),
-      h("div", { style: "display: flex; gap: .4rem;" },
-        h("a", { class: "chip", href: "/workshop", "data-link": true, style: "font-size: .75rem;" }, "Workshop History"),
-        h("a", { class: "chip", href: "/bambuddy", "data-link": true, style: "font-size: .75rem;" }, "Bambuddy ↗")
-      )
-    ),
-    camContainer,
-    progressSection
+  return h("section", { class: "kiosk-console wall-tile", "aria-label": "Bambu X2D printer" },
+    h("div", { class: "kiosk-head" },
+      h("div", { class: "kiosk-title" },
+        h("div", { class: "kiosk-name" },
+          h("span", { "aria-hidden": "true" }, "🖨️"),
+          h("h2", {}, "Bambu X2D Workshop"),
+          h("span", { class: "kiosk-badge", dataset: { tone: badge.tone } }, badge.label)),
+        isPrinting ? h("p", { class: "kiosk-pct" }, `${pct}%`) : null,
+        h("p", { class: "kiosk-sub" }, jobSubtitle)),
+      h("div", { class: "kiosk-links" },
+        h("a", { class: "chip", href: "/workshop", "data-link": true }, "Workshop History"),
+        h("a", { class: "chip", href: "/bambuddy", "data-link": true }, "Bambuddy ↗"))),
+    progressSection,
+    camContainer
   );
 }
 
-function workshopLightCard(light, state) {
+function workshopLightCard(light) {
   if (!light) return null;
-  const isOn = Boolean(light.on);
-
-  const bulbIcon = h("span", { style: `font-size: 1.5rem; transition: opacity .2s; opacity: ${isOn ? '1' : '0.45'};` }, "💡");
-  const nameLabel = h("span", { style: "display: flex; flex-direction: column; text-align: left; margin-left: .75rem; flex: 1;" },
-    h("strong", { style: "font-size: 1rem; color: var(--text);" }, light.name || "Workshop Light"),
-    h("span", { class: "meta", style: "font-size: .75rem; margin-top: .1rem;" }, "Govee Workbench Illumination")
-  );
-  const stateLabel = h("span", {
-    style: `font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: color-mix(in srgb, ${isOn ? 'var(--accent)' : 'var(--text-3)'} 20%, transparent); color: ${isOn ? 'var(--accent)' : 'var(--text-3)'}; margin-right: .75rem;`
-  }, isOn ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off");
-  const btnAction = h("span", { class: "chip", style: "font-size: .8rem; font-weight: 700;" }, isOn ? "Turn Off" : "Turn On");
+  const label = (on) => on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
+  const bulbIcon = h("span", { class: "kiosk-light-bulb", "aria-hidden": "true" }, "💡");
+  const nameLabel = h("span", { class: "kiosk-light-name" },
+    h("strong", {}, light.name || "Workshop Light"),
+    h("span", { class: "meta" }, "Govee Workbench Illumination"));
+  const stateLabel = h("span", { class: "kiosk-light-state" }, label(light.on));
+  const btnAction = h("span", { class: "chip kiosk-light-action" }, light.on ? "Turn Off" : "Turn On");
 
   const toggleBtn = h("button", {
     type: "button",
-    class: `kiosk-light-toggle-btn ${isOn ? "is-on" : ""}`,
+    class: `kiosk-light-toggle-btn ${light.on ? "is-on" : ""}`,
+    "aria-pressed": String(Boolean(light.on)),
     onclick: async () => {
       toggleBtn.disabled = true;
       try {
         await post(`/api/home/${light.id}`, { characteristic: light.control || "On", value: !light.on });
         light.on = !light.on;
         toggleBtn.classList.toggle("is-on", light.on);
-        stateLabel.textContent = light.on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
-        stateLabel.style.background = `color-mix(in srgb, ${light.on ? 'var(--accent)' : 'var(--text-3)'} 20%, transparent)`;
-        stateLabel.style.color = light.on ? 'var(--accent)' : 'var(--text-3)';
-        bulbIcon.style.opacity = light.on ? "1" : "0.45";
+        toggleBtn.setAttribute("aria-pressed", String(light.on));
+        stateLabel.textContent = label(light.on);
         btnAction.textContent = light.on ? "Turn Off" : "Turn On";
       } catch (e) {
         toast(e.message, "bad");
@@ -222,66 +208,115 @@ function workshopLightCard(light, state) {
     }
   }, bulbIcon, nameLabel, stateLabel, btnAction);
 
-  return h("div", { class: "kiosk-light-card" },
-    h("div", { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .6rem;" },
-      h("h3", { style: "margin: 0; font-size: .8125rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); font-weight: 700;" }, "Workshop Controls"),
-      h("span", { class: "meta", style: "font-size: .75rem;" }, "One-Touch Workbench Light")
-    ),
+  return h("section", { class: "kiosk-light-card wall-tile", "aria-labelledby": "wall-light-title" },
+    h("div", { class: "kiosk-light-head" },
+      h("h2", { id: "wall-light-title" }, "Workshop Controls"),
+      h("span", { class: "meta" }, "One-Touch Workbench Light")),
     toggleBtn
   );
 }
 
-function renderWallHeader(state, out) {
-  if (!state.wallTime) {
-    state.wallTime = h("h1", { class: "wall-time" });
-    state.wallDate = h("p", { class: "wall-date" });
-    state.wallWeather = h("div", { class: "wall-weather" });
-    state.wallHead = h("header", { class: "wall-head" },
-      h("div", {}, state.wallTime, state.wallDate),
-      state.wallWeather
-    );
-  }
+// The clock: the time on one line, with a small AM/PM beside it.
+function setWallClock(state) {
+  const d = new Date();
+  const { hm, ampm } = clockParts(d);
+  state.wallHM.textContent = hm;
+  state.wallAmPm.textContent = ampm;
+  state.wallAmPm.hidden = !ampm;
+  state.wallDate.textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+}
 
-  const updateTime = () => {
-    const d = new Date();
-    state.wallTime.textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    state.wallDate.textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
-  };
-  updateTime();
+function wallView() {
+  try { return localStorage.getItem("pi_wall_view") || "workshop"; } catch { return "workshop"; }
+}
 
-  const w = out?.weather;
-  const wxIcon = w ? weatherIcon(w.now.icon, w.now.sky) : null;
-  const wxTemp = w ? h("p", { class: "wall-temp" }, `${w.now.temp}°`) : null;
-  const wxSky = w ? h("p", { class: "wall-sky" }, w.now.sky) : null;
-
-  const currentView = localStorage.getItem("pi_wall_view") || "workshop";
-
+// One quiet toolbar in a corner: Workshop Focus (or Ambient Home), Kiosk (full screen) and Exit wall display.
+function wallToolbar(state) {
+  const view = wallView();
   const toggleViewBtn = h("button", {
     type: "button",
-    class: `kiosk-btn ${currentView === "workshop" ? "active" : ""}`,
+    class: `kiosk-btn ${view === "workshop" ? "active" : ""}`,
     onclick: () => {
-      const next = currentView === "workshop" ? "ambient" : "workshop";
-      localStorage.setItem("pi_wall_view", next);
+      try { localStorage.setItem("pi_wall_view", view === "workshop" ? "ambient" : "workshop"); } catch {}
       load(state);
     }
-  }, currentView === "workshop" ? "🛠️ Workshop Focus" : "🏠 Ambient Home");
+  }, view === "workshop" ? "🛠️ Workshop Focus" : "🏠 Ambient Home");
 
   const fullscreenBtn = h("button", {
     type: "button",
     class: "kiosk-btn",
     onclick: () => {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        document.documentElement.requestFullscreen?.().catch(() => {});
       } else {
         document.exitFullscreen().catch(() => {});
       }
     }
   }, "⛶ Kiosk");
 
-  const tools = h("div", { class: "wall-tools" }, toggleViewBtn, fullscreenBtn);
-  state.wallWeather.replaceChildren(...[wxIcon, wxTemp, wxSky, tools].filter(Boolean));
+  const exit = h("a", { href: "/", class: "kiosk-btn", "data-link": true }, "← Exit wall display");
+  return [toggleViewBtn, fullscreenBtn, exit];
 }
 
+function renderWallHeader(state, out) {
+  if (!state.wallHead) {
+    state.wallHM = h("span", { class: "wall-hm" });
+    state.wallAmPm = h("span", { class: "wall-ampm" });
+    state.wallTime = h("h1", { class: "wall-time" }, state.wallHM, state.wallAmPm);
+    state.wallDate = h("p", { class: "wall-date" });
+    state.wallWeather = h("div", { class: "wall-weather" });
+    state.wallHead = h("header", { class: "wall-head" },
+      h("div", { class: "wall-clock" }, state.wallTime, state.wallDate),
+      state.wallWeather
+    );
+  }
+  setWallClock(state);
+
+  const w = out?.weather;
+  if (w) {
+    const today = w.days?.[0];
+    state.wallWeather.replaceChildren(
+      weatherIcon(w.now.icon, w.now.sky),
+      h("p", { class: "wall-temp" }, `${w.now.temp}°`),
+      h("p", { class: "wall-sky" }, w.now.sky, today ? h("span", { class: "wall-hilo" }, ` · ${today.high}° / ${today.low}°`) : null));
+  } else if (out !== null) {
+    state.wallWeather.replaceChildren();
+  }
+}
+
+// The Needs you tile: the top items, in the hub's order, each its own link; a calm "All clear" when nothing does.
+function renderWallNeeds(state, needs) {
+  const m = wallNeeds(needs, 5);
+  state.wallNeeds.dataset.tone = m.tone;
+  state.wallNeeds.replaceChildren(...[
+    h("div", { class: "wall-needs-head" },
+      h("h2", { id: "wall-needs-title" }, "Needs you"),
+      h("span", { class: "wall-needs-status" }, m.status)),
+    m.clear ? h("p", { class: "wall-clear" }, h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
+      "Nothing needs you right now.") : null,
+    m.items.length ? h("ul", { class: "wall-needs-list" }, m.items.map((i) =>
+      h("li", { dataset: { tone: i.tone } }, h("a", { class: "wall-need", ...go(i.link) },
+        h("strong", {}, i.title), i.detail ? h("span", { class: "meta" }, i.detail) : null)))) : null,
+    m.more ? h("a", { class: "wall-needs-more", href: "/", "data-link": true }, `${m.more} more on Home`) : null,
+    m.note ? h("p", { class: "meta" }, m.note) : null].filter(Boolean));
+}
+
+// Extra tiles for tall screens (a portrait monitor): the next hours of weather and what's on today.
+function renderWallExtra(state, out) {
+  const hours = nextHours(out?.weather?.hours);
+  const events = upcoming(out?.calendar);
+  state.wallExtra.replaceChildren(...[
+    hours.length ? h("section", { class: "wall-tile wall-hours-tile", "aria-label": "The next hours" },
+      h("h2", {}, "Next hours"),
+      h("ul", { class: "wall-hours" }, hours.map((x) => h("li", {},
+        h("span", {}, x.label), weatherIcon(x.icon, ""), h("strong", {}, `${x.temp}°`),
+        x.rain ? h("span", { class: "wall-rain" }, `${x.rain}%`) : null)))) : null,
+    events.length ? h("section", { class: "wall-tile wall-agenda", "aria-label": "Coming up" },
+      h("h2", {}, "Coming up"),
+      h("ul", {}, events.map((e) => h("li", {},
+        h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))) : null,
+  ].filter(Boolean));
+}
 
 function outsideLine(o) {
   const bits = [];
@@ -320,7 +355,8 @@ function homeCard(c, cam, onDone) {
     showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
     c.action?.do ? cardButton(c.action, onDone)
       : c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
-    c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null);
+    c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null,
+    c.lab ? h("a", { class: "home-card-link meta", ...go(c.lab.href) }, c.lab.label) : null);
 }
 
 export function mount(state) {
@@ -328,31 +364,21 @@ export function mount(state) {
   state.outside = h("div", { class: "outside-wrap" });
   state.eyebrow = h("p", { class: "hero-eyebrow" }, eyebrowLabel());
   
-  state.band = h("div");
-  state.issues = h("div");
-  
-  // Left column
-  state.leftCol = h("div", { class: "now-col-left" }, state.band, state.issues);
-  
-  // Right column
-  state.rightCol = h("div", { class: "now-col-right" });
-  
-  state.main = h("div", { class: "now-layout" }, state.leftCol, state.rightCol);
-
   if (isWallMode()) {
+    // The wall board: the clock and weather, Needs you, the printer and camera, the house, extra tiles for tall
+    // screens and one toolbar. home.css places them by the screen's shape.
     renderWallHeader(state, null);
-    state._clockTimer = setInterval(() => {
-      if (state.wallTime && state.wallDate) {
-        const d = new Date();
-        state.wallTime.textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-        state.wallDate.textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
-      }
-    }, 1000);
-
-    const exitWall = h("div", { class: "wall-exit-wrap", style: "text-align: center; margin-top: 2.5rem; padding: 1rem 0;" },
-      h("a", { href: "/", class: "btn btn--ghost small", "data-link": true, style: "font-size: 0.85rem; color: var(--text-2);" }, "← Exit wall display")
-    );
-    state.root.append(state.wallHead, state.summary, state.outside, state.main, exitWall);
+    state.wallNeeds = h("section", { class: "wall-tile wall-needs", "aria-labelledby": "wall-needs-title" });
+    renderWallNeeds(state, undefined);
+    state.wallPrint = h("div", { class: "wall-print" });
+    state.wallHouse = h("div", { class: "wall-house" });
+    state.wallExtra = h("div", { class: "wall-extra" });
+    state.wallTools = h("nav", { class: "wall-tools", "aria-label": "Wall display" }, ...wallToolbar(state));
+    state.wallBoard = h("div", { class: "wall-board" },
+      state.wallHead, state.wallNeeds, state.wallPrint, state.wallHouse, state.wallExtra, state.wallTools);
+    state.summary.hidden = true;
+    state._clockTimer = setInterval(() => { if (state.wallHM) setWallClock(state); }, 1000);
+    state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
     state.cards = h("div", { class: "home-cards" });
@@ -408,38 +434,10 @@ export async function load(state) {
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
 
-  // Wall Kiosk Mode Specialized Flow
-  if (isWallMode()) {
-    renderWallHeader(state, out);
-    const currentView = localStorage.getItem("pi_wall_view") || "workshop";
-    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
-
-    if (currentView === "workshop") {
-      state.summary.hidden = true;
-      state.outside.hidden = true;
-      state.leftCol.replaceChildren(workshopKioskConsole(d, cam, home, state), state.issues);
-      state.rightCol.replaceChildren(...[
-        workshopLightCard(shopLight, state),
-        networkPanel(d.network),
-        displayAccessories.length > 1 ? h("section", { class: "home-favourites" },
-          h("div", { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5rem;" },
-            h("h2", { class: "section-title", style: "margin: 0;" }, controlsTitle),
-            h("a", { href: "/control?from=home", "data-link": true, style: "font-size: .8125rem; color: var(--accent); text-decoration: none; font-weight: 500;" }, "All devices →")
-          ),
-          h("div", { class: "tiles" }, displayAccessories.filter(a => a.id !== shopLight?.id).map(a => tile(a, state)))) : null,
-      ].filter(Boolean));
-      renderIssues(state, d.issues);
-      return;
-    }
-  }
+  if (isWallMode()) return loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
 
   state.summary.hidden = false;
   if (state.hero) state.hero.hidden = false;
-  if (!state.cards) {  // the wall's "Ambient Home" view: the same cards in its right column
-    state.cards = h("div", { class: "home-cards" });
-    state.leftCol.replaceChildren(state.band);
-    state.rightCol.replaceChildren(state.cards);
-  }
   // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
   // the page never waits on them.
   const draw = (extra) => state.cards.replaceChildren(
@@ -459,22 +457,39 @@ export async function load(state) {
 export function failed(state) {
   state.summary.textContent = "Can't reach the Pi Hub right now. It will keep trying.";
   state.summary.dataset.tone = "bad";
+  if (state.wallBoard) state.summary.hidden = false;
 }
 
-function renderIssues(state, issues) {
-  const key = JSON.stringify(issues);
-  if (state.issueKey !== key) { state.issueKey = key; state.issuesExpanded = false; }
-  if (!issues.length) { state.issues.replaceChildren(); return; }
-  const { shown, remaining } = splitIssues(issues);
-  const item = i => h("li", { class: "alert-item", dataset: { tone: i.tone } },
-    h("strong", { class: "alert-title" }, i.what), h("p", { class: "alert-desc" }, i.say),
-    h("a", { class: "action", href: `/pi?help=${issueTopic(i)}&from=home`, "data-link": true }, "Get help"));
-  const more = remaining ? h("details", { class: "issue-overflow", open: state.issuesExpanded,
-    ontoggle: e => { state.issuesExpanded = e.currentTarget.open; } },
-    h("summary", {}, `View all ${issues.length} issues`), h("ul", {}, issues.slice(shown.length).map(item))) : null;
-  state.issues.replaceChildren(h("section", { class: `alerts-panel ${issues.some(i => i.tone === "bad") ? "is-critical" : ""}`, "aria-label": "Needs attention" },
-    h("h2", { class: "section-title" }, `${issues.length} ${issues.length === 1 ? "thing needs" : "things need"} attention`),
-    h("ul", {}, shown.map(item)), more));
+// The wall: Needs you is fetched with the rest (it decides the first tile), then each tile is drawn in place.
+async function loadWall(state, d, out, home, cam, displayAccessories, controlsTitle) {
+  const needs = await settle(api("/api/needs"), 4000, null);
+  if (needs) setNeeds(needs);
+  state.summary.hidden = true;
+  renderWallHeader(state, out);
+  renderWallNeeds(state, needs);
+  renderWallExtra(state, out);
+  state.wallBoard.dataset.printing = printing(d.printer) ? "1" : "0";
+  state.wallBoard.dataset.extra = state.wallExtra.childElementCount ? "1" : "0";
+  state.wallTools.replaceChildren(...wallToolbar(state));
+  state.wallPrint.replaceChildren(workshopKioskConsole(d, cam));
+
+  if (wallView() === "workshop") {
+    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
+    const others = displayAccessories.filter(a => a.id !== shopLight?.id);
+    state.wallHouse.replaceChildren(...[
+      workshopLightCard(shopLight),
+      networkPanel(d.network),
+      others.length ? h("section", { class: "home-favourites wall-tile" },
+        h("div", { class: "wall-favourites-head" },
+          h("h2", { class: "section-title" }, controlsTitle),
+          h("a", { href: "/control?from=home", "data-link": true }, "All devices →")),
+        h("div", { class: "tiles" }, others.map(a => tile(a, state)))) : null,
+    ].filter(Boolean));
+    return;
+  }
+  // Ambient Home: Home's cards (less Needs you, which has its own tile) in the house column.
+  state.wallHouse.replaceChildren(h("div", { class: "home-cards" },
+    ...homeCards({ now: d, home, needs }).filter((c) => c.key !== "needs").map((c) => homeCard(c, cam, () => load(state)))));
 }
 
 export function leave(state) {

@@ -78,7 +78,8 @@ def api_now():
         disk = sources.disk_free_gb("/")
     except OSError:
         disk = None
-    data = now.build(sources.pi_status(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics(), sources.bambuddy_printer())
+    data = now.build(sources.pi_status(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics(), sources.bambuddy_printer(),
+                     sources.localai_lab())
     data["reminders"] = reminders.due_today()
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
@@ -268,7 +269,7 @@ def api_workshop():
     prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
     week = int(time.time()) - 7 * 86400
     return fresh({
-        "printer": now.printer(s, sources.bambuddy_printer()),
+        "printer": now.printer(s, sources.bambuddy_printer(), sources.localai_lab()),
         "prints": prints,
         "week": {
             "finished": sum(1 for p in prints if p["outcome"] == "finished" and (p["ended"] or 0) >= week),

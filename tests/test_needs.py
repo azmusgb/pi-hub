@@ -65,7 +65,7 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
 def test_the_hubs_own_live_issues_need_you_too():
     issues = [{"what": "Plex", "say": "Plex has stopped.", "tone": "bad"}]
     n = needs.build([], {"cards": []}, NOW, issues)
-    assert n["items"][0] == {"source": "Pi Hub", "tone": "bad", "title": "Plex", "detail": "Plex has stopped.", "link": "/pi"}
+    assert n["items"][0] == {"id": "pi:Plex", "source": "Pi Hub", "tone": "bad", "title": "Plex", "detail": "Plex has stopped.", "link": "/pi"}
 
 
 def test_the_alert_history_is_not_needs():
@@ -91,3 +91,30 @@ def test_print_detail_falls_back_to_a_sentence_when_there_is_no_job_name():
     assert needs.print_detail("", "Finished") == "The print is done."
     assert needs.print_detail("Bambu 3D Printer", "Finished") == "The print is done."
     assert needs.print_detail("", "Failed") == "Check the plate."
+
+
+def test_ids_are_stable():
+    feed = {"cards": [{"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"},
+                      {"kind": "needs", "id": "needs-e9", "title": "Needs you", "text": "Approve.", "tone": "attention"}]}
+    issues = [{"what": "Movies drive", "say": "Not connected.", "tone": "warn"}]
+    events = [{"ts": NOW - 600, "kind": "print_finished", "detail": "Cube"}]
+    a = needs.build(events, feed, NOW, issues)
+    b = needs.build(events, feed, NOW + 30, issues)
+    ids = [i["id"] for i in a["items"]]
+    assert ids == [i["id"] for i in b["items"]]
+    assert len(set(ids)) == len(ids)
+    assert set(ids) == {"pi:Movies drive", "localai:watch-disk", "localai:needs-e9", "printer:plate"}
+    failed = needs.build([{"ts": NOW - 60, "kind": "print_failed", "detail": ""}], None, NOW)
+    assert failed["items"][0]["id"] == "printer:failed"
+
+
+def test_local_ai_warning_is_kept():
+    feed = {"cards": [{"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
+    n = needs.build([], feed, NOW)
+    assert [(i["id"], i["tone"]) for i in n["items"]] == [("localai:watch-disk", "warn")]
+
+
+def test_local_ai_home_cards_not_echoed():
+    feed = {"cards": [{"kind": "home", "id": "home-movies", "title": "Movies drive", "text": "Not connected.", "tone": "warning"}]}
+    n = needs.build([], feed, NOW, [{"what": "Movies drive", "say": "Not connected.", "tone": "warn"}])
+    assert [i["id"] for i in n["items"]] == ["pi:Movies drive"]
