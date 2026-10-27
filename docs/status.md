@@ -1,5 +1,17 @@
 # Pi Hub status — 24 October 2026
 
+## Step 6 readiness audit — 26 October 2026
+
+The `step6-lock` branch now includes current `main` (live release `65a60fcf7b`), preserving the wall display and Needs you changes. Two Print lab test expectations were updated to the gateway address. Local verification: 246 Python tests passed, 8 skipped; 65 JavaScript tests passed. On the Pi, all 26 Caddy/lockdown tests passed in an isolated `/tmp/one-home-review-20261026` copy, and `nft -c` accepted the proposed firewall. No lockdown was applied or release deployed.
+
+Live Caddy and Pi Hub are active. The existing gate-check passes signed-out refusal and signed-in page access for all 11 protected tools, plus the forged-header check. Windows runs Local AI and Paperless, has all three firewall profiles enabled, and has no `PiLock-Paperless-8010` rule. The Pi's lock targets remain open.
+
+**Access prerequisites remain incomplete.** The Mac receives DNS from `10.0.0.1`; `home.home.arpa` does not resolve through it, although AdGuard at `10.0.0.30` answers correctly. The Mac's Tailscale client is stopped. The owner confirmed the iPhone Wi-Fi/cellular checks have not yet been performed. Do not close the old addresses until these checks pass.
+
+**Remote routing correction:** AdGuard answers gateway names with `10.0.0.30`, but the Pi advertised no subnet route. The Pi now advertises only `10.0.0.30/32`; IPv4 forwarding was already enabled. Approve that route in Tailscale, configure restricted DNS for `home.arpa` through `100.92.174.18`, and verify client routing over cellular. Advertisement does not establish admin-console approval or successful remote access. Undo this session's advertisement (if no routes were subsequently added): `sudo tailscale set --advertise-routes=` on the Pi.
+
+The existing public root certificate was exported through SSH for device installation; its SHA-256 fingerprint is `C1:B4:0C:93:3F:4D:F2:5E:F7:04:DE:D4:11:65:AD:31:7B:3D:5C:B4:C9:D0:B4:03:75:B2:E8:77:9D:09:12:45`. Device trust installation and Orbi DNS changes still require completion. Application-level sign-in integration, including Paperless's deferred trusted-user login, remains separate from the working outer gate.
+
 This is the current checklist. See the [README](../README.md) for local checks and the [operations guide](operations.md) for deployment and rollback. [The original plan](plan.md) and [roadmap](roadmap.md) preserve delivery history; neither is a live equipment inventory.
 
 ## Built

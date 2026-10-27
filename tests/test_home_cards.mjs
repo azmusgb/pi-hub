@@ -121,10 +121,10 @@ test('Workshop card stays red when the printer reports an error and the plate wa
 
 test('while a lab experiment prints, the printer card links Local AI\'s Print lab; otherwise it does not', () => {
   const lab = { ...NOW, printer: { ...NOW.printer, lab: { experiment: 'E-020' } } };
-  assert.deepEqual(by(all({ now: lab, host: '10.0.0.30' })).workshop.lab, { label: 'Print lab: E-020 ↗', href: 'https://10.0.0.21/#printLab?e=E-020' });
+  assert.deepEqual(by(all({ now: lab, host: '10.0.0.30' })).workshop.lab, { label: 'Print lab: E-020 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-020' });
   assert.deepEqual(by(all({ now: lab })).workshop.lab, { label: 'Print lab: E-020 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-020' });
   assert.equal(by(all()).workshop.lab, null);
   const odd = { ...NOW, printer: { ...NOW.printer, lab: { experiment: '"><img src=x>' } } };
   assert.equal(by(all({ now: odd })).workshop.lab, null);
-  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }, '10.0.0.30'), { label: 'Print lab: E-7 ↗', href: 'https://10.0.0.21/#printLab?e=E-7' });
+  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }, '10.0.0.30'), { label: 'Print lab: E-7 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-7' });
 });
