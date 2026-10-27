@@ -184,3 +184,26 @@ def test_only_a_live_owner_gets_a_gate_code(client):
     household = signin(client, "home.home.arpa", pin="123456").cookies.get("hub_session")
     assert auth.gate_code(household, "bambuddy.home.arpa") is None
     assert auth.gate_code("not-a-token", "bambuddy.home.arpa") is None
+
+
+def test_sign_out_works_before_anything_else_has_touched_the_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("HUB_DB", str(tmp_path / "fresh.db"))
+    auth.sign_out("anything")
+
+
+def test_a_gate_code_whose_owner_has_expired_is_refused(client):
+    import sqlite3
+    owner = signin(client, "home.home.arpa").cookies.get("hub_session")
+    code = auth.gate_code(owner, "bambuddy.home.arpa")
+    db = sqlite3.connect(os.environ["HUB_DB"])
+    db.execute("UPDATE sessions SET expires = ? WHERE role = 'owner'", (int(auth.time.time()) - 60,)); db.commit()
+    assert auth.redeem_gate_code(code, "bambuddy.home.arpa") is None
+
+
+def test_a_redeemed_gate_token_ends_when_its_owner_does(client):
+    import sqlite3
+    owner = signin(client, "home.home.arpa").cookies.get("hub_session")
+    token = auth.redeem_gate_code(auth.gate_code(owner, "bambuddy.home.arpa"), "bambuddy.home.arpa")
+    db = sqlite3.connect(os.environ["HUB_DB"])
+    (owner_expires,) = db.execute("SELECT expires FROM sessions WHERE role = 'owner'").fetchone()
+    assert auth.session(token, gate=True)["expires"] == owner_expires

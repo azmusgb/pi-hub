@@ -261,6 +261,7 @@ def redeem_gate_code(code, host):
 def sign_out(token):
     """Ends a session; for an owner sign-in, also every gate token and unspent gate code it made."""
     if token:
+        _ready()
         h = hashlib.sha256(token.encode()).hexdigest()
         db.run("DELETE FROM gate_codes WHERE owner_hash = ?", h)
         db.run("DELETE FROM sessions WHERE token_hash = ? OR (role = 'gate' AND device = ?)", h, "gate:" + h)
