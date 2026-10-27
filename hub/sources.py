@@ -359,17 +359,23 @@ def _camera_reason():
     return "liveview_off" if _printer_port_open(8883) else "printer_unreachable"
 
 
+def _camera_down():
+    return {"ok": False, "source": None, "sources": {}, "reason": _camera_reason()}
+
+
 def _camera_body():
     try:
         with urllib.request.urlopen(f"{CAMERA}/x2d/health.json", timeout=3) as r:
             h = json.load(r)
+        if not isinstance(h, dict):
+            return _camera_down()
         ok = bool(h.get("ok"))
         return {"ok": ok, "source": h.get("source"), "since": h.get("since"), "reason": None if ok else _camera_reason(),
                 "sources": {k: {"up": v.get("up"), "fresh": v.get("fresh")} for k, v in (h.get("sources") or {}).items()}}
-    except OSError:
-        return {"ok": False, "source": None, "sources": {}, "reason": _camera_reason()}
+    except (OSError, ValueError, AttributeError):
+        return _camera_down()
 
 
 def camera_health():
     """The /api/camera body: the failover service's health, plus why when there's no picture. Cached 5 s."""
-    return cached("camera-health", 5, _camera_body)
+    return cached("camera-health", 5, _camera_body) or _camera_down()

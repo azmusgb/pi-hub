@@ -31,6 +31,9 @@ def test_adguard():
     d = network.adguard({"ok": False, "message": "x"})
     assert d["state"] == "not_answering" and d["headline"] == "AdGuard isn't answering"
     assert d["cause"] == "Ad blocking is off for the house until it answers."
+    down = network.adguard({"ok": False, "message": "The hub's helper isn't running."})
+    assert down["state"] == "unknown" and down["headline"] == "No reading"
+    assert down["cause"] == "The hub's helper isn't running."
     assert network.adguard({"ok": True})["state"] == "unknown"
     assert network.adguard({"ok": True, "queries": "a", "blocked": 1})["state"] == "unknown"
 
@@ -75,3 +78,17 @@ def test_api_camera_body_is_unchanged(monkeypatch):
     body = {"ok": True, "source": "mac", "since": 5, "reason": None, "sources": {"mac": {"up": True, "fresh": True}}}
     monkeypatch.setattr(sources, "camera_health", lambda: body)
     assert TestClient(hub_app.app).get("/api/camera").json() == body
+
+
+def test_api_camera_never_returns_null_on_a_bad_health_reply(monkeypatch):
+    import io
+    import urllib.request as ur
+    monkeypatch.setattr(sources, "_printer_port_open", lambda port: False)
+    c = TestClient(hub_app.app)
+    for raw in (b"not json", b"[1, 2]"):
+        sources._cache.clear()
+        monkeypatch.setattr(ur, "urlopen", lambda *a, _raw=raw, **k: io.BytesIO(_raw))
+        body = c.get("/api/camera").json()
+        assert body["ok"] is False and body["source"] is None and body["sources"] == {}
+        assert body["reason"] == "printer_unreachable"
+    sources._cache.clear()

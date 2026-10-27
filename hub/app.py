@@ -412,14 +412,11 @@ async def api_webhook_bambuddy(request: Request):
 
 # ---- Workshop camera (through the failover service) ----
 
-CAMERA = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
-
-
 @app.get("/api/camera.jpg")
 def api_camera():
     import urllib.request
     try:
-        with urllib.request.urlopen(f"{CAMERA}/x2d/frame.jpg", timeout=4) as r:
+        with urllib.request.urlopen(f"{sources.CAMERA}/x2d/frame.jpg", timeout=4) as r:
             return Response(r.read(400 * 1024), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
     except OSError:
         raise HTTPException(503, "The camera isn't sending pictures right now.")

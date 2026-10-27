@@ -6,6 +6,7 @@ without the field we need gives an "unknown" record.
 from .. import records
 
 SLOW_MS = 100  # wan or dns latency strictly over this counts as slow
+HELPER_DOWN = "The hub's helper isn't running."
 BACKUP_BEHIND = 48 * 3600  # seconds since a machine's last backup before it counts as behind
 
 
@@ -42,6 +43,8 @@ def adguard(report):
     if report is None:
         return None
     ok = _get(report, "ok")
+    if ok is False and _get(report, "message") == HELPER_DOWN:
+        return _unknown("adguard", HELPER_DOWN)
     if ok is False:
         return _rec("adguard", "not_answering", "AdGuard isn't answering",
                     cause="Ad blocking is off for the house until it answers.")
@@ -54,6 +57,10 @@ def adguard(report):
 def _label(name):
     name = str(name)
     return "Pi" if name.lower() == "pi" else name.title()
+
+
+def _the(name):
+    return "The " + name
 
 
 def backups(report, now):
@@ -74,10 +81,6 @@ def backups(report, now):
                         f"{_the(m['name'])} hasn't backed up for {int(m['age'] // 86400)} days", detail=detail)
     parts = ", ".join(f"{m['name']} {int(m['age'] // 3600)} h ago" for m in machines)
     return _rec("backups", "ok", f"Backed up: {parts}", detail=detail)
-
-
-def _the(name):
-    return "The " + name
 
 
 def camera(h):
