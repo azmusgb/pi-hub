@@ -24,3 +24,11 @@ def test_the_rails_name_clears_the_status_bar():
     block = standalone("pages.css")
     rail = re.search(r"\.rail \{([^}]*)\}", block)
     assert rail and "env(safe-area-inset-top)" in rail.group(1)
+
+
+def test_the_status_bar_is_solid_so_nothing_sits_under_it():
+    # Spacing alone didn't clear iPadOS's blur, which fades well below the bar (27 Oct, still fuzzy): a solid status bar
+    # gives the page its own strip below it, so nothing of Pi Hub is ever under the bar.
+    html = open(os.path.join(STATIC, "index.html")).read()
+    m = re.search(r'name="apple-mobile-web-app-status-bar-style"\s+content="([^"]+)"', html)
+    assert m and m.group(1) == "default"
