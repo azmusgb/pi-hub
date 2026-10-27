@@ -55,7 +55,7 @@ DISAGREE_AFTER = 300
 # thing -> the source that is the one designated answer for it
 SOURCE = {"printer": "bambuddy", "camera": "camera", "workshop_display": "pi_status", "local_ai": "pi_status",
           "pi": "pi_status", "movies_drive": "pi_status", "movie_copy": "pi_status", "pc": "netmon",
-          "internet": "netmon", "adguard": "adguard", "backups": "backrest", "plex": "plex",
+          "internet": "netmon", "adguard": "adguard", "backups": "backrest", "plex": "pi_status",
           "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub"}
 
 LABELS = {"printer": "Bambu X2D", "camera": "Printer camera", "workshop_display": "Workshop display",

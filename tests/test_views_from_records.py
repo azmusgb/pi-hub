@@ -91,12 +91,24 @@ def test_a_quiet_source_is_one_issue_not_one_per_thing(client):
     since = time.strftime("%H:%M", time.localtime(T))
     assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/pi",
                        "say": f"Isn't answering since {since}. Last readings for Local AI, Workshop display, "
-                              "Raspberry Pi, Movies drive, Movie copy from the PC, Smart-home controls "
+                              "Raspberry Pi, Movies drive, Movie copy from the PC, Movies, Smart-home controls "
                               "are shown as they were."}]
     items = client.get("/api/needs").json()["items"]
     assert [(i["id"], i["title"], i["tone"], i["link"]) for i in items] == [
         ("pi:source:pi_status", "The Pi's status service", "warn", "/pi")]
     assert items[0]["detail"] == issues[0]["say"]
+
+
+def test_a_quiet_pi_status_takes_movies_with_it(client):
+    # R28: the Movies record is built from pi-status's services.plex, so it goes quiet with pi-status, not alone
+    assert records.SOURCE["plex"] == "pi_status"
+    before = records_from(QUIET, bud(), NET_PC_ON)
+    quiet = records_from(None, bud(), NET_PC_ON, now=T + 100)  # pi-status didn't answer this time
+    held = {id: records.merge(before.get(id), quiet.get(id), T + 100) for id in before}
+    assert held["plex"]["stale"] and held["plex"]["source"] == "pi_status"
+    client.held.update(held)
+    issues = client.get("/api/now").json()["issues"]
+    assert [i["what"] for i in issues] == ["The Pi's status service"] and "Movies," in issues[0]["say"]
 
 
 def test_one_stale_record_keeps_its_own_issue(client):
