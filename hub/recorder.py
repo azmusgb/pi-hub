@@ -23,6 +23,8 @@ def _capture_now():
     """Wait for the printer to show the finished plate, then keep one photo named for Bambuddy's newest print."""
     try:
         time.sleep(20)
+        with sources._lock:
+            sources._cache.pop("bambuddy_prints", None)  # the minute-old fetch still names the previous print
         newest = bambuddy.prints(1)
         if not newest:
             return
@@ -48,7 +50,7 @@ def capture_print_photo():
 _printing = False  # was the printer printing at the last look; Bambuddy's print log holds everything else
 
 
-def record_print(state, progress, now, error=None):
+def record_print(state, progress, now, error=None):  # progress and error are kept for the callers' signature
     """Notice a print ending (printing or paused, then not) and take its photo."""
     global _printing
     if state in ("Printing", "Paused"):

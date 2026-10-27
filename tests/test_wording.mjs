@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, plainInternet } from '../hub/static/js/wording.js';
+import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -113,4 +113,23 @@ test('a print row reads its word from the print log and its tone from the status
 test('a print row says which lab build it is, or that it is outside the lab', () => {
   assert.equal(printLabText({ lab: { exp: 'E-023', build: 'BLD-023-01' } }), 'E-023 · BLD-023-01');
   assert.equal(printLabText({ lab: null }), 'Outside the lab');
+});
+
+test('only a printer-looking code gets a help link; free text stays plain', () => {
+  assert.equal(printErrorCode('HMS_0300_0100_0001_0007'), '0300_0100_0001_0007');
+  assert.equal(printErrorCode('0300_0100_0001_0007'), '0300_0100_0001_0007');
+  assert.equal(printErrorCode('Filament ran out'), null);
+  assert.equal(printErrorCode(null), null);
+});
+
+test('a print row length: running shows none, ended falls back to start and end', () => {
+  assert.equal(printSeconds({ status: 'printing', started: 100, ended: null }), null);
+  assert.equal(printSeconds({ status: 'failed', seconds: 90, started: 1, ended: 500 }), 90);
+  assert.equal(printSeconds({ status: 'failed', seconds: null, started: 100, ended: 400 }), 300);
+  assert.equal(printSeconds({ status: 'failed', seconds: null, started: null, ended: 400 }), null);
+});
+
+test('the week pill never invents zeros when the print log is missing', () => {
+  assert.deepEqual(weekPill({ finished: 2, hours: 3 }), { pill: '2 finished this week', tone: 'ok' });
+  assert.deepEqual(weekPill(null), { pill: 'No answer', tone: 'warn' });
 });

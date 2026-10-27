@@ -43,7 +43,24 @@ def test_workshop_returns_print_log_items_and_week_counts(monkeypatch):
 def test_workshop_says_when_bambuddy_is_silent(monkeypatch):
     stub(monkeypatch, None)
     d = TestClient(hub_app.app).get("/api/workshop").json()
-    assert d["prints"] == [] and d["prints_available"] is False and d["week"] == {"finished": 0, "hours": 0}
+    assert d["prints"] == [] and d["prints_available"] is False and d["week"] is None
+
+
+def test_week_hours_use_start_to_end_when_seconds_is_missing(monkeypatch):
+    now = int(time.time())
+    failed = item(5, "failed", now - 7200, now - 3600)
+    failed["seconds"] = None
+    stub(monkeypatch, [failed, item(4, started=None, ended=now), item(3, "printing", now - 1800, None)])
+    d = TestClient(hub_app.app).get("/api/workshop").json()
+    assert d["week"] == {"finished": 0, "hours": 1.5}
+
+
+def test_a_failed_prints_error_reaches_the_workshop_row(monkeypatch):
+    now = int(time.time())
+    bad = item(6, "failed", now - 100, now)
+    bad["error"] = "0300_0100_0001_0007"
+    stub(monkeypatch, [bad])
+    assert TestClient(hub_app.app).get("/api/workshop").json()["prints"][0]["error"] == "0300_0100_0001_0007"
 
 
 def test_a_row_has_a_photo_when_its_file_exists(monkeypatch):
@@ -117,6 +134,8 @@ def test_photo_capture_takes_the_newest_print_and_never_overwrites(monkeypatch):
         def __enter__(self): return self
         def __exit__(self, *a): return False
     monkeypatch.setattr(recorder.urllib.request, "urlopen", lambda *a, **k: R())
+    sources._cache["bambuddy_prints"] = (time.time(), [item(76)])  # last minute's fetch must not name the photo
+    monkeypatch.setattr(bambuddy, "prints", lambda limit=50: [item(77)] if "bambuddy_prints" not in sources._cache else [item(76)])
     recorder._capture_now()
     assert waits == [20] and open(os.path.join(d, "print-log", "77.jpg"), "rb").read() == b"\xff\xd8new"
     open(os.path.join(d, "print-log", "77.jpg"), "wb").write(b"\xff\xd8old")

@@ -3,7 +3,7 @@ import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
 import { printLabUrl, toolUrl } from "./sections.js";
 import { firstFew } from "./section-links.js";
-import { printLabText, printWords } from "./wording.js";
+import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
 
 export const every = 15;
@@ -77,9 +77,11 @@ function printRow(p) {
       h("span", { class: "meta" }, when(p.started)),
       p.lab ? h("a", { class: "meta", href: printLabUrl(p.lab.exp), target: "_blank", rel: "noopener" }, printLabText(p))
         : h("span", { class: "meta" }, printLabText(p)),
-      p.error ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(p.error.replace(/^HMS_/, ""))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`) : null,
+      !p.error ? null : printErrorCode(p.error)
+        ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(printErrorCode(p.error))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`)
+        : h("span", { class: "meta" }, p.error),
       used ? h("span", { class: "meta" }, used) : null),
-    h("span", { class: "log-side" }, photo, p.seconds ? duration(p.seconds) : p.ended ? "" : "Printing now"));
+    h("span", { class: "log-side" }, photo, p.status === "printing" ? "Printing now" : printSeconds(p) ? duration(printSeconds(p)) : ""));
   return row;
 }
 
@@ -156,11 +158,11 @@ export async function load(state) {
       h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );
   state.body.replaceChildren(...[
-    card("Print history", { pill: `${d.week.finished} finished this week`, tone: "ok", cls: "wide" },
+    card("Print history", { ...weekPill(d.week), cls: "wide" },
       ...(d.prints_available === false ? [h("p", { class: "meta" }, "Bambuddy isn't answering, so the print history can't be shown right now.")]
         : prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
-      h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
-        (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : ""))),
+      d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
+        (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null),
     projectsCard(pr.available ? pr.projects : null),
     shelf(d.spools),
   ].filter(Boolean));

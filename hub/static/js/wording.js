@@ -84,6 +84,23 @@ export function printWords(p) {
   return [p.word || "Unknown", PRINT_TONES[p.status] || "warn"];
 }
 
+// Bambuddy's failure_reason is free text; only something that looks like a printer code gets a help link.
+export function printErrorCode(error) {
+  return typeof error === "string" && /^(HMS_)?[0-9A-F_]{8,}$/i.test(error) ? error.replace(/^HMS_/i, "") : null;
+}
+
+// How long a print ran: Bambuddy's own seconds, else start to end; null while it is still going or unknown.
+export function printSeconds(p) {
+  if (p.status === "printing") return null;
+  if (Number.isFinite(p.seconds)) return p.seconds;
+  return p.ended && p.started ? p.ended - p.started : null;
+}
+
+// The Print history card's pill: the week's finished count, or "No answer" when Bambuddy's log isn't there.
+export function weekPill(week) {
+  return week ? { pill: `${week.finished} finished this week`, tone: "ok" } : { pill: "No answer", tone: "warn" };
+}
+
 export function printLabText(p) {
   return p.lab ? `${p.lab.exp} · ${p.lab.build}` : "Outside the lab";
 }

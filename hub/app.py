@@ -325,9 +325,10 @@ def api_workshop():
         "printer": now.printer_from(records.get("printer")),  # the same card /api/now gives
         "prints": prints,
         "prints_available": log is not None,
-        "week": {
+        "week": None if log is None else {  # None, not zeros, when Bambuddy's log isn't there
             "finished": sum(1 for p in this_week if p["status"] == "completed"),
-            "hours": round(sum((p["seconds"] if p["seconds"] is not None else time.time() - p["started"]) for p in this_week) / 3600, 1),
+            "hours": round(sum((p["seconds"] if p["seconds"] is not None else (p["ended"] or time.time()) - p["started"])
+                               for p in this_week) / 3600, 1),
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
         "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer

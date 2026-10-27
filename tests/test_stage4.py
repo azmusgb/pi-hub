@@ -115,6 +115,8 @@ def test_bambuddy_webhook_triggers_completion_and_rules(monkeypatch):
 def test_bambuddy_webhook_refuses_strangers(monkeypatch):
     from fastapi.testclient import TestClient
     from hub import app as hub_app
+    fired = []
+    monkeypatch.setattr(hub_app.events, "fire", lambda *a, **k: fired.append(a))
     monkeypatch.delenv("HUB_WEBHOOK_TOKEN", raising=False)
     c = TestClient(hub_app.app)
     event = {"event": "print_complete", "variables": {"filament_used": 99}}
@@ -122,7 +124,9 @@ def test_bambuddy_webhook_refuses_strangers(monkeypatch):
     monkeypatch.setenv("HUB_WEBHOOK_TOKEN", "s3cret")
     assert c.post("/api/webhook/bambuddy", json=event, headers={"Authorization": "Bearer wrong"}).status_code == 401
     assert c.post("/api/webhook/bambuddy?token=wrong", json=event).status_code == 401
+    assert fired == []  # none of the refused posts reached the rules
     assert c.post("/api/webhook/bambuddy", json=event, headers={"X-Hub-Token": "s3cret"}).status_code == 200
+    assert len(fired) == 1
     assert c.post("/api/webhook/bambuddy?token=s3cret", content=b"[1]").status_code == 400
     big = b'{"image": "' + b"A" * (9 * 1024 * 1024) + b'"}'
     assert c.post("/api/webhook/bambuddy?token=s3cret", content=big).status_code == 413
