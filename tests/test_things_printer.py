@@ -310,3 +310,12 @@ def test_an_inferred_failure_held_through_an_unknown_reading():
     unknown = _run([bud("WEIRD", 0)], f, T0 + 700)
     r = printer.printer(IDLE_V72, None, None, unknown, T0 + 800)
     assert r["state"] == "failed" and r["cause"] == f["cause"] and r["detail"]["failed_at"] == T0 + 600
+
+
+def test_init_without_a_job_is_the_printer_powering_on_not_a_print():
+    # R38: INIT at power-on, with no job, must not read as a print starting (and then failing)
+    idle = _run([bud("IDLE", 0, job="")])
+    r = _run([bud("INIT", 0, job=""), bud("IDLE", 0, job="")], idle, T0 + 60)
+    assert r["state"] == "idle" and "inferred" not in r["detail"]
+    assert printer.printer(bud("INIT", 0, job=""), None, None, None, T)["state"] == "idle"
+    assert printer.printer(bud("INIT", 0), None, None, None, T)["state"] == "printing"

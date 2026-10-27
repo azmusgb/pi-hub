@@ -56,6 +56,8 @@ def _state(b, prev, now):
     if raw == "FAILED":
         return "failed" if done else "idle"
     state = BAMBUDDY.get(raw, "unknown")
+    if raw == "INIT" and not b.get("job_name"):  # the printer powering on, not a print starting
+        state = "idle"
     if state == "idle" and prev and prev["state"] == "failed" and prev["detail"].get("inferred") \
             and now - _failed_at(prev) < FAILED_HOLD:
         return "failed"
