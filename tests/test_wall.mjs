@@ -1,7 +1,7 @@
 // The wall display's words (wall fits any screen, 26 Oct): the clock's parts, the Needs you tile and the extra tiles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNeeds } from '../hub/static/js/wall.js';
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds } from '../hub/static/js/wall.js';
 
 test('the clock splits the time from a small AM/PM, and 24-hour clocks have none', () => {
   assert.deepEqual(clockParts(new Date(2026, 9, 26, 12, 38), 'en-US'), { hm: '12:38', ampm: 'PM' });
@@ -55,13 +55,23 @@ test('the desk layout is chosen by ?layout=desk, remembered on the device, and ?
   assert.deepEqual(wallLayout('?layout=sideways', null), { layout: 'wall', remember: null });
 });
 
-test('the desk links to the print lab, and asks to judge a finished print', () => {
-  const lab = 'https://10.0.0.21/';
-  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }, lab),
-    { label: 'Print lab: E-024 ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: false });
-  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }, lab),
-    { label: 'Judge E-024 in the print lab ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: true });
-  assert.deepEqual(deskLab({ state: 'finished' }, lab), { label: 'Judge it in the print lab ↗', href: 'https://10.0.0.21/#printLab', judge: true });
-  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
-  assert.deepEqual(deskLab(null, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
+test('the desk links to the hub\'s /lab page, and asks to judge a finished print', () => {
+  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }),
+    { label: 'Print lab: E-024', href: '/lab?e=E-024', judge: false });
+  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }),
+    { label: 'Judge E-024 in the print lab', href: '/lab?e=E-024&do=judge', judge: true });
+  assert.deepEqual(deskLab({ state: 'finished' }), { label: 'Judge it in the print lab', href: '/lab', judge: true });
+  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }), { label: 'Print lab', href: '/lab', judge: false });
+  assert.deepEqual(deskLab(null), { label: 'Print lab', href: '/lab', judge: false });
+});
+
+test('the workshop light is the one with its id, else a light in the Workshop room, never another room\'s lamp', () => {
+  const shop = { id: '27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6', kind: 'light', name: 'Workshop Light', room: 'Workshop' };
+  const bedroom = { id: 'b1', kind: 'light', name: 'Govee Lamp', room: 'Bedroom' };
+  const bench = { id: 'w2', kind: 'light', name: 'Bench', room: 'Workshop' };
+  assert.equal(shopLight([bedroom, shop]), shop);
+  assert.equal(shopLight([bedroom, bench]), bench);  // the id changed: the light in the Workshop room
+  assert.equal(shopLight([bedroom]), null);           // no workshop light: no card, not the bedroom lamp
+  assert.equal(shopLight([{ id: 's', kind: 'switch', room: 'Workshop' }]), null);
+  assert.equal(shopLight(undefined), null);
 });

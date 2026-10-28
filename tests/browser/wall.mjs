@@ -38,7 +38,10 @@ const PRINTERS = {
 };
 const now = (printer) => ({ status_available: true, summary: 'All good at home', issues: [], printer, network: NETWORK,
   movies: { tone: 'ok' }, home: { tone: 'ok' }, workshop: { display: 'On' }, pi: { tone: 'ok' }, reminders: [], setup_left: null });
-const HOME = { connected: true, favourites: ['light-1'], accessories: [{ id: 'light-1', name: 'Workshop Light', kind: 'light', on: true, brightness: 100 }] };
+// A bedroom lamp listed first: the Workshop card must still find the Workshop room's light, not "any light".
+const HOME = { connected: true, favourites: ['light-1'], accessories: [
+  { id: 'lamp-1', name: 'Govee Lamp', kind: 'light', room: 'Bedroom', on: false },
+  { id: 'light-1', name: 'Workshop Light', kind: 'light', room: 'Workshop', on: true, brightness: 100 }] };
 const NEEDS = { count: 0, unread: [], items: [
   { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at the first layer.', link: 'tool:bambuddy' },
   ...[1, 2, 3].map((n) => ({ source: 'Printer', tone: 'warn', title: `Extra thing ${n}`, detail: 'Filler to pass the five-item cap.', link: '/workshop' })),
@@ -114,6 +117,7 @@ for (const run of runs) {
       areas: { print: area('.wall-print'), needs: area('.wall-needs'), house: area('.wall-house') },
       tops: { needs: r('.wall-needs')?.top, print: r('.wall-print')?.top, house: r('.wall-house')?.top },
       camNone: document.querySelector('.kiosk-cam-none') ? r('.kiosk-cam-container')?.height : null,
+      light: document.querySelector('.kiosk-light-name strong')?.textContent ?? null,
       layer: (() => { const s = document.querySelector('.kiosk-sub .nowrap'); return s ? { text: s.textContent, lines: s.getClientRects().length } : null; })(),
     };
   });
@@ -131,6 +135,7 @@ for (const run of runs) {
     if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
   }
   if (STUB && !m.weather) problems.push(`${where}: no weather`);
+  if (STUB && m.light !== 'Workshop Light') problems.push(`${where}: the Workshop card shows "${m.light}", not the Workshop Light`);
   if (m.needsBottom > m.ih || m.headBottom > m.ih) problems.push(`${where}: clock, weather or Needs you below the first screen`);
   for (const s of m.small) problems.push(`${where}: control "${s.text}" is ${Math.round(s.h)} px tall${s.wraps ? ' and its label wraps' : ''}`);
   if (run.printer === 'printing') {

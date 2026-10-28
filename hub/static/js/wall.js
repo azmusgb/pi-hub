@@ -58,10 +58,18 @@ export function wallLayout(search = "", stored = null) {
   return { layout: stored === "desk" ? "desk" : "wall", remember: null };
 }
 
-// The desk's way to the print lab (Local AI): the experiment printing when the hub knows it, and "Judge" once it's done.
-export function deskLab(p, labBase) {
+// The desk's way to the hub's print lab: the experiment printing when the hub knows it, and "Judge" once it's done.
+export function deskLab(p) {
   const id = typeof p?.lab?.experiment === "string" && /^E-\d{1,6}$/.test(p.lab.experiment) ? p.lab.experiment : null;
   const judge = p?.state === "finished";
-  const label = judge ? `Judge ${id || "it"} in the print lab ↗` : `Print lab${id ? `: ${id}` : ""} ↗`;
-  return { label, href: `${labBase}#printLab${id ? `?e=${id}` : ""}`, judge };
+  const label = judge ? `Judge ${id || "it"} in the print lab` : `Print lab${id ? `: ${id}` : ""}`;
+  return { label, href: id ? `/lab?e=${id}${judge ? "&do=judge" : ""}` : "/lab", judge };
+}
+
+// The workshop light on the wall and desk: the one with its id, else a light in the Workshop room. Never "any light",
+// which would quietly put another room's lamp (the bedroom Govee) behind the Workshop switch.
+const SHOP_LIGHT = "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6";
+export function shopLight(accessories) {
+  const lights = (accessories || []).filter((a) => a.kind === "light");
+  return lights.find((a) => a.id === SHOP_LIGHT) || lights.find((a) => /^workshop$/i.test(a.room || "")) || null;
 }

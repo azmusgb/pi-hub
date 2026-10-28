@@ -7,7 +7,7 @@ import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
-import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNeeds } from "./wall.js";
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds } from "./wall.js";
 
 export const every = 15;
 
@@ -111,7 +111,7 @@ export function band(p, cam = null) {
           h("div", { class: "line-bead", style: `width:${pct}%` }),
           h("div", { class: "line-nozzle", style: `left:${pct}%` })),
         h("p", { class: "band-detail" }, ...detail),
-        lab ? h("a", { class: "tool-link", href: lab.href, target: "_blank", rel: "noopener" }, lab.label) : null,
+        lab ? h("a", { class: "tool-link", ...go(lab.href) }, lab.label) : null,
         temps
       ),
       camElement
@@ -187,7 +187,7 @@ function workshopKioskConsole(d, cam, lab = null) {
       h("div", { class: "kiosk-links" },
         h("a", { class: "chip", href: "/workshop", "data-link": true }, "Workshop History"),
         h("a", { class: "chip", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"),
-        lab ? h("a", { class: `chip desk-lab${lab.judge ? " is-judge" : ""}`, href: lab.href, target: "_blank", rel: "noopener" }, lab.label) : null)),
+        lab ? h("a", { class: `chip desk-lab${lab.judge ? " is-judge" : ""}`, ...go(lab.href) }, lab.label) : null)),
     progressSection,
     h("div", { class: "kiosk-cam-slot" }, camContainer)
   );
@@ -508,23 +508,23 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   state.wallBoard.dataset.extra = state.wallExtra.childElementCount ? "1" : "0";
   state.wallBoard.dataset.needsMany = (needs?.items?.length || 0) > 2 ? "1" : "0";
   state.wallTools.replaceChildren(...wallToolbar(state));
-  state.wallPrint.replaceChildren(workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer, toolUrl("assistant")) : null));
+  state.wallPrint.replaceChildren(workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer) : null));
 
   if (state.desk) {
     // The desk: the workshop light (the print lab link is on the printer tile); the next hours and the network where
     // there's room (landscape).
-    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
+    const light = shopLight(home.accessories);
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight, d.workshop),
+      workshopLightCard(light, d.workshop),
       networkPanel(d.network),
     ].filter(Boolean));
     return;
   }
   if (wallView() === "workshop") {
-    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
-    const others = displayAccessories.filter(a => a.id !== shopLight?.id);
+    const light = shopLight(home.accessories);
+    const others = displayAccessories.filter(a => a.id !== light?.id);
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight, d.workshop),
+      workshopLightCard(light, d.workshop),
       networkPanel(d.network),
       others.length ? h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },

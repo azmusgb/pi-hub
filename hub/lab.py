@@ -174,6 +174,41 @@ def check_project(project: str):
         raise HTTPException(400, "Invalid project name")
 
 
+_needs_cache: dict = {}  # project -> (synced_key, (project, generated_at, needs) or None)
+
+
+def stored_needs() -> list:
+    """(project, generated_at, needs) for every stored project, for Needs you. Never raises: a missing table, bad JSON
+    or a stripped index gives nothing for that project. Each index is parsed once per sync (about 100 KB, and Home
+    polls this), so only the small key columns are read each time."""
+    try:
+        ready()
+        keys = db.rows("SELECT project, synced_at, length(index_json) AS n FROM lab_projects ORDER BY project")
+    except Exception:
+        return []
+    out, seen = [], set()
+    for k in keys:
+        project, key = k["project"], (k["synced_at"], k["n"])
+        seen.add(project)
+        hit = _needs_cache.get(project)
+        if not hit or hit[0] != key:
+            entry = None
+            try:
+                row = db.one("SELECT index_json FROM lab_projects WHERE project = ?", project)
+                idx = json.loads(row["index_json"])
+                needs = idx.get("needs")
+                if isinstance(needs, list):
+                    entry = (project, str(idx.get("generated_at") or ""), needs)
+            except Exception:
+                entry = None
+            hit = _needs_cache[project] = (key, entry)
+        if hit[1]:
+            out.append(hit[1])
+    for gone in set(_needs_cache) - seen:
+        del _needs_cache[gone]
+    return out
+
+
 @router.get("/projects")
 def list_projects(request: Request):
     need(request, "household")

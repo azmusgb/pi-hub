@@ -154,9 +154,9 @@ def test_backup_script_includes_the_lab_folder():
     assert "var/lib/pi-hub/lab" in script and "--exclude='var/lib/pi-hub/lab/*/incoming'" in script
 
 
-def test_workshop_print_lab_links_stay_on_the_assistant_tool():
+def test_workshop_print_lab_links_open_the_hubs_lab_page():
     root = os.path.join(os.path.dirname(__file__), "..", "hub/static/js")
     w = open(os.path.join(root, "workshop.js")).read()
-    assert "printLabUrl(p.lab.exp)" in w and '#projects' in w
-    assert 'href: "/lab"' not in w and "href: `/lab" not in w
+    assert "printLabUrl(p.lab.exp)" in w and 'href: "/lab", "data-link": true' in w
+    assert "#projects" not in w and "#printLab" not in w
     assert "localLabUrl" not in open(os.path.join(root, "sections.js")).read()
