@@ -111,6 +111,15 @@ function zoomable(area,imgs,onSwipe){
 
 
 let host = null;
+// A dialog is wired once per element: main.js empties the page on navigation, so the next visit builds new dialogs
+// and they need their own handlers and zoom state.
+const wiredDialogs = new WeakSet();
+export function wireOnce(d, setup) {
+  if (wiredDialogs.has(d)) return false;
+  wiredDialogs.add(d);
+  setup(d);
+  return true;
+}
 function dialog(id, html) {
   let d = document.getElementById(id);
   if (!d) { host.insertAdjacentHTML("beforeend", html); d = document.getElementById(id); }
@@ -120,11 +129,12 @@ function dialog(id, html) {
 let view = null, viewZoom = null;
 function viewerEl() {
   const d = dialog("labViewer", `<dialog id="labViewer" class="lab-viewer" aria-label="Photo"><div class="lab-viewer__stage"><img class="lab-viewer__img" alt=""></div><p class="lab-viewer__cap" aria-live="polite"></p><div class="lab-viewer__nav"><button type="button" class="btn-outline" data-step="-1" aria-label="Previous photo">‹</button><button type="button" class="btn-outline" data-step="1" aria-label="Next photo">›</button><button type="button" class="btn-outline" id="labViewerClose">Close</button></div></dialog>`);
-  if (!viewZoom) {
-    viewZoom = zoomable(d.querySelector(".lab-viewer__stage"), () => [d.querySelector(".lab-viewer__img")], step);
+  wireOnce(d, () => {
+    view = null;
+    viewZoom = zoomable(d.querySelector(".lab-viewer__stage"), () => [d.querySelector(".lab-viewer__img")].filter(Boolean), step);
     d.addEventListener("click", (e) => { const b = e.target.closest("[data-step]"); if (b) step(Number(b.dataset.step)); else if (e.target.closest("#labViewerClose")) d.close(); });
     d.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); } });
-  }
+  });
   return d;
 }
 function show() {
@@ -142,12 +152,21 @@ function openViewer(x, i) {
 }
 
 // ---- Compare ----
+// Two runs' photos paired by tab, in tab order, the nth photo of a tab against the nth of the other run.
+export function pairsOf(a, b) {
+  const out = [];
+  for (const t of new Set([...a, ...b].map((p) => p.tab || ""))) {
+    const l = a.filter((p) => (p.tab || "") === t), r = b.filter((p) => (p.tab || "") === t);
+    for (let i = 0; i < Math.max(l.length, r.length); i++) out.push({ tab: t, l: l[i], r: r[i] });
+  }
+  return out;
+}
 let cmp = null, cmpZoom = null, cmpMode = "split";
 function compareEl() {
   const d = dialog("labCompare", `<dialog id="labCompare" class="lab-compare" aria-labelledby="labCompareTitle"><div class="lab-compare__head"><h2 id="labCompareTitle" class="lab-sheet__title">Compare</h2><div class="lab-compare__modes" role="radiogroup" aria-label="Compare mode"><button type="button" class="btn-subtle" data-cmp-mode="split" aria-pressed="true">Side by side</button><button type="button" class="btn-subtle" data-cmp-mode="wipe" aria-pressed="false">Curtain slider</button></div><button type="button" class="btn-outline" id="labCompareClose">Close</button></div><div class="lab-compare__pick"><label class="lab-sheet__field">Left<select data-side="0"></select></label><label class="lab-sheet__field">Right<select data-side="1"></select></label></div><div class="lab-compare__body"></div><p class="meta lab-sheet__hint">Pinch or double-tap to zoom; drag the slider in curtain mode.</p></dialog>`);
-  if (!cmpZoom) {
-    const body = d.querySelector(".lab-compare__body");
-    cmpZoom = zoomable(body, () => body.querySelectorAll("img"));
+  wireOnce(d, () => {
+    cmp = null;
+    cmpZoom = zoomable(d.querySelector(".lab-compare__body"), () => d.querySelectorAll(".lab-compare__body img"));
     d.addEventListener("click", (e) => {
       if (e.target.closest("#labCompareClose")) d.close();
       const m = e.target.closest("[data-cmp-mode]");
@@ -155,7 +174,7 @@ function compareEl() {
     });
     d.addEventListener("input", (e) => { const r = e.target.closest('.lab-wipe input[type="range"]'); if (r) r.parentNode.style.setProperty("--cut", `${r.value}%`); });
     d.addEventListener("change", (e) => { const s = e.target.closest("select[data-side]"); if (s && cmp) { cmp.sides[Number(s.dataset.side)] = s.value; drawCompare(); } });
-  }
+  });
   return d;
 }
 function drawCompare() {
@@ -165,21 +184,19 @@ function drawCompare() {
     sel.value = cmp.sides[Number(sel.dataset.side)];
   });
   d.querySelectorAll("[data-cmp-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.cmpMode === cmpMode)));
-  const [a, b] = cmp.sides.map((r) => (by[r] || { photos: [] }).photos), tabs = [...new Set([...a, ...b].map((p) => p.tab || ""))];
+  const [a, b] = cmp.sides.map((r) => (by[r] || { photos: [] }).photos);
   const cell = (p) => `<div class="lab-compare__cell">${p ? `<img src="${u(p)}" alt="${esc(label(p))}">` : '<span class="meta">No photo</span>'}</div>`;
   const rows = [];
-  for (const t of tabs) {
-    const l = a.filter((p) => (p.tab || "") === t), r = b.filter((p) => (p.tab || "") === t);
-    for (let i = 0; i < Math.max(l.length, r.length); i++) {
-      if (cmpMode === "wipe" && l[i] && r[i]) {
-        rows.push(`<div class="lab-compare__pair"><p class="lab-compare__tab">${esc(t || "No tab")}</p><figure class="lab-wipe" style="--cut:50%"><img src="${u(l[i])}" alt="${esc(label(l[i]))}"><img class="lab-wipe__after" src="${u(r[i])}" alt="${esc(label(r[i]))}"><input type="range" min="0" max="100" value="50" aria-label="Slide between ${esc(label(l[i]))} and ${esc(label(r[i]))}"><figcaption><span>${esc(l[i].run)}</span><span>${esc(r[i].run)}</span></figcaption></figure></div>`);
-      } else {
-        rows.push(`<div class="lab-compare__pair"><p class="lab-compare__tab">${esc(t || "No tab")}</p><div class="lab-compare__cols">${cell(l[i])}${cell(r[i])}</div></div>`);
-      }
+  for (const { tab: t, l, r } of pairsOf(a, b)) {
+    const head = `<p class="lab-compare__tab">${esc(t || "No tab")}</p>`;
+    if (cmpMode === "wipe" && l && r) {
+      rows.push(`<div class="lab-compare__pair">${head}<figure class="lab-wipe" style="--cut:50%"><img src="${u(l)}" alt="${esc(label(l))}"><img class="lab-wipe__after" src="${u(r)}" alt="${esc(label(r))}"><input type="range" min="0" max="100" value="50" aria-label="Slide between ${esc(label(l))} and ${esc(label(r))}"><figcaption><span>${esc(l.run)}</span><span>${esc(r.run)}</span></figcaption></figure></div>`);
+    } else {
+      rows.push(`<div class="lab-compare__pair">${head}<div class="lab-compare__cols">${cell(l)}${cell(r)}</div></div>`);
     }
   }
   d.querySelector(".lab-compare__body").innerHTML = rows.join("");
-  if (cmpMode === "split") cmpZoom.reset();
+  cmpZoom.reset();
 }
 function openCompare(x) {
   const runs = runsOf(x, cur.ix), mine = runs.filter((r) => r.x === x);

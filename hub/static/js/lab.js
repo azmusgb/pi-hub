@@ -1099,6 +1099,10 @@ export function leave(state) {
   if (vs && vs.open) vs.close();
   const ps = state.sheetsContainer?.querySelector("#labPhotosSheet");
   if (ps && ps.open) ps.close();
+  for (const id of ["labViewer", "labCompare"]) {
+    const d = document.getElementById(id);
+    if (d && d.open) d.close();
+  }
   for (const id of ["#labApproveSheet", "#labDropSheet"]) {
     const sh = state.sheetsContainer?.querySelector(id);
     if (sh && sh.open) sh.close();

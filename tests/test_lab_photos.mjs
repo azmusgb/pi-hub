@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { photosOf, runsOf, thumbsHtml, wipeHtml, checklistHtml, saveTick, ticksOf } from '../hub/static/js/lab-photos.js';
+import { photosOf, runsOf, thumbsHtml, wipeHtml, checklistHtml, saveTick, ticksOf, wireOnce, pairsOf } from '../hub/static/js/lab-photos.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
 const fresh = () => structuredClone(FIXTURE);
@@ -88,4 +88,20 @@ test('ticks round-trip and the checklist escapes judge_on', () => {
     assert.ok(!html.includes('<img src=x'));
     assert.equal((html.match(/ checked/g) || []).length, 1);
   } finally { delete globalThis.localStorage; }
+});
+
+test('a dialog built on a later visit is wired again (navigation empties the page and removes the old dialogs)', () => {
+  const calls = [];
+  const first = {}, second = {};
+  assert.equal(wireOnce(first, () => calls.push('first')), true);
+  assert.equal(wireOnce(first, () => calls.push('again')), false);
+  assert.equal(wireOnce(second, () => calls.push('second')), true);
+  assert.deepEqual(calls, ['first', 'second']);
+});
+
+test('compare pairs photos by tab, nth against nth, and keeps unmatched ones', () => {
+  const p = (tab, n) => ({ tab, run: 'r', sha256: HEX('a'), n });
+  const a = [p('1A', 1), p('2B', 2), p('2B', 3)], b = [p('2B', 4), p('1A', 5), p('3C', 6)];
+  const out = pairsOf(a, b).map((x) => [x.tab, x.l && x.l.n, x.r && x.r.n]);
+  assert.deepEqual(out, [['1A', 1, 5], ['2B', 2, 4], ['2B', 3, undefined], ['3C', undefined, 6]]);
 });
