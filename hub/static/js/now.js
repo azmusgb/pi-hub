@@ -7,7 +7,8 @@ import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
-import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds } from "./wall.js";
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
+  WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
 
 export const every = 15;
 
@@ -231,6 +232,354 @@ function workshopLightCard(light, w = {}) {
   );
 }
 
+function miniPrinterCard(p) {
+  if (!p) return null;
+  const isPrinting = printing(p);
+  const pct = p.progress || 0;
+  const badge = kioskBadge(p);
+  return h("section", { class: "wall-tile", "aria-label": "3D Printer status" },
+    h("div", { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;" },
+      h("div", { style: "display: flex; align-items: center; gap: .4rem;" },
+        h("span", { "aria-hidden": "true" }, "🖨️"),
+        h("strong", { style: "font-size: .95em;" }, "Bambu X2D")),
+      h("span", { class: "kiosk-badge", dataset: { tone: badge.tone } }, badge.label)),
+    isPrinting
+      ? [
+          h("div", { class: "line kiosk-line", style: "margin: .4rem 0;" },
+            h("div", { class: "line-track" }),
+            h("div", { class: "line-bead", style: `width:${pct}%` })),
+          h("p", { class: "meta", style: "margin: 0; display: flex; justify-content: space-between;" },
+            h("span", {}, `${pct}%${p.left ? ` · ${p.left} left` : ""}`),
+            p.layer_num ? h("span", {}, `Layer ${p.layer_num} / ${p.total_layers || '?'}`) : null)
+        ]
+      : h("p", { class: "meta", style: "margin: 0;" }, p.headline || "Ready for next print"),
+    h("div", { style: "margin-top: .5rem; display: flex; gap: .4rem;" },
+      h("a", { class: "chip", style: "min-height: 38px; padding: 0 .7rem; font-size: .8em;", href: "/workshop", "data-link": true }, "Workshop →"),
+      h("a", { class: "chip", style: "min-height: 38px; padding: 0 .7rem; font-size: .8em;", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"))
+  );
+}
+
+function mediaHeroConsole(d) {
+  const movies = d.movies || {};
+  const playing = movies.playing?.[0];
+  const isPlaying = Boolean(playing);
+  const badge = isPlaying
+    ? { label: "NOW PLAYING", tone: "ok" }
+    : movies.plex_running
+      ? { label: "LIBRARY READY", tone: "ok" }
+      : { label: "PLEX IDLE", tone: "none" };
+
+  const titleText = isPlaying ? (playing.title || "Now Playing") : (movies.count ? `${movies.count} Movies Available` : "Movie Library");
+  const subText = isPlaying
+    ? [playing.user ? `Watched by ${playing.user}` : "Playing on Plex", playing.year ? ` · ${playing.year}` : ""]
+    : [movies.drive ? `Drive: ${movies.drive}` : "Plex Media Server", movies.free ? ` · ${movies.free} free` : ""];
+
+  return h("section", { class: "kiosk-console wall-tile", "aria-label": "Media and Entertainment" },
+    h("div", { class: "kiosk-head" },
+      h("div", { class: "kiosk-title" },
+        h("div", { class: "kiosk-name" },
+          h("span", { "aria-hidden": "true" }, "🎬"),
+          h("h2", {}, "Media & Plex"),
+          h("span", { class: "kiosk-badge", dataset: { tone: badge.tone } }, badge.label)),
+        h("p", { class: "kiosk-pct", style: "font-size: clamp(1.4rem, 3.5vw, 2.5rem); margin: .2em 0;" }, titleText),
+        h("p", { class: "kiosk-sub" }, ...subText)),
+      h("div", { class: "kiosk-links" },
+        h("a", { class: "chip", href: "/media", "data-link": true }, "Watch a movie"),
+        h("a", { class: "chip", href: toolUrl("plex"), target: "_blank", rel: "noopener" }, "Open Plex ↗"))),
+    h("div", { class: "kiosk-cam-slot", style: "display: grid; place-items: center; background: color-mix(in srgb, var(--surface-2) 60%, transparent); border-radius: var(--r-md); padding: 1.5rem; text-align: center; border: 1px dashed var(--line);" },
+      isPlaying
+        ? h("div", { style: "display: flex; flex-direction: column; align-items: center; gap: .75rem;" },
+            h("span", { style: "font-size: 3.5rem; line-height: 1;" }, "🍿"),
+            h("strong", { style: "font-size: 1.25rem;" }, playing.title),
+            h("p", { class: "meta", style: "margin: 0; max-width: 28em;" }, playing.summary || "Playing on your home entertainment system."))
+        : h("div", { style: "display: flex; flex-direction: column; align-items: center; gap: .75rem;" },
+            h("span", { style: "font-size: 3.5rem; line-height: 1;" }, "🎞️"),
+            h("strong", { style: "font-size: 1.25rem;" }, "Ready for Movie Night"),
+            h("p", { class: "meta", style: "margin: 0; max-width: 28em;" }, "Browse your Plex library, view recently added titles, and queue up films."))
+    )
+  );
+}
+
+function calendarHeroConsole(out) {
+  const events = upcoming(out?.calendar, Date.now(), 8);
+  const dateStr = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  const w = out?.weather;
+
+  const eventRows = events.length
+    ? events.map((e) => h("li", {
+        style: "display: grid; grid-template-columns: minmax(5.5em, auto) 1fr; gap: 1rem; padding: .65rem .85rem; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line); align-items: baseline;"
+      },
+        h("span", { style: "font-weight: 700; color: var(--accent-strong); font-size: .9em;" }, e.all_day ? "All day" : clockTime(e.start)),
+        h("span", { style: "font-weight: 600; font-size: .95em;" }, e.title)
+      ))
+    : [h("p", { class: "meta", style: "padding: 1.5rem; text-align: center;" }, "No upcoming appointments scheduled for today.")];
+
+  return h("section", { class: "kiosk-console wall-tile", "aria-label": "Family and Agenda" },
+    h("div", { class: "kiosk-head" },
+      h("div", { class: "kiosk-title" },
+        h("div", { class: "kiosk-name" },
+          h("span", { "aria-hidden": "true" }, "📅"),
+          h("h2", {}, "Family Agenda"),
+          h("span", { class: "kiosk-badge", dataset: { tone: "ok" } }, `${events.length} ${events.length === 1 ? "EVENT" : "EVENTS"}`)),
+        h("p", { class: "kiosk-pct", style: "font-size: clamp(1.4rem, 3.2vw, 2.2rem); margin: .2em 0;" }, dateStr),
+        h("p", { class: "kiosk-sub" }, w?.now ? `${w.now.temp}° ${w.now.sky} · High ${w.days?.[0]?.high || w.now.temp}°` : "Upcoming household schedule")),
+      h("div", { class: "kiosk-links" },
+        h("a", { class: "chip", href: "/lists", "data-link": true }, "Lists & Notes"))),
+    h("div", { class: "kiosk-cam-slot", style: "overflow-y: auto; padding: .25rem 0;" },
+      h("ul", { style: "list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem;" }, ...eventRows))
+  );
+}
+
+function opsHeroConsole(d) {
+  const net = d.network || {};
+  const pi = d.pi || {};
+  const ms = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10} ms` : "—");
+  const tone = (v) => (!Number.isFinite(v) ? "bad" : v > 60 ? "warn" : "ok");
+
+  const checkCard = (label, what, v) => h("div", {
+    style: "display: flex; justify-content: space-between; align-items: center; padding: .55rem .85rem; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line);"
+  },
+    h("div", { style: "display: flex; align-items: center; gap: .5rem;" },
+      h("span", { class: "dot", dataset: { tone: tone(v) }, "aria-hidden": "true" }),
+      h("strong", { style: "font-size: .9em;" }, label),
+      h("span", { class: "meta", style: "font-size: .8em;" }, what)),
+    h("span", { class: "status-side", style: "font-weight: 700; font-size: .9em; font-variant-numeric: tabular-nums;" }, ms(v))
+  );
+
+  return h("section", { class: "kiosk-console wall-tile", "aria-label": "System and Ops" },
+    h("div", { class: "kiosk-head" },
+      h("div", { class: "kiosk-title" },
+        h("div", { class: "kiosk-name" },
+          h("span", { "aria-hidden": "true" }, "🖥️"),
+          h("h2", {}, "System & Network Ops"),
+          h("span", { class: "kiosk-badge", dataset: { tone: net.status === "bad" ? "bad" : "ok" } }, net.status === "bad" ? "ISSUES" : "ONLINE")),
+        h("p", { class: "kiosk-pct", style: "font-size: clamp(1.3rem, 3vw, 2rem); margin: .2em 0;" }, plainInternet(net)),
+        h("p", { class: "kiosk-sub" }, [
+          Number.isFinite(pi.temp) ? `Pi temp: ${Math.round(pi.temp)}°C` : "",
+          Number.isFinite(pi.uptime_h) ? ` · Uptime: ${Math.round(pi.uptime_h)} h` : "",
+          pi.disk_free_gb ? ` · ${pi.disk_free_gb} GB disk free` : ""
+        ].filter(Boolean))),
+      h("div", { class: "kiosk-links" },
+        h("a", { class: "chip", href: toolUrl("network"), target: "_blank", rel: "noopener" }, "Open Grafana ↗"),
+        h("a", { class: "chip", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗"),
+        h("a", { class: "chip", href: "/system", "data-link": true }, "System & Backups"))),
+    h("div", { class: "kiosk-cam-slot", style: "overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15em), 1fr)); gap: .5rem; padding: .25rem 0;" },
+      checkCard("Router", "The Orbi", net.orbi_ms),
+      checkCard("AT&T Line", "WAN Link", net.att_ms),
+      checkCard("Internet", "Cloud latency", net.wan_ms),
+      checkCard("DNS", "Name lookups", net.dns_ms),
+      checkCard("Windows PC", "Local AI / Paperless", net.win_ms),
+      Number.isFinite(net.printer_ms) ? checkCard("3D Printer", "Bambu X2D", net.printer_ms) : null
+    )
+  );
+}
+
+function weatherHeroConsole(out) {
+  const w = out?.weather;
+  const now = w?.now || {};
+  const today = w?.days?.[0] || {};
+  const hours = nextHours(w?.hours, new Date(), 8);
+
+  return h("section", { class: "kiosk-console wall-tile", "aria-label": "Weather and Forecast" },
+    h("div", { class: "kiosk-head" },
+      h("div", { class: "kiosk-title" },
+        h("div", { class: "kiosk-name" },
+          h("span", { "aria-hidden": "true" }, "⛅"),
+          h("h2", {}, "Weather & Forecast"),
+          h("span", { class: "kiosk-badge", dataset: { tone: "ok" } }, now.sky || "CURRENT")),
+        h("p", { class: "kiosk-pct", style: "font-size: clamp(1.4rem, 3.5vw, 2.5rem); margin: .2em 0;" }, `${now.temp ?? "—"}° ${now.sky || ""}`),
+        h("p", { class: "kiosk-sub" }, [
+          today.high !== undefined ? `High ${today.high}° · Low ${today.low}°` : "",
+          today.sunrise ? ` · 🌅 ${today.sunrise}  🌇 ${today.sunset}` : ""
+        ].filter(Boolean))),
+      h("div", { class: "kiosk-links" },
+        h("a", { class: "chip", href: "/weather", "data-link": true }, "Full Forecast"))),
+    h("div", { class: "kiosk-cam-slot", style: "overflow-y: auto; padding: .5rem 0;" },
+      h("ul", { class: "wall-hours", style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none;" },
+        hours.map((x) => h("li", { style: "display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .6rem .3rem; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line);" },
+          h("span", { style: "font-size: .8em; color: var(--text-2);" }, x.label),
+          weatherIcon(x.icon, ""),
+          h("strong", { style: "font-size: 1.1em;" }, `${x.temp}°`),
+          x.rain ? h("span", { class: "wall-rain", style: "font-size: .75em;" }, `${x.rain}%`) : null
+        ))
+      )
+    )
+  );
+}
+
+function openWallConfigDialog(state, initialTab = "presets") {
+  const existing = document.querySelector(".wall-config-dialog");
+  if (existing) existing.remove();
+
+  let activeTab = initialTab;
+  const currentView = wallView();
+  const currentCustom = wallCustomConfig();
+
+  const dialog = h("dialog", { class: "wall-config-dialog", "aria-labelledby": "wall-config-title" });
+
+  const closeDialog = () => {
+    dialog.close();
+    dialog.remove();
+  };
+
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) closeDialog();
+  });
+
+  const title = h("h2", { id: "wall-config-title" }, "Wall Display Layout & Panes");
+  const closeBtn = h("button", {
+    type: "button",
+    class: "kiosk-btn",
+    style: "min-width: 44px; padding: 0 .75rem;",
+    "aria-label": "Close settings",
+    onclick: closeDialog
+  }, "✕");
+
+  const head = h("div", { class: "wall-config-head" }, title, closeBtn);
+
+  const tabPresetsBtn = h("button", {
+    type: "button",
+    class: `kiosk-btn ${activeTab === "presets" ? "active" : ""}`,
+    onclick: () => switchTab("presets")
+  }, "📑 Presets");
+
+  const tabCustomBtn = h("button", {
+    type: "button",
+    class: `kiosk-btn ${activeTab === "custom" ? "active" : ""}`,
+    onclick: () => switchTab("custom")
+  }, "⚙️ Customize Panes");
+
+  const tabsBar = h("div", { class: "wall-config-tabs", style: "display: flex; gap: .5rem; margin: .75rem 0;" },
+    tabPresetsBtn, tabCustomBtn);
+
+  const contentArea = h("div", { class: "wall-config-content" });
+
+  function renderPresetsTab() {
+    const list = h("div", { class: "wall-preset-list" },
+      ...WALL_VIEWS.map((v) => {
+        const isActive = currentView === v.id;
+        return h("button", {
+          type: "button",
+          class: `wall-preset-btn ${isActive ? "active" : ""}`,
+          onclick: () => {
+            if (v.id === "custom") {
+              switchTab("custom");
+              return;
+            }
+            try { localStorage.setItem("pi_wall_view", v.id); } catch {}
+            closeDialog();
+            load(state);
+          }
+        },
+          h("strong", {}, v.label),
+          h("span", { class: "meta" }, v.desc)
+        );
+      })
+    );
+    contentArea.replaceChildren(
+      h("p", { class: "meta", style: "margin: 0 0 .5rem;" }, "Choose a preset view for this screen. Each device remembers its selection."),
+      list
+    );
+  }
+
+  function renderCustomTab() {
+    let selectedHero = currentCustom.hero;
+    const heroRadios = HERO_OPTIONS.map((opt) => {
+      const radio = h("input", {
+        type: "radio",
+        name: "wall-hero-choice",
+        value: opt.id,
+        checked: selectedHero === opt.id,
+        onchange: () => { selectedHero = opt.id; }
+      });
+      return h("label", { class: "wall-option-row" },
+        radio,
+        h("div", { class: "wall-option-text" },
+          h("strong", {}, opt.label),
+          h("span", { class: "meta" }, opt.desc))
+      );
+    });
+
+    const sideChecked = new Set(currentCustom.side);
+    const sideCheckboxes = SIDE_OPTIONS.map((opt) => {
+      const box = h("input", {
+        type: "checkbox",
+        value: opt.id,
+        checked: sideChecked.has(opt.id),
+        onchange: (e) => {
+          if (e.target.checked) sideChecked.add(opt.id);
+          else sideChecked.delete(opt.id);
+        }
+      });
+      return h("label", { class: "wall-option-row" },
+        box,
+        h("div", { class: "wall-option-text" },
+          h("strong", {}, opt.label),
+          h("span", { class: "meta" }, opt.desc))
+      );
+    });
+
+    const applyBtn = h("button", {
+      type: "button",
+      class: "kiosk-btn active",
+      style: "min-height: 44px; padding: 0 1.25rem;",
+      onclick: () => {
+        const side = Array.from(sideChecked);
+        const finalSide = side.length ? side : DEFAULT_CUSTOM_CONFIG.side;
+        const config = { hero: selectedHero, side: finalSide };
+        try {
+          localStorage.setItem("pi_wall_custom", JSON.stringify(config));
+          localStorage.setItem("pi_wall_view", "custom");
+        } catch {}
+        closeDialog();
+        load(state);
+      }
+    }, "Save & Apply Custom Layout");
+
+    const resetBtn = h("button", {
+      type: "button",
+      class: "kiosk-btn",
+      style: "min-height: 44px; padding: 0 1rem;",
+      onclick: () => {
+        try {
+          localStorage.setItem("pi_wall_custom", JSON.stringify(DEFAULT_CUSTOM_CONFIG));
+          localStorage.setItem("pi_wall_view", "custom");
+        } catch {}
+        closeDialog();
+        load(state);
+      }
+    }, "Reset to Defaults");
+
+    const actions = h("div", { style: "display: flex; gap: .75rem; margin-top: 1.25rem; flex-wrap: wrap;" },
+      applyBtn, resetBtn);
+
+    contentArea.replaceChildren(
+      h("div", { class: "wall-custom-section" },
+        h("h3", {}, "1. Main Hero Display (Left Pane)"),
+        h("div", { style: "display: grid; gap: .25rem;" }, ...heroRadios)),
+      h("div", { class: "wall-custom-section" },
+        h("h3", {}, "2. Side Stack Tiles (Right Panes)"),
+        h("div", { style: "display: grid; gap: .25rem;" }, ...sideCheckboxes)),
+      actions
+    );
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    tabPresetsBtn.classList.toggle("active", activeTab === "presets");
+    tabCustomBtn.classList.toggle("active", activeTab === "custom");
+    if (activeTab === "presets") renderPresetsTab();
+    else renderCustomTab();
+  }
+
+  switchTab(activeTab);
+
+  dialog.append(head, tabsBar, contentArea);
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
+
 // The clock: the time on one line, with a small AM/PM beside it.
 function setWallClock(state) {
   const d = new Date();
@@ -250,24 +599,34 @@ function deskLayout() {
 }
 
 function wallView() {
-  try { return localStorage.getItem("pi_wall_view") || "workshop"; } catch { return "workshop"; }
+  try { return getWallView(localStorage.getItem("pi_wall_view")); } catch { return "workshop"; }
 }
 
-// One quiet toolbar in a corner: Workshop Focus (or Ambient Home), Kiosk (full screen) and Exit wall display.
+function wallCustomConfig() {
+  try { return getWallCustomConfig(localStorage.getItem("pi_wall_custom")); } catch { return getWallCustomConfig(null); }
+}
+
+// One quiet toolbar in a corner: View Switcher, Customize Panes, Kiosk (full screen) and Exit wall display.
 function wallToolbar(state) {
   const exit = h("a", { href: "/", class: "kiosk-btn", "data-link": true }, "← Exit wall display");
   // The desk has one view, and iPad Safari has no full screen for pages (Add to Home Screen gives it): back to the
   // wall's layout instead.
   if (state.desk) return [h("a", { href: "/wall?layout=wall", class: "kiosk-btn" }, "Wall layout"), exit];
   const view = wallView();
+  const panes = resolveWallPanes(view, wallCustomConfig());
   const toggleViewBtn = h("button", {
     type: "button",
-    class: `kiosk-btn ${view === "workshop" ? "active" : ""}`,
-    onclick: () => {
-      try { localStorage.setItem("pi_wall_view", view === "workshop" ? "ambient" : "workshop"); } catch {}
-      load(state);
-    }
-  }, view === "workshop" ? "🛠️ Workshop Focus" : "🏠 Ambient Home");
+    class: "kiosk-btn active",
+    title: "Switch view preset",
+    onclick: () => openWallConfigDialog(state, "presets")
+  }, `${panes.label} ▾`);
+
+  const customizeBtn = h("button", {
+    type: "button",
+    class: "kiosk-btn",
+    title: "Pick what appears in each pane",
+    onclick: () => openWallConfigDialog(state, "custom")
+  }, "⚙️ Customize");
 
   const fullscreenBtn = h("button", {
     type: "button",
@@ -281,7 +640,7 @@ function wallToolbar(state) {
     }
   }, "⛶ Kiosk");
 
-  return [toggleViewBtn, fullscreenBtn, exit];
+  return [toggleViewBtn, customizeBtn, fullscreenBtn, exit];
 }
 
 function renderWallHeader(state, out) {
@@ -509,13 +868,43 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   if (needs) setNeeds(needs);
   state.summary.hidden = true;
   renderWallHeader(state, out);
-  renderWallNeeds(state, needs);
-  renderWallExtra(state, out);
+
+  const viewId = wallView();
+  const customConfig = wallCustomConfig();
+  const panes = resolveWallPanes(viewId, customConfig);
+
+  if (panes.side.includes("needs")) {
+    state.wallNeeds.style.display = "";
+    renderWallNeeds(state, needs);
+  } else {
+    state.wallNeeds.style.display = "none";
+  }
+
+  if (panes.side.includes("extra")) {
+    state.wallExtra.style.display = "";
+    renderWallExtra(state, out);
+  } else {
+    state.wallExtra.style.display = "none";
+  }
+
   state.wallBoard.dataset.printing = printing(d.printer) ? "1" : "0";
-  state.wallBoard.dataset.extra = state.wallExtra.childElementCount ? "1" : "0";
+  state.wallBoard.dataset.extra = state.wallExtra.childElementCount && panes.side.includes("extra") ? "1" : "0";
   state.wallBoard.dataset.needsMany = (needs?.items?.length || 0) > 2 ? "1" : "0";
   state.wallTools.replaceChildren(...wallToolbar(state));
-  state.wallPrint.replaceChildren(workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer) : null));
+
+  let heroElement;
+  if (panes.hero === "media") {
+    heroElement = mediaHeroConsole(d);
+  } else if (panes.hero === "calendar") {
+    heroElement = calendarHeroConsole(out);
+  } else if (panes.hero === "ops") {
+    heroElement = opsHeroConsole(d);
+  } else if (panes.hero === "weather") {
+    heroElement = weatherHeroConsole(out);
+  } else {
+    heroElement = workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer) : null);
+  }
+  state.wallPrint.replaceChildren(heroElement);
 
   if (state.desk) {
     // The desk: the workshop light (the print lab link is on the printer tile); the next hours and the network where
@@ -527,23 +916,64 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
     ].filter(Boolean));
     return;
   }
-  if (wallView() === "workshop") {
-    const light = shopLight(home.accessories);
-    const others = displayAccessories.filter(a => a.id !== light?.id);
-    state.wallHouse.replaceChildren(...[
-      workshopLightCard(light, d.workshop),
-      networkPanel(d.network),
-      others.length ? h("section", { class: "home-favourites wall-tile" },
+  if (viewId === "ambient") {
+    // Ambient Home: Home's cards (less Needs you, which has its own tile) in the house column.
+    state.wallHouse.replaceChildren(h("div", { class: "home-cards" },
+      ...homeCards({ now: d, home, needs }).filter((c) => c.key !== "needs").map((c) => homeCard(c, cam, () => load(state)))));
+    return;
+  }
+
+  const light = shopLight(home.accessories);
+  const others = displayAccessories.filter(a => a.id !== light?.id);
+  const houseWidgets = [];
+
+  if (panes.side.includes("controls")) {
+    if (light) houseWidgets.push(workshopLightCard(light, d.workshop));
+    if (others.length) {
+      houseWidgets.push(h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },
           h("h2", { class: "section-title" }, controlsTitle),
           h("a", { href: "/control?from=home", "data-link": true }, "All devices →")),
-        h("div", { class: "tiles" }, others.map(a => tile(a, state)))) : null,
-    ].filter(Boolean));
-    return;
+        h("div", { class: "tiles" }, others.map(a => tile(a, state)))));
+    }
   }
-  // Ambient Home: Home's cards (less Needs you, which has its own tile) in the house column.
-  state.wallHouse.replaceChildren(h("div", { class: "home-cards" },
-    ...homeCards({ now: d, home, needs }).filter((c) => c.key !== "needs").map((c) => homeCard(c, cam, () => load(state)))));
+
+  if (panes.side.includes("network")) {
+    const net = networkPanel(d.network);
+    if (net) houseWidgets.push(net);
+  }
+
+  if (panes.side.includes("home_cards")) {
+    houseWidgets.push(h("div", { class: "home-cards" },
+      ...homeCards({ now: d, home, needs }).filter((c) => c.key !== "needs").map((c) => homeCard(c, cam, () => load(state)))));
+  }
+
+  if (panes.side.includes("printer_mini") && panes.hero !== "printer") {
+    const mini = miniPrinterCard(d.printer);
+    if (mini) houseWidgets.push(mini);
+  }
+
+  if (panes.side.includes("media") && panes.hero !== "media") {
+    const mediaC = homeCards({ now: d, home, needs }).find((c) => c.key === "media");
+    if (mediaC) houseWidgets.push(homeCard(mediaC, cam, () => load(state)));
+  }
+
+  if (panes.side.includes("system") && panes.hero !== "ops") {
+    const sysC = homeCards({ now: d, home, needs }).find((c) => c.key === "system");
+    if (sysC) houseWidgets.push(homeCard(sysC, cam, () => load(state)));
+  }
+
+  if (panes.side.includes("calendar") && panes.hero !== "calendar" && !panes.side.includes("extra")) {
+    const events = upcoming(out?.calendar, Date.now(), 4);
+    if (events.length) {
+      houseWidgets.push(h("section", { class: "wall-tile wall-agenda", "aria-label": "Coming up" },
+        h("h2", {}, "Coming up"),
+        h("ul", {}, events.map((e) => h("li", {},
+          h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))));
+    }
+  }
+
+  state.wallHouse.replaceChildren(...houseWidgets.filter(Boolean));
 }
 
 export function leave(state) {

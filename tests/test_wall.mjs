@@ -1,7 +1,8 @@
 // The wall display's words (wall fits any screen, 26 Oct): the clock's parts, the Needs you tile and the extra tiles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds } from '../hub/static/js/wall.js';
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
+  WALL_VIEWS, getWallView, getWallCustomConfig, resolveWallPanes } from '../hub/static/js/wall.js';
 
 test('the clock splits the time from a small AM/PM, and 24-hour clocks have none', () => {
   assert.deepEqual(clockParts(new Date(2026, 9, 26, 12, 38), 'en-US'), { hm: '12:38', ampm: 'PM' });
@@ -75,3 +76,49 @@ test('the workshop light is the one with its id, else a light in the Workshop ro
   assert.equal(shopLight([{ id: 's', kind: 'switch', room: 'Workshop' }]), null);
   assert.equal(shopLight(undefined), null);
 });
+
+test('wall views: recognizes presets, falls back to workshop on unknown view', () => {
+  assert.equal(getWallView('workshop'), 'workshop');
+  assert.equal(getWallView('ambient'), 'ambient');
+  assert.equal(getWallView('media'), 'media');
+  assert.equal(getWallView('agenda'), 'agenda');
+  assert.equal(getWallView('ops'), 'ops');
+  assert.equal(getWallView('custom'), 'custom');
+  assert.equal(getWallView(null), 'workshop');
+  assert.equal(getWallView('unknown_view'), 'workshop');
+});
+
+test('wall custom config: parses valid JSON, sanitizes choices, handles null/junk', () => {
+  const good = JSON.stringify({ hero: 'media', side: ['needs', 'network'] });
+  assert.deepEqual(getWallCustomConfig(good), { hero: 'media', side: ['needs', 'network'] });
+
+  // Invalid hero and unknown side keys sanitized
+  const bad = JSON.stringify({ hero: 'alien', side: ['needs', 'fake_tile', 'extra'] });
+  assert.deepEqual(getWallCustomConfig(bad), { hero: 'printer', side: ['needs', 'extra'] });
+
+  // Empty side falls back to default
+  assert.deepEqual(getWallCustomConfig(JSON.stringify({ hero: 'calendar', side: [] })).side.length > 0, true);
+  assert.deepEqual(getWallCustomConfig(null).hero, 'printer');
+  assert.deepEqual(getWallCustomConfig('not json at all').hero, 'printer');
+});
+
+test('resolveWallPanes: correctly maps presets and custom config to pane layout', () => {
+  const workshop = resolveWallPanes('workshop');
+  assert.equal(workshop.hero, 'printer');
+  assert.equal(workshop.side.includes('needs'), true);
+  assert.equal(workshop.side.includes('controls'), true);
+
+  const media = resolveWallPanes('media');
+  assert.equal(media.hero, 'media');
+
+  const agenda = resolveWallPanes('agenda');
+  assert.equal(agenda.hero, 'calendar');
+
+  const ops = resolveWallPanes('ops');
+  assert.equal(ops.hero, 'ops');
+
+  const custom = resolveWallPanes('custom', { hero: 'weather', side: ['needs', 'media'] });
+  assert.equal(custom.hero, 'weather');
+  assert.deepEqual(custom.side, ['needs', 'media']);
+});
+

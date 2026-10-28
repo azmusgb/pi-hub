@@ -73,3 +73,79 @@ export function shopLight(accessories) {
   const lights = (accessories || []).filter((a) => a.kind === "light");
   return lights.find((a) => a.id === SHOP_LIGHT) || lights.find((a) => /^workshop$/i.test(a.room || "")) || null;
 }
+
+// Preset view configurations and modular pane definitions
+export const WALL_VIEWS = [
+  { id: "workshop", label: "🛠️ Workshop Focus", hero: "printer", side: ["needs", "extra", "controls", "network"], desc: "3D printer camera, telemetry, and workshop switch" },
+  { id: "ambient", label: "🏠 Ambient Home", hero: "printer", side: ["needs", "extra", "home_cards"], desc: "Glanceable overview cards for the house" },
+  { id: "media", label: "🎬 Media & Entertainment", hero: "media", side: ["needs", "extra", "controls"], desc: "Plex now playing, library, and room controls" },
+  { id: "agenda", label: "📅 Family & Agenda", hero: "calendar", side: ["needs", "extra", "controls", "network"], desc: "Today's calendar events, agenda, and weather" },
+  { id: "ops", label: "🖥️ System & Ops", hero: "ops", side: ["needs", "controls", "printer_mini"], desc: "Network latency waterfall, Pi health, and storage" },
+  { id: "custom", label: "⚙️ Custom Layout", hero: "custom", side: ["custom"], desc: "Personalized pane and widget selection" },
+];
+
+export const DEFAULT_CUSTOM_CONFIG = {
+  hero: "printer",
+  side: ["needs", "extra", "controls", "network"],
+};
+
+export const HERO_OPTIONS = [
+  { id: "printer", label: "🖨️ Bambu 3D Printer & Camera", desc: "Live camera stream, telemetry HUD, and print progress" },
+  { id: "media", label: "🎬 Media & Plex", desc: "Now playing, movie library stats, and theater controls" },
+  { id: "calendar", label: "📅 Family & Agenda", desc: "Daily schedule, upcoming appointments, and weather summary" },
+  { id: "ops", label: "🖥️ System & Network Ops", desc: "Network latency breakdown, Pi thermals, and storage health" },
+  { id: "weather", label: "⛅ Weather & Forecast", desc: "Current conditions, temperature trends, and forecast" },
+];
+
+export const SIDE_OPTIONS = [
+  { id: "needs", label: "Needs you", desc: "Action items and active house alerts", defaultChecked: true },
+  { id: "extra", label: "Next hours", desc: "Hourly weather forecast pills", defaultChecked: true },
+  { id: "controls", label: "Smart controls", desc: "Workshop light and quick device switches", defaultChecked: true },
+  { id: "network", label: "Network status", desc: "Internet health and latency breakdown", defaultChecked: true },
+  { id: "calendar", label: "Upcoming events", desc: "Next appointments and calendar reminders", defaultChecked: false },
+  { id: "media", label: "Media card", desc: "Now playing or latest movie", defaultChecked: false },
+  { id: "system", label: "System & backups", desc: "Storage disk capacity and backup status", defaultChecked: false },
+  { id: "printer_mini", label: "3D printer mini", desc: "Compact print progress and temperatures", defaultChecked: false },
+  { id: "home_cards", label: "Home cards", desc: "Ambient overview cards for the house", defaultChecked: false },
+];
+
+export function getWallView(stored = null) {
+  const v = stored || "workshop";
+  return WALL_VIEWS.some((w) => w.id === v) ? v : "workshop";
+}
+
+export function getWallCustomConfig(stored = null) {
+  if (!stored) return { ...DEFAULT_CUSTOM_CONFIG };
+  try {
+    const parsed = typeof stored === "string" ? JSON.parse(stored) : stored;
+    const hero = HERO_OPTIONS.some((h) => h.id === parsed?.hero) ? parsed.hero : DEFAULT_CUSTOM_CONFIG.hero;
+    const validSideIds = new Set(SIDE_OPTIONS.map((s) => s.id));
+    const side = Array.isArray(parsed?.side) && parsed.side.length
+      ? parsed.side.filter((s) => validSideIds.has(s))
+      : DEFAULT_CUSTOM_CONFIG.side;
+    return { hero, side };
+  } catch {
+    return { ...DEFAULT_CUSTOM_CONFIG };
+  }
+}
+
+export function resolveWallPanes(viewId, customConfig = null) {
+  const id = getWallView(viewId);
+  const preset = WALL_VIEWS.find((w) => w.id === id) || WALL_VIEWS[0];
+  if (id === "custom") {
+    const cfg = getWallCustomConfig(customConfig);
+    return {
+      id: "custom",
+      label: "⚙️ Custom Layout",
+      hero: cfg.hero,
+      side: cfg.side,
+    };
+  }
+  return {
+    id: preset.id,
+    label: preset.label,
+    hero: preset.hero,
+    side: [...preset.side],
+  };
+}
+
