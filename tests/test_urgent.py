@@ -29,14 +29,18 @@ class Send:
         return self.answer
 
 
-def rec(state, headline="H", cause="C", stale=False):
+def rec(state, headline="H", cause="C", stale=False, **detail):
     r = {"state": state, "headline": headline, "cause": cause}
+    if detail:
+        r["detail"] = detail
     if stale:
         r["stale"] = True
     return r
 
 
-FAILED = {"printer": rec("failed", "The print failed", "Stopped at 40%."), "obico": rec("watching")}
+STARTED = T - 1000  # one print: every record below belongs to it
+FAILED = {"printer": rec("failed", "The print failed", "Stopped at 40%.", last_progress=40, started=STARTED),
+          "obico": rec("watching")}
 FINE = {"printer": rec("idle"), "obico": rec("watching")}
 
 
@@ -46,7 +50,7 @@ def test_failed_print_pushes_once_with_click_and_urgent():
     assert urgent.check(FAILED, T + 30, send=send) == []
     assert len(send.calls) == 1
     (title, body), k = send.calls[0]
-    assert title == "The print failed" and body == "Stopped at 40%."
+    assert title == "X2D print stopped at 40%" and body == "Stopped at 40%."
     assert k == {"tags": "rotating_light", "priority": "high", "urgent": True,
                  "click": "https://home.home.arpa/workshop"}
     row = db.one("SELECT * FROM push_occurrences WHERE cause = 'print'")
@@ -79,9 +83,11 @@ def test_stale_records_do_not_clear_an_occurrence():
 
 def test_printer_failed_and_obico_failure_are_one_push():
     send = Send()
-    urgent.check({"printer": rec("printing"), "obico": rec("failure", "Obico sees spaghetti", "x")}, T, send=send)
-    urgent.check({"printer": rec("failed"), "obico": rec("failure")}, T + 60, send=send)
-    assert [c[0][0] for c in send.calls] == ["Obico sees spaghetti"]
+    urgent.check({"printer": rec("printing", started=STARTED), "obico": rec("failure", "Obico sees spaghetti", "")},
+                 T, send=send)
+    urgent.check({"printer": rec("failed", started=STARTED, last_progress=30), "obico": rec("failure")}, T + 60,
+                 send=send)
+    assert [c[0] for c in send.calls] == [("X2D print failed", "Obico sees spaghetti.")]
 
 
 def test_flap_within_600s_is_one_push():
@@ -113,10 +119,10 @@ def test_a_failed_push_is_retried_next_pass():
     assert len(send.calls) == 2
 
 
-def test_hms_and_pc_use_their_own_causes_and_links():
+def test_hms_is_a_print_cause_and_pc_has_its_own_link():
     send = Send()
     got = urgent.check({"hms": rec("stopped"), "pc_printing": rec("off_while_printing")}, T, send=send)
-    assert sorted(got) == ["hms", "pc"]
+    assert sorted(got) == ["pc", "print"]
     clicks = sorted(k["click"] for _, k in send.calls)
     assert clicks == ["https://home.home.arpa/", "https://home.home.arpa/workshop"]
 
@@ -132,7 +138,7 @@ def _rule(kind, action="notify", target=None):
     return {"id": 1, "trigger": kind, "action": action, "target": target, "enabled": 1}
 
 
-SENT_BY_HUB = {"status": "skipped", "message": "Sent as an urgent alert by the hub."}
+SENT_BY_HUB = {"status": "skipped", "message": "Print failures reach your phone as the hub's urgent alerts."}
 
 
 def test_print_failed_rule_skips_its_push_after_urgent(monkeypatch):
@@ -232,18 +238,112 @@ def test_webhook_failure_then_loop_is_one_phone_alert(monkeypatch):
                           "click": "https://home.home.arpa/workshop"}
 
 
-@pytest.mark.xfail(strict=True, reason="things/printer.py _state reads FAILED without awaiting_plate_clear as idle "
-                   "(test_things_printer.py:90), so this cancel gets no urgent push and its rule push is skipped")
-def test_a_cancel_while_printing_is_one_urgent_push(monkeypatch):
-    """A Bambu cancel reports FAILED; without awaiting_plate_clear it should still be one urgent push."""
+def _cancel(monkeypatch, awaiting):
     sent = []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append((a, k)) or "Sent.")
     monkeypatch.setattr(events.time, "time", lambda: T + 60)
     events.loop_pass(True, T, PRINTING)
     events.loop_pass(False, T + 30, inputs(bambuddy=bud("RUNNING", 30)))
-    events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 30)))
-    assert records.get("printer")["state"] == "failed"
+    events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 30, awaiting=awaiting)))
+    events.loop_pass(False, T + 90, inputs(bambuddy=bud("FAILED", 30, awaiting=awaiting)))
+    return sent
+
+
+def test_a_cancel_without_awaiting_plate_clear_sends_no_alert(monkeypatch):
+    """The ruled behaviour: FAILED without awaiting_plate_clear is an idle record, and print_failed's own
+    notify never sends, so a cancel like this one reaches no phone."""
+    sent = _cancel(monkeypatch, awaiting=False)
+    assert records.get("printer")["state"] == "idle"
+    assert "print_failed" in [e["kind"] for e in events.recent(10)]
+    assert sent == []
+
+
+def test_a_cancel_awaiting_plate_clear_is_one_urgent_push(monkeypatch):
+    sent = _cancel(monkeypatch, awaiting=True)
     assert len(sent) == 1 and sent[0][1]["urgent"] is True
+    assert sent[0][0][0] == "X2D print stopped at 30%"
+
+
+def test_a_retry_that_fails_within_600s_pushes_again(monkeypatch):
+    sent = []
+    monkeypatch.setattr(events, "push", lambda *a, **k: sent.append((a, k)) or "Sent.")
+    monkeypatch.setattr(events.time, "time", lambda: T + 300)
+    events.loop_pass(True, T, PRINTING)
+    events.loop_pass(False, T + 30, inputs(bambuddy=bud("RUNNING", 20)))
+    events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 20, awaiting=True)))  # push 1
+    events.loop_pass(False, T + 90, IDLE)  # the plate cleared
+    events.loop_pass(False, T + 120, inputs(bambuddy=bud("RUNNING", 1)))  # the retry
+    events.loop_pass(False, T + 150, inputs(bambuddy=bud("RUNNING", 5)))
+    events.loop_pass(False, T + 180, inputs(bambuddy=bud("FAILED", 5, awaiting=True)))  # 120 s after push 1
+    events.loop_pass(False, T + 210, inputs(bambuddy=bud("FAILED", 5, awaiting=True)))
+    assert [a[0] for a, _ in sent] == ["X2D print stopped at 20%", "X2D print stopped at 5%"]
+
+
+def test_a_retry_failing_while_the_hub_missed_the_clear_pushes_again():
+    send = Send()
+    urgent.check(FAILED, T, send=send)
+    retry = {"printer": rec("failed", last_progress=5, started=T + 100), "obico": rec("watching")}
+    assert urgent.check(retry, T + 200, send=send) == ["print"]
+    assert urgent.check(retry, T + 230, send=send) == []
+    assert len(send.calls) == 2
+
+
+def test_hms_stop_reason_is_named_in_the_body():
+    send = Send()
+    urgent.check({"printer": rec("failed", "", "", last_progress=12, started=STARTED),
+                  "hms": rec("stopped", "Printer needs attention (0500_0200)", "")}, T, send=send)
+    assert send.calls[0][0] == ("X2D print stopped at 12%", "Printer needs attention (0500_0200).")
+
+
+def test_obico_with_no_cause_does_not_repeat_the_title():
+    send = Send()
+    urgent.check({"obico": rec("failure", "Failure detected on the X2D", "")}, T, send=send)
+    title, body = send.calls[0][0]
+    assert body != title and body == "Failure detected on the X2D."
+
+
+def test_body_falls_back_to_the_workshop_page():
+    send = Send()
+    urgent.check({"printer": rec("failed", "", "")}, T, send=send)
+    assert send.calls[0][0] == ("X2D print failed", "Open the Workshop page to look.")
+
+
+def test_policy_and_preview_agree_on_print_failed(monkeypatch):
+    monkeypatch.setattr(events, "quiet_now", lambda now=None: True)
+    rule = _rule("print_failed")
+    assert events.policy(rule, "print_failed") == SENT_BY_HUB
+    events.fire("print_failed", "at 10%")
+    p = events.preview({"trigger": "print_failed", "action": "notify"})
+    assert p["would_run"] == 0 and p["would_skip"] == p["matches"] == 1
+    assert p["now"] == SENT_BY_HUB
+    assert p["text"] == "Print failures are sent by the hub's urgent alerts."
+
+
+def test_the_seeded_print_failed_rule_is_relabelled():
+    text = "Print failures are sent by the hub's urgent alerts"
+    row = db.one("SELECT label FROM rules WHERE trigger = 'print_failed' AND action = 'notify'")
+    assert row["label"] == text
+    db.run("UPDATE rules SET label = 'Send a phone alert when a 3D print fails or stops early' "
+           "WHERE trigger = 'print_failed'")
+    db.run("INSERT INTO rules (trigger, action, label) VALUES ('print_failed', 'notify', 'my own words')")
+    events._relabelled.clear()  # the hub starting on an existing install's DB
+    events.ready()
+    labels = sorted(r["label"] for r in db.rows("SELECT label FROM rules WHERE trigger = 'print_failed'"))
+    assert labels == sorted([text, "my own words"])
+    rules = {r["id"]: r for r in events.rules()}
+    assert all(events.describe(r) == text + "." for r in rules.values()
+               if r["trigger"] == "print_failed" and r["action"] == "notify")
+
+
+def test_an_error_in_the_skip_falls_through_to_the_rule(monkeypatch):
+    sent = []
+    monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
+
+    def boom(*a, **k):
+        raise RuntimeError("db locked")
+    monkeypatch.setattr(urgent, "recently_pushed", boom)
+    assert events.execute(_rule("pc_down"), "pc_down")["status"] == "succeeded"
+    assert len(sent) == 1
 
 
 def test_restart_with_every_record_stale_and_fine_changes_nothing():
@@ -262,9 +362,8 @@ def test_restart_with_every_record_stale_and_fine_changes_nothing():
 
 def test_fallback_titles():
     send = Send()
-    urgent.check({"printer": {"state": "failed"}, "hms": {"state": "stopped"},
-                  "pc_printing": {"state": "off_while_printing"}}, T, send=send)
-    assert sorted(c[0][0] for c in send.calls) == ["Printer needs you", "Printer needs you", "The PC needs you"]
+    urgent.check({"hms": {"state": "stopped"}, "pc_printing": {"state": "off_while_printing"}}, T, send=send)
+    assert sorted(c[0][0] for c in send.calls) == ["The PC needs you", "X2D print failed"]
 
 
 def test_first_seen_is_kept_only_while_the_failing_push_stays_open():

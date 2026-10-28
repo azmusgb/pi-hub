@@ -215,9 +215,15 @@ def hms(b):
     if b is None:
         return None
     errors = list(b.get("hms") or [])
-    sev = {e.get("severity") for e in errors}
-    state = "stopped" if sev & {1, 2} else "notice" if 3 in sev else "clear"
-    if state == "clear":
+    if not errors:
         return records.make("hms", "clear", "No printer alerts", "bambuddy", detail={"errors": errors})
-    return records.make("hms", state, f"Printer needs attention ({errors[0]['code']})", "bambuddy",
-                        detail={"errors": errors})
+    stopping = [e for e in errors if stops(e)]  # any other severity (3, unknown, odd) stays visible as a notice
+    first = (stopping or errors)[0]
+    return records.make("hms", "stopped" if stopping else "notice", f"Printer needs attention ({first['code']})",
+                        "bambuddy", detail={"errors": errors})
+
+
+def stops(error):
+    """An HMS fault that stops or pauses the print: severity 1 or 2, as a whole number."""
+    sev = error.get("severity")
+    return isinstance(sev, int) and not isinstance(sev, bool) and sev in (1, 2)

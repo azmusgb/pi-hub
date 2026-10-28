@@ -415,3 +415,28 @@ def test_obico_status_is_cached_and_none_when_silent(monkeypatch):
     monkeypatch.setattr(sources, "_get_json", lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
     assert bambuddy.obico_status() is None
     sources._cache.pop("bambuddy_obico", None)
+
+
+def test_hms_string_severity_is_coerced_by_the_source(monkeypatch):  # final review I2
+    from hub import sources
+    from hub.things import printer as p
+    raw = {"connected": True, "state": "PAUSE", "hms_errors": [
+        {"code": "0500_0200", "module": 5, "severity": "2"}, {"code": "0300_0100", "module": 5, "severity": "x"}]}
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: raw)
+    b = sources._bambuddy()
+    assert [e["severity"] for e in b["hms"]] == [2, None]
+    assert p.hms(b)["state"] == "stopped"
+
+
+def test_hms_unknown_severity_is_a_notice_not_clear():  # final review I2
+    from hub.things import printer as p
+    for sev in (None, "2", 7):
+        r = p.hms({"hms": [{"code": "0300_0100", "severity": sev, "module": 5}]})
+        assert r["state"] == "notice", sev
+
+
+def test_hms_headline_names_the_first_stopping_code():  # final review M4
+    from hub.things import printer as p
+    r = p.hms({"hms": [{"code": "0300_0100", "severity": 3, "module": 5},
+                       {"code": "0500_0200", "severity": 2, "module": 5}]})
+    assert r["headline"] == "Printer needs attention (0500_0200)"

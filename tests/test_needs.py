@@ -146,3 +146,13 @@ def test_obico_and_hms_items_are_not_folded_into_the_printer_row():
     assert len(items) == 3
     assert {"Failure detection", "Printer needs attention (0500_0200)"} <= {i["title"] for i in items}
     assert "Failure detected on the X2D" in {i["detail"] for i in items}
+
+
+def test_each_hms_item_says_its_own_code_and_severity():  # final review M4, I2
+    b = _hms(("0500_0200", 2), ("0300_0100", 3), ("0700_0100", None))
+    items = needs.build([], {"cards": []}, NOW, problems(b=b))["items"]
+    by_id = {i["id"]: i for i in items}
+    assert by_id["pi:source:hms:0500_0200"]["detail"] == "0500_0200, severity 2"
+    assert by_id["pi:source:hms:0300_0100"]["detail"] == "0300_0100, severity 3"
+    assert by_id["pi:source:hms:0700_0100"]["detail"] == "0700_0100, severity unknown"
+    assert by_id["pi:source:hms:0700_0100"]["tone"] == "warn"

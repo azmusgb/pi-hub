@@ -82,6 +82,11 @@ MESSAGES = {
     "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
 }
 
+# A print failure reaches the phone only through hub/urgent.py; the seeded print_failed notify rule stays, labelled so
+PRINT_FAILED_TEXT = "Print failures are sent by the hub's urgent alerts"
+PRINT_FAILED_OLD_TEXT = "Send a phone alert when a 3D print fails or stops early"
+PRINT_FAILED_SKIP = {"status": "skipped", "message": "Print failures reach your phone as the hub's urgent alerts."}
+
 DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
     ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
@@ -90,7 +95,7 @@ DEFAULT_RULES = [
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
     ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
-    ("print_failed", "notify", None, "Send a phone alert when a 3D print fails or stops early", 1),
+    ("print_failed", "notify", None, PRINT_FAILED_TEXT, 1),
     ("mirror_stale", "notify", None, "Tell me when the movies haven't been copied from the PC for two days", 1),
     ("paperless_stale", "notify", None, "Tell me when Paperless hasn't been backed up to the Pi for two days", 1),
 ]
@@ -109,6 +114,9 @@ def ntfy_servers():
     return servers or ["https://ntfy.sh"]
 
 
+_relabelled = set()  # DB files this process has relabelled the old print_failed rule in
+
+
 def ready():
     db.conn().executescript(SCHEMA)
     seeded = auth.get("rules_seeded")
@@ -116,6 +124,11 @@ def ready():
         seeded = 1
     for trig, act, target, label, on in DEFAULT_RULES[seeded or 0:]:
         db.run("INSERT INTO rules (trigger, action, target, label, enabled) VALUES (?, ?, ?, ?, ?)", trig, act, target, label, on)
+    path = db.conn().execute("PRAGMA database_list").fetchone()[2]
+    if path not in _relabelled:  # an existing install: the seeded rule, if its words are still the old default
+        db.run("UPDATE rules SET label = ? WHERE trigger = 'print_failed' AND action = 'notify' AND label = ?",
+               PRINT_FAILED_TEXT, PRINT_FAILED_OLD_TEXT)
+        _relabelled.add(path)
     if (seeded or 0) < len(DEFAULT_RULES):
         auth.put("rules_seeded", len(DEFAULT_RULES))
 
@@ -170,6 +183,8 @@ def rules():
 
 
 def describe(rule, names=None):
+    if rule["trigger"] == "print_failed" and rule["action"] == "notify":
+        return PRINT_FAILED_TEXT + "."
     when = TRIGGERS.get(rule["trigger"], rule["trigger"])
     what, needs = ACTIONS.get(rule["action"], (rule["action"], False))
     target = ((names or {}).get(rule["target"]) or "an accessory") if needs else ""
@@ -189,6 +204,8 @@ def policy(rule, kind, stamp=None, names=None, alerts_ready=None):
     if not rule.get("enabled", 1):
         return {"status": "skipped", "message": "Automation is turned off."}
     if rule["action"] == "notify":
+        if kind == "print_failed":  # urgent.check is the one sender for a print failure
+            return dict(PRINT_FAILED_SKIP)
         if kind != "weather_alert" and quiet_now(stamp):
             return {"status": "skipped", "message": "Phone alert held back for quiet hours."}
         if alerts_ready is False:
@@ -228,17 +245,14 @@ def validate_rule(trigger, action, target=None):
         raise ValueError("Choose which light or plug.")
 
 
-# rules whose phone alert hub/urgent.py already sends: trigger -> urgent cause
-URGENT_CAUSE = {"print_failed": "print", "pc_down": "pc"}
-
-
 def execute(rule, kind, detail=""):
     from . import actions, homecontrol, urgent
-    if rule.get("enabled", 1) and rule["action"] == "notify":
-        if kind == "print_failed":  # urgent.check is the one sender for a print failure (a cancel too)
-            return {"status": "skipped", "message": "Sent as an urgent alert by the hub."}
-        if kind in URGENT_CAUSE and urgent.recently_pushed(URGENT_CAUSE[kind], time.time()):
-            return {"status": "skipped", "message": "Already sent as an urgent alert."}
+    if rule.get("enabled", 1) and rule["action"] == "notify" and kind == "pc_down":
+        try:
+            if urgent.recently_pushed("pc", time.time()):
+                return {"status": "skipped", "message": "Already sent as an urgent alert."}
+        except Exception:  # can't tell: send the rule's own alert rather than leave the run stuck
+            traceback.print_exc(file=sys.stderr)
     decision = policy(rule, kind)
     if decision["status"] != "would_run":
         return decision

@@ -2,16 +2,16 @@
 
 An occurrence opens when a cause's record first shows the problem and stays open while it does. It is
 cleared when every fresh record says otherwise; a problem back within 600 s of a clear is the same
-occurrence. The push_occurrences table, not memory, decides, so a restart doesn't push again."""
+occurrence, unless it is a new print: a printer record whose print started after the last push. The
+push_occurrences table, not memory, decides, so a restart doesn't push again."""
 import os
 
 from . import db, events
 
-CAUSES = {"print": [("printer", "failed"), ("obico", "failure")], "hms": [("hms", "stopped")],
+CAUSES = {"print": [("printer", "failed"), ("obico", "failure"), ("hms", "stopped")],
           "pc": [("pc_printing", "off_while_printing")]}
-CLICK = {"print": "https://home.home.arpa/workshop",
-         "hms": "https://home.home.arpa/workshop", "pc": "https://home.home.arpa/"}
-TITLE = {"print": "Printer needs you", "hms": "Printer needs you", "pc": "The PC needs you"}
+CLICK = {"print": "https://home.home.arpa/workshop", "pc": "https://home.home.arpa/"}
+LOOK = {"print": "Open the Workshop page to look.", "pc": "Open the hub to look."}
 REOPEN_AFTER = 600  # seconds clear before the same cause is a new occurrence
 
 SCHEMA = ("CREATE TABLE IF NOT EXISTS push_occurrences "
@@ -44,6 +44,30 @@ def _look(recs, pairs):
     return None, fresh_other and not stale_match
 
 
+def _number(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _message(cause, hit, recs):
+    """(title, body) for a push. A print names how far it got and why it stopped, when Obico or HMS said."""
+    if cause != "print":
+        return hit.get("headline") or "The PC needs you", hit.get("cause") or LOOK[cause]
+    detail = (recs.get("printer") or {}).get("detail") or {}
+    pct = _number(detail.get("last_progress"))
+    pct = _number(detail.get("progress")) if pct is None else pct
+    title = f"X2D print stopped at {round(pct)}%" if pct is not None else "X2D print failed"
+    reasons = [r.get("headline", "").rstrip(".") for id, state in CAUSES["print"] if id in ("obico", "hms")
+               for r in [recs.get(id) or {}] if r.get("state") == state and not r.get("stale") and r.get("headline")]
+    body = ". ".join(reasons) + "." if reasons else hit.get("cause") or LOOK[cause]
+    return title, body
+
+
+def _new_print(cause, recs, row):
+    """The printer's current print started after the last push: a retry, not the same failure."""
+    started = _number(((recs.get("printer") or {}).get("detail") or {}).get("started"))
+    return cause == "print" and started is not None and started > row["pushed_at"]
+
+
 def check(recs, now, send=None):
     """Pushes each cause that just became active; returns the causes pushed this call."""
     send = send or events.push
@@ -55,11 +79,11 @@ def check(recs, now, send=None):
         row = db.one("SELECT * FROM push_occurrences WHERE cause = ?", cause)
         if hit:
             cleared = row and row["cleared_at"] is not None and now - row["cleared_at"] >= REOPEN_AFTER
-            if row and row["pushed_at"] is not None and not cleared:
+            if row and row["pushed_at"] is not None and not cleared and not _new_print(cause, recs, row):
                 db.run("UPDATE push_occurrences SET cleared_at = NULL WHERE cause = ?", cause)
                 continue
-            ok = send(hit.get("headline") or TITLE[cause], hit.get("cause") or "", tags="rotating_light",
-                      priority="high", urgent=True, click=CLICK[cause]) == "Sent."
+            title, body = _message(cause, hit, recs)
+            ok = send(title, body, tags="rotating_light", priority="high", urgent=True, click=CLICK[cause]) == "Sent."
             pending = row and row["pushed_at"] is None and row["cleared_at"] is None and row["first_seen"]
             first = row["first_seen"] if pending else now
             db.run("INSERT INTO push_occurrences (cause, first_seen, pushed_at, cleared_at) VALUES (?, ?, ?, NULL) "

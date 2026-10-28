@@ -32,9 +32,12 @@ def build(events, feed, now, problems=()):
         errors = (by_id.get(key) or {}).get("detail", {}).get("errors") if key == "hms" else None
         if errors:  # one item per fault code, so each can be told apart and dismissed on its own
             for e in errors:
+                sev = e.get("severity")
+                known = isinstance(sev, int) and not isinstance(sev, bool)
                 items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB,
-                              "tone": "bad" if e.get("severity") in (1, 2) else "warn",
-                              "title": f"Printer needs attention ({e['code']})", "detail": i["say"],
+                              "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
+                              "title": f"Printer needs attention ({e['code']})",
+                              "detail": f"{e['code']}, severity {sev if known else 'unknown'}",
                               "link": i["href"], "ts": now, "thing": key})
             continue
         id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
