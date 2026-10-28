@@ -299,3 +299,67 @@ def test_by_names_the_person_when_they_signed_in_with_their_own_pin(client):
     data = VALID["abandon"]()
     assert ann.post(URL, json=data, headers={**SAME, "User-Agent": "EvilAgent/1"}).status_code == 200
     assert pending(client)[data["id"]]["by"] == "Ann on iPhone"
+
+
+def raw(c, text, url=URL, **headers):
+    return c.post(url, content=text.encode("utf-8", "surrogatepass"),
+                  headers={**SAME, "Content-Type": "application/json", **headers})
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_nan_and_infinity_are_refused_and_the_queue_stays_readable(client, constant):
+    data = VALID["verdict"]()
+    text = json.dumps(data).replace('"diagnostic"', constant)
+    assert constant in text
+    assert raw(client, text).status_code == 400
+    assert post(client, VALID["verdict"]()).status_code == 200
+    r = client.get(URL + "?status=pending", headers=MAC)
+    assert r.status_code == 200 and len(r.json()["items"]) == 1
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_result_refuses_nan_and_infinity(client, constant):
+    data = VALID["verdict"]()
+    assert post(client, data).status_code == 200
+    r = raw(client, '{"status": "applied", "message": "ok", "n": %s}' % constant,
+            url=f"{URL}/{data['id']}/result", **MAC)
+    assert r.status_code == 400
+    assert pending(client)[data["id"]]["status"] == "pending"
+
+
+@pytest.mark.parametrize("escaped", [True, False])
+def test_a_lone_surrogate_is_invalid_json(client, escaped):
+    data = VALID["abandon"]()
+    text = json.dumps(data).replace("Wrong filament", "\\ud800" if escaped else "\ud800")
+    assert raw(client, text).status_code == 400
+    assert pending(client) == {}
+
+
+def test_result_with_a_lone_surrogate_is_refused(client):
+    data = VALID["verdict"]()
+    assert post(client, data).status_code == 200
+    r = raw(client, '{"status": "applied", "message": "\\udc00"}', url=f"{URL}/{data['id']}/result", **MAC)
+    assert r.status_code == 400
+
+
+@pytest.mark.parametrize("kind", ["nope", None, "observation"])
+def test_oversize_is_413_whatever_the_kind(client, kind):
+    data = VALID["verdict"]()
+    data["kind"] = kind
+    data["pad"] = "x" * (17 * 1024)
+    assert post(client, data).status_code == 413
+
+
+def test_photo_routes_refuse_a_sha_with_a_trailing_newline(client):
+    bad = SHA_A + "%0A"
+    assert client.put(f"/api/lab/hex-tile/photos/{bad}.jpg", content=b"\xff\xd8", headers=MAC).status_code == 400
+    assert client.get(f"/api/lab/hex-tile/photo/{bad}.jpg").status_code == 404
+    assert client.put(f"/api/lab/hex-tile/incoming/{bad}.jpg", content=b"\xff\xd8",
+                      headers=SAME).status_code == 400
+    assert client.get(f"/api/lab/hex-tile/incoming/{bad}.jpg", headers=MAC).status_code == 404
+
+
+def test_request_regexes_need_the_whole_value(client):
+    """The routes check with fullmatch: Python's `$` alone would let `<sha>\\n` through."""
+    assert lab.SHA_RE.match(SHA_A + "\n") is not None
+    assert not lab._full(lab.SHA_RE, SHA_A + "\n")

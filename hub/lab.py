@@ -239,7 +239,7 @@ def list_photos(project: str, request: Request):
     pdir = photo_dir(project)
     if not pdir.exists():
         return JSONResponse({"have": []})
-    have = [f.stem for f in pdir.glob("*.jpg") if SHA_RE.match(f.stem)]
+    have = [f.stem for f in pdir.glob("*.jpg") if _full(SHA_RE, f.stem)]
     return JSONResponse({"have": have})
 
 
@@ -250,7 +250,7 @@ async def upload_photo(project: str, sha_ext: str, request: Request):
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(400, "Name a photo by its sha256: <sha256>.jpg")
     sha = sha_ext[:-4]
-    if not SHA_RE.match(sha):
+    if not _full(SHA_RE, sha):
         raise HTTPException(400, "Name a photo by its sha256: <sha256>.jpg")
 
     body = await read_capped(request, MAX_PHOTO)
@@ -277,7 +277,7 @@ def get_photo(project: str, sha_ext: str, request: Request):
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(404, "No such photo.")
     sha = sha_ext[:-4]
-    if not SHA_RE.match(sha):
+    if not _full(SHA_RE, sha):
         raise HTTPException(404, "No such photo.")
     target = photo_dir(project) / f"{sha}.jpg"
     if not target.exists():
@@ -303,6 +303,21 @@ def get_record(project: str, rec_id: str, request: Request):
         "payload": json.loads(row["payload"]) if row["payload"] else None,
         "received_at": row["received_at"]
     })
+
+
+def _no_constant(name):
+    raise ValueError(f"{name} is not JSON")
+
+
+def _load_request_json(body: bytes):
+    """The request body as JSON, or 400. NaN and Infinity are refused (stored, they would break every later read of
+    the queue), and so is any string that can't be UTF-8 (a lone surrogate such as "\\ud800")."""
+    try:
+        data = json.loads(body.decode("utf-8"), parse_constant=_no_constant)
+        json.dumps(data, ensure_ascii=False).encode("utf-8")
+    except (ValueError, UnicodeError, RecursionError):
+        raise HTTPException(400, "Invalid JSON request body")
+    return data
 
 
 def _full(rx, v) -> bool:
@@ -405,11 +420,7 @@ async def create_request(project: str, request: Request):
     ready()
     check_project(project)
 
-    body = await read_capped(request, MAX_REQUEST)
-    try:
-        data = json.loads(body.decode("utf-8"))
-    except Exception:
-        raise HTTPException(400, "Invalid JSON request body")
+    data = _load_request_json(await read_capped(request, MAX_REQUEST))
 
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid JSON request body")
@@ -421,14 +432,15 @@ async def create_request(project: str, request: Request):
     run_seen = data.get("run_seen")
     payload = data.get("payload")
 
-    if not isinstance(kind, str) or kind not in KINDS:
-        raise HTTPException(400, request_problem("", {}, set()))
-    acting = kind in ACT_KINDS
-    # Local AI's limits, measured on the request as compact JSON: 16 KB for observations, 4 KB for the rest.
-    observing = kind in OBS_KINDS
+    # Local AI's limits, measured on the request as compact JSON before anything else (as Local AI does): 16 KB for
+    # observations, 4 KB for the rest, whatever else is wrong with it.
+    observing = isinstance(kind, str) and kind in OBS_KINDS
     if len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()) > \
             (MAX_OBS_REQUEST if observing else MAX_KIND_REQUEST):
         raise HTTPException(413, "Too large for the print lab: " + ("16 KB" if observing else "4 KB") + " at most.")
+    if not isinstance(kind, str) or kind not in KINDS:
+        raise HTTPException(400, request_problem("", {}, set()))
+    acting = kind in ACT_KINDS
     if not _full(REQUEST_ID_RE, req_id):
         raise HTTPException(400, "Request id must look like rq-0123456789abcdef")
     if not _full(ACT_EXPERIMENT_RE if acting else EXPERIMENT_ID_RE, experiment):
@@ -522,11 +534,7 @@ async def post_request_result(project: str, req_id: str, request: Request):
     if not _full(REQUEST_ID_RE, req_id):
         raise HTTPException(404, "No such request.")
 
-    body = await read_capped(request, MAX_REQUEST)
-    try:
-        data = json.loads(body.decode("utf-8"))
-    except Exception:
-        raise HTTPException(400, "Invalid JSON request body")
+    data = _load_request_json(await read_capped(request, MAX_REQUEST))
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid JSON request body")
 
@@ -571,7 +579,7 @@ def _remove_incoming(project: str, payload_json: Optional[str]):
             continue
         try:
             target.unlink()
-        except (FileNotFoundError, IsADirectoryError, PermissionError):
+        except OSError:
             pass
 
 
@@ -582,7 +590,7 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
     sha = sha_ext[:-4]
-    if not SHA_RE.match(sha):
+    if not _full(SHA_RE, sha):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
 
     body = await read_capped(request, MAX_PHOTO)
@@ -609,7 +617,7 @@ def get_incoming_photo(project: str, sha_ext: str, request: Request):
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(404, "No such photo.")
     sha = sha_ext[:-4]
-    if not SHA_RE.match(sha):
+    if not _full(SHA_RE, sha):
         raise HTTPException(404, "No such photo.")
     target = incoming_dir(project) / f"{sha}.jpg"
     if not target.exists():
