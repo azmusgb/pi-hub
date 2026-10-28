@@ -28,6 +28,7 @@ RUN_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}(-\d{2})?$")
 MAX_SYNC = 4 * 1024 * 1024       # 4 MiB
 MAX_PHOTO = 8 * 1024 * 1024      # 8 MiB
 MAX_REQUEST = 64 * 1024          # 64 KiB
+MAX_KIND_REQUEST = 4 * 1024      # any other request, as compact JSON (Local AI's MAX_REQUEST)
 MAX_OBS_REQUEST = 16 * 1024      # an observation session, as compact JSON (Local AI's MAX_OBS_REQUEST)
 MAX_RECORDS = 2000
 MAX_PENDING = 20
@@ -35,16 +36,16 @@ MAX_REASON = 500
 MAX_PHOTOS = 50
 
 # The kinds Local AI queues (app/print-lab.js): the phone's verdict and photos, the page's buttons (start = It's
-# printing now, approve, abandon = Drop) and an observation session. Local AI also has observation_correction; the
-# hub doesn't take it yet.
+# printing now, approve, abandon = Drop), an observation session and a correction to one.
 DATA_KINDS = ("verdict", "photos")
 ACT_KINDS = ("start", "approve", "abandon")
-OBS_KINDS = ("observation",)
+OBS_KINDS = ("observation", "observation_correction")
 KINDS = DATA_KINDS + ACT_KINDS + OBS_KINDS
 ACT_EXPERIMENT_RE = re.compile(r"^E-\d{1,6}$")
 BUILD_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}-\d{1,4}$")
 GUARD_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
-TAB_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
+TAB_RE = re.compile(r"^[A-Za-z0-9_.-]{1,16}$")
+OBS_ID_RE = re.compile(r"^OBS-\d{4,}$")
 
 DB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab_projects (
@@ -345,15 +346,27 @@ def _act_problem(kind: str, payload: dict, runs_seen: set) -> Optional[str]:
     return None
 
 
-def _obs_problem(payload: dict) -> Optional[str]:
-    # Local AI's obsProblem (observation): shape checks only; lab pull checks every field against the spec.
+def _obs_problem(kind: str, payload: dict) -> Optional[str]:
+    # Local AI's obsProblem: shape checks only; lab pull checks every field against the spec.
     def is_snap(x):
         return isinstance(x, dict) and all(isinstance(x.get(k), dict) for k in ("subject", "outcomes", "source"))
-    snaps = payload.get("snapshots")
-    if not isinstance(snaps, list) or not 1 <= len(snaps) <= 8:
-        return "An observation session has 1 to 8 snapshots."
-    if not all(is_snap(x) for x in snaps):
-        return "Each snapshot has a subject, outcomes and a source."
+    if kind == "observation":
+        snaps = payload.get("snapshots")
+        if not isinstance(snaps, list) or not 1 <= len(snaps) <= 8:
+            return "An observation session has 1 to 8 snapshots."
+        if not all(is_snap(x) for x in snaps):
+            return "Each snapshot has a subject, outcomes and a source."
+        return None
+    if not _full(OBS_ID_RE, payload.get("observation")):
+        return "The observation id looks like OBS-0001."
+    rev = payload.get("expected_rev")
+    if not isinstance(rev, int) or isinstance(rev, bool) or not 1 <= rev <= 2 ** 53 - 1:
+        return "expected_rev is the revision you corrected."
+    if not is_snap(payload.get("snapshot")):
+        return "A correction carries a complete snapshot."
+    reason = payload.get("reason")
+    if not isinstance(reason, str) or not reason.strip() or len(reason) > MAX_REASON:
+        return f"A correction needs a reason of at most {MAX_REASON} characters."
     return None
 
 
@@ -369,7 +382,7 @@ def request_problem(kind: str, payload: dict, runs_seen: set) -> Optional[str]:
     if kind == "photos":
         return _photos_problem(payload)
     if kind in OBS_KINDS:
-        return _obs_problem(payload)
+        return _obs_problem(kind, payload)
     return None
 
 
@@ -411,8 +424,11 @@ async def create_request(project: str, request: Request):
     if not isinstance(kind, str) or kind not in KINDS:
         raise HTTPException(400, request_problem("", {}, set()))
     acting = kind in ACT_KINDS
-    if kind in OBS_KINDS and len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()) > MAX_OBS_REQUEST:
-        raise HTTPException(413, "Too large for the print lab: an observation session is at most 16 KB.")
+    # Local AI's limits, measured on the request as compact JSON: 16 KB for observations, 4 KB for the rest.
+    observing = kind in OBS_KINDS
+    if len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()) > \
+            (MAX_OBS_REQUEST if observing else MAX_KIND_REQUEST):
+        raise HTTPException(413, "Too large for the print lab: " + ("16 KB" if observing else "4 KB") + " at most.")
     if not _full(REQUEST_ID_RE, req_id):
         raise HTTPException(400, "Request id must look like rq-0123456789abcdef")
     if not _full(ACT_EXPERIMENT_RE if acting else EXPERIMENT_ID_RE, experiment):

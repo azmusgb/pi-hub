@@ -1,5 +1,5 @@
 """Print lab requests are checked as Local AI checks them (app/print-lab.js): six kinds, photos named only by their
-sha256, observations at most 16 KiB, and `by` is the household sign-in, never the browser's user agent."""
+sha256, observations at most 16 KiB and everything else 4 KiB, and `by` is the household sign-in, never the browser's user agent."""
 import hashlib
 import json
 import os
@@ -43,6 +43,8 @@ VALID = {
                                         "reasons_seen": ["no_verdict", "old_build"]}, run=None),
     "abandon": lambda: body("abandon", {"reason": "Wrong filament"}, run=None),
     "observation": lambda: body("observation", {"snapshots": [SNAP]}),
+    "observation_correction": lambda: body("observation_correction", {
+        "observation": "OBS-0001", "expected_rev": 2, "snapshot": SNAP, "reason": "Wrong tab"}),
 }
 
 
@@ -102,7 +104,7 @@ def test_buttons_store_only_what_lab_pull_reads(client):
                             "reasons_seen": ["no_verdict", "old_build"]}
 
 
-@pytest.mark.parametrize("kind", ["delete", "observation_correction", "", None, ["verdict"]])
+@pytest.mark.parametrize("kind", ["delete", "observations", "", None, ["verdict"]])
 def test_unknown_kind_is_refused(client, kind):
     data = VALID["verdict"]()
     data["kind"] = kind
@@ -124,7 +126,9 @@ def photos(list_):
     [{"sha256": "a" * 63}],
     [{"sha256": "a" * 65}],
     [{"sha256": SHA_A + "\n"}],
+    [{"sha256": SHA_A, "tab": "x" * 17}],
     [{"sha256": SHA_A, "tab": "x" * 41}],
+    [{"sha256": SHA_A, "tab": ""}],
     [{"sha256": SHA_A, "tab": "a/b"}],
     [{"sha256": SHA_A, "tab": 7}],
     [SHA_A],
@@ -132,13 +136,18 @@ def photos(list_):
     "not a list",
 ])
 def test_bad_photos_are_refused(client, bad):
-    assert post(client, photos(bad)).status_code == 400
+    # 51 photos are also over Local AI's 4 KB request limit, so that one may be refused as too large first.
+    assert post(client, photos(bad)).status_code in ((400, 413) if len(bad) > 50 else (400,))
+    assert lab.request_problem("photos", {"photos": bad}, set()) is not None
 
 
 def test_photo_limits_at_the_edge_are_accepted(client):
-    many = [{"sha256": f"{i:064x}", "tab": "t" * 40} for i in range(50)]
+    # 50 photos fit in 4 KB without tabs (as in Local AI); with 16-character tabs only the shape check passes.
+    many = [{"sha256": f"{i:064x}"} for i in range(50)]
     assert post(client, photos(many)).status_code == 200
-    assert post(client, photos([{"sha256": SHA_A}])).status_code == 200
+    assert post(client, photos([{"sha256": SHA_A, "tab": "t" * 16}])).status_code == 200
+    tabbed = [{"sha256": f"{i:064x}", "tab": "t" * 16} for i in range(50)]
+    assert lab.request_problem("photos", {"photos": tabbed}, set()) is None
 
 
 def test_observation_over_16kib_is_refused(client):
@@ -146,6 +155,41 @@ def test_observation_over_16kib_is_refused(client):
     r = post(client, body("observation", {"snapshots": [snap]}))
     assert r.status_code in (400, 413)
     assert pending(client) == {}
+
+
+def test_observation_up_to_16kib_is_accepted(client):
+    snap = {**SNAP, "outcomes": {"note": "x" * (12 * 1024)}}
+    assert post(client, body("observation", {"snapshots": [snap]})).status_code == 200
+
+
+@pytest.mark.parametrize("kind", ["verdict", "photos", "start", "approve", "abandon"])
+def test_other_kinds_over_4kib_are_refused(client, kind):
+    data = VALID[kind]()
+    data["pad"] = "x" * (4 * 1024)
+    assert post(client, data).status_code == 413
+    assert pending(client) == {}
+
+
+def test_other_kinds_just_under_4kib_are_accepted(client):
+    data = VALID["verdict"]()
+    data["payload"]["note"] = "x" * (3 * 1024 + 512)
+    assert post(client, data).status_code == 200
+
+
+@pytest.mark.parametrize("payload", [
+    {"observation": "OBS-01", "expected_rev": 1, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001\n", "expected_rev": 1, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": 0, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": True, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": 1.5, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": 2 ** 53, "snapshot": SNAP, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": 1, "snapshot": {"subject": {}}, "reason": "x"},
+    {"observation": "OBS-0001", "expected_rev": 1, "snapshot": SNAP, "reason": "  "},
+    {"observation": "OBS-0001", "expected_rev": 1, "snapshot": SNAP, "reason": "x" * 501},
+    {"observation": "OBS-0001", "expected_rev": 1, "snapshot": SNAP},
+])
+def test_bad_observation_corrections_are_refused(client, payload):
+    assert post(client, body("observation_correction", payload)).status_code == 400
 
 
 @pytest.mark.parametrize("payload", [
