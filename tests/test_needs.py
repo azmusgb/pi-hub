@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime, timezone
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 os.environ.setdefault("HUB_DB", os.path.join(tempfile.mkdtemp(), "hub.db"))
@@ -192,7 +193,7 @@ def test_lab_skips_run_the_check_keeps_fix_the_plan():
 
 
 def test_lab_judge_waits_for_due_at():
-    iso = lambda t: __import__("datetime").datetime.fromtimestamp(t, __import__("datetime").timezone.utc).isoformat()
+    iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
     later, past = iso(NOW + 3600), iso(NOW - 60)
     assert not _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=later))))
     assert _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=past))))
@@ -238,3 +239,39 @@ def test_api_needs_without_lab_table(monkeypatch):
     monkeypatch.setattr(sources, "localai_feed", lambda: None)
     assert lab.stored_needs() == []
     assert TestClient(hub_app.app).get("/api/needs").status_code == 200
+
+
+def test_printer_done_false_when_record_stale(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(sources, "localai_feed", lambda: None)
+    monkeypatch.setattr(needs, "build", lambda *a, **kw: seen.update(kw) or {"items": [], "count": 0})
+    for rec, want in (({"state": "finished"}, True), ({"state": "finished", "stale": True}, False),
+                      ({"state": "failed", "stale": True}, False)):
+        monkeypatch.setattr(records, "all", lambda rec=rec: {"printer": {"severity": "ok", **rec}})
+        TestClient(hub_app.app).get("/api/needs")
+        assert seen["printer_done"] is want
+
+
+def test_stored_needs_parses_only_on_resync(monkeypatch):
+    import json
+    from hub import lab
+    monkeypatch.setenv("HUB_DB", os.path.join(tempfile.mkdtemp(), "cache.db"))
+    lab.ready()
+    lab._needs_cache.clear()
+
+    def put(synced, needs_):
+        from hub import db
+        db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, ?, ?, ?)",
+               "p", "{}", json.dumps({"generated_at": "g", "needs": needs_}), synced)
+    put("t1", [{"id": "E-1"}])
+    calls = []
+    real = json.loads
+    monkeypatch.setattr(lab.json, "loads", lambda *a, **k: calls.append(1) or real(*a, **k))
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-1"}])]
+    n = len(calls)
+    assert n >= 1
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-1"}])]
+    assert len(calls) == n, "unchanged synced_at must not re-parse"
+    put("t2", [{"id": "E-2"}])
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-2"}])]
+    assert len(calls) > n

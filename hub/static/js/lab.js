@@ -239,10 +239,10 @@ export function needView(need, now = Date.now(), byId = {}) {
 }
 
 // ?do=judge opens the verdict sheet only when that experiment has a due "Judge the print" need; otherwise the link just
-// opens and scrolls to the experiment (a print still on the printer isn't ready to judge).
-export function judgeOnOpen(ix, id, doParam, now = Date.now()) {
+// opens and scrolls to the experiment. due_at is only an estimate, so it isn't tested here: the printer may be done early.
+export function judgeOnOpen(ix, id, doParam) {
   if (doParam !== "judge" || !id) return false;
-  return list(ix && ix.needs).some((n) => n && n.id === id && n.action === "Judge the print" && !(n.due_at && now < new Date(n.due_at)));
+  return list(ix && ix.needs).some((n) => n && n.id === id && n.action === "Judge the print");
 }
 
 // The button(s) for a Needs you item, or "" when it needs the Mac (Fix the plan, Run the check or build).

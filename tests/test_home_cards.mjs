@@ -126,7 +126,7 @@ test('while a lab experiment prints, the printer card links the hub\'s /lab page
   assert.equal(by(all()).workshop.lab, null);
   const odd = { ...NOW, printer: { ...NOW.printer, lab: { experiment: '"><img src=x>' } } };
   assert.equal(by(all({ now: odd })).workshop.lab, null);
-  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }, '10.0.0.30'), { label: 'Print lab: E-7', href: '/lab?e=E-7' });
+  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }), { label: 'Print lab: E-7', href: '/lab?e=E-7' });
 });
 
 test("Home's summary line counts what Needs you lists, so the two never disagree (iPad, 27 Oct)", () => {

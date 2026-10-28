@@ -311,7 +311,8 @@ test('do=judge opens the verdict sheet only for an experiment with a due "Judge 
   const judge = { id: 'E-022', action: 'Judge the print' };
   assert.equal(judgeOnOpen(ix([judge]), 'E-022', 'judge', NOW), true);
   assert.equal(judgeOnOpen(ix([{ ...judge, due_at: '2026-10-28T11:00:00Z' }]), 'E-022', 'judge', NOW), true);
-  assert.equal(judgeOnOpen(ix([{ ...judge, due_at: '2026-10-28T13:00:00Z' }]), 'E-022', 'judge', NOW), false, 'still printing');
+  assert.equal(judgeOnOpen(ix([{ ...judge, due_at: '2026-10-28T13:00:00Z' }]), 'E-022', 'judge', NOW), true, 'printer finished, due_at in future');
+  assert.equal(judgeOnOpen(ix([{ ...judge, due_at: 'not a date' }]), 'E-022', 'judge', NOW), true, 'bad time');
   assert.equal(judgeOnOpen(ix([{ id: 'E-022', action: 'Approve or drop' }]), 'E-022', 'judge', NOW), false);
   assert.equal(judgeOnOpen(ix([judge]), 'E-023', 'judge', NOW), false);
   assert.equal(judgeOnOpen(ix([judge]), 'E-022', null, NOW), false);

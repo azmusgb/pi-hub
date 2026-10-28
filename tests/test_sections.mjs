@@ -95,5 +95,5 @@ test('the Assistant state is checked again when the page comes back into view', 
 test('a print row links the hub\'s own /lab page on the experiment', async () => {
   const { printLabUrl } = await import('../hub/static/js/sections.js');
   assert.equal(printLabUrl('E-022'), '/lab?e=E-022');
-  assert.equal(printLabUrl('E-023', 'pi.home.arpa'), '/lab?e=E-023');
+  assert.equal(printLabUrl('E-023'), '/lab?e=E-023');
 });

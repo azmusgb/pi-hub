@@ -153,7 +153,7 @@ def api_needs():
     recs = records.all()
     printer = recs.get("printer") or {}
     return fresh(needs.build((), sources.localai_feed(), int(time.time()), records.problems(recs),
-                             lab=lab.stored_needs(), printer_done=printer.get("state") in ("finished", "failed")))
+                             lab=lab.stored_needs(), printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed")))
 
 
 @app.get("/api/system/backups")
