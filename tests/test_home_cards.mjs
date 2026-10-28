@@ -139,3 +139,19 @@ test("Home's summary line counts what Needs you lists, so the two never disagree
   assert.equal(needsSummary({ count: 0, items: [] }, "Everything's running"), "Everything's running");
   assert.equal(needsSummary(null, 'Home status is unavailable'), 'Home status is unavailable');  // Needs you didn't answer
 });
+
+test("the printer card's dot follows Needs you: amber for a printer item, red for a bad one (IMG_1047, 28 Oct)", () => {
+  const blind = { id: 'pi:Failure detection', source: 'Pi Hub', tone: 'attention', title: 'Failure detection is blind', detail: '', about: 'printer' };
+  const disk = { id: 'localai:watch-mac-disk', source: 'Local AI', tone: 'warn', title: 'Worth a look', detail: 'Mac disk is 95% full' };
+  const needs = (...items) => ({ count: items.length, items, unread: [] });
+  assert.equal(by(all({ needs: needs(disk) })).workshop.tone, 'ok');  // nothing about the printer: printing stays green
+  assert.equal(by(all({ needs: needs(blind, disk) })).workshop.tone, 'warn');
+  assert.equal(by(all({ needs: needs({ ...blind, tone: 'warn' }) })).workshop.tone, 'warn');
+  assert.equal(by(all({ needs: needs(disk, { ...blind, tone: 'bad' }) })).workshop.tone, 'bad');
+  assert.equal(by(all({ needs: undefined })).workshop.tone, 'ok');  // Needs you hasn't answered yet
+  assert.equal(by(all({ needs: null })).workshop.tone, 'ok');
+  const error = { ...NOW, printer: { state: 'error' } };
+  assert.equal(by(all({ now: error, needs: needs(blind) })).workshop.tone, 'bad');  // never softened
+  const done = { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } };
+  assert.equal(by(all({ now: done, needs: needs({ ...blind, tone: 'bad' }) })).workshop.tone, 'bad');
+});

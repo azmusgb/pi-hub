@@ -275,3 +275,27 @@ def test_stored_needs_parses_only_on_resync(monkeypatch):
     put("t2", [{"id": "E-2"}])
     assert lab.stored_needs() == [("p", "g", [{"id": "E-2"}])]
     assert len(calls) > n
+
+
+# ---- which items are about the X2D (Home's printer card goes amber or red with them; IMG_1047, 28 Oct) ----
+def _about(items):
+    return {i["id"] for i in items if i.get("about") == "printer"}
+
+
+def test_printer_items_say_they_are_about_the_printer():
+    obico = {"enabled": True, "per_printer": {"1": {"class": "error", "error": "Failed to capture snapshot for printer 1"}}}
+    b = {**bud("RUNNING", progress=10), "hms": [{"code": "0500_0200", "severity": 2, "module": 5}]}
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning"}]}
+    n = needs.build([], feed, NOW, problems({"drive_state": "Missing"}, b, obico=obico),
+                    lab=_lab(_need("E-022", "Judge the print")))
+    assert _about(n["items"]) == {"pi:source:hms:0500_0200", "pi:Failure detection"}
+    assert all("about" not in i for i in n["items"] if i["id"] in ("pi:Movies drive", "localai:watch-mac-disk",
+                                                                    "pi:lab:hex-tile:E-022"))
+    assert _about(needs.build([], {"cards": []}, NOW, problems(b=FAILED))["items"]) == {"pi:Bambu X2D"}
+
+
+def test_a_local_ai_item_that_names_the_printer_is_about_it():
+    feed = {"cards": [{"kind": "watch", "id": "watch-x2d", "title": "Heads up", "text": "The X2D is offline.", "tone": "warning"},
+                      {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
+    assert _about(needs.build([], feed, NOW, [])["items"]) == {"localai:watch-x2d"}

@@ -15,6 +15,9 @@ HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
 LAB_PROJECT = re.compile(r"^[a-z0-9-]{1,40}$")
+# the hub's records about the X2D, and one row for Bambuddy gone quiet (it stands for those records): Home's printer card
+# goes amber or red while Needs you lists one of them, so the card never stays green beside "the printer has a problem"
+PRINTER_THINGS = {"printer", "obico", "hms", "source:bambuddy"}
 LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Send it to the printer": "warn",
             "Fix the plan": "warn"}
 
@@ -112,6 +115,9 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
     items = _one_row(items, ABOUT_PRINTER, lambda i: i.get("thing") == "printer")
     # Local AI and the hub can both report the Workshop touchscreen outage; the hub's record is the direct source.
     items = _one_row(items, ABOUT_WORKSHOP_DISPLAY, lambda i: i.get("thing") == "workshop_display")
+    for i in items:  # what the one-row rule counts as the printer is what the printer card counts
+        if i.get("thing") in PRINTER_THINGS or (i["source"] != HUB and ABOUT_PRINTER.search(f'{i["title"]} {i["detail"]}')):
+            i["about"] = "printer"
     # After the folds: the lab's text says "printer"/"print", and must not be folded into the printer's row.
     items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     drop = ("ts", "thing")
