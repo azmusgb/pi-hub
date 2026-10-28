@@ -37,7 +37,7 @@ PYBACKUP
 # fail the backup instead of publishing a silently incomplete archive.
 SOURCES=()
 for source in etc/fstab etc/samba etc/avahi etc/systemd/system etc/pi-status etc/pi-hub \
-              var/lib/homebridge opt/homepage/config opt/netmon usr/local/bin; do
+              var/lib/pi-hub/lab var/lib/homebridge opt/homepage/config opt/netmon usr/local/bin; do
   if [ -e "/$source" ]; then SOURCES+=("$source"); fi
 done
 tar -czf "$WORK/backup.tgz" \

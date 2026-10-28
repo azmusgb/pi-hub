@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import db
+from . import db, sources
 from .auth import need
 from .lab_guard import mac_key_ok, read_capped, require_mac
 
@@ -34,6 +34,10 @@ MAX_RECORDS = 2000
 MAX_PENDING = 20
 MAX_REASON = 500
 MAX_PHOTOS = 50
+MAX_INCOMING_FILES = 200
+MAX_INCOMING_BYTES = 500 * 1024 * 1024   # 500 MiB per project
+INCOMING_DAYS = 7
+MIN_FREE_GB = 1024 ** 3 / 1e9            # 1 GiB, in the units of sources.disk_free_gb
 
 # The kinds Local AI queues (app/print-lab.js): the phone's verdict and photos, the page's buttons (start = It's
 # printing now, approve, abandon = Drop), an observation session and a correction to one.
@@ -117,6 +121,30 @@ def parse_iso(ts_str: str) -> Optional[float]:
         return None
 
 
+def _check_disk():
+    """507 when the disk is nearly full, so a lab upload can't starve the rest of the hub."""
+    path = lab_dir()
+    while not path.exists() and path != path.parent:
+        path = path.parent
+    try:
+        free = sources.disk_free_gb(str(path))
+    except OSError:
+        return
+    if free < MIN_FREE_GB:
+        raise HTTPException(507, "The Pi's disk is nearly full (under 1 GiB free); free some space and try again.")
+
+
+def _prune_incoming(idir: Path):
+    """Incoming photos nobody applied within INCOMING_DAYS are removed."""
+    cutoff = datetime.now(timezone.utc).timestamp() - INCOMING_DAYS * 86400
+    for f in idir.glob("*"):
+        try:
+            if f.is_file() and f.stat().st_mtime < cutoff:
+                f.unlink()
+        except OSError:
+            pass
+
+
 def check_project(project: str):
     if not PROJECT_RE.match(project):
         raise HTTPException(400, "Invalid project name")
@@ -155,10 +183,7 @@ async def sync_project(project: str, request: Request):
     check_project(project)
 
     body = await read_capped(request, MAX_SYNC)
-    try:
-        ix = json.loads(body.decode("utf-8"))
-    except Exception:
-        raise HTTPException(400, "Invalid JSON request body")
+    ix = _load_request_json(body)
 
     if not isinstance(ix, dict) or ix.get("schema") != SCHEMA_VERSION:
         raise HTTPException(422, f"Expected schema {SCHEMA_VERSION}; update the lab on the Mac.")
@@ -252,6 +277,7 @@ async def upload_photo(project: str, sha_ext: str, request: Request):
     sha = sha_ext[:-4]
     if not _full(SHA_RE, sha):
         raise HTTPException(400, "Name a photo by its sha256: <sha256>.jpg")
+    _check_disk()
 
     body = await read_capped(request, MAX_PHOTO)
     if len(body) < 2 or body[0] != 0xFF or body[1] != 0xD8:
@@ -593,6 +619,7 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
     sha = sha_ext[:-4]
     if not _full(SHA_RE, sha):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
+    _check_disk()
 
     body = await read_capped(request, MAX_PHOTO)
     if len(body) < 2 or body[0] != 0xFF or body[1] != 0xD8:
@@ -602,8 +629,15 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
 
     idir = incoming_dir(project)
     idir.mkdir(parents=True, exist_ok=True)
+    _prune_incoming(idir)
     target = idir / f"{sha}.jpg"
     if not target.exists():
+        files = [f for f in idir.glob("*") if f.is_file()]
+        if len(files) >= MAX_INCOMING_FILES:
+            raise HTTPException(413, f"Too many waiting photos ({MAX_INCOMING_FILES} at most); apply or wait a week for old ones to clear.")
+        used = sum(f.stat().st_size for f in files)
+        if used + len(body) > MAX_INCOMING_BYTES:
+            raise HTTPException(413, "The waiting photos would pass 500 MiB; apply or wait a week for old ones to clear.")
         tmp = idir / f"{sha}.tmp"
         tmp.write_bytes(body)
         tmp.replace(target)
