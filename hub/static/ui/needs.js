@@ -23,6 +23,7 @@
       const u = parse(input, o.here);
       if (!u || (u.protocol !== 'https:' && u.protocol !== 'http:') || u.origin !== o.here.origin) return null;
       if (/^\/[\/\\]/.test(u.pathname) || (input[0] === '#' && u.hash.length < 2)) return null;
+      u.username = ''; u.password = '';
       return { href: u.href, external: false };  // the full same-origin URL, never a path that could read as //host
     }
     if (!o.resolve) return null;
@@ -31,6 +32,7 @@
     if (typeof res !== 'string') return null;
     const u = parse(res.replace(/[\t\n\r]/g, '').replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, ''));
     if (!u || (u.protocol !== 'https:' && u.protocol !== 'http:')) return null;
+    u.username = ''; u.password = '';
     return { href: u.href, external: u.origin !== o.here.origin };
   }
 

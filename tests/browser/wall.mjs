@@ -39,12 +39,13 @@ const PRINTERS = {
 const now = (printer) => ({ status_available: true, summary: 'All good at home', issues: [], printer, network: NETWORK,
   movies: { tone: 'ok' }, home: { tone: 'ok' }, workshop: { display: 'On' }, pi: { tone: 'ok' }, reminders: [], setup_left: null });
 const HOME = { connected: true, favourites: ['light-1'], accessories: [{ id: 'light-1', name: 'Workshop Light', kind: 'light', on: true, brightness: 100 }] };
-const NEEDS = { count: 8, unread: [], items: [
+const NEEDS = { count: 0, unread: [], items: [
   { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at the first layer.', link: 'tool:bambuddy' },
   ...[1, 2, 3].map((n) => ({ source: 'Printer', tone: 'warn', title: `Extra thing ${n}`, detail: 'Filler to pass the five-item cap.', link: '/workshop' })),
   { source: 'Printer', tone: 'attention', title: 'Clear the plate', detail: 'Finished hex-tile E-021 · 1 h 4 min', link: '/workshop' },
   { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' },
   { source: 'Pi Hub', tone: 'warn', title: 'Sixth', detail: 'x', link: '/' }, { source: 'Pi Hub', tone: 'warn', title: 'Seventh', detail: 'x', link: '/' }] };
+NEEDS.count = NEEDS.items.length;
 const CAMERA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
   <stop offset="0" stop-color="#2b2f36"/><stop offset="1" stop-color="#101216"/></linearGradient></defs>
   <rect width="1280" height="720" fill="url(#g)"/><path d="M180 600 L1100 600 L980 420 L300 420 Z" fill="#3a3f47"/>
@@ -118,7 +119,7 @@ for (const run of runs) {
   if (run.clear && !m.allClear) problems.push(`${where}: Needs you doesn't say All clear when nothing needs you`);
   if (STUB && run.clear && !m.needEmpty) problems.push(`${where}: no kit empty state when nothing needs you`);
   if (STUB && !run.clear) {
-    if (m.needItems < 1 || m.needItems > 5) problems.push(`${where}: ${m.needItems} .ui-need items (want 1 to 5)`);
+    if (m.needItems !== 5) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
     if (!m.needMore) problems.push(`${where}: no "more on Home" link`);
     if (m.needTool.length !== 1 || new URL(m.needTool[0]).origin === new URL(BASE).origin) problems.push(`${where}: tool: link didn't resolve to the gate address (${m.needTool})`);
     if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
@@ -140,6 +141,16 @@ for (const run of runs) {
     for (const v of axe.violations.filter((v) => ["serious", "critical"].includes(v.impact))) problems.push(`${where}: axe ${v.id} (${v.nodes.map((x) => x.target.join(" ")).join(", ")})`);
     await page.screenshot({ path: `${SHOTS}/${run.shot}.png` });
   }
+  await ctx.close();
+}
+if (STUB) {  // The Home card caps at 4 items.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  await stub(page, 'idle');
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.home-card--needs .ui-need', { timeout: 15000 }).catch(() => problems.push('home: no Needs you card'));
+  const n = await page.locator('.home-card--needs .ui-need').count();
+  if (n < 1 || n > 4) problems.push(`home: ${n} .ui-need items on the Home card (want 1 to 4)`);
   await ctx.close();
 }
 await browser.close();
