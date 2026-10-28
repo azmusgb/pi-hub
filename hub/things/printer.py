@@ -3,9 +3,11 @@
 Pure: give it what the sources said and the last record, get the new record (or None when
 Bambuddy didn't answer, so the hub marks the last one stale).
 """
+import re
 import time
 
 from .. import records
+from ..bambuddy import LAB_NAME
 from ..now import printer_actions
 
 FINISHED_AT = 97  # percent; an idle printer that stopped below this didn't finish
@@ -19,6 +21,7 @@ STARTING = {"PREPARE", "SLICING", "INIT"}  # heating, levelling or slicing befor
 UNSURE = ("unknown", "offline")
 # what a record carries about its print attempt chain; an unknown or offline record keeps them
 CHAIN = ("job", "attempt", "started", "last_progress", "failed_at", "after_failure", "inferred", "from_finished")
+CAMERA_ERROR = re.compile(r"snapshot|camera|frame", re.I)  # Bambuddy's failure detection got no picture
 PI_STATUS = {"Printing": "printing", "Paused": "paused", "Idle": "idle", "Stopped": "idle", "Error": "failed"}
 
 
@@ -130,6 +133,14 @@ def _disagree(s, state):
     return f"pi-status reports {said}; Bambuddy reports {state}"
 
 
+def _is_lab_print(job, lab):
+    """Local AI's lab names the experiment it last sent to the printer, and keeps calling it live while any print runs
+    (IMG_1047, 28 Oct: "Print lab: E-022" over a RIFT print). Only the print's own name says it is that experiment:
+    the lab names its prints <project>_<experiment>_<build>."""
+    m = LAB_NAME.match(job or "")
+    return isinstance(lab, dict) and bool(m) and m["exp"] == lab.get("experiment")
+
+
 def printer(b, s, lab, prev, now):
     if b is None:
         return None
@@ -176,7 +187,7 @@ def printer(b, s, lab, prev, now):
             detail.pop(k, None)
         detail.update({k: old[k] for k in CHAIN if k in old})
         detail["last_known"] = _remember(prev)
-    if live and lab is not None:
+    if live and _is_lab_print(job, lab):
         detail["lab"] = lab
     if state == "failed" and was_failed:
         cause = prev["cause"]
@@ -205,8 +216,12 @@ def obico(o, printer_rec):
     if cls == "warning":
         return records.make("obico", "warning", "Possible print problem", "bambuddy", detail={"score": mine.get("score")})
     if cls == "error" and printer_rec and printer_rec["state"] in ("printing", "paused"):
-        return records.make("obico", "blind", "Failure detection can't see the printer", "bambuddy",
-                            cause=mine.get("error") or "")
+        # Bambuddy's own words ("Failed to capture snapshot for printer 1") stay in detail, never in what's said
+        error = str(mine.get("error") or "")
+        camera = not error or CAMERA_ERROR.search(error)
+        return records.make("obico", "blind", "Failure detection is blind", "bambuddy",
+                            cause="The camera isn't sending frames to Bambuddy." if camera
+                            else "Bambuddy's failure detection reports an error.", detail={"error": error[:200]})
     return records.make("obico", "watching", "Watching for failures", "bambuddy")
 
 
