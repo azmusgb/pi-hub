@@ -1,0 +1,135 @@
+{
+  "id": "rq-0000000000000004",
+  "kind": "observation",
+  "experiment": "E-102",
+  "run": "PR-102-01",
+  "payload": {
+    "snapshots": [
+      {
+        "subject": {
+          "experiment": "E-102",
+          "run": "PR-102-01",
+          "build": "E-102-3",
+          "variant": "V1",
+          "label": "A1",
+          "identified": "confirmed",
+          "note": null,
+          "kind": "pair",
+          "tile": null
+        },
+        "viewing": {
+          "light": "diagnostic"
+        },
+        "outcomes": {
+          "separation": {
+            "status": "assessed",
+            "value": "easily",
+            "note": null
+          },
+          "acceptance": {
+            "status": "assessed",
+            "value": "accepted_with_defects",
+            "note": "small ding"
+          }
+        },
+        "source": {
+          "kind": "owner_report",
+          "words": "Looked fine",
+          "evidence": [],
+          "occurred_at": null,
+          "attributed_by": "phone_session"
+        }
+      },
+      {
+        "subject": {
+          "experiment": "E-102",
+          "run": "PR-102-01",
+          "build": "E-102-3",
+          "variant": "V1",
+          "label": "A1",
+          "identified": "confirmed",
+          "note": null,
+          "kind": "tile",
+          "tile": "left"
+        },
+        "viewing": {
+          "light": "diagnostic"
+        },
+        "outcomes": {
+          "face": {
+            "status": "assessed",
+            "value": "clean",
+            "note": null
+          },
+          "backing": {
+            "status": "assessed",
+            "value": "whole",
+            "note": null
+          },
+          "mounting": {
+            "status": "not_applicable",
+            "value": null,
+            "note": "no clip"
+          },
+          "acceptance": {
+            "status": "not_assessed",
+            "value": null,
+            "note": null
+          }
+        },
+        "source": {
+          "kind": "owner_report",
+          "words": "Looked fine",
+          "evidence": [],
+          "occurred_at": null,
+          "attributed_by": "phone_session"
+        }
+      },
+      {
+        "subject": {
+          "experiment": "E-102",
+          "run": "PR-102-01",
+          "build": "E-102-3",
+          "variant": "V1",
+          "label": "A1",
+          "identified": "confirmed",
+          "note": "which side isn't known",
+          "kind": "tile",
+          "tile": null
+        },
+        "viewing": {
+          "light": "diagnostic"
+        },
+        "outcomes": {
+          "face": {
+            "status": "unknown",
+            "value": null,
+            "note": "dark"
+          },
+          "backing": {
+            "status": "assessed",
+            "value": "marked",
+            "note": null
+          },
+          "mounting": {
+            "status": "assessed",
+            "value": "fits",
+            "note": null
+          },
+          "acceptance": {
+            "status": "not_assessed",
+            "value": null,
+            "note": null
+          }
+        },
+        "source": {
+          "kind": "owner_report",
+          "words": "Looked fine",
+          "evidence": [],
+          "occurred_at": null,
+          "attributed_by": "phone_session"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "id": "rq-0000000000000002",
+  "kind": "approve",
+  "experiment": "E-102",
+  "payload": { "reason": "Looks right", "build_seen": "E-102-3", "reasons_seen": ["no_verdict", "old_build"] }
+}
