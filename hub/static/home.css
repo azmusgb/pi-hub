@@ -76,8 +76,9 @@ body.wall.night { filter: brightness(0.55); }
 .wall-board .status-list li > strong, .wall-board .status-side { white-space: nowrap; }
 .wall-board .net-panel > p.meta { margin: 0; display: flex; flex-wrap: wrap; gap: .4em; }
 .wall-board .net-panel .tool-link { padding: 0 .9em; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; text-decoration: none; }
-/* All six checks answering: the headline says it; the rows come back when one doesn't. */
+/* All six checks answering: the headline says it. When one doesn't, only the ones that don't are listed. */
 .wall-board .net-panel:not(:has(.dot[data-tone="warn"], .dot[data-tone="bad"])) .status-list { display: none; }
+.wall-board .net-panel .status-list li:has(> .dot[data-tone="ok"]) { display: none; }
 
 /* The clock and the weather share the top row: the time on one line with a small AM/PM. */
 .wall-head { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: .5rem clamp(1rem, 3vmin, 3rem); align-items: end; }
@@ -288,6 +289,8 @@ body.wall.night { filter: brightness(0.55); }
   background: color-mix(in srgb, var(--text-3) 20%, transparent); color: var(--text-3); }
 .kiosk-light-toggle-btn.is-on .kiosk-light-state { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-strong); }
 .kiosk-light-action { font-weight: 700; }
+/* On the wall and the desk the whole switch is the button and the state says what it is: no second "Turn Off". */
+.wall-board .kiosk-light-action { display: none; }
 
 /* Short landscape (a phone on its side): a smaller clock from the height, two columns. */
 @media (orientation: landscape) and (max-height: 499px) {
@@ -1018,13 +1021,13 @@ body:not(.wall) .page-now { display: block; }
    full height and fills its box; a small clock, Needs you, the workshop light and the print lab share the side column.
    No hourly weather, agenda or network list. Last in the file and more specific, so it wins over the layouts above. */
 /* Portrait desk: the wall's clock and order (the 28 Oct iPad critique: a small clock left an empty band under the
-   camera); the print lab button matches the Workshop card beside it. */
+   camera). */
 .wall-board[data-layout="desk"] { font-size: clamp(14px, 1.6vmin, 20px); }
 .wall-board[data-layout="desk"] .wall-weather { margin-top: 0; font-size: calc(var(--wall-clock) * .45); }
 .wall-board[data-layout="desk"] > .wall-extra { display: none; }
-.wall-board[data-layout="desk"] > .wall-house { align-items: stretch; }
 .wall-board[data-layout="desk"] > .wall-house > .net-panel { display: none; }
-.wall-board[data-layout="desk"] .desk-lab { display: flex; align-items: center; justify-content: center; min-height: 52px; text-decoration: none; font-weight: 700; }
+/* The print lab link sits with the printer's own; "Judge E-022" once the print is done is the one to press. */
+.wall-board .kiosk-links .chip.desk-lab.is-judge { background: linear-gradient(180deg, var(--accent-strong), var(--accent)); border-color: transparent; color: var(--on-accent); }
 /* Landscape desk: the clock over the printer, so the camera's box is close to the picture's shape (trimmed at most
    15%, not cropped to a square); Needs you, the next hours, the house and the toolbar beside it, none stretched. */
 @media (orientation: landscape) and (min-width: 900px) {
