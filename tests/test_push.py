@@ -36,12 +36,39 @@ def test_no_click_header_without_click(monkeypatch, tmp_path):
     assert sent[0].get_header("Priority") == "default"
 
 
-def test_urgent_defaults_to_high_priority(monkeypatch, tmp_path):
+def test_urgent_keeps_default_priority(monkeypatch, tmp_path):
     sent = _capture(monkeypatch, tmp_path)
     events.push("T", "b", urgent=True)
+    assert sent[0].get_header("Priority") == "default"
+
+
+def test_explicit_high_priority(monkeypatch, tmp_path):
+    sent = _capture(monkeypatch, tmp_path)
+    events.push("T", "b", priority="high")
     assert sent[0].get_header("Priority") == "high"
-    events.push("T", "b", priority="max", urgent=True)
-    assert sent[1].get_header("Priority") == "max"
+
+
+def test_newline_title_and_click_are_cleaned(monkeypatch, tmp_path):
+    sent = _capture(monkeypatch, tmp_path)
+    assert events.push("a\r\nb", "x", click="http://h/\nneeds") == "Sent."
+    assert sent[0].get_header("Title") == "a b"
+    assert sent[0].get_header("Click") == "http://h/needs"
+
+
+def test_emoji_title_is_rfc2047(monkeypatch, tmp_path):
+    sent = _capture(monkeypatch, tmp_path)
+    assert events.push("Done \U0001f680", "x") == "Sent."
+    assert sent[0].get_header("Title").startswith("=?UTF-8?B?")
+
+
+def test_bad_header_does_not_raise(monkeypatch, tmp_path):
+    _capture(monkeypatch, tmp_path)
+
+    def boom(req, timeout=None):
+        raise ValueError("bad header")
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    assert events.push("T", "b") == "The phone message didn't go out."
 
 
 def test_quiet_hours_still_hold_non_urgent(monkeypatch, tmp_path):
