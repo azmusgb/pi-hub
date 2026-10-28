@@ -97,11 +97,6 @@ body.wall.night { filter: brightness(0.55); }
 .wall-needs[data-tone="bad"] .wall-needs-status { color: var(--danger); }
 .wall-needs[data-tone="attention"] .wall-needs-status, .wall-needs[data-tone="warn"] .wall-needs-status { color: var(--warn); }
 .wall-needs[data-tone="ok"] .wall-needs-status { color: var(--ok); }
-/* On the wall the kit's items are tightened so five of them leave room for the tiles under Needs you. */
-.wall-needs .ui-needs { gap: .4em; }
-.wall-needs .ui-need__link { padding: .3em .7em; gap: 0; }
-.wall-needs .ui-need__detail, .wall-needs .ui-need__meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wall-needs .ui-needs__more a { min-height: 44px; }
 .ui-need__link:focus-visible, .ui-needs__more a:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* The house: the workshop light, the network and any other favourites. */
@@ -307,8 +302,7 @@ body.wall.night { filter: brightness(0.55); }
   }
   .wall-board[data-printing="1"] { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
   .wall-board > * { min-height: 0; }
-  .wall-needs, .wall-house { overflow: auto; }
-  .wall-extra { overflow: hidden; }  /* spare-room filler: when Needs you takes the height it is clipped, never a scroll box */
+  .wall-needs, .wall-house, .wall-extra { overflow: auto; }
   .wall-tools { align-self: end; }
   /* The camera takes the printer tile's spare height and shows the whole picture. */
   .kiosk-cam-container { flex: 1 1 0; min-height: 7em; aspect-ratio: auto; }

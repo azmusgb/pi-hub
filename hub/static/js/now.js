@@ -308,7 +308,7 @@ function renderWallNeeds(state, needs) {
       h("h2", { id: "wall-needs-title" }, "Needs you"),
       h("span", { class: "wall-needs-status" }, m.status)),
     // Full list in, the kit trims it to 5 and adds the "more" link; "Checking…" and "Couldn't check" show no list at all.
-    m.clear || m.items.length ? needsList(needs.items, { max: 5, more: m.more ? { href: "/", label: `${m.more} more on Home` } : null }) : null,
+    m.clear || m.items.length ? needsList(needs.items, { max: 5, dense: true, more: m.more && needs.items.length > 5 ? { href: "/", label: `${m.more} more on Home` } : null }) : null,
     m.note ? h("p", { class: "meta" }, m.note) : null].filter(Boolean));
 }
 
@@ -327,6 +327,11 @@ function renderWallExtra(state, out) {
       h("ul", {}, events.map((e) => h("li", {},
         h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))) : null,
   ].filter(Boolean));
+  // On a short screen this column can scroll, so a keyboard needs to reach it; an empty one is no stop.
+  const any = state.wallExtra.childElementCount > 0;
+  state.wallExtra.toggleAttribute("tabindex", any);
+  if (any) { state.wallExtra.tabIndex = 0; state.wallExtra.setAttribute("role", "region"); state.wallExtra.setAttribute("aria-label", "Next hours and coming up"); }
+  else { state.wallExtra.removeAttribute("role"); state.wallExtra.removeAttribute("aria-label"); }
 }
 
 function outsideLine(o) {
@@ -348,8 +353,8 @@ const go = (link) => { const href = resolveLink(link); return outward(href) ? { 
 
 // The kit draws every Needs you list (Home card, wall and desk tile). It hands back absolute same-origin hrefs; the
 // SPA router takes those (main.js reads a[data-link] and compares origins), so mark the internal ones for it.
-function needsList(items, { max, more = null }) {
-  const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub", max, more });
+function needsList(items, { max, more = null, dense = false }) {
+  const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub", max, more, dense });
   for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
   return list;
 }
