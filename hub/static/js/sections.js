@@ -5,7 +5,7 @@ export const ASSISTANT_URL = "https://assistant.home.arpa/";
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
-  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
+  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },

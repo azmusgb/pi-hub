@@ -564,7 +564,10 @@ export function mount(state) {
           headers: { "Content-Type": "image/jpeg" },
           body: blob,
         });
-        if (!putRes.ok) throw new Error("Failed to upload photo");
+        if (!putRes.ok) {
+          const d = await putRes.json().catch(() => ({}));
+          throw new Error(d.detail || d.error || "Failed to upload photo");
+        }
         uploaded.push({ sha256: sha, tab });
       }
 

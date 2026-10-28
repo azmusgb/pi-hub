@@ -31,6 +31,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(kf))
     monkeypatch.setattr(sources, "disk_free_gb", lambda path="/": 50.0)
     c = TestClient(hub_app.app)
+    lab.ready()
+    from hub import db
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "hex-tile")
     assert c.post("/api/setup", json={"code": "LABS-9911", "owner_password": "long enough", "pin": "123456"},
                   headers=SAME).status_code == 200
     c.cookies.clear()
@@ -111,9 +114,44 @@ def test_sync_refuses_nan_infinity_and_huge_numbers(client):
     assert client.get("/api/lab/hex-tile").status_code == 200
 
 
+def test_unsynced_project_names_get_404_and_caps_span_projects(client, tmp_path):
+    sha, body = jpeg(b"ghost")
+    r = client.put(f"/api/lab/ghost-1/incoming/{sha}.jpg", content=body, headers=SAME)
+    assert r.status_code == 404 and not (tmp_path / "lab" / "ghost-1").exists()
+    from hub import db
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "other")
+    d2 = tmp_path / "lab" / "other" / "incoming"
+    d2.mkdir(parents=True)
+    for i in range(200):
+        (d2 / f"{i:064x}.jpg").write_bytes(b"\xff\xd8")
+    assert put(client, body, sha).status_code == 413
+
+
+def test_prune_spans_projects_but_keeps_pending_photos_and_reupload_refreshes(client, tmp_path):
+    from hub import db
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "other")
+    old = time.time() - 9 * 86400
+    d2 = tmp_path / "lab" / "other" / "incoming"
+    d2.mkdir(parents=True)
+    stale, held = d2 / ("a" * 64 + ".jpg"), d2 / ("b" * 64 + ".jpg")
+    for f in (stale, held):
+        f.write_bytes(b"\xff\xd8")
+        os.utime(f, (old, old))
+    db.run("INSERT INTO lab_requests (id, project, kind, experiment, run, payload, status, created_at) "
+           "VALUES ('rq-0000000000000001', 'other', 'photos', 'E-001', '', ?, 'pending', 'x')",
+           json.dumps({"photos": [{"sha256": "b" * 64}]}))
+    mine = idir(tmp_path)
+    sha, body = jpeg(b"refresh")
+    (mine / f"{sha}.jpg").write_bytes(body)
+    os.utime(mine / f"{sha}.jpg", (old, old))
+    assert put(client, body, sha).status_code == 200
+    assert not stale.exists() and held.exists()
+    assert (mine / f"{sha}.jpg").stat().st_mtime > time.time() - 60
+
+
 def test_backup_script_includes_the_lab_folder():
     script = open(os.path.join(os.path.dirname(__file__), "..", "deploy/pi-hub-backup.sh")).read()
-    assert "var/lib/pi-hub/lab" in script
+    assert "var/lib/pi-hub/lab" in script and "--exclude='var/lib/pi-hub/lab/*/incoming'" in script
 
 
 def test_workshop_print_lab_links_stay_on_the_assistant_tool():

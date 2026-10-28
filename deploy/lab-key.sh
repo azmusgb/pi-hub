@@ -15,12 +15,13 @@ fi
 KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
 DIR=$(dirname "$FILE")
 mkdir -p "$DIR"
-if [ -z "${LAB_KEY_SKIP_CHOWN:-}" ]; then chown root:pi-hub "$DIR" && chmod 750 "$DIR"; fi
 TMP=$(umask 077; mktemp "$DIR/.lab_key.XXXXXX")
+trap 'rm -f "$TMP"' EXIT
 printf '%s' "$KEY" | python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.read().encode()).hexdigest())' > "$TMP"
 chmod 640 "$TMP"
 if [ -z "${LAB_KEY_SKIP_CHOWN:-}" ]; then chown root:pi-hub "$TMP"; fi
 mv -f "$TMP" "$FILE"
 echo "Hub lab key (shown once, not stored on the Pi):"
 echo "KEY: $KEY"
+echo "Save it without a trailing newline: printf '%s' KEY > ~/.config/print-lab/hub.key"
 echo "Save it on the Mac at ~/.config/print-lab/hub.key with mode 0600 (chmod 0600 ~/.config/print-lab/hub.key)."

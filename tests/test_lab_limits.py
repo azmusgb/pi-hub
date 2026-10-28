@@ -76,6 +76,9 @@ def test_photo_over_8mib_streamed_is_refused_early(env):
 
 
 def test_incoming_photo_over_8mib_streamed_is_refused_early(env):
+    from hub import db
+    lab.ready()
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "hex-tile")
     cookie = "; ".join(f"{k}={v}" for k, v in env.cookies.items())
     h = {"host": "testserver", "origin": "http://testserver", "cookie": cookie}
     status, body, consumed = drive("PUT", f"/api/lab/hex-tile/incoming/{SHA}.jpg", h, 64 * MIB)

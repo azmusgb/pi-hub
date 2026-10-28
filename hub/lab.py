@@ -134,13 +134,36 @@ def _check_disk():
         raise HTTPException(507, "The Pi's disk is nearly full (under 1 GiB free); free some space and try again.")
 
 
-def _prune_incoming(idir: Path):
-    """Incoming photos nobody applied within INCOMING_DAYS are removed."""
-    cutoff = datetime.now(timezone.utc).timestamp() - INCOMING_DAYS * 86400
-    for f in idir.glob("*"):
+def _pending_shas() -> set:
+    """Photos that a pending request still names, in any project; the prune must leave them."""
+    keep = set()
+    for r in db.rows("SELECT payload FROM lab_requests WHERE status = 'pending'"):
         try:
-            if f.is_file() and f.stat().st_mtime < cutoff:
-                f.unlink()
+            photos = (json.loads(r["payload"] or "{}") or {}).get("photos")
+        except (ValueError, AttributeError):
+            continue
+        for p in photos if isinstance(photos, list) else []:
+            if isinstance(p, dict) and isinstance(p.get("sha256"), str):
+                keep.add(p["sha256"])
+    return keep
+
+
+def _incoming_files() -> list:
+    return [f for f in lab_dir().glob("*/incoming/*") if f.is_file()]
+
+
+def _prune_incoming():
+    """Incoming photos nobody applied within INCOMING_DAYS are removed, in every project, unless a pending request
+    still names them."""
+    cutoff = datetime.now(timezone.utc).timestamp() - INCOMING_DAYS * 86400
+    keep = None
+    for f in _incoming_files():
+        try:
+            if f.stat().st_mtime < cutoff:
+                if keep is None:
+                    keep = _pending_shas()
+                if f.stem not in keep:
+                    f.unlink()
         except OSError:
             pass
 
@@ -619,6 +642,9 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
     sha = sha_ext[:-4]
     if not _full(SHA_RE, sha):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
+    ready()
+    if not db.one("SELECT 1 FROM lab_projects WHERE project = ?", project):
+        raise HTTPException(404, "No such project.")
     _check_disk()
 
     body = await read_capped(request, MAX_PHOTO)
@@ -629,15 +655,20 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
 
     idir = incoming_dir(project)
     idir.mkdir(parents=True, exist_ok=True)
-    _prune_incoming(idir)
+    _prune_incoming()
     target = idir / f"{sha}.jpg"
-    if not target.exists():
-        files = [f for f in idir.glob("*") if f.is_file()]
+    if target.exists():
+        try:
+            os.utime(target)   # a re-upload keeps it for another week
+        except OSError:
+            pass
+    else:
+        files = _incoming_files()
         if len(files) >= MAX_INCOMING_FILES:
-            raise HTTPException(413, f"Too many waiting photos ({MAX_INCOMING_FILES} at most); apply or wait a week for old ones to clear.")
+            raise HTTPException(413, f"Too many waiting photos in all ({MAX_INCOMING_FILES} at most); apply or wait a week for old ones to clear.")
         used = sum(f.stat().st_size for f in files)
         if used + len(body) > MAX_INCOMING_BYTES:
-            raise HTTPException(413, "The waiting photos would pass 500 MiB; apply or wait a week for old ones to clear.")
+            raise HTTPException(413, "The waiting photos would pass 500 MiB in all; apply or wait a week for old ones to clear.")
         tmp = idir / f"{sha}.tmp"
         tmp.write_bytes(body)
         tmp.replace(target)

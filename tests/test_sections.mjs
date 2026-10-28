@@ -12,7 +12,7 @@ test('one menu by task, in the design order', () => {
 
 test('every page belongs to a section', () => {
   const want = {
-    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop', '/lab': 'workshop',
+    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
     '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system',

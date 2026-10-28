@@ -40,10 +40,13 @@ for source in etc/fstab etc/samba etc/avahi etc/systemd/system etc/pi-status etc
               var/lib/pi-hub/lab var/lib/homebridge opt/homepage/config opt/netmon usr/local/bin; do
   if [ -e "/$source" ]; then SOURCES+=("$source"); fi
 done
+# tar exits 1 when a file (the lab folder, mostly) changed while it was read; that still leaves a usable archive.
+rc=0
 tar -czf "$WORK/backup.tgz" \
   --exclude='var/lib/homebridge/node_modules' --exclude='var/lib/homebridge/*.log' \
-  --exclude='var/lib/homebridge/backups' --exclude='*/.venv.old-armhf' \
-  -C / "${SOURCES[@]}" -C "$WORK" hub.db var/lib/pi-hub/project-files
+  --exclude='var/lib/homebridge/backups' --exclude='var/lib/pi-hub/lab/*/incoming' --exclude='*/.venv.old-armhf' \
+  -C / "${SOURCES[@]}" -C "$WORK" hub.db var/lib/pi-hub/project-files || rc=$?
+[ "$rc" -le 1 ] || exit "$rc"
 
 install -m 640 -o root -g pi-backup "$WORK/backup.tgz" "$DEST/pi-$STAMP.tgz"
 ls -1t "$DEST"/pi-*.tgz | tail -n +15 | xargs -r rm -f
