@@ -5,6 +5,8 @@
 import { card, empty, h, toast } from "./core.js";
 import { labFetch, watchRequests } from "./lab-net.js";
 import { mountPhotos } from "./lab-photos.js";
+import { mountObserve, observeButton, observeSheetHtml } from "./lab-observe.js";
+import { changedIds, dialogOpen, refreshPlan, restore, snapshot } from "./lab-refresh.js";
 import { toolUrl } from "./sections.js";
 
 export const every = 15;
@@ -337,7 +339,9 @@ export function experimentHtml(x, ix, requests = []) {
     const verdictBtn = x.criteria && x.criteria.length ? `<button type="button" class="btn-outline lab-record-verdict" data-exp="${esc(x.id)}">Record verdict</button>` : "";
     const expReqs = (requests || []).filter((r) => r.experiment === x.id);
     const reqsHtml = `<div class="lab-requests" id="lab-requests-${esc(x.id)}" aria-live="polite">${renderRequestsList(expReqs)}</div>`;
-    actions = `${hint}<div class="lab-checklist" data-lab-checklist="${esc(x.id)}"></div><div class="lab-actions">${addBtn}${verdictBtn}</div>${reqsHtml}`;
+    actions = `${hint}<div class="lab-checklist" data-lab-checklist="${esc(x.id)}"></div><div class="lab-actions">${addBtn}${verdictBtn}${observeButton(x)}</div>${reqsHtml}`;
+  } else if (observeButton(x)) {
+    actions = `<div class="lab-actions">${observeButton(x)}</div>`;
   }
 
   const spine = spoolColour(x.filament, ix && ix.colours);
@@ -357,6 +361,15 @@ export function experimentHtml(x, ix, requests = []) {
     `<details class="lab-details" id="lab-d-${esc(x.id)}" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
 }
 
+// The sync-age line; the quiet refresh swaps just this.
+export function syncedHtml(meta, now = Date.now()) {
+  const stale = meta && meta.synced_at && now - new Date(meta.synced_at) > 2 * 3600e3;
+  return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}" aria-live="off">Synced from the Mac ${esc(ago(meta && meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>`;
+}
+
+// Each card's HTML by experiment id, to see which ones changed between renders.
+export const cardSignatures = (data, requests = []) => Object.fromEntries(list(data && data.index && data.index.experiments).map((x) => [x.id, experimentHtml(x, data.index, requests)]));
+
 export function renderNotebook(data, requests = [], now = Date.now()) {
   const ix = data.index || {}, meta = data.meta || {}, byId = byIdOf(ix);
   const exps = list(ix.experiments), problems = list(ix.problems), needs = list(ix.needs);
@@ -365,7 +378,6 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
   const recent = (x) => x.status === "answered" && x.verdict && now - new Date(x.verdict.at) < 3 * 864e5;
   const active = exps.filter((x) => !DONE.has(x.status) || recent(x));
   const earlier = exps.filter((x) => DONE.has(x.status) && !recent(x));
-  const stale = meta.synced_at && now - new Date(meta.synced_at) > 2 * 3600e3;
   const cardOf = (x) => experimentHtml(x, ix, requests);
 
   const jumps = [
@@ -375,7 +387,7 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
     earlier.length ? `<a href="#lab-earlier" class="lab-jump__chip">Earlier (${earlier.length})</a>` : "",
   ].filter(Boolean).join("");
 
-  return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}" aria-live="off">Synced from the Mac ${esc(ago(meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>` +
+  return syncedHtml(meta, now) +
     (problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
     (jumps ? `<nav class="lab-jump" aria-label="Jump to section">${jumps}</nav>` : "") +
     `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now, requests)}</section>` +
@@ -387,7 +399,7 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
 }
 
 function sheetsHtml() {
-  return `
+  return observeSheetHtml() + `
 <dialog id="labVerdictSheet" class="lab-sheet" aria-labelledby="labVerdictTitle">
   <form method="dialog" class="lab-sheet__form">
     <div class="lab-sheet__head">
@@ -492,6 +504,8 @@ export function mount(state) {
   state.watching = new Set();
   state.sentAt = {};
   state.triedOnce = false;
+  state.renderedFp = undefined;
+  state.cardSigs = null;
   state.selectedPhotoFiles = [];
   state.selectedPhotoTabs = [];
   state.currentPhotosExp = null;
@@ -651,6 +665,7 @@ export function mount(state) {
     addOrUpdateCardRequest(item);
     if (item.status === "applied" || item.status === "refused") state.watching.delete(item.id);
     updateActStatuses();
+    if (state.observeUpdate) state.observeUpdate(item);
     if (item.id !== state.currentReqId) return;
     const statusEl = state.sheetsContainer.querySelector("#labVerdictStatus");
     const errorEl = state.sheetsContainer.querySelector("#labVerdictError");
@@ -764,6 +779,7 @@ export function mount(state) {
     }
   }
 
+  state.refreshStatuses = updateActStatuses;
   async function sendAct(req) {
     await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req),
@@ -943,6 +959,8 @@ export function mount(state) {
     if (startBtn) { startPrint(startBtn); return; }
     const apprBtn = e.target.closest(".lab-approve");
     if (apprBtn) { openApprove(apprBtn.dataset.exp); return; }
+    const obsBtn = e.target.closest(".lab-observe");
+    if (obsBtn) { state.openObserve(obsBtn.dataset.exp); return; }
     const dropBtn = e.target.closest(".lab-drop");
     if (dropBtn) { openDrop(dropBtn.dataset.exp); return; }
     const recBtn = e.target.closest(".lab-record-verdict");
@@ -962,6 +980,11 @@ export function mount(state) {
       if (exp) state.openPhotosSheet(exp, Array.from(fileInput.files));
       fileInput.value = "";
     }
+  });
+
+  mountObserve(state, {
+    send: (req) => sendAct(req), watch: (id) => track(id), makeId: makeRequestId, expById, requests: () => state.currentRequests,
+    stale: (item) => Date.now() - (item.at ? new Date(item.at) : state.sentAt[item.id] || Date.now()) > STALE_MS,
   });
 
   // Sheet handlers
@@ -1051,35 +1074,66 @@ export function mount(state) {
 }
 
 // What a refresh fetches. The first attempt after mount may open the PIN sheet, once, whatever its outcome; every
-// later refresh (main.js repeats load every 15 s) is quiet. Returns null when there is no lab data yet.
+// later refresh (main.js repeats load every 15 s) is quiet. Returns null when there is no lab data yet. When the Mac's
+// fingerprint is the one already drawn, the project itself isn't fetched again: `labData` is null and `unchanged` is true.
 export async function fetchLab(state) {
   const quiet = { prompt: !state.triedOnce };
   state.triedOnce = true;
   const projects = ((await labFetch("/api/lab/projects", {}, quiet)) || {}).projects;
   if (!projects || !projects.length) return null;
-  const pName = projects[0].name;
+  const meta = projects[0], pName = meta.name;
   state.currentProject = pName;
+  const unchanged = refreshPlan(meta, state.renderedFp, false) === "quiet";
   const [labData, reqData] = await Promise.all([
-    labFetch(`/api/lab/${encodeURIComponent(pName)}`, {}, quiet),
+    unchanged ? null : labFetch(`/api/lab/${encodeURIComponent(pName)}`, {}, quiet),
     labFetch(`/api/lab/${encodeURIComponent(pName)}/requests`, {}, { prompt: false }).catch(() => ({ items: [] })),
   ]);
-  return labData ? { labData, reqData } : null;
+  if (unchanged) return { labData: null, reqData, meta, unchanged: true };
+  return labData ? { labData, reqData, meta } : null;
+}
+
+// Re-draw the notebook in place: open <details>, scroll and focus come back, and the cards that changed flash.
+function renderInPlace(state, labData) {
+  const snap = snapshot(state.box);
+  const sigs = cardSignatures(labData, state.currentRequests);
+  const flash = changedIds(state.cardSigs, sigs);
+  state.box.innerHTML = renderNotebook(labData, state.currentRequests);
+  mountPhotos(state.box, labData.index);
+  restore(state.box, snap);
+  for (const id of flash) state.box.querySelector(`#lab-${CSS.escape(id)}`)?.classList.add("lab-changed");
+  state.cardSigs = sigs;
 }
 
 export async function load(state) {
   const got = await fetchLab(state);
   if (!got) {
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
+    state.renderedFp = undefined;
+    state.cardSigs = null;
     return;
   }
-  const { labData, reqData } = got;
+  const { labData, reqData, meta } = got;
   state.currentRequests = (reqData && reqData.items) || [];
+  const plan = got.unchanged ? "quiet" : refreshPlan(meta, state.renderedFp, dialogOpen());
+  if (plan !== "render") {
+    // Nothing to redraw (or a dialog is open and must not be disturbed): keep the statuses and the sync age current.
+    if (state.currentData && state.currentData.meta) state.currentData.meta = { ...state.currentData.meta, synced_at: meta.synced_at };
+    const line = state.box.querySelector(".lab-synced");
+    if (line && meta.synced_at) line.outerHTML = syncedHtml({ synced_at: meta.synced_at });
+    for (const x of list(state.currentData && state.currentData.index && state.currentData.index.experiments)) {
+      const el = state.box.querySelector("#lab-requests-" + CSS.escape(String(x.id)));
+      if (el) el.innerHTML = requestsHtml(state.currentRequests.filter((r) => r.experiment === x.id));
+    }
+    if (state.refreshStatuses) state.refreshStatuses();
+    return;
+  }
+  const first = !state.currentData;
   state.currentData = labData;
+  state.renderedFp = typeof meta.fingerprint === "string" && meta.fingerprint ? meta.fingerprint : undefined;
+  renderInPlace(state, labData);
 
-  state.box.innerHTML = renderNotebook(labData, state.currentRequests);
-  mountPhotos(state.box, labData.index);
-
-  const e = state.context.get("e") || (location.hash.startsWith("#lab-") ? location.hash.slice(5) : null);
+  // ?e= and #lab-<id> open one experiment once, when the page first draws; a refresh must not scroll back to it.
+  const e = first && (state.context.get("e") || (location.hash.startsWith("#lab-") ? location.hash.slice(5) : null));
   if (e) {
     state.openExperiment(e);
     if (state.context.get("do") === "judge") {

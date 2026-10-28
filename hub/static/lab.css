@@ -712,3 +712,18 @@
   .lab-thumbs::-webkit-scrollbar { display: none; }
   .lab-thumb { flex: 0 0 88px; scroll-snap-align: start; }
 }
+
+/* Record what happened, and the quiet refresh's flash */
+.lab-obs__title { font-size: var(--ui-fs-3); margin: 0 0 6px; }
+.lab-obs__q { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+.lab-obs__q legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+.lab-obs__opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.lab-obs__opt { position: relative; }
+.lab-obs__opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.lab-obs__opt span { display: inline-block; min-height: 36px; padding: 6px 12px; border: 1px solid var(--ui-line); border-radius: var(--ui-r-2); background: var(--ui-surface-2); color: var(--ui-text); font-size: var(--ui-fs-2); }
+.lab-obs__opt input:checked + span { border-color: var(--ui-accent); background: var(--ui-accent); color: var(--ui-on-accent); font-weight: 600; }
+.lab-obs__opt input:focus-visible + span { outline: 2px solid var(--ui-accent-text); outline-offset: 2px; }
+.lab-obs__note[hidden] { display: none; }
+.lab-changed { animation: lab-flash 1.8s ease-out; }
+@keyframes lab-flash { from { box-shadow: 0 0 0 2px var(--ui-accent); } to { box-shadow: 0 0 0 2px transparent; } }
+@media (prefers-reduced-motion: reduce) { .lab-changed { animation: none; } }

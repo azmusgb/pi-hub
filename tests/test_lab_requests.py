@@ -449,7 +449,7 @@ def test_sync_experiments_not_a_list_is_422(client):
 GOLDEN = os.path.join(os.path.dirname(__file__), "fixtures", "lab-requests")
 
 
-@pytest.mark.parametrize("name", ["start", "approve", "abandon"])
+@pytest.mark.parametrize("name", ["start", "approve", "abandon", "observation"])
 def test_golden_page_payloads_pass_the_real_route(client, name):
     data = json.load(open(os.path.join(GOLDEN, name + ".json")))
     kind = data["kind"]
