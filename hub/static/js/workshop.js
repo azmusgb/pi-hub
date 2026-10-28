@@ -1,7 +1,7 @@
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
-import { printLabUrl, toolUrl } from "./sections.js";
+import { toolUrl } from "./sections.js";
 import { firstFew } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
@@ -75,7 +75,7 @@ function printRow(p) {
     h("span", { class: "log-main" }, h("strong", {}, label),
       h("span", { class: "meta" }, p.name),
       h("span", { class: "meta" }, when(p.started)),
-      p.lab ? h("a", { class: "meta", href: printLabUrl(p.lab.exp), target: "_blank", rel: "noopener" }, printLabText(p))
+      p.lab ? h("a", { class: "meta", href: `/lab?e=${encodeURIComponent(p.lab.exp)}`, "data-link": true }, printLabText(p))
         : h("span", { class: "meta" }, printLabText(p)),
       !p.error ? null : printErrorCode(p.error)
         ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(printErrorCode(p.error))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`)
@@ -143,7 +143,7 @@ export async function load(state) {
       h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy."),
       h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
         h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"),
-        h("a", { class: "action ghost", href: `${toolUrl("assistant")}#projects`, target: "_blank", rel: "noopener" }, "Print lab ↗"))),
+        h("a", { class: "action ghost", href: "/lab", "data-link": true }, "Print lab"))),
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),

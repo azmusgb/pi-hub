@@ -5,7 +5,7 @@ export const ASSISTANT_URL = "https://assistant.home.arpa/";
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
-  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop"] },
+  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
@@ -63,9 +63,14 @@ export function toolUrl(name, host = globalThis.location?.hostname || "") {
   return old.replace("{host}", host);
 }
 
-// Local AI's Print lab, opened on one experiment.
+// Local AI's Print lab, opened on one experiment (external link to Assistant).
 export function printLabUrl(exp, host = globalThis.location?.hostname || "") {
   return `${toolUrl("assistant", host)}#printLab?e=${exp}`;
+}
+
+// Pi Hub's own Print lab, opened on one experiment.
+export function localLabUrl(exp) {
+  return `/lab${exp ? `?e=${encodeURIComponent(exp)}` : ""}`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).

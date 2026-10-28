@@ -12,7 +12,7 @@ test('one menu by task, in the design order', () => {
 
 test('every page belongs to a section', () => {
   const want = {
-    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
+    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop', '/lab': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
     '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system',
@@ -93,6 +93,8 @@ test('the Assistant state is checked again when the page comes back into view', 
 });
 
 test('a print row links the Print lab experiment on the Assistant tool', async () => {
-  const { printLabUrl } = await import('../hub/static/js/sections.js');
+  const { printLabUrl, localLabUrl } = await import('../hub/static/js/sections.js');
   assert.equal(printLabUrl('E-023', 'pi.home.arpa'), 'https://assistant.home.arpa/#printLab?e=E-023');
+  assert.equal(localLabUrl('E-023'), '/lab?e=E-023');
+  assert.equal(localLabUrl(), '/lab');
 });

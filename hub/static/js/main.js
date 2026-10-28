@@ -5,6 +5,7 @@ import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
+import * as labPage from "./lab.js";
 import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
 import * as piPage from "./pi.js";
@@ -50,6 +51,7 @@ const PAGES = {
   "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
+  "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Help & system", mod: piPage },
@@ -74,6 +76,7 @@ const subtitles = {
   "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
+  "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
   "/pi": "Fix common problems and check the hub",
