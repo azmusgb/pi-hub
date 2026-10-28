@@ -359,8 +359,9 @@ def test_obico_error_while_printing_is_blind_and_quiet_when_idle():
     o = _obico("error", error="camera unreachable")
     for st in ("printing", "paused"):
         r = p.obico(o, _prec(st))
-        assert r["state"] == "blind" and r["cause"] == "camera unreachable"
-        assert r["headline"] == "Failure detection can't see the printer"
+        assert r["state"] == "blind" and r["cause"] == "The camera isn't sending frames to Bambuddy."
+        assert r["headline"] == "Failure detection is blind"
+        assert r["detail"]["error"] == "camera unreachable"  # kept for the record, never said
     assert p.obico(o, _prec("idle"))["state"] == "watching"
     assert p.obico(o, None)["state"] == "watching"
     assert p.obico(_obico(per=False), _prec("printing"))["state"] == "watching"
@@ -440,3 +441,13 @@ def test_hms_headline_names_the_first_stopping_code():  # final review M4
     r = p.hms({"hms": [{"code": "0300_0100", "severity": 3, "module": 5},
                        {"code": "0500_0200", "severity": 2, "module": 5}]})
     assert r["headline"] == "Printer needs attention (0500_0200)"
+
+
+def test_blind_failure_detection_never_says_bambuddys_raw_error():  # IMG_1047, 28 Oct
+    from hub.things import printer as p
+    r = p.obico(_obico("error", error="Failed to capture snapshot for printer 1"), _prec("printing"))
+    assert (r["headline"], r["cause"]) == ("Failure detection is blind", "The camera isn't sending frames to Bambuddy.")
+    other = p.obico(_obico("error", error="ML API returned 502"), _prec("printing"))
+    assert other["headline"] == "Failure detection is blind"
+    assert other["cause"] == "Bambuddy's failure detection reports an error."
+    assert "502" not in other["cause"] and other["detail"]["error"] == "ML API returned 502"

@@ -11,6 +11,7 @@ ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
+BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
@@ -89,8 +90,14 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                               "link": i["href"], "ts": now, "thing": key})
             continue
         id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
-        items.append({"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
-                      "detail": i["say"], "link": i["href"], "ts": now, "thing": key})
+        item = {"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
+                "detail": i["say"], "link": i["href"], "ts": now, "thing": key}
+        rec = by_id.get(key) or {}
+        if key == "obico" and rec.get("state") == "blind" and not rec.get("stale"):
+            # nothing watches the print: above "Worth a look", and the fix is in Bambuddy's settings (IMG_1047, 28 Oct)
+            item.update(tone="attention", title=rec["headline"], detail=rec.get("cause") or "", link=BLIND_FIX,
+                        action={"key": "open_bambuddy", "link": BLIND_FIX})
+        items.append(item)
     unread = []
     if feed is None:
         unread.append("Local AI")

@@ -156,3 +156,10 @@ test("the printer card's dot follows Needs you: amber for a printer item, red fo
   const done = { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } };
   assert.equal(by(all({ now: done, needs: needs({ ...blind, tone: 'bad' }) })).workshop.tone, 'bad');
 });
+
+test("the blind failure-detection item's link opens Bambuddy's Failure detection settings", async () => {
+  const { resolveLink } = await import('../hub/static/js/sections.js');
+  const link = 'tool:bambuddy/settings?tab=failure-detection';
+  assert.equal(resolveLink(link, 'home.home.arpa'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');
+  assert.equal(resolveLink(link, '10.0.0.30'), 'http://10.0.0.30:8000/settings?tab=failure-detection');
+});

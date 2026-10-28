@@ -299,3 +299,18 @@ def test_a_local_ai_item_that_names_the_printer_is_about_it():
     feed = {"cards": [{"kind": "watch", "id": "watch-x2d", "title": "Heads up", "text": "The X2D is offline.", "tone": "warning"},
                       {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
     assert _about(needs.build([], feed, NOW, [])["items"]) == {"localai:watch-x2d"}
+
+
+def test_blind_failure_detection_says_what_to_do_and_sorts_above_worth_a_look():  # IMG_1047, 28 Oct
+    obico = {"enabled": True, "per_printer": {"1": {"class": "error", "error": "Failed to capture snapshot for printer 1"}}}
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning", "at": NOW + 100}]}
+    n = needs.build([], feed, NOW, problems(b=bud("RUNNING", progress=10), obico=obico))
+    assert [i["id"] for i in n["items"]] == ["pi:Failure detection", "localai:watch-mac-disk"]
+    blind = n["items"][0]
+    assert blind["title"] == "Failure detection is blind"
+    assert blind["detail"] == "The camera isn't sending frames to Bambuddy."
+    assert blind["tone"] == "attention"
+    assert blind["link"] == "tool:bambuddy/settings?tab=failure-detection"
+    assert blind["action"] == {"key": "open_bambuddy", "link": "tool:bambuddy/settings?tab=failure-detection"}
+    assert "snapshot" not in str(n)

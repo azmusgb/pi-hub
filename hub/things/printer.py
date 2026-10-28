@@ -3,6 +3,7 @@
 Pure: give it what the sources said and the last record, get the new record (or None when
 Bambuddy didn't answer, so the hub marks the last one stale).
 """
+import re
 import time
 
 from .. import records
@@ -19,6 +20,7 @@ STARTING = {"PREPARE", "SLICING", "INIT"}  # heating, levelling or slicing befor
 UNSURE = ("unknown", "offline")
 # what a record carries about its print attempt chain; an unknown or offline record keeps them
 CHAIN = ("job", "attempt", "started", "last_progress", "failed_at", "after_failure", "inferred", "from_finished")
+CAMERA_ERROR = re.compile(r"snapshot|camera|frame", re.I)  # Bambuddy's failure detection got no picture
 PI_STATUS = {"Printing": "printing", "Paused": "paused", "Idle": "idle", "Stopped": "idle", "Error": "failed"}
 
 
@@ -205,8 +207,12 @@ def obico(o, printer_rec):
     if cls == "warning":
         return records.make("obico", "warning", "Possible print problem", "bambuddy", detail={"score": mine.get("score")})
     if cls == "error" and printer_rec and printer_rec["state"] in ("printing", "paused"):
-        return records.make("obico", "blind", "Failure detection can't see the printer", "bambuddy",
-                            cause=mine.get("error") or "")
+        # Bambuddy's own words ("Failed to capture snapshot for printer 1") stay in detail, never in what's said
+        error = str(mine.get("error") or "")
+        camera = not error or CAMERA_ERROR.search(error)
+        return records.make("obico", "blind", "Failure detection is blind", "bambuddy",
+                            cause="The camera isn't sending frames to Bambuddy." if camera
+                            else "Bambuddy's failure detection reports an error.", detail={"error": error[:200]})
     return records.make("obico", "watching", "Watching for failures", "bambuddy")
 
 
