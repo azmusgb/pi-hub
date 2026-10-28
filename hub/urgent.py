@@ -1,0 +1,71 @@
+"""Urgent printing problems: one phone push per occurrence, even through quiet hours and restarts.
+
+An occurrence opens when a cause's record first shows the problem and stays open while it does. It is
+cleared when every fresh record says otherwise; a problem back within 600 s of a clear is the same
+occurrence. The push_occurrences table, not memory, decides, so a restart doesn't push again."""
+import time
+
+from . import db, events
+
+CAUSES = {"print": [("printer", "failed"), ("obico", "failure")], "hms": [("hms", "stopped")],
+          "pc": [("pc_printing", "off_while_printing")]}
+CLICK = {"print": "https://home.home.arpa/workshop",
+         "hms": "https://home.home.arpa/workshop", "pc": "https://home.home.arpa/"}
+REOPEN_AFTER = 600  # seconds clear before the same cause is a new occurrence
+
+SCHEMA = ("CREATE TABLE IF NOT EXISTS push_occurrences "
+          "(cause TEXT PRIMARY KEY, first_seen INTEGER, pushed_at INTEGER, cleared_at INTEGER)")
+
+
+def ready():
+    db.run(SCHEMA)
+
+
+def _look(recs, pairs):
+    """(first matching fresh record or None, whether the fresh records say it's clear)."""
+    fresh_other, stale_match = False, False
+    for id, state in pairs:
+        r = recs.get(id)
+        if not r:
+            continue
+        if r.get("stale"):
+            stale_match = stale_match or r.get("state") == state
+        elif r.get("state") == state:
+            return r, False
+        else:
+            fresh_other = True
+    return None, fresh_other and not stale_match
+
+
+def check(recs, now, send=None):
+    """Pushes each cause that just became active; returns the causes pushed this call."""
+    send = send or events.push
+    ready()
+    now = int(now)
+    pushed = []
+    for cause, pairs in CAUSES.items():
+        hit, clear = _look(recs, pairs)
+        row = db.one("SELECT * FROM push_occurrences WHERE cause = ?", cause)
+        if hit:
+            cleared = row and row["cleared_at"] is not None and now - row["cleared_at"] >= REOPEN_AFTER
+            if row and row["pushed_at"] is not None and not cleared:
+                db.run("UPDATE push_occurrences SET cleared_at = NULL WHERE cause = ?", cause)
+                continue
+            ok = send(hit.get("headline") or cause, hit.get("cause") or "", tags="rotating_light",
+                      priority="high", urgent=True, click=CLICK[cause]) == "Sent."
+            first = row["first_seen"] if row and row["pushed_at"] is None and row["first_seen"] else now
+            db.run("INSERT INTO push_occurrences (cause, first_seen, pushed_at, cleared_at) VALUES (?, ?, ?, NULL) "
+                   "ON CONFLICT(cause) DO UPDATE SET first_seen = excluded.first_seen, "
+                   "pushed_at = excluded.pushed_at, cleared_at = NULL",
+                   cause, now if ok else first, now if ok else None)
+            if ok:
+                pushed.append(cause)
+        elif clear and row and row["cleared_at"] is None:
+            db.run("UPDATE push_occurrences SET cleared_at = ? WHERE cause = ?", now, cause)
+    return pushed
+
+
+def recently_pushed(cause, now, within=REOPEN_AFTER):
+    ready()
+    row = db.one("SELECT pushed_at FROM push_occurrences WHERE cause = ?", cause)
+    return bool(row and row["pushed_at"] is not None and now - row["pushed_at"] < within)

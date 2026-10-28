@@ -228,8 +228,15 @@ def validate_rule(trigger, action, target=None):
         raise ValueError("Choose which light or plug.")
 
 
+# rules whose phone alert hub/urgent.py already sends: trigger -> urgent cause
+URGENT_CAUSE = {"print_failed": "print", "pc_down": "pc"}
+
+
 def execute(rule, kind, detail=""):
-    from . import actions, homecontrol
+    from . import actions, homecontrol, urgent
+    if (rule.get("enabled", 1) and rule["action"] == "notify" and kind in URGENT_CAUSE
+            and urgent.recently_pushed(URGENT_CAUSE[kind], time.time())):
+        return {"status": "skipped", "message": "Already sent as an urgent alert."}
     decision = policy(rule, kind)
     if decision["status"] != "would_run":
         return decision
@@ -509,17 +516,36 @@ class Watcher:
             fire("freeze_tonight", f"Down to {w.get('tonight_low')}°.")
 
 
+def loop_pass(first, now=None, inputs=None):
+    """One records pass: refresh, the urgent pushes (every pass, the first too), then the rule triggers.
+    The urgent check comes before the triggers so a print_failed or pc_down rule fired by this same
+    refresh finds the urgent alert already sent and skips its own. Returns False when the refresh failed,
+    so the hub's first pass is still to come."""
+    from . import urgent
+    try:
+        changes = records.refresh() if now is None and inputs is None else records.refresh(now, inputs=inputs)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        return False
+    now = time.time() if now is None else now
+    try:
+        urgent.check(records.all(), now)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    try:
+        on_changes(changes, first)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    return True
+
+
 def run(every=30):
     w = Watcher()
     time.sleep(20)
     first = True  # the first refresh after the hub starts only learns the state
     while True:
-        try:
-            changes = records.refresh()
-            is_first, first = first, False
-            on_changes(changes, is_first)
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
+        if loop_pass(first):
+            first = False
         try:
             w.check(sources.pi_status())
         except Exception:
