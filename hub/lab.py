@@ -174,6 +174,26 @@ def check_project(project: str):
         raise HTTPException(400, "Invalid project name")
 
 
+def stored_needs() -> list:
+    """(project, generated_at, needs) for every stored project, for Needs you. Never raises: a missing table, bad JSON
+    or a stripped index gives nothing for that project."""
+    try:
+        ready()
+        rows = db.rows("SELECT project, index_json FROM lab_projects ORDER BY project")
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        try:
+            idx = json.loads(r["index_json"])
+            needs = idx.get("needs")
+            if isinstance(needs, list):
+                out.append((r["project"], str(idx.get("generated_at") or ""), needs))
+        except (ValueError, AttributeError, TypeError):
+            continue
+    return out
+
+
 @router.get("/projects")
 def list_projects(request: Request):
     need(request, "household")
