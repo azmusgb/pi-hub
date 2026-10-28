@@ -122,6 +122,32 @@ export function requestsHtml(items, now = Date.now()) {
 }
 const renderRequestsList = requestsHtml;
 
+// ---- the buttons' requests (Start, Approve, Drop): built here, sent to the hub, applied by the Mac ----
+const ACT = new Set(["start", "approve", "abandon"]);
+export const PICKUP = "The Mac hasn't picked this up yet. It runs when the Mac is awake.";
+export const actText = (r, now = Date.now()) => r.status === "pending" ? (now - new Date(r.at) > STALE_MS ? PICKUP : "Waiting for the Mac")
+  : r.status === "refused" ? (r.message || "The Mac refused it.") : `Done. ${r.message || ""}`.trim();
+// The tap time is when it started (the Mac keeps it if plausible); the run the page saw stops a stale tap.
+export const startRequest = (x, now = Date.now()) => ({
+  id: makeRequestId(), kind: "start", experiment: x.id, run_seen: x.run || null, payload: { tapped_at: new Date(now).toISOString() },
+});
+// What an approval covers: the guards needing approval on the experiment's last build, from its record. null when
+// the Mac hasn't checked that build.
+export function approveGuards(record) {
+  const b = list(record && record.payload && record.payload.builds).slice(-1)[0];
+  const guards = list(b && b.check && b.check.guards).filter((g) => g && !g.ok && g.result === "needs_approval");
+  return b && b.check && guards.length ? { build: String(b.id), guards } : null;
+}
+export function approveRequest(x, record, reason) {
+  const cover = approveGuards(record), why = String(reason ?? "").trim();
+  if (!cover || !why) return null;
+  return { id: makeRequestId(), kind: "approve", experiment: x.id, payload: { reason: why, build_seen: cover.build, reasons_seen: cover.guards.map((g) => String(g.code)) } };
+}
+export function dropRequest(x, reason) {
+  const why = String(reason ?? "").trim();
+  return why ? { id: makeRequestId(), kind: "abandon", experiment: x.id, payload: { reason: why } } : null;
+}
+
 // Local AI's verdict form: every criterion has a "–" (not judged) chip, sent as null; the light is never assumed.
 export const NOT_JUDGED = "–";
 export const verdictChoices = (c) => [...list(c && c.choices), NOT_JUDGED];
@@ -199,14 +225,35 @@ export function needView(need, now = Date.now(), byId = {}) {
   return { action: need.action, why: need.due_at ? look : need.why, command: need.command };
 }
 
-function needsHtml(ix, byId, now) {
+// The button(s) for a Needs you item, or "" when it needs the Mac (Fix the plan, Run the check or build).
+function actButtons(x, exp, busy) {
+  const id = esc(x.id), off = busy ? " disabled" : "";
+  if (x.action === "Judge the print") {
+    return (exp && exp.criteria && exp.criteria.length ? `<button type="button" class="btn-primary lab-record-verdict" data-exp="${id}"${off}>Judge it</button>` : "") +
+      `<button type="button" class="btn-outline lab-add-photos" data-exp="${id}"${off}>Add photos</button><input type="file" accept="image/*" multiple class="visually-hidden" aria-label="Add photos for ${id}" data-exp="${id}">`;
+  }
+  if (x.action === "Send it to the printer") return `<button type="button" class="btn-primary lab-start" data-exp="${id}"${off}>It's printing now</button>`;
+  if (x.action === "Approve or drop") return `<button type="button" class="btn-primary lab-approve" data-exp="${id}"${off}>Approve</button><button type="button" class="btn-danger lab-drop" data-exp="${id}"${off}>Drop</button>`;
+  return "";
+}
+
+const latestAct = (requests, id) => list(requests).find((r) => ACT.has(r.kind) && r.experiment === id);
+
+function needsHtml(ix, byId, now, requests = []) {
   const needs = list(ix.needs);
   if (!needs.length) return '<p class="meta">Nothing needs you right now.</p>';
   return `<ul class="list-group lab-needs">${needs.map((raw) => {
     const x = { ...raw, ...needView(raw, now, byId) };
     const cmd = x.command ? `<div class="lab-cmd"><code>${esc(x.command)}</code><button type="button" class="btn-outline lab-copy" data-copy="${esc(x.command)}" aria-label="Copy the command for ${esc(x.id)}">Copy</button></div>` : "";
+    const r = latestAct(requests, x.id), busy = Boolean(r && r.status === "pending");
+    const acts = actButtons(x, byId[x.id], busy);
+    const tail = acts
+      ? `<div class="lab-acts">${acts}</div>${x.action === "Send it to the printer" ? `<p class="meta">Only once it's actually printing.</p>` : ""}` +
+        `<p class="lab-act-status" data-act-status="${esc(x.id)}" role="status"${r ? ` data-tone="${r.status === "refused" ? "bad" : "ok"}"` : " hidden"}>${r ? esc(actText(r, now)) : ""}</p>` +
+        (cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Run it on the Mac instead</summary>${cmd}</details>` : "")
+      : cmd;
     return `<li class="list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
-      `<div class="list-row__sub">${esc(byId[x.id]?.question_text)}</div><div class="list-row__sub">${esc(x.why)}</div>${cmd}</div></li>`;
+      `<div class="list-row__sub">${esc(byId[x.id]?.question_text)}</div><div class="list-row__sub">${esc(x.why)}</div>${tail}</div></li>`;
   }).join("")}</ul>`;
 }
 
@@ -329,7 +376,7 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
   return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}" aria-live="off">Synced from the Mac ${esc(ago(meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>` +
     (problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
     (jumps ? `<nav class="lab-jump" aria-label="Jump to section">${jumps}</nav>` : "") +
-    `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now)}</section>` +
+    `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now, requests)}</section>` +
     `<div class="lab-questions" id="lab-sec-questions">${open.map((q) => questionHtml(q, ix)).join("") || '<section class="card"><div class="empty-state"><div class="empty-state__title">No open question.</div><div>Start one on the Mac with lab question new.</div></div></section>'}</div>` +
     `</div><div class="lab-notebook" id="lab-sec-notebook"><h2>Notebook</h2>${active.map(cardOf).join("") || '<p class="meta">No open experiments.</p>'}` +
     (earlier.length ? `<details class="lab-earlier" id="lab-earlier"><summary>Earlier (${earlier.length})</summary>${earlier.map(cardOf).join("")}</details>` : "") +
@@ -393,6 +440,43 @@ function sheetsHtml() {
       <button type="button" id="labPhotosSend" class="primary">Send photos</button>
     </div>
   </form>
+</dialog>
+<dialog id="labApproveSheet" class="lab-sheet" aria-labelledby="labApproveTitle">
+  <form method="dialog" class="lab-sheet__form">
+    <div class="lab-sheet__head">
+      <h2 id="labApproveTitle" class="lab-sheet__title">Approve</h2>
+      <button type="button" id="labApproveCancel" class="btn-outline" aria-label="Cancel approval">Cancel</button>
+    </div>
+    <p id="labApproveHint" class="meta lab-sheet__hint"></p>
+    <ul id="labApproveGuards" class="lab-guards"></ul>
+    <div class="lab-sheet__field">
+      <label for="labApproveReason">Why you're approving it</label>
+      <input type="text" id="labApproveReason" maxlength="500" autocomplete="off">
+    </div>
+    <p id="labApproveStatus" class="lab-sheet__status" role="status" aria-live="polite" hidden></p>
+    <p id="labApproveError" class="lab-sheet__error" role="alert" hidden></p>
+    <div class="lab-sheet__actions">
+      <button type="button" id="labApproveSend" class="primary" disabled>Approve</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="labDropSheet" class="lab-sheet" aria-labelledby="labDropTitle">
+  <form method="dialog" class="lab-sheet__form">
+    <div class="lab-sheet__head">
+      <h2 id="labDropTitle" class="lab-sheet__title">Drop</h2>
+      <button type="button" id="labDropCancel" class="btn-outline" aria-label="Cancel drop">Cancel</button>
+    </div>
+    <div class="lab-sheet__field">
+      <label for="labDropReason">Why you're dropping it</label>
+      <input type="text" id="labDropReason" maxlength="500" autocomplete="off">
+    </div>
+    <p id="labDropConfirm" class="lab-sheet__error" role="alert" hidden></p>
+    <p id="labDropStatus" class="lab-sheet__status" role="status" aria-live="polite" hidden></p>
+    <p id="labDropError" class="lab-sheet__error" role="alert" hidden></p>
+    <div class="lab-sheet__actions">
+      <button type="button" id="labDropSend" class="btn-danger" disabled>Drop</button>
+    </div>
+  </form>
 </dialog>`;
 }
 
@@ -409,6 +493,8 @@ export function mount(state) {
   state.selectedPhotoFiles = [];
   state.selectedPhotoTabs = [];
   state.currentPhotosExp = null;
+  state.approveCtx = null;
+  state.dropCtx = null;
 
   state.box = h("div", { class: "lab-body", id: "labBody", "aria-live": "polite" });
   state.sheetsContainer = h("div", { id: "labSheets" });
@@ -562,6 +648,7 @@ export function mount(state) {
   function onRequestUpdate(item) {
     addOrUpdateCardRequest(item);
     if (item.status === "applied" || item.status === "refused") state.watching.delete(item.id);
+    updateActStatuses();
     if (item.id !== state.currentReqId) return;
     const statusEl = state.sheetsContainer.querySelector("#labVerdictStatus");
     const errorEl = state.sheetsContainer.querySelector("#labVerdictError");
@@ -652,6 +739,122 @@ export function mount(state) {
     if (!photosSheet.open) photosSheet.showModal();
   };
 
+  // ---- Start, Approve, Drop ----
+  const sheetEl = (id) => state.sheetsContainer.querySelector("#" + id);
+  const expById = (id) => state.currentData?.index?.experiments?.find((x) => x.id === id);
+  function setStatus(el, text, bad) {
+    if (!el) return;
+    el.textContent = text; el.hidden = !text;
+    if (bad) el.dataset.tone = "bad"; else delete el.dataset.tone;
+  }
+
+  function updateActStatuses() {
+    for (const el of state.box.querySelectorAll("[data-act-status]")) {
+      const r = latestAct(state.currentRequests, el.dataset.actStatus);
+      setStatus(el, r ? actText(r) : "", r && r.status === "refused");
+      el.parentElement.querySelectorAll(".lab-acts button").forEach((b) => { b.disabled = Boolean(r && r.status === "pending"); });
+    }
+    for (const [ctx, s, e] of [[state.approveCtx, "labApproveStatus", "labApproveError"], [state.dropCtx, "labDropStatus", "labDropError"]]) {
+      const r = ctx && ctx.reqId && state.currentRequests.find((q) => q.id === ctx.reqId);
+      if (!r) continue;
+      setStatus(sheetEl(s), r.status === "refused" ? "" : actText(r));
+      setStatus(sheetEl(e), r.status === "refused" ? actText(r) : "", true);
+    }
+  }
+
+  async function sendAct(req) {
+    await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req),
+    });
+    addOrUpdateCardRequest({ id: req.id, kind: req.kind, experiment: req.experiment, status: "pending", message: null, at: new Date().toISOString() });
+    track(req.id);
+    updateActStatuses();
+    return req.id;
+  }
+
+  async function startPrint(btn) {
+    const x = expById(btn.dataset.exp);
+    if (!x) return;
+    btn.disabled = true;
+    try { await sendAct(startRequest(x)); }
+    catch (err) {
+      btn.disabled = false;
+      setStatus(btn.closest("li")?.querySelector("[data-act-status]"), err.message || "Couldn't send it to the Mac.", true);
+    }
+  }
+
+  function validateApprove() {
+    const b = sheetEl("labApproveSend"), c = state.approveCtx;
+    if (b) b.disabled = !(c && c.build && !c.reqId && sheetEl("labApproveReason").value.trim());
+  }
+
+  // The guards being approved and the build they bind to come from the experiment's record; the Mac refuses if either changed.
+  async function openApprove(id) {
+    const sheet = sheetEl("labApproveSheet");
+    if (!sheet) return;
+    const ctx = state.approveCtx = { id, record: null, reqId: null };
+    sheetEl("labApproveTitle").textContent = `Approve · ${id}`;
+    const guards = sheetEl("labApproveGuards"), reason = sheetEl("labApproveReason"), hint = sheetEl("labApproveHint");
+    guards.replaceChildren(); reason.value = "";
+    hint.textContent = "Reading what this approval covers…";
+    setStatus(sheetEl("labApproveStatus"), ""); setStatus(sheetEl("labApproveError"), "", true);
+    validateApprove();
+    if (!sheet.open) sheet.showModal();
+    try {
+      const rec = await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/record/${encodeURIComponent(id)}`);
+      if (ctx !== state.approveCtx) return;
+      const cover = approveGuards(rec);
+      if (!cover) { hint.textContent = "The Mac hasn't checked this build yet. Run the check on the Mac."; return; }
+      ctx.record = rec; ctx.build = cover.build;
+      hint.textContent = `You're approving build ${cover.build} for:`;
+      for (const g of cover.guards) guards.append(h("li", { class: "lab-guard--attention" }, String(g.message || g.code)));
+    } catch { if (ctx === state.approveCtx) hint.textContent = "Couldn't read the experiment. Try again."; }
+    validateApprove();
+  }
+
+  async function sendApprove() {
+    const ctx = state.approveCtx;
+    if (!ctx || !ctx.record) return;
+    const req = approveRequest(expById(ctx.id) || { id: ctx.id }, ctx.record, sheetEl("labApproveReason").value);
+    if (!req) return;
+    sheetEl("labApproveSend").disabled = true;
+    try { ctx.reqId = await sendAct(req); }
+    catch (err) { setStatus(sheetEl("labApproveError"), err.message || "Couldn't send it to the Mac.", true); validateApprove(); }
+  }
+
+  // Drop closes the experiment, so it needs a reason and a second tap.
+  function openDrop(id) {
+    const sheet = sheetEl("labDropSheet");
+    if (!sheet) return;
+    state.dropCtx = { id, armed: false, reqId: null };
+    sheetEl("labDropTitle").textContent = `Drop · ${id}`;
+    sheetEl("labDropReason").value = "";
+    setStatus(sheetEl("labDropStatus"), ""); setStatus(sheetEl("labDropError"), "", true);
+    armDrop(false);
+    if (!sheet.open) sheet.showModal();
+  }
+
+  function armDrop(on) {
+    const c = state.dropCtx;
+    if (!c) return;
+    c.armed = on;
+    const b = sheetEl("labDropSend"), conf = sheetEl("labDropConfirm");
+    conf.hidden = !on; conf.textContent = on ? `Dropping closes ${c.id} for good. Tap again to drop it.` : "";
+    b.textContent = on ? `Yes, drop ${c.id}` : "Drop";
+    b.disabled = Boolean(c.reqId) || !sheetEl("labDropReason").value.trim();
+  }
+
+  async function sendDrop() {
+    const ctx = state.dropCtx;
+    if (!ctx || ctx.reqId) return;
+    if (!ctx.armed) { armDrop(true); return; }
+    const req = dropRequest(expById(ctx.id) || { id: ctx.id }, sheetEl("labDropReason").value);
+    if (!req) return;
+    sheetEl("labDropSend").disabled = true;
+    try { ctx.reqId = await sendAct(req); sheetEl("labDropConfirm").hidden = true; }
+    catch (err) { setStatus(sheetEl("labDropError"), err.message || "Couldn't send it to the Mac.", true); armDrop(false); }
+  }
+
   async function sendPhotos() {
     if (!state.currentPhotosExp || !state.selectedPhotoFiles.length) return;
     const sendBtn = state.sheetsContainer.querySelector("#labPhotosSend");
@@ -734,6 +937,12 @@ export function mount(state) {
       if (input) input.click();
       return;
     }
+    const startBtn = e.target.closest(".lab-start");
+    if (startBtn) { startPrint(startBtn); return; }
+    const apprBtn = e.target.closest(".lab-approve");
+    if (apprBtn) { openApprove(apprBtn.dataset.exp); return; }
+    const dropBtn = e.target.closest(".lab-drop");
+    if (dropBtn) { openDrop(dropBtn.dataset.exp); return; }
     const recBtn = e.target.closest(".lab-record-verdict");
     if (recBtn) {
       const expId = recBtn.dataset.exp;
@@ -754,6 +963,23 @@ export function mount(state) {
   });
 
   // Sheet handlers
+  const apprSheet = sheetEl("labApproveSheet"), dropSheet = sheetEl("labDropSheet");
+  if (apprSheet) {
+    apprSheet.addEventListener("click", (e) => {
+      if (e.target.closest("#labApproveCancel")) apprSheet.close();
+      else if (e.target.closest("#labApproveSend")) sendApprove();
+    });
+    apprSheet.addEventListener("input", validateApprove);
+    apprSheet.addEventListener("close", () => { state.approveCtx = null; });
+  }
+  if (dropSheet) {
+    dropSheet.addEventListener("click", (e) => {
+      if (e.target.closest("#labDropCancel")) dropSheet.close();
+      else if (e.target.closest("#labDropSend")) sendDrop();
+    });
+    dropSheet.addEventListener("input", () => armDrop(false)); // editing the reason un-arms the second tap
+    dropSheet.addEventListener("close", () => { state.dropCtx = null; });
+  }
   if (verdictSheet) {
     verdictSheet.addEventListener("click", (e) => {
       const chip = e.target.closest("#labVerdictBody button[data-choice]");
@@ -870,4 +1096,8 @@ export function leave(state) {
   if (vs && vs.open) vs.close();
   const ps = state.sheetsContainer?.querySelector("#labPhotosSheet");
   if (ps && ps.open) ps.close();
+  for (const id of ["#labApproveSheet", "#labDropSheet"]) {
+    const sh = state.sheetsContainer?.querySelector(id);
+    if (sh && sh.open) sh.close();
+  }
 }

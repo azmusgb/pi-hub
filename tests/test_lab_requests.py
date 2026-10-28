@@ -443,3 +443,25 @@ def test_sync_experiments_not_a_list_is_422(client):
           "fingerprint": "fp-bad2", "experiments": 5, "records": {}}
     r = client.post("/api/lab/hex-tile/sync", json=ix, headers=MAC)
     assert r.status_code == 422, r.text
+
+
+# The page's payload builders (hub/static/js/lab.js) write these golden files; the real route must accept them.
+GOLDEN = os.path.join(os.path.dirname(__file__), "fixtures", "lab-requests")
+
+
+@pytest.mark.parametrize("name", ["start", "approve", "abandon"])
+def test_golden_page_payloads_pass_the_real_route(client, name):
+    data = json.load(open(os.path.join(GOLDEN, name + ".json")))
+    kind = data["kind"]
+    assert lab.request_problem(kind, data["payload"], {data["run_seen"]} if data.get("run_seen") else set()) is None
+    r = post(client, data)
+    assert r.status_code == 200, r.text
+    assert pending(client)[data["id"]]["kind"] == kind
+
+
+def test_a_whitespace_only_reason_is_refused(client):
+    for kind in ("approve", "abandon"):
+        d = VALID[kind]()
+        d["payload"]["reason"] = "  \n "
+        r = post(client, d)
+        assert r.status_code == 400 and "needs a reason" in r.text

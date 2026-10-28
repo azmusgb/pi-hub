@@ -224,3 +224,84 @@ test('a request pending for over 120 s says the Mac has not picked it up; a fres
   assert.doesNotMatch(requestsHtml([young], NOW), /picked this up/);
   assert.doesNotMatch(requestsHtml([{ ...old, status: 'applied' }], NOW), /picked this up/);
 });
+
+// ---- Task 3: start, approve, drop ----
+import { startRequest, approveRequest, dropRequest, approveGuards, actText } from '../hub/static/js/lab.js';
+const golden = (n) => JSON.parse(readFileSync(new URL(`./fixtures/lab-requests/${n}.json`, import.meta.url), 'utf8'));
+const RECORD = { payload: { builds: [
+  { id: 'E-102-2', check: { guards: [{ code: 'x', ok: false, result: 'needs_approval', message: 'old' }] } },
+  { id: 'E-102-3', check: { guards: [
+    { code: 'no_verdict', ok: false, result: 'needs_approval', message: 'No verdict yet' },
+    { code: 'fine', ok: true, result: 'ok', message: 'fine' },
+    { code: 'blocked_one', ok: false, result: 'blocked', message: 'blocked' },
+    { code: 'old_build', ok: false, result: 'needs_approval', message: 'Old build' }] } }] } };
+const withId = (r, g) => ({ ...r, id: g.id });
+
+test('start builder matches the golden payload', () => {
+  const x = exp(fresh(), 'E-102');
+  assert.deepEqual(withId(startRequest(x, Date.parse('2026-10-28T09:00:00Z')), golden('start')), golden('start'));
+  const none = startRequest({ ...x, run: null }, 0);
+  assert.equal(none.run_seen, null);
+  assert.match(none.id, /^rq-[0-9a-f]{16}$/);
+});
+
+test('approve builder matches the golden payload and reads the last build guards', () => {
+  const x = exp(fresh(), 'E-102');
+  assert.deepEqual(approveGuards(RECORD), { build: 'E-102-3', guards: RECORD.payload.builds[1].check.guards.filter((g) => g.code !== 'fine' && g.code !== 'blocked_one') });
+  assert.deepEqual(withId(approveRequest(x, RECORD, '  Looks right '), golden('approve')), golden('approve'));
+  assert.equal(approveGuards({ payload: { builds: [] } }), null);
+  assert.equal(approveGuards({ payload: { builds: [{ id: 'E-1-1', check: { guards: [] } }] } }), null);
+  assert.equal(approveRequest(x, { payload: { builds: [] } }, 'ok'), null);
+});
+
+test('drop builder matches the golden payload', () => {
+  const x = exp(fresh(), 'E-102');
+  assert.deepEqual(withId(dropRequest(x, ' Wrong filament '), golden('abandon')), golden('abandon'));
+});
+
+const needsPage = (action, requests = [], mod = (x) => x) => {
+  const ix = fresh();
+  ix.needs[0].action = action; ix.needs[0].due_at = null;
+  mod(ix);
+  return renderNotebook({ index: ix, meta: {} }, requests, NOW);
+};
+const needsPart = (html) => html.split('id="lab-sec-needs"')[1].split('lab-questions')[0];
+
+test('needs-you buttons follow the action', () => {
+  const judge = needsPart(needsPage('Judge the print'));
+  assert.match(judge, /lab-record-verdict[^>]*>Judge it</);
+  assert.match(judge, /lab-add-photos[^>]*>Add photos</);
+  assert.doesNotMatch(judge, /lab-start|lab-approve|lab-drop/);
+  const send = needsPart(needsPage('Send it to the printer'));
+  assert.match(send, /class="btn-primary lab-start" data-exp="E-102">It's printing now</);
+  assert.match(send, /Only once it's actually printing\./);
+  const appr = needsPart(needsPage('Approve or drop'));
+  assert.match(appr, /lab-approve[^>]*>Approve</);
+  assert.match(appr, /lab-drop[^>]*>Drop</);
+  assert.doesNotMatch(needsPart(needsPage('Fix the plan')), /<button type="button" class="btn-(primary|danger)/);
+  assert.match(needsPart(needsPage('Judge the print', [], (ix) => { ix.experiments[1].criteria = []; })), /^(?:(?!Judge it)[\s\S])*$/);
+});
+
+test('buttons are disabled while that experiment has a pending request, and the status says so', () => {
+  const pend = [{ id: 'rq-1', kind: 'start', experiment: 'E-102', status: 'pending', at: new Date(NOW - 5000).toISOString() }];
+  const html = needsPart(needsPage('Send it to the printer', pend));
+  assert.match(html, /lab-start" data-exp="E-102" disabled/);
+  assert.match(html, /data-act-status="E-102"[^>]*>Waiting for the Mac</);
+  const other = [{ id: 'rq-2', kind: 'start', experiment: 'E-999', status: 'pending', at: new Date(NOW).toISOString() }];
+  assert.doesNotMatch(needsPart(needsPage('Send it to the printer', other)), /disabled/);
+  const old = [{ ...pend[0], at: new Date(NOW - 130000).toISOString() }];
+  assert.match(needsPart(needsPage('Send it to the printer', old)), /hasn&#39;t picked this up/);
+});
+
+test('actText: waiting, refused and done', () => {
+  assert.equal(actText({ status: 'refused', message: 'Nope' }, NOW), 'Nope');
+  assert.equal(actText({ status: 'refused' }, NOW), 'The Mac refused it.');
+  assert.equal(actText({ status: 'applied', message: 'Started.' }, NOW), 'Done. Started.');
+  assert.equal(actText({ status: 'applied' }, NOW), 'Done.');
+});
+
+test('a whitespace-only reason is refused by the builders', () => {
+  const x = exp(fresh(), 'E-102');
+  assert.equal(dropRequest(x, '   '), null);
+  assert.equal(approveRequest(x, RECORD, '  \n'), null);
+});

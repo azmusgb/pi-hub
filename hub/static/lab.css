@@ -635,3 +635,43 @@
   padding-left: 8px;
   overflow-wrap: anywhere;
 }
+
+/* Start, Approve, Drop */
+.lab-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.lab-act-status {
+  margin: 6px 0 0;
+  font-size: var(--ui-fs-1, 12px);
+  color: var(--ui-accent-text, #7cc4ff);
+}
+
+.lab-act-status[data-tone="bad"] {
+  color: var(--ui-bad, #ff736c);
+}
+
+.lab-mac {
+  margin-top: 8px;
+  font-size: var(--ui-fs-1, 12px);
+}
+
+.lab-acts button:disabled,
+.lab-sheet__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  color: var(--ui-bad, #ff736c);
+  background: transparent;
+  border: 1px solid var(--ui-bad, #ff736c);
+  border-radius: var(--ui-r-1, 6px);
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
