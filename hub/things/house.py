@@ -80,6 +80,8 @@ PC_OFF_PRINT_AFTER = 120  # seconds the PC may be down during a print before it 
 
 def pc_printing(printer_rec, local_ai_rec, now):
     """The PC is off while a print runs: Obico runs on the PC, so nothing is watching the print."""
+    if not printer_rec or not local_ai_rec:  # a source is quiet; its own records say so
+        return _rec("pc_printing", "fine", "Can't tell while a source is quiet")
     printing = bool(printer_rec) and printer_rec["state"] in ("printing", "paused")
     down = bool(local_ai_rec) and local_ai_rec["state"] == "down"
     if printing and down and now - local_ai_rec.get("since", now) >= PC_OFF_PRINT_AFTER:

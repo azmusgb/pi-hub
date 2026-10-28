@@ -210,13 +210,45 @@ def test_pc_back_during_a_print_is_fine():
     assert _pc_printing("printing", "ready", 500)["state"] == "fine"
 
 
-def test_build_all_uses_the_previous_since_for_this_cycles_down_record():
+def _prev(printer="printing", ai="down", ai_since=T, stale=False):
+    out = {"printer": records.merge(None, records.make("printer", printer, "x", "bambuddy"), T),
+           "local_ai": dict(records.merge(None, records.make("local_ai", ai, "x", "pi_status"), T), since=ai_since)}
+    return {k: dict(v, stale=True) if stale else v for k, v in out.items()}
+
+
+def _build(prev, pi=None, bambuddy=None, now=T + 150):
     from hub import things
     from tests.helpers_records import inputs
-    prev = {"printer": merged(house.pc({"win_ok": True}, None, T)),
-            "local_ai": dict(merged(house.local_ai({"ai_state": "Down"}, None)), since=T)}
-    prev["printer"] = dict(merged(things.printer.printer(None, None, None, None, T) or records.make("printer", "printing", "x", "bambuddy")), state="printing")
-    out = things.build_all(inputs(pi={"ai_state": "Down"}, bambuddy=None), prev, T + 150)
-    assert out["pc_printing"]["state"] == "off_while_printing"
-    out = things.build_all(inputs(pi={"ai_state": "Down"}, bambuddy=None), {**prev, "local_ai": dict(prev["local_ai"], since=T + 100)}, T + 150)
-    assert out["pc_printing"]["state"] == "fine"
+    return things.build_all(inputs(pi=pi, bambuddy=bambuddy), prev, now)["pc_printing"]
+
+
+def test_build_all_uses_the_previous_since_for_this_cycles_down_record():
+    down = {"ai_state": "Down"}
+    assert _build(_prev(), pi=down)["state"] == "off_while_printing"
+    assert _build(_prev(ai_since=T + 100), pi=down)["state"] == "fine"
+
+
+def test_silent_pi_status_with_a_stale_down_local_ai_is_fine():
+    from hub import things
+    from tests.helpers_records import inputs
+    prev = _prev()
+    prev["local_ai"]["stale"] = True
+    ins = inputs(pi_status=None)  # Bambuddy answers: the printer is printing
+    ins["bambuddy"] = __import__("tests.helpers_records", fromlist=["bud"]).bud("RUNNING")
+    assert things.build_all(ins, prev, T + 150)["pc_printing"]["state"] == "fine"
+
+
+def test_silent_bambuddy_with_a_stale_printing_printer_is_fine():
+    prev = _prev()
+    prev["printer"]["stale"] = True
+    r = _build(prev, pi={"ai_state": "Down"}, bambuddy=None)
+    assert r["state"] == "fine" and r["headline"] == "Can't tell while a source is quiet"
+
+
+def test_after_a_restart_with_everything_stale_it_is_fine():
+    assert _build(_prev(stale=True), pi={"ai_state": "Down"}, bambuddy=None)["state"] == "fine"
+
+
+def test_the_print_ending_while_the_pc_stays_down_is_fine():
+    from tests.helpers_records import bud
+    assert _build(_prev(), pi={"ai_state": "Down"}, bambuddy=bud("IDLE"))["state"] == "fine"
