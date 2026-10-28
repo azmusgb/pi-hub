@@ -3,7 +3,7 @@
 Every area says what's wrong in words a person can act on, and copes with a
 missing source (it says so instead of guessing). Home, the wall and the Workshop page
 read the records (build, printer_from); printer() and issues() read pi-status directly
-for the morning digest and Ask, which don't read the records yet.
+for the morning digest, which does not read the records yet.
 """
 import time
 

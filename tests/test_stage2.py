@@ -133,9 +133,18 @@ def test_digest_reads_like_a_morning_message(monkeypatch):
 
 
 def test_ask_sends_the_hubs_facts(monkeypatch):
-    monkeypatch.setattr(sources, "pi_status", lambda: dict(BASE, x2d_state="Printing", x2d_progress=40, x2d_left="1 h 05 min"))
+    stamp = int(time.time())
+    monkeypatch.setattr(records, "all", lambda: {
+        "printer": {"id": "printer", "state": "printing", "headline": "Printing panel, 40%", "source": "bambuddy",
+                    "as_of": stamp, "since": stamp, "stale": False, "severity": "ok", "detail": {"progress": 40, "minutes_left": 65}},
+        "movies_drive": {"id": "movies_drive", "state": "connected", "headline": "The movies drive is connected", "source": "pi_status",
+                         "as_of": stamp, "since": stamp, "stale": False, "severity": "ok", "detail": {}},
+    })
+    monkeypatch.setattr(sources, "plex_sessions", lambda: None)
+    monkeypatch.setattr(ask.bambuddy, "prints", lambda n: None)
     text = ask.context()
-    assert "Printing, 40%, 1 h 05 min left" in text and "Movies drive: Connected" in text
+    assert "Printing panel, 40%" in text and "minutes_left=65" in text
+    assert "The movies drive is connected" in text and "source: Bambuddy" in text
     with pytest.raises(ValueError):
         ask.ask("?")
 

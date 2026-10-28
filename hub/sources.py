@@ -206,11 +206,12 @@ WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")
 
 
 def _localai_feed():
+    # Own attention only: never read the aggregate display feed back into /api/needs.
     # Local AI's own Caddy uses its private CA; the Pi talks to it on the LAN as the gate does.
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    req = urllib.request.Request("https://10.0.0.21/api/display/feed", headers={"Accept": "application/json"})
+    req = urllib.request.Request("https://10.0.0.21/api/attention", headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=4, context=ctx) as r:
         return json.load(r)
 

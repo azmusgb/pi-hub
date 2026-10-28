@@ -201,3 +201,19 @@ Plan `docs/superpowers/plans/2026-10-25-one-home-step-5-look.md`. Kit appliance-
   backdrop use the kit's ink; the kiosk light uses `--warn`; Scan reads `hub-theme` via `/static/js/saved-theme.js`.
   Found on the way: the hub's `--*-rgb` triples were comma-separated but used as `rgb(var(--x-rgb) / a)`, which is
   invalid, so 30 tints, borders and shadows never rendered; they are now `r g b` and a test keeps them so.
+
+
+## Shared facts and LocalAI attention — source changes, 28 October
+
+The Assistant now reads the same household records as Home, including source and reading age. Missing readings stay
+unknown; stale telemetry is historical. Removed the hard-coded movie count, disk capacity/free space, connected-drive
+and backup-success assertions. A failed Plex playback read is distinct from a confirmed empty playback list.
+
+LocalAI attention now comes from `/api/attention`, containing LocalAI's own cards without a Pi Hub fetch. The hub owns
+the aggregate `/api/needs`; the display consumes that list through LocalAI. Deploy the LocalAI endpoint before this
+consumer. If that endpoint is unavailable, the hub reports LocalAI as unread. These are local source changes, not a
+record of a Pi deployment or live equipment acceptance.
+
+Local verification for these source changes: 654 Python tests passed, 8 skipped; 164 JavaScript tests passed;
+installer/release shell syntax and whitespace checks passed. The skips remain unverified, and these results are not
+live household acceptance.
