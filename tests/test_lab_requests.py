@@ -363,3 +363,24 @@ def test_request_regexes_need_the_whole_value(client):
     """The routes check with fullmatch: Python's `$` alone would let `<sha>\\n` through."""
     assert lab.SHA_RE.match(SHA_A + "\n") is not None
     assert not lab._full(lab.SHA_RE, SHA_A + "\n")
+
+
+@pytest.mark.parametrize("number", ["1e999", "-1e999"])
+def test_overflowing_numbers_are_refused_and_the_queue_stays_readable(client, number):
+    data = body("observation", {"snapshots": [{**SNAP, "outcomes": {"score": "HERE"}}]})
+    text = json.dumps(data).replace('"HERE"', number)
+    assert number in text
+    assert raw(client, text).status_code == 400
+    assert post(client, VALID["observation"]()).status_code == 200
+    r = client.get(URL + "?status=pending", headers=MAC)
+    assert r.status_code == 200 and len(r.json()["items"]) == 1
+
+
+@pytest.mark.parametrize("number", ["1e999", "-1e999"])
+def test_result_refuses_overflowing_numbers(client, number):
+    data = VALID["verdict"]()
+    assert post(client, data).status_code == 200
+    r = raw(client, '{"status": "applied", "message": "ok", "n": {"m": [%s]}}' % number,
+            url=f"{URL}/{data['id']}/result", **MAC)
+    assert r.status_code == 400
+    assert pending(client)[data["id"]]["status"] == "pending"

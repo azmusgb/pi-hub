@@ -311,10 +311,11 @@ def _no_constant(name):
 
 def _load_request_json(body: bytes):
     """The request body as JSON, or 400. NaN and Infinity are refused (stored, they would break every later read of
-    the queue), and so is any string that can't be UTF-8 (a lone surrogate such as "\\ud800")."""
+    the queue), as is a number too big for a float (1e999 parses to inf, so allow_nan=False catches it), and so is
+    any string that can't be UTF-8 (a lone surrogate such as "\\ud800")."""
     try:
         data = json.loads(body.decode("utf-8"), parse_constant=_no_constant)
-        json.dumps(data, ensure_ascii=False).encode("utf-8")
+        json.dumps(data, ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (ValueError, UnicodeError, RecursionError):
         raise HTTPException(400, "Invalid JSON request body")
     return data
