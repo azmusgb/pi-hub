@@ -48,6 +48,17 @@ def _number(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+# what hit, in order (the first wins): the words with a percentage, and without one
+TITLES = [("printer", "failed", "X2D print stopped", "X2D print failed"),
+          ("obico", "failure", "Possible failure on the X2D", "Possible failure on the X2D"),
+          ("hms", "stopped", "X2D print paused", "X2D needs attention")]
+
+
+def _fresh_in(recs, id, state):
+    r = recs.get(id) or {}
+    return r.get("state") == state and not r.get("stale")
+
+
 def _message(cause, hit, recs):
     """(title, body) for a push. A print names how far it got and why it stopped, when Obico or HMS said."""
     if cause != "print":
@@ -55,7 +66,8 @@ def _message(cause, hit, recs):
     detail = (recs.get("printer") or {}).get("detail") or {}
     pct = _number(detail.get("last_progress"))
     pct = _number(detail.get("progress")) if pct is None else pct
-    title = f"X2D print stopped at {round(pct)}%" if pct is not None else "X2D print failed"
+    title = next(f"{words} at {round(pct)}%" if pct is not None else bare for id, state, words, bare in TITLES
+                 if _fresh_in(recs, id, state))
     reasons = [r.get("headline", "").rstrip(".") for id, state in CAUSES["print"] if id in ("obico", "hms")
                for r in [recs.get(id) or {}] if r.get("state") == state and not r.get("stale") and r.get("headline")]
     body = ". ".join(reasons) + "." if reasons else hit.get("cause") or LOOK[cause]

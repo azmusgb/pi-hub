@@ -12,12 +12,16 @@ IDLE = inputs()
 PRINTING = inputs(bambuddy=bud("RUNNING", 10))
 
 
-@pytest.fixture(autouse=True)
-def fresh_db():
+def _fresh():
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
     records._reset_memory()
     events._forget()
     events.ready()
+
+
+@pytest.fixture(autouse=True)
+def fresh_db():
+    _fresh()
 
 
 class Send:
@@ -87,7 +91,7 @@ def test_printer_failed_and_obico_failure_are_one_push():
                  T, send=send)
     urgent.check({"printer": rec("failed", started=STARTED, last_progress=30), "obico": rec("failure")}, T + 60,
                  send=send)
-    assert [c[0] for c in send.calls] == [("X2D print failed", "Obico sees spaghetti.")]
+    assert [c[0] for c in send.calls] == [("Possible failure on the X2D", "Obico sees spaghetti.")]
 
 
 def test_flap_within_600s_is_one_push():
@@ -363,7 +367,7 @@ def test_restart_with_every_record_stale_and_fine_changes_nothing():
 def test_fallback_titles():
     send = Send()
     urgent.check({"hms": {"state": "stopped"}, "pc_printing": {"state": "off_while_printing"}}, T, send=send)
-    assert sorted(c[0][0] for c in send.calls) == ["The PC needs you", "X2D print failed"]
+    assert sorted(c[0][0] for c in send.calls) == ["The PC needs you", "X2D needs attention"]
 
 
 def test_first_seen_is_kept_only_while_the_failing_push_stays_open():
@@ -374,3 +378,34 @@ def test_first_seen_is_kept_only_while_the_failing_push_stays_open():
     urgent.check(FINE, T + 60, send=send)
     urgent.check(FAILED, T + 2000, send=send)  # a new occurrence after a clear
     assert db.one("SELECT first_seen FROM push_occurrences")["first_seen"] == T + 2000
+
+
+def test_push_title_says_what_happened():
+    def title(recs):
+        send = Send()
+        urgent.check(recs, T, send=send)
+        return send.calls[0][0][0]
+
+    def printer(state, **d):
+        return rec(state, "", "", started=STARTED, **d)
+
+    _fresh()
+    assert title({"printer": printer("failed", last_progress=40)}) == "X2D print stopped at 40%"
+    _fresh()
+    assert title({"printer": printer("failed")}) == "X2D print failed"
+    _fresh()
+    assert title({"printer": printer("printing", progress=55), "obico": rec("failure", "Failure detected", "")}) \
+        == "Possible failure on the X2D at 55%"
+    _fresh()
+    assert title({"obico": rec("failure", "Failure detected", "")}) == "Possible failure on the X2D"
+    _fresh()
+    assert title({"printer": printer("paused", progress=61), "hms": rec("stopped", "Printer needs attention (x)", "")}) \
+        == "X2D print paused at 61%"
+    _fresh()
+    assert title({"hms": rec("stopped", "Printer needs attention (x)", "")}) == "X2D needs attention"
+    _fresh()
+    assert title({"printer": printer("failed", last_progress=20), "obico": rec("failure"), "hms": rec("stopped")}) \
+        == "X2D print stopped at 20%"
+    _fresh()
+    assert title({"printer": printer("printing", progress=30), "obico": rec("failure"), "hms": rec("stopped")}) \
+        == "Possible failure on the X2D at 30%"
