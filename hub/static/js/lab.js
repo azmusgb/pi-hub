@@ -1,9 +1,13 @@
-// Pi Hub — Print Lab (Workshop › Print lab): 24/7 coupon inspection, test notebook and operator verdicts.
+// Pi Hub — Print Lab (Workshop › Print lab): the Mac's print-lab index (lab/page_index.py build_index, plus the spool
+// colours and the prints outside the lab that lab sync adds), rendered as Local AI's Print lab renders it
+// (app/public/print-lab.js and print-lab-evidence.js). Every value from the Mac is escaped; a colour is used only if it
+// is #rrggbb and a photo URL only from a 64-hex sha256. The renderers are exported so node can test them.
 import { api, card, empty, h, toast } from "./core.js";
+import { toolUrl } from "./sections.js";
 
 export const every = 15;
 
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const n = (x) => (x === null || x === undefined ? "–" : String(Math.round(Number(x) * 10) / 10));
 
 const STATUS = {
@@ -17,6 +21,9 @@ const STATUS = {
   answered: ["Answered", "good"],
   abandoned: ["Abandoned", "neutral"],
 };
+
+// How a usage figure was arrived at (usage.minutes_source / g_source); "observed" is shown bare.
+const USAGE_SOURCE = { estimate: "estimated", scaled_estimate: "estimated, partial print", mixed: "partly estimated", none: "no build to estimate from" };
 
 const OUTCOME = {
   supported: ["Prediction supported", "good"],
@@ -45,6 +52,10 @@ const REASONS = {
 };
 
 const DONE = new Set(["answered", "abandoned"]);
+const NEUTRAL = "#8698b1";
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const SHA = /^[0-9a-f]{64}$/;
+const list = (v) => (Array.isArray(v) ? v : []);
 
 function badgeTone(tone) {
   if (tone === "good") return "ok";
@@ -53,16 +64,20 @@ function badgeTone(tone) {
   return tone;
 }
 
-const badge = ([label, tone]) => `<span class="badge badge--${badgeTone(tone)}">${esc(label)}</span>`;
-const value = (v) => (Array.isArray(v) ? [...new Set(v.map(String))].join("/") : typeof v === "number" ? n(v) : String(v ?? "").includes("/") ? String(v).split("/").pop() : String(v ?? ""));
+const badge = ([label, tone]) => `<span class="badge badge--${esc(badgeTone(tone))}">${esc(label)}</span>`;
+// Variant and factor values keep two decimals (Local AI rounds to one, which shows 0.05 mm as 0.1).
+const n2 = (x) => (x === null || x === undefined ? "–" : String(Math.round(Number(x) * 100) / 100));
+const value = (v) => (Array.isArray(v) ? [...new Set(v.map(String))].join("/") : typeof v === "number" ? n2(v) : String(v ?? "").includes("/") ? String(v).split("/").pop() : String(v ?? ""));
 const when = (iso) => {
   const d = new Date(iso);
-  return isNaN(d) ? "" : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return !iso || isNaN(d) ? "" : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 };
 const ago = (iso) => {
   const m = Math.round((Date.now() - new Date(iso)) / 60000);
   return !isFinite(m) ? "" : m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
 };
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+const dur = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
 
 function makeRequestId() {
   const b = new Uint8Array(8);
@@ -102,8 +117,45 @@ function renderRequestsList(items) {
   }).join("");
 }
 
+// Only a real sha256 makes a photo URL.
 function photoUrl(project, p) {
-  return `/api/lab/${encodeURIComponent(project)}/photo/${esc(p.sha256)}.jpg`;
+  return `/api/lab/${encodeURIComponent(project || "")}/photo/${p.sha256}.jpg`;
+}
+const realPhotos = (x) => list(x.photos).filter((p) => p && SHA.test(p.sha256 || ""));
+
+// The longest colour name found in the filament text wins ("light matte terracotta" before "terracotta"); only a
+// #rrggbb value is ever returned, so it is safe in a style attribute.
+export function spoolColour(filament, colours) {
+  const text = String(filament || "").toLowerCase();
+  const c = colours && typeof colours === "object" ? colours : {};
+  const name = Object.keys(c).sort((a, b) => b.length - a.length).find((k) => k && text.includes(k.toLowerCase()) && HEX.test(String(c[k])));
+  return name ? String(c[name]) : NEUTRAL;
+}
+
+// Bambuddy's print for a run, and the prints made outside the lab (runs[].print, entered_on_mac, outside).
+const bambuLink = (id) => (id == null ? "" : `<a href="${esc(toolUrl("bambuddy"))}" target="_blank" rel="noopener">from Bambuddy print #${esc(id)} ↗</a>`);
+
+export function runLines(x) {
+  const runs = list(x && x.runs);
+  return runs.map((r) => {
+    const p = r && r.print;
+    if (!p && !(r && r.entered_on_mac)) return "";
+    const word = p ? esc(p.status_word) + (p.failed_at_estimate != null ? ` at ~${Math.round(p.failed_at_estimate * 100)} % (estimate)` : "") + (p.failure_reason ? ` (${esc(p.failure_reason)})` : "") : "";
+    const parts = [
+      runs.length > 1 ? esc(r.id) : "",
+      word,
+      p && p.minutes != null ? dur(Math.round(p.minutes)) : "",
+      p && p.grams != null ? `${Math.round(p.grams)} g` : "",
+      p ? bambuLink(p.id) : "",
+      r.entered_on_mac ? "entered on the Mac" : "",
+    ].filter(Boolean);
+    return `<p class="meta lab-print">${parts.join(" · ")}</p>`;
+  }).join("");
+}
+
+export function outsideHtml(items) {
+  if (!Array.isArray(items) || !items.length) return "";
+  return `<section class="card lab-outside"><h2>Outside the lab</h2>${items.map((o) => `<p class="meta">${[esc(o.name || `Print #${o.print}`), esc(o.status_word), esc(when(o.started)), bambuLink(o.print)].filter(Boolean).join(" · ")}</p>`).join("")}</section>`;
 }
 
 function meter(label, spent, next, total, unit) {
@@ -115,49 +167,89 @@ function meter(label, spent, next, total, unit) {
     `<div class="lab-meter__track" role="img" aria-label="${n(spent)} of ${n(total)} ${unit} used${next ? `, the next test adds ${n(next)}` : ""}"><span class="lab-meter__spent" style="width:${a.toFixed(1)}%"></span><span class="lab-meter__next" style="width:${b.toFixed(1)}%"></span></div></div>`;
 }
 
-function needsHtml(ix, byId) {
-  if (!ix.needs || !ix.needs.length) return '<p class="meta">Nothing needs you right now.</p>';
-  return `<ul class="list-group lab-needs">${ix.needs.map((x) => `<li class="list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
-    `<div class="list-row__sub">${esc(byId[x.id]?.question_text || "")}</div><div class="list-row__sub">${esc(x.why || "")}</div>` +
-    `<div class="lab-cmd"><code>${esc(x.command)}</code><button type="button" class="btn-outline lab-copy" data-copy="${esc(x.command)}" aria-label="Copy the command for ${esc(x.id)}">Copy</button></div></div></li>`).join("")}</ul>`;
+const byIdOf = (ix) => Object.fromEntries(list(ix && ix.experiments).map((x) => [x.id, x]));
+
+// A print still on the printer isn't ready to judge: until its estimated end it says when, with no command.
+export function needView(need, now = Date.now(), byId = {}) {
+  const look = `Look at: ${byId[need.id]?.judge_on || "the face"}. Photos help.`;
+  if (need.due_at && now < new Date(need.due_at)) return { action: "Printing", why: `Done about ${clock(need.due_at)} (estimate). Then l${look.slice(1)}`, command: null };
+  return { action: need.action, why: need.due_at ? look : need.why, command: need.command };
 }
 
-function questionHtml(q, byId) {
-  const exps = (q.experiment_ids || []).map((id) => byId[id]).filter(Boolean);
-  const m = q.budget ? [
-    meter("Coupons", q.budget.coupons_spent, q.budget.coupons_next, q.budget.coupons_total, "coupons"),
-    meter("Material", q.budget.g_spent, q.budget.g_next, q.budget.g_total, "g"),
-    meter("Time", q.budget.minutes_spent, q.budget.minutes_next, q.budget.minutes_total, "min"),
-  ].join("") : "";
-  const stop = q.stop ? `<div class="lab-stop${q.stop.may_continue ? "" : " lab-stop--bad"}">${esc(q.stop.reason || "")}</div>` : "";
-  const now = q.now_testing ? `<div class="lab-now"><span class="meta">Now testing</span><p class="lab-now__q">${esc(q.now_testing.hypothesis || "")}</p><a href="#lab-${esc(q.now_testing.experiment_id)}" data-lab-open="${esc(q.now_testing.experiment_id)}">Open ${esc(q.now_testing.experiment_id)}</a></div>` : "";
-  return `<section class="card lab-question"><h2>${esc(q.title || "Question")}</h2><p class="meta">${esc(q.why || "")}</p>${m}${stop}${now}</section>`;
+function needsHtml(ix, byId, now) {
+  const needs = list(ix.needs);
+  if (!needs.length) return '<p class="meta">Nothing needs you right now.</p>';
+  return `<ul class="list-group lab-needs">${needs.map((raw) => {
+    const x = { ...raw, ...needView(raw, now, byId) };
+    const cmd = x.command ? `<div class="lab-cmd"><code>${esc(x.command)}</code><button type="button" class="btn-outline lab-copy" data-copy="${esc(x.command)}" aria-label="Copy the command for ${esc(x.id)}">Copy</button></div>` : "";
+    return `<li class="list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
+      `<div class="list-row__sub">${esc(byId[x.id]?.question_text)}</div><div class="list-row__sub">${esc(x.why)}</div>${cmd}</div></li>`;
+  }).join("")}</ul>`;
 }
 
-function experimentHtml(x, project, requests) {
-  const b = [];
-  if (STATUS[x.status]) b.push(badge(STATUS[x.status]));
-  if (x.outcome && OUTCOME[x.outcome]) b.push(badge(OUTCOME[x.outcome]));
-  if (x.validity && VALIDITY[x.validity.status]) b.push(badge(VALIDITY[x.validity.status]));
+function plansHtml(q) {
+  const rows = list(q.plans).map((p) => `<li>After ${esc(p.after)}, if ${esc(p.if)}: ${esc(p.next)}</li>`).join("");
+  return rows ? `<h3 class="label">Plans</h3><ul class="lab-plans">${rows}</ul>` : "";
+}
 
-  const meta = [x.plan, x.build, x.run].filter(Boolean).join(" · ");
-  const vars = (x.variants || []).map((v) => {
+export function questionHtml(q, ix) {
+  const byId = byIdOf(ix);
+  const s = q.spent || {}, b = q.budget || {}, nx = q.next, st = q.stop || {}, ev = q.evidence;
+  const ids = list(q.experiments);
+  const cur = [...ids].reverse().map((i) => byId[i]).find((x) => x && !DONE.has(x.status));
+  const text = String(st.text || "");
+  const stop = st.kind
+    ? `<p class="lab-stop lab-stop--${st.kind === "owner" ? "bad" : "attention"}">${esc(text.charAt(0).toUpperCase() + text.slice(1))}</p>`
+    : '<p class="lab-stop">Continue: nothing has stopped this question.</p>';
+  const head = [esc(q.id), `${Number(q.answered) || 0} of ${ids.length} answered`, ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
+  return `<section class="card lab-question"><p class="meta">${head}</p><h2>${esc(q.question)}</h2>` +
+    meter("Time", s.minutes, nx && nx.minutes, b.minutes, "min") + meter("Material", s.g, nx && nx.g, b.g, "g") +
+    (nx ? `<p class="meta">${esc(nx.id)} would add ${n(nx.minutes)} min, ${n(nx.g)} g</p>` : "") + stop + plansHtml(q) +
+    (cur ? `<div class="lab-now"><p class="meta"><a href="#lab-${esc(cur.id)}" data-lab-open="${esc(cur.id)}">${esc(cur.id)}</a> ${badge(STATUS[cur.status] || [cur.status, "neutral"])}</p><p class="lab-now__q">${esc(cur.question_text)}</p>${cur.why_this_test ? `<p class="meta"><b>Why this test?</b> ${esc(cur.why_this_test)}</p>` : ""}</div>` : "") +
+    "</section>";
+}
+
+// An AI reading with no confidence says so rather than "0% sure".
+const aiHtml = (x) => list(x.ai_observations).map((o) => {
+  const sure = typeof o.confidence === "number" ? `${Math.round(o.confidence * 100)}% sure` : "";
+  const how = [sure, o.confirmed ? "" : "unconfirmed"].filter(Boolean).join(", ");
+  return `<p class="lab-ai">AI reading${how ? ` (${how})` : ""}: ${esc(o.assessment)}</p>`;
+}).join("");
+
+export function experimentHtml(x, ix, requests = []) {
+  const project = ix && ix.project;
+  const f = x.factor || {};
+  const b = [badge(STATUS[x.status] || [x.status, "neutral"])];
+  if (x.outcome) {
+    b.push(badge(OUTCOME[x.outcome] || [x.outcome, "neutral"]));
+    if (x.validity) b.push(badge(VALIDITY[x.validity.status] || [x.validity.status, "neutral"]));
+  }
+  if (x.verdict && x.verdict.kind === "acceptance") b.push(badge(x.verdict.good_enough ? ["Accepted", "good"] : ["Not good enough", "bad"]));
+
+  const meta = [
+    String(x.test_kind || "").replace(/_/g, " "),
+    f.name ? `${String(f.name).replace(/_/g, " ")}: ${list(f.values).map(value).join(" vs ")}` : "",
+    x.provenance && x.provenance !== "prospective" ? x.provenance : "",
+  ].filter(Boolean).join(" · ");
+  const vars = list(x.variants).map((v) => {
     const u = v.unit ? ` ${v.unit}` : "";
     const name = v.tab || v.id;
-    return `<li>${esc(name)}: ${v.realized != null && v.as_asked === false ? `${esc(value(v.requested))} asked, ${n(v.realized)} printed${esc(u)}` : `${esc(v.realized != null ? n(v.realized) : value(v.requested))}${esc(u)}`}</li>`;
+    return `<li>${esc(name)}: ${v.realized != null && v.as_asked === false ? `${esc(value(v.requested))} asked, ${n2(v.realized)} printed${esc(u)}` : `${esc(v.realized != null ? n2(v.realized) : value(v.requested))}${esc(u)}`}${v.grade ? ` · ${esc(v.grade)}` : ""}</li>`;
   }).join("");
 
+  const qty = (v, unit, src) => `${n(v)} ${unit}${src && src !== "observed" ? ` (${USAGE_SOURCE[src] || "estimated"})` : ""}`;
   const cost = [
     x.estimate && `estimated ${n(x.estimate.minutes)} min, ${n(x.estimate.g)} g`,
-    x.usage && `used ${n(x.usage.minutes)} min, ${n(x.usage.g)} g`,
+    x.usage && `used ${qty(x.usage.minutes, "min", x.usage.minutes_source)}, ${qty(x.usage.g, "g", x.usage.g_source)}`,
+    x.reserved && `reserved ${n(x.reserved.minutes)} min, ${n(x.reserved.g)} g while it prints`,
     x.layer_time_median_s && `${n(x.layer_time_median_s)} s per layer`,
   ].filter(Boolean).join(", ");
 
-  const why = x.outcome && x.validity ? (x.validity.reasons || []).map((r) => REASONS[r.code] || r.code).join("; ") : "";
+  const why = x.outcome && x.validity ? list(x.validity.reasons).map((r) => REASONS[r.code] || r.code).join("; ") : "";
   const v = x.verdict;
   const said = v && (v.note || (v.kind === "acceptance" ? (v.good_enough ? "good enough" : "not good enough") : v.kind));
-  const shots = (x.photos || []).filter((p) => p.sha256).map((p, i) => `<a href="${photoUrl(project, p)}" target="_blank" rel="noopener"${i ? "" : ' class="lab-shots__first"'}><img src="${photoUrl(project, p)}" alt="${esc(x.id)} print ${esc(p.run || "")}" loading="lazy"></a>`).join("");
-  const guards = ((x.check || {}).guards || []).filter((g) => !g.ok).map((g) => `<li class="lab-guard--${g.result === "blocked" ? "bad" : "attention"}">${esc(g.message)}</li>`).join("");
+  const shots = realPhotos(x).map((p, i) => `<a href="${photoUrl(project, p)}" target="_blank" rel="noopener"${i ? "" : ' class="lab-shots__first"'}><img src="${photoUrl(project, p)}" alt="${esc(x.id)} print ${esc(p.run || "")}${p.tab ? ` tab ${esc(p.tab)}` : ""}" loading="lazy"></a>`).join("");
+  const guards = list((x.check || {}).guards).filter((g) => !g.ok).map((g) => `<li class="lab-guard--${g.result === "blocked" ? "bad" : "attention"}">${esc(g.message)}</li>`).join("");
   const dl = [
     ["Hypothesis", x.hypothesis],
     ["Prediction", x.prediction],
@@ -177,29 +269,48 @@ function experimentHtml(x, project, requests) {
     actions = `${hint}<div class="lab-actions">${addBtn}${verdictBtn}</div>${reqsHtml}`;
   }
 
-  return `<article class="card lab-exp" id="lab-${esc(x.id)}"><header class="lab-exp__head"><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text || "")}</h3><p class="meta">${esc(meta)}</p>` +
+  const spine = spoolColour(x.filament, ix && ix.colours);
+  return `<article class="card lab-exp" id="lab-${esc(x.id)}" style="--spine:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
+    (meta ? `<p class="meta">${esc(meta)}</p>` : "") +
     (vars ? `<ul class="lab-variants">${vars}</ul>` : "") +
     (cost ? `<p class="meta">${esc(cost)}</p>` : "") +
+    runLines(x) +
     (why ? `<p class="meta">Why: ${esc(why)}</p>` : "") +
     (said ? `<p class="lab-verdict">Your verdict: ${esc(said)} <span class="meta">${esc(when(v.at))}</span></p>` : "") +
+    (v && list(v.defects).length ? `<p class="meta lab-defects">Defects: ${esc(v.defects.join("; "))}</p>` : "") +
+    (x.finding ? `<p class="lab-verdict">Finding: ${esc(x.finding)}</p>` : "") +
+    aiHtml(x) +
     actions +
     (shots ? `<div class="lab-shots">${shots}</div>` : "") +
-    `<details class="lab-details" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
+    `<details class="lab-details" id="lab-d-${esc(x.id)}" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
 }
 
-function renderNotebook(data, requests) {
-  const ix = data.index, meta = data.meta || {}, byId = Object.fromEntries((ix.experiments || []).map((x) => [x.id, x]));
-  const open = (ix.questions || []).filter((q) => !["answered", "stopped"].includes(q.status));
-  const active = (ix.experiments || []).filter((x) => !DONE.has(x.status));
-  const earlier = (ix.experiments || []).filter((x) => DONE.has(x.status));
-  const stale = meta.synced_at && Date.now() - new Date(meta.synced_at) > 2 * 3600e3;
+export function renderNotebook(data, requests = [], now = Date.now()) {
+  const ix = data.index || {}, meta = data.meta || {}, byId = byIdOf(ix);
+  const exps = list(ix.experiments), problems = list(ix.problems), needs = list(ix.needs);
+  const open = list(ix.questions).filter((q) => !["answered", "stopped"].includes(q.status));
+  // Answered in the last three days stays in view: the newest result is what the owner comes to check.
+  const recent = (x) => x.status === "answered" && x.verdict && now - new Date(x.verdict.at) < 3 * 864e5;
+  const active = exps.filter((x) => !DONE.has(x.status) || recent(x));
+  const earlier = exps.filter((x) => DONE.has(x.status) && !recent(x));
+  const stale = meta.synced_at && now - new Date(meta.synced_at) > 2 * 3600e3;
+  const cardOf = (x) => experimentHtml(x, ix, requests);
 
-  return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}">Synced from the Mac ${esc(ago(meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>` +
-    (ix.problems && ix.problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${ix.problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
-    `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card"><h2>Needs you</h2>${needsHtml(ix, byId)}</section>` +
-    (open.map((q) => questionHtml(q, byId)).join("") || '<section class="card"><div class="empty-state"><div class="empty-state__title">No open question.</div><div>Start one on the Mac with lab question new.</div></div></section>') +
-    `</div><div class="lab-notebook"><h2>Notebook</h2>${active.map((x) => experimentHtml(x, ix.project, requests)).join("") || '<p class="meta">No open experiments.</p>'}` +
-    (earlier.length ? `<details class="lab-earlier"><summary>Earlier (${earlier.length})</summary>${earlier.map((x) => experimentHtml(x, ix.project, requests)).join("")}</details>` : "") +
+  const jumps = [
+    needs.length ? `<a href="#lab-sec-needs" class="lab-jump__chip">Needs you <span class="badge badge--warn">${needs.length}</span></a>` : "",
+    open.length ? `<a href="#lab-sec-questions" class="lab-jump__chip">Questions (${open.length})</a>` : "",
+    active.length ? `<a href="#lab-sec-notebook" class="lab-jump__chip">Notebook (${active.length})</a>` : "",
+    earlier.length ? `<a href="#lab-earlier" class="lab-jump__chip">Earlier (${earlier.length})</a>` : "",
+  ].filter(Boolean).join("");
+
+  return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}" aria-live="off">Synced from the Mac ${esc(ago(meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>` +
+    (problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
+    (jumps ? `<nav class="lab-jump" aria-label="Jump to section">${jumps}</nav>` : "") +
+    `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now)}</section>` +
+    `<div class="lab-questions" id="lab-sec-questions">${open.map((q) => questionHtml(q, ix)).join("") || '<section class="card"><div class="empty-state"><div class="empty-state__title">No open question.</div><div>Start one on the Mac with lab question new.</div></div></section>'}</div>` +
+    `</div><div class="lab-notebook" id="lab-sec-notebook"><h2>Notebook</h2>${active.map(cardOf).join("") || '<p class="meta">No open experiments.</p>'}` +
+    (earlier.length ? `<details class="lab-earlier" id="lab-earlier"><summary>Earlier (${earlier.length})</summary>${earlier.map(cardOf).join("")}</details>` : "") +
+    outsideHtml(ix.outside) +
     "</div></div>";
 }
 
@@ -282,7 +393,7 @@ export function mount(state) {
   const photosSheet = state.sheetsContainer.querySelector("#labPhotosSheet");
 
   state.openExperiment = (id) => {
-    const cardEl = state.box.querySelector(`#lab-${id}`);
+    const cardEl = state.box.querySelector(`#lab-${CSS.escape(id)}`);
     if (!cardEl) return;
     const earlier = cardEl.closest(".lab-earlier");
     if (earlier) earlier.open = true;
@@ -626,7 +737,7 @@ export function mount(state) {
     const addBtn = e.target.closest(".lab-add-photos");
     if (addBtn) {
       const expId = addBtn.dataset.exp;
-      const input = state.box.querySelector(`input[type="file"][data-exp="${expId}"]`);
+      const input = state.box.querySelector(`input[type="file"][data-exp="${CSS.escape(expId)}"]`);
       if (input) input.click();
       return;
     }

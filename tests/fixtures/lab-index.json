@@ -1,0 +1,198 @@
+{
+  "schema": 1,
+  "project": "hex-tile",
+  "generated_at": "2026-10-28T12:00:00+00:00",
+  "fingerprint": "sha256:0123456789ab",
+  "questions": [
+    {
+      "id": "Q-005",
+      "question": "Does the edge-only seam come apart by hand with a clean face?",
+      "status": "active",
+      "budget": { "minutes": 540.0, "g": 200.0 },
+      "spent": { "minutes": 24.0, "g": 19.8 },
+      "reserved": { "minutes": 0.0, "g": 0.0 },
+      "next": { "id": "E-103", "minutes": 261.2, "g": 85.92 },
+      "stop": { "kind": null, "text": "continue" },
+      "streak": 0,
+      "evidence": { "informative": 1, "uninformative": 0 },
+      "experiments": ["E-101", "E-102"],
+      "plans": [
+        { "after": "E-102", "if": "the pair welds", "next": "widen the seam gap to 0.15 mm" }
+      ],
+      "answered": 1
+    }
+  ],
+  "experiments": [
+    {
+      "id": "E-101",
+      "question": "Q-005",
+      "status": "answered",
+      "provenance": "prospective",
+      "question_text": "Is the v58 upper edge clean?",
+      "hypothesis": "The upper edge ripple is the remaining risk.",
+      "prediction": "No ripple near the top.",
+      "why_this_test": "Cheaper check of the only region no strip has covered.",
+      "test_kind": "height_strip",
+      "judge_on": "upper face, top edge",
+      "factor": { "name": "model_version", "unit": "", "values": ["sources/hexagon_v58.3mf"] },
+      "variants": [
+        { "id": "E-101-A", "tab": "1A", "requested": "sources/hexagon_v58.3mf", "realized": null, "as_asked": null, "unit": "", "grade": "clean" }
+      ],
+      "reference_variants": [],
+      "estimate": { "minutes": 99.4, "g": 29.09 },
+      "layer_time_median_s": 13.68,
+      "usage": { "minutes": 102.0, "g": 29.1, "minutes_source": "observed", "g_source": "estimate" },
+      "reserved": null,
+      "shown_build": "BLD-101-01",
+      "check": null,
+      "outcome": "supported",
+      "validity": { "status": "valid", "reasons": [] },
+      "verdict": {
+        "kind": "acceptance",
+        "order": null,
+        "strength": null,
+        "good_enough": true,
+        "grades": null,
+        "lighting": "room",
+        "note": "",
+        "at": "2026-10-01T03:48:16+00:00",
+        "defects": ["strings along the top edge"]
+      },
+      "criteria": null,
+      "run": "PR-101-01",
+      "approval": null,
+      "abandoned_reason": null,
+      "filament": "Kexcelled K5 PLA M, Light Matte Terracotta (lot C6719062)",
+      "runs": [
+        {
+          "id": "PR-101-01",
+          "started_at": "2026-09-30T14:09:10+00:00",
+          "baseline_missing": [],
+          "print": { "id": 13, "status_word": "Failed", "minutes": 87.0, "grams": 30.2, "failed_at_estimate": 0.821, "failure_reason": "spaghetti", "linked": "auto" },
+          "entered_on_mac": false
+        }
+      ],
+      "finding": "The top edge holds up to Z 132.",
+      "finding_source": "owner",
+      "observations": [],
+      "ai_observations": [
+        { "type": "photo_reading", "variant": "E-101-A", "assessment": "Soft bands across the face.", "confidence": 0.8, "confirmed": false, "at": "2026-10-01" }
+      ],
+      "due_at": null,
+      "needs": null,
+      "photos": [
+        { "run": "PR-101-01", "path": "photos/PR-101-01-1.jpg", "sha256": "ddd8da66ecaab25362965974f034d44d0f06d1f68347e4d13a4697fea089416b", "tab": "1A", "captured_at": "2026-10-01T01:42:27+00:00" }
+      ]
+    },
+    {
+      "id": "E-102",
+      "question": "Q-005",
+      "status": "printing",
+      "provenance": "prospective",
+      "question_text": "Does the 0.1 mm seam gap stop the pair welding?",
+      "hypothesis": "A wider gap keeps the tiles apart.",
+      "prediction": "Both pairs twist apart by hand.",
+      "why_this_test": "The pair fused at 0.05 mm.",
+      "test_kind": "paired_comparison",
+      "judge_on": "fronts under one low side light",
+      "factor": { "name": "seam_gap", "unit": "mm", "values": [0.05, 0.1] },
+      "variants": [
+        { "id": "E-102-A", "tab": "2A", "requested": 0.05, "realized": 0.05, "as_asked": true, "unit": "mm", "grade": null },
+        { "id": "E-102-B", "tab": "2B", "requested": 0.1, "realized": 0.12, "as_asked": false, "unit": "mm", "grade": null }
+      ],
+      "reference_variants": ["E-101-A"],
+      "estimate": { "minutes": 110.0, "g": 40.0 },
+      "layer_time_median_s": null,
+      "usage": null,
+      "reserved": { "minutes": 110.0, "g": 40.0 },
+      "shown_build": "BLD-102-01",
+      "check": null,
+      "outcome": null,
+      "validity": null,
+      "verdict": null,
+      "criteria": [
+        { "key": "apart", "label": "Comes apart", "choices": ["yes", "hard", "no"] }
+      ],
+      "run": "PR-102-02",
+      "approval": null,
+      "abandoned_reason": null,
+      "filament": "Bambu PLA Basic Grey",
+      "runs": [
+        { "id": "PR-102-01", "started_at": "2026-10-26T02:56:16+00:00", "baseline_missing": [], "print": null, "entered_on_mac": true },
+        {
+          "id": "PR-102-02",
+          "started_at": "2026-10-26T03:11:22+00:00",
+          "baseline_missing": [],
+          "print": { "id": 14, "status_word": "Printing", "minutes": 264.6, "grams": null, "failed_at_estimate": null, "failure_reason": null, "linked": "auto" },
+          "entered_on_mac": false
+        }
+      ],
+      "finding": null,
+      "finding_source": null,
+      "observations": [],
+      "ai_observations": [],
+      "due_at": null,
+      "needs": "Judge the print",
+      "photos": []
+    },
+    {
+      "id": "E-100",
+      "question": "Q-004",
+      "status": "abandoned",
+      "provenance": "retrospective",
+      "question_text": "Old ribbed seam.",
+      "hypothesis": null,
+      "prediction": null,
+      "why_this_test": null,
+      "test_kind": "full_part",
+      "judge_on": null,
+      "factor": { "name": "ribs", "unit": "", "values": ["on"] },
+      "variants": [],
+      "reference_variants": [],
+      "estimate": null,
+      "layer_time_median_s": null,
+      "usage": { "minutes": 30.0, "g": 12.0, "minutes_source": "scaled_estimate", "g_source": "mixed" },
+      "reserved": null,
+      "shown_build": null,
+      "check": null,
+      "outcome": null,
+      "validity": null,
+      "verdict": null,
+      "criteria": null,
+      "run": null,
+      "approval": null,
+      "abandoned_reason": "superseded by the edge-only seam",
+      "filament": "",
+      "runs": [],
+      "finding": null,
+      "finding_source": null,
+      "observations": [],
+      "ai_observations": [],
+      "due_at": null,
+      "needs": null,
+      "photos": []
+    }
+  ],
+  "needs": [
+    {
+      "id": "E-102",
+      "urgency": 0,
+      "action": "Judge the print",
+      "why": "Look at: fronts under one low side light. Photos help.",
+      "due_at": null,
+      "command": "uv run lab exp verdict E-102 --grade \"2A=apart:yes|hard|no\""
+    }
+  ],
+  "records": {},
+  "problems": [],
+  "colours": {
+    "terracotta": "#C8643C",
+    "light matte terracotta": "#D9825B",
+    "grey": "#8A8D8F",
+    "blue": "red;background:url(x)"
+  },
+  "outside": [
+    { "print": 33, "archive": 33, "name": "RIFT_ab-pair", "status_word": "Failed", "started": "2026-10-28T14:49:36Z", "ended": "2026-10-28T15:00:13Z" },
+    { "print": 32, "archive": 32, "name": null, "status_word": "Finished", "started": "2026-10-28T14:32:46Z", "ended": "2026-10-28T14:48:23Z" }
+  ]
+}
