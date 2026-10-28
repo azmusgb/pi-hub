@@ -105,8 +105,25 @@ def test_request_over_64kib_streamed_is_refused_early(env):
     assert consumed <= 3
 
 
+def test_declared_length_over_cap_is_refused_without_reading(env):
+    h = {**mac_headers(), "content-length": str(9 * MIB)}
+    status, body, consumed = drive("PUT", f"/api/lab/hex-tile/photos/{SHA}.jpg", h, 64 * MIB)
+    assert status == 413
+    assert consumed == 0
+
+
+def test_understated_content_length_cannot_dodge_the_cap(env):
+    h = {**mac_headers(), "content-length": "10"}
+    status, body, consumed = drive("PUT", f"/api/lab/hex-tile/photos/{SHA}.jpg", h, 64 * MIB)
+    assert status == 413
+    assert consumed <= (8 * MIB) // CHUNK + 2
+
+
 def test_caddyfile_caps_lab_bodies():
     text = (pathlib.Path(__file__).resolve().parent.parent / "deploy/caddy/Caddyfile").read_text()
-    block = text.split("home.home.arpa {", 1)[1].split("\n}\n", 1)[0]
-    assert "/api/lab/*" in block
-    assert "request_body" in block and "max_size 9MB" in block
+    blocks = [text.split("home.home.arpa {", 1)[1].split("\n}\n", 1)[0],
+              text.split("\nhttp:// {", 1)[1].split("\n}\n", 1)[0]]
+    for block in blocks:
+        lab = block.split("handle /api/lab/* {", 1)[1].split("reverse_proxy", 1)[0]
+        assert "request_body" in lab and "max_size 9MB" in lab
+        assert block.index("handle /api/lab/*") < block.rindex("\thandle {")
