@@ -46,7 +46,7 @@ test('the experiment card shows test kind and factor, not the guessed plan/build
   const ix = fresh();
   const html = experimentHtml(exp(ix, 'E-102'), ix);
   assert.match(html, /paired comparison · seam gap: 0\.05 vs 0\.1/);
-  assert.match(html, /<li>2A: 0\.05 mm<\/li><li>2B: 0\.1 asked, 0\.12 printed mm<\/li>/);
+  assert.match(html, /<li>2A: 0\.05 mm · apart hard<\/li><li>2B: 0\.1 asked, 0\.12 printed mm · print clean · apart no<\/li>/);
   assert.doesNotMatch(html, /undefined|NaN/);
   assert.doesNotMatch(experimentHtml(exp(ix, 'E-101'), ix), /undefined|NaN/);
   assert.doesNotMatch(experimentHtml(exp(ix, 'E-100'), ix), /undefined|NaN/);

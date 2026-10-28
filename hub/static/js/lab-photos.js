@@ -130,7 +130,6 @@ let view = null, viewZoom = null;
 function viewerEl() {
   const d = dialog("labViewer", `<dialog id="labViewer" class="lab-viewer" aria-label="Photo"><div class="lab-viewer__stage"><img class="lab-viewer__img" alt=""></div><p class="lab-viewer__cap" aria-live="polite"></p><div class="lab-viewer__nav"><button type="button" class="btn-outline" data-step="-1" aria-label="Previous photo">‹</button><button type="button" class="btn-outline" data-step="1" aria-label="Next photo">›</button><button type="button" class="btn-outline" id="labViewerClose">Close</button></div></dialog>`);
   wireOnce(d, () => {
-    view = null;
     viewZoom = zoomable(d.querySelector(".lab-viewer__stage"), () => [d.querySelector(".lab-viewer__img")].filter(Boolean), step);
     d.addEventListener("click", (e) => { const b = e.target.closest("[data-step]"); if (b) step(Number(b.dataset.step)); else if (e.target.closest("#labViewerClose")) d.close(); });
     d.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); } });
@@ -144,11 +143,13 @@ function show() {
   viewZoom.reset();
 }
 function step(n) { if (!view) return; view.i = (view.i + n + view.list.length) % view.list.length; show(); }
-function openViewer(x, i) {
+export function openViewer(x, i) {
   const list = photosOf(x);
   if (!list.length) return;
+  // The dialog first: making it wires it, and only then is the open photo set (wiring must never undo it).
+  const d = viewerEl();
   view = { x, ix: cur.ix, list, i: Math.min(i, list.length - 1) };
-  const d = viewerEl(); show(); if (!d.open) d.showModal();
+  show(); if (!d.open) d.showModal();
 }
 
 // ---- Compare ----
@@ -165,7 +166,6 @@ let cmp = null, cmpZoom = null, cmpMode = "split";
 function compareEl() {
   const d = dialog("labCompare", `<dialog id="labCompare" class="lab-compare" aria-labelledby="labCompareTitle"><div class="lab-compare__head"><h2 id="labCompareTitle" class="lab-sheet__title">Compare</h2><div class="lab-compare__modes" role="radiogroup" aria-label="Compare mode"><button type="button" class="btn-subtle" data-cmp-mode="split" aria-pressed="true">Side by side</button><button type="button" class="btn-subtle" data-cmp-mode="wipe" aria-pressed="false">Curtain slider</button></div><button type="button" class="btn-outline" id="labCompareClose">Close</button></div><div class="lab-compare__pick"><label class="lab-sheet__field">Left<select data-side="0"></select></label><label class="lab-sheet__field">Right<select data-side="1"></select></label></div><div class="lab-compare__body"></div><p class="meta lab-sheet__hint">Pinch or double-tap to zoom; drag the slider in curtain mode.</p></dialog>`);
   wireOnce(d, () => {
-    cmp = null;
     cmpZoom = zoomable(d.querySelector(".lab-compare__body"), () => d.querySelectorAll(".lab-compare__body img"));
     d.addEventListener("click", (e) => {
       if (e.target.closest("#labCompareClose")) d.close();
@@ -198,20 +198,22 @@ function drawCompare() {
   d.querySelector(".lab-compare__body").innerHTML = rows.join("");
   cmpZoom.reset();
 }
-function openCompare(x) {
+export function openCompare(x) {
   const runs = runsOf(x, cur.ix), mine = runs.filter((r) => r.x === x);
   if (!mine.length || runs.length < 2) return;
   const left = mine[mine.length - 1], others = runs.filter((r) => r !== left);
   const right = [...others].reverse().find((r) => r.good) || [...others].reverse().find((r) => r.at < left.at) || others[others.length - 1];
+  const d = compareEl();
   cmp = { ix: cur.ix, runs, sides: [left.run, right.run] };
-  const d = compareEl(); drawCompare(); if (!d.open) d.showModal();
+  drawCompare(); if (!d.open) d.showModal();
 }
 
 // Fill the placeholders lab.js leaves on each card ([data-lab-photos], [data-lab-wipe], [data-lab-checklist]). Called
 // after every render of the page body; the click handlers are attached once per root and read the latest index.
 const wired = new WeakSet();
 export function mountPhotos(root, ix) {
-  if (!root || !ix) return;
+  // A tree already taken off the page (a load that finished after leaving) must not become the one the dialogs use.
+  if (!root || !ix || root.isConnected === false) return;
   cur = { ix };
   host = root.parentNode || document.body;
   const byId = Object.fromEntries(exps(ix).map((x) => [x.id, x]));

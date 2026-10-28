@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  snapshots, observationRequest, prepareSend, edited, settle, missing, plan, formHtml, observeButton, canObserve,
+  snapshots, observationRequest, prepareSend, settle, missing, plan, formHtml, observeButton, canObserve,
   loadDraft, saveDraft, clearDraft, draftKey,
 } from '../hub/static/js/lab-observe.js';
 import { refreshPlan, changedIds, snapshot, restore } from '../hub/static/js/lab-refresh.js';
@@ -38,17 +38,17 @@ test('every snapshot is complete, unasked outcomes are not_assessed, and an unkn
   assert.equal(snapshots(DRAFT(), { ...X, test_kind: 'strip', variants: [] }).length, 1);
 });
 
-test('a retry sends the same id and the same snapshots, even after the form changed underneath', () => {
+test('a retry sends the same id, with the form as it is now (Local AI: the id is kept until the Mac refuses)', () => {
   const d = DRAFT();
   let n = 0;
   const makeId = () => `rq-${String(++n).padStart(16, '0')}`;
   const first = prepareSend(d, X, makeId);
+  assert.deepEqual(prepareSend(d, X, makeId), first);
   d.words = 'something else typed later';
   const again = prepareSend(d, X, makeId);
   assert.equal(n, 1);
-  assert.deepEqual(again, first);
-  edited(d); // a changed answer is a different request
-  assert.notEqual(prepareSend(d, X, makeId).id, first.id);
+  assert.equal(again.id, first.id);
+  assert.equal(again.payload.snapshots[0].source.words, 'something else typed later');
 });
 
 test('a refusal keeps the answers and frees the next send; recorded clears the draft', () => {

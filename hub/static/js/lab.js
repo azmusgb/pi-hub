@@ -2,8 +2,8 @@
 // colours and the prints outside the lab that lab sync adds), rendered as Local AI's Print lab renders it
 // (app/public/print-lab.js and print-lab-evidence.js). Every value from the Mac is escaped; a colour is used only if it
 // is #rrggbb and a photo URL only from a 64-hex sha256. The renderers are exported so node can test them.
-import { card, empty, h, toast } from "./core.js";
-import { labFetch, watchRequests } from "./lab-net.js";
+import { card, empty, ensure, h, toast } from "./core.js";
+import { labFetch, recorded, watchRequests } from "./lab-net.js";
 import { mountPhotos } from "./lab-photos.js";
 import { mountObserve, observeButton, observeSheetHtml } from "./lab-observe.js";
 import { changedIds, dialogOpen, refreshPlan, restore, snapshot } from "./lab-refresh.js";
@@ -71,7 +71,17 @@ function badgeTone(tone) {
 const badge = ([label, tone]) => `<span class="badge badge--${esc(badgeTone(tone))}">${esc(label)}</span>`;
 // Variant and factor values keep two decimals (Local AI rounds to one, which shows 0.05 mm as 0.1).
 const n2 = (x) => (x === null || x === undefined ? "–" : String(Math.round(Number(x) * 100) / 100));
-const value = (v) => (Array.isArray(v) ? [...new Set(v.map(String))].join("/") : typeof v === "number" ? n2(v) : String(v ?? "").includes("/") ? String(v).split("/").pop() : String(v ?? ""));
+// A value the Mac's records leave free-form (a grade, a factor value, an AI assessment, a defect, the filament) may be an
+// object: shown as "key value" pairs joined by " · ", empty values left out, never as [object Object]. Not escaped here.
+export function plain(v) {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return v.map(plain).filter(Boolean).join(", ");
+  if (typeof v === "object") return Object.entries(v).map(([k, x]) => [k, plain(x)]).filter(([, x]) => x !== "").map(([k, x]) => `${k} ${x}`).join(" · ");
+  return String(v);
+}
+// A variant's grade: a string as it is; the per-criterion object build_index sends as "print clean · apart no".
+export const gradeText = (g) => plain(g);
+const value = (v) => (Array.isArray(v) ? [...new Set(v.map(plain))].join("/") : typeof v === "number" ? n2(v) : v && typeof v === "object" ? plain(v) : String(v ?? "").includes("/") ? String(v).split("/").pop() : String(v ?? ""));
 const when = (iso) => {
   const d = new Date(iso);
   return !iso || isNaN(d) ? "" : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -116,7 +126,7 @@ const STALE_MS = 120000;
 export function requestsHtml(items, now = Date.now()) {
   if (!items || !items.length) return "";
   return items.slice(0, 5).map((r) => {
-    const tone = r.status === "applied" ? "ok" : r.status === "refused" ? "danger" : "warn";
+    const tone = recorded(r.status) ? "ok" : r.status === "refused" ? "danger" : "warn";
     const title = r.kind ? r.kind[0].toUpperCase() + r.kind.slice(1) : "Request";
     const age = r.at ? now - Date.parse(r.at) : 0;
     const note = r.message || (r.status === "pending" && age > STALE_MS ? "The Mac hasn't picked this up yet" : "");
@@ -286,7 +296,7 @@ export function questionHtml(q, ix) {
 const aiHtml = (x) => list(x.ai_observations).map((o) => {
   const sure = typeof o.confidence === "number" ? `${Math.round(o.confidence * 100)}% sure` : "";
   const how = [sure, o.confirmed ? "" : "unconfirmed"].filter(Boolean).join(", ");
-  return `<p class="lab-ai">AI reading${how ? ` (${how})` : ""}: ${esc(o.assessment)}</p>`;
+  return `<p class="lab-ai">AI reading${how ? ` (${how})` : ""}: ${esc(plain(o.assessment))}</p>`;
 }).join("");
 
 export function experimentHtml(x, ix, requests = []) {
@@ -307,7 +317,7 @@ export function experimentHtml(x, ix, requests = []) {
   const vars = list(x.variants).map((v) => {
     const u = v.unit ? ` ${v.unit}` : "";
     const name = v.tab || v.id;
-    return `<li>${esc(name)}: ${v.realized != null && v.as_asked === false ? `${esc(value(v.requested))} asked, ${n2(v.realized)} printed${esc(u)}` : `${esc(v.realized != null ? n2(v.realized) : value(v.requested))}${esc(u)}`}${v.grade ? ` · ${esc(v.grade)}` : ""}</li>`;
+    return `<li>${esc(name)}: ${v.realized != null && v.as_asked === false ? `${esc(value(v.requested))} asked, ${n2(v.realized)} printed${esc(u)}` : `${esc(v.realized != null ? n2(v.realized) : value(v.requested))}${esc(u)}`}${gradeText(v.grade) ? ` · ${esc(gradeText(v.grade))}` : ""}</li>`;
   }).join("");
 
   const qty = (v, unit, src) => `${n(v)} ${unit}${src && src !== "observed" ? ` (${USAGE_SOURCE[src] || "estimated"})` : ""}`;
@@ -330,7 +340,7 @@ export function experimentHtml(x, ix, requests = []) {
     ["Judge on", x.judge_on],
     ["Abandoned because", x.abandoned_reason],
     ["Filament", x.filament],
-  ].filter((r) => r[1]).map(([k, t]) => `<dt>${esc(k)}</dt><dd>${esc(t)}</dd>`).join("");
+  ].map(([k, t]) => [k, plain(t)]).filter((r) => r[1]).map(([k, t]) => `<dt>${esc(k)}</dt><dd>${esc(t)}</dd>`).join("");
 
   let actions = "";
   if (x.status === "printing" && !x.verdict) {
@@ -344,7 +354,7 @@ export function experimentHtml(x, ix, requests = []) {
     actions = `<div class="lab-actions">${observeButton(x)}</div>`;
   }
 
-  const spine = spoolColour(x.filament, ix && ix.colours);
+  const spine = spoolColour(plain(x.filament), ix && ix.colours);
   return `<article class="card lab-exp" id="lab-${esc(x.id)}" style="--spine:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
     (meta ? `<p class="meta">${esc(meta)}</p>` : "") +
     (vars ? `<ul class="lab-variants">${vars}</ul>` : "") +
@@ -352,7 +362,7 @@ export function experimentHtml(x, ix, requests = []) {
     runLines(x) +
     (why ? `<p class="meta">Why: ${esc(why)}</p>` : "") +
     (said ? `<p class="lab-verdict">Your verdict: ${esc(said)} <span class="meta">${esc(when(v.at))}</span></p>` : "") +
-    (v && list(v.defects).length ? `<p class="meta lab-defects">Defects: ${esc(v.defects.join("; "))}</p>` : "") +
+    (v && list(v.defects).length ? `<p class="meta lab-defects">Defects: ${esc(v.defects.map(plain).filter(Boolean).join("; "))}</p>` : "") +
     (x.finding ? `<p class="lab-verdict">Finding: ${esc(x.finding)}</p>` : "") +
     aiHtml(x) +
     actions +
@@ -494,7 +504,27 @@ function sheetsHtml() {
 </dialog>`;
 }
 
+// A refused Approve or Drop frees the open sheet for another try (true when it did).
+export function actRetryable(ctx, r) {
+  if (!ctx || !r || r.status !== "refused" || ctx.reqId !== r.id) return false;
+  ctx.reqId = null;
+  return true;
+}
+// The page must not be redrawn under an open dialog, nor while the photo picker is open: the redraw would replace the
+// file input whose change event carries the chosen photos.
+export const holdRender = (state, doc = globalThis.document) => dialogOpen(doc) || Boolean(state && state.picking);
+// The photos sheet's previews are object URLs: let them go when the sheet closes.
+export function releasePreviews(state, revoke = (u) => URL.revokeObjectURL(u)) {
+  for (const u of list(state && state.previewUrls)) { try { revoke(u); } catch { /* already gone */ } }
+  if (state) state.previewUrls = [];
+}
+// A first load that ended at a cancelled PIN sheet (a 401 with nothing shown yet) offers a Sign in button.
+export const signInOffer = (state, err) => !(state && state.currentData) && Boolean(err && err.status === 401);
+
 export function mount(state) {
+  state.left = false;
+  state.picking = false;
+  state.previewUrls = [];
   state.currentProject = "";
   state.currentData = null;
   state.currentRequests = [];
@@ -655,6 +685,7 @@ export function mount(state) {
 
   // One poller for every pending request on the page (verdicts and photos); it is stopped in leave().
   function track(reqId) {
+    if (state.left) return; // a send that finished after leaving the page starts no poller
     state.sentAt[reqId] = Date.now();
     state.watching.add(reqId);
     if (state.stopWatch) state.stopWatch();
@@ -663,15 +694,15 @@ export function mount(state) {
 
   function onRequestUpdate(item) {
     addOrUpdateCardRequest(item);
-    if (item.status === "applied" || item.status === "refused") state.watching.delete(item.id);
+    if (recorded(item.status) || item.status === "refused") state.watching.delete(item.id);
     updateActStatuses();
     if (state.observeUpdate) state.observeUpdate(item);
     if (item.id !== state.currentReqId) return;
     const statusEl = state.sheetsContainer.querySelector("#labVerdictStatus");
     const errorEl = state.sheetsContainer.querySelector("#labVerdictError");
     const replaceBtn = state.sheetsContainer.querySelector("#labVerdictReplace");
-    if (item.status === "applied") {
-      if (statusEl) { statusEl.hidden = false; statusEl.textContent = "Recorded"; }
+    if (recorded(item.status)) {
+      if (statusEl) { statusEl.hidden = false; statusEl.textContent = item.status === "duplicate" ? "Already recorded on the Mac" : "Recorded"; }
       if (errorEl) errorEl.hidden = true;
       try { localStorage.removeItem("printLab:draft:" + (state.currentExp && state.currentExp.id)); } catch {}
     } else if (item.status === "refused") {
@@ -731,6 +762,7 @@ export function mount(state) {
   }
 
   state.openPhotosSheet = (exp, files) => {
+    releasePreviews(state);
     state.currentPhotosExp = exp;
     state.selectedPhotoFiles = files;
     state.selectedPhotoTabs = new Array(files.length).fill(null);
@@ -749,6 +781,7 @@ export function mount(state) {
     const tabs = (exp.variants || []).map((v) => v.tab || v.id).filter(Boolean);
     list.innerHTML = files.map((file, idx) => {
       const previewUrl = URL.createObjectURL(file);
+      state.previewUrls.push(previewUrl);
       const tabChips = tabs.map((t) => `<button type="button" class="btn-outline lab-chip" data-tab="${esc(t)}" aria-checked="false">${esc(t)}</button>`).join("");
       return `<div class="lab-photo-row" data-photo-idx="${idx}"><img class="lab-photo-thumb" src="${previewUrl}" alt="Photo ${idx + 1}"><div class="lab-photo-tabs" role="group" aria-label="Select tab for photo ${idx + 1}">${tabChips}</div></div>`;
     }).join("");
@@ -771,11 +804,12 @@ export function mount(state) {
       setStatus(el, r ? actText(r) : "", r && r.status === "refused");
       el.parentElement.querySelectorAll(".lab-acts button").forEach((b) => { b.disabled = Boolean(r && r.status === "pending"); });
     }
-    for (const [ctx, s, e] of [[state.approveCtx, "labApproveStatus", "labApproveError"], [state.dropCtx, "labDropStatus", "labDropError"]]) {
+    for (const [ctx, s, e, again] of [[state.approveCtx, "labApproveStatus", "labApproveError", validateApprove], [state.dropCtx, "labDropStatus", "labDropError", () => armDrop(false)]]) {
       const r = ctx && ctx.reqId && state.currentRequests.find((q) => q.id === ctx.reqId);
       if (!r) continue;
       setStatus(sheetEl(s), r.status === "refused" ? "" : actText(r));
       setStatus(sheetEl(e), r.status === "refused" ? actText(r) : "", true);
+      if (actRetryable(ctx, r)) again(); // the Mac said no: the sheet stays open and can send again
     }
   }
 
@@ -952,7 +986,14 @@ export function mount(state) {
     if (addBtn) {
       const expId = addBtn.dataset.exp;
       const input = state.box.querySelector(`input[type="file"][data-exp="${CSS.escape(expId)}"]`);
-      if (input) input.click();
+      if (input) {
+        // Until the picker closes, a refresh must not replace this input (see holdRender).
+        state.picking = true;
+        const done = () => { state.picking = false; };
+        input.addEventListener("cancel", done, { once: true });
+        window.addEventListener("focus", () => setTimeout(done, 1000), { once: true }); // back from the picker; change comes first
+        input.click();
+      }
       return;
     }
     const startBtn = e.target.closest(".lab-start");
@@ -974,6 +1015,7 @@ export function mount(state) {
 
   state.box.addEventListener("change", (e) => {
     const fileInput = e.target.closest("input[type=\"file\"][data-exp]");
+    if (fileInput) state.picking = false;
     if (fileInput && fileInput.files && fileInput.files.length) {
       const expId = fileInput.dataset.exp;
       const exp = state.currentData?.index?.experiments?.find((x) => x.id === expId);
@@ -1052,6 +1094,7 @@ export function mount(state) {
   }
 
   if (photosSheet) {
+    photosSheet.addEventListener("close", () => releasePreviews(state));
     photosSheet.addEventListener("click", (e) => {
       const tabBtn = e.target.closest(".lab-photo-row button[data-tab]");
       if (tabBtn) {
@@ -1094,6 +1137,7 @@ export async function fetchLab(state) {
 
 // Re-draw the notebook in place: open <details>, scroll and focus come back, and the cards that changed flash.
 function renderInPlace(state, labData) {
+  if (state.left) return;
   const snap = snapshot(state.box);
   const sigs = cardSignatures(labData, state.currentRequests);
   const flash = changedIds(state.cardSigs, sigs);
@@ -1106,6 +1150,7 @@ function renderInPlace(state, labData) {
 
 export async function load(state) {
   const got = await fetchLab(state);
+  if (state.left) return; // the owner left while this was loading: the page it would draw on is gone
   if (!got) {
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
     state.renderedFp = undefined;
@@ -1114,7 +1159,7 @@ export async function load(state) {
   }
   const { labData, reqData, meta } = got;
   state.currentRequests = (reqData && reqData.items) || [];
-  const plan = got.unchanged ? "quiet" : refreshPlan(meta, state.renderedFp, dialogOpen());
+  const plan = got.unchanged ? "quiet" : refreshPlan(meta, state.renderedFp, holdRender(state));
   if (plan !== "render") {
     // Nothing to redraw (or a dialog is open and must not be disturbed): keep the statuses and the sync age current.
     if (state.currentData && state.currentData.meta) state.currentData.meta = { ...state.currentData.meta, synced_at: meta.synced_at };
@@ -1143,7 +1188,26 @@ export async function load(state) {
   }
 }
 
+// main.js calls this when load() throws. A cancelled PIN is the one failure the page can fix with a tap; the tap may open
+// the PIN sheet, while the 15 s refresh still never does.
+export function failed(state, err) {
+  if (!signInOffer(state, err) || !state.box) return;
+  const btn = h("button", { class: "btn-primary", type: "button", onclick: async () => {
+    btn.disabled = true;
+    try {
+      if (await ensure("household")) {
+        await load(state);
+        const notice = state.root && state.root.parentNode && state.root.parentNode.querySelector(".page-notice");
+        if (notice && state.currentData) { notice.hidden = true; state.root.classList.remove("offline"); }
+      }
+    } catch { /* main.js's next refresh says what went wrong */ } finally { btn.disabled = false; }
+  } }, "Sign in");
+  state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("The lab needs the household PIN."), btn));
+}
+
 export function leave(state) {
+  state.left = true;
+  releasePreviews(state);
   if (state.stopWatch) {
     state.stopWatch();
     state.stopWatch = null;

@@ -27,15 +27,19 @@ export async function labFetch(path, opts = {}, { prompt = true } = {}) {
   }
   if (r.ok) return r.json().catch(() => ({}));
   const body = await r.json().catch(() => ({}));
-  if (r.status === 403) throw new Error("Kids can't use the lab.");
   if (r.status === 404 && method === "GET" && PROJECT_GET.test(path)) return null;
-  throw new Error(problem(r, body));
+  // The status travels with the error, so the page can tell "sign in" (401) from everything else.
+  const err = new Error(r.status === 403 ? "Kids can't use the lab." : problem(r, body));
+  err.status = r.status;
+  throw err;
 }
 
 export const POLL_FIRST_MS = 1000;
 export const POLL_CAP_MS = 10000;
 export const POLL_GIVE_UP_MS = 10 * 60 * 1000;
-const DONE = ["applied", "refused"];
+// The Mac's answers that end a request: applied, refused, or duplicate (it had already recorded that very request).
+const DONE = ["applied", "refused", "duplicate"];
+export const recorded = (status) => status === "applied" || status === "duplicate";
 
 // One setTimeout chain for every pending request id: 1 s, x1.5 up to 10 s, back to 1 s when anything changes, quiet
 // while the page is hidden, stopped when nothing is pending or after 10 minutes. Returns stop().

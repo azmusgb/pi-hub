@@ -97,8 +97,8 @@
       "judge_on": "fronts under one low side light",
       "factor": { "name": "seam_gap", "unit": "mm", "values": [0.05, 0.1] },
       "variants": [
-        { "id": "E-102-A", "tab": "2A", "requested": 0.05, "realized": 0.05, "as_asked": true, "unit": "mm", "grade": null },
-        { "id": "E-102-B", "tab": "2B", "requested": 0.1, "realized": 0.12, "as_asked": false, "unit": "mm", "grade": null }
+        { "id": "E-102-A", "tab": "2A", "requested": 0.05, "realized": 0.05, "as_asked": true, "unit": "mm", "grade": { "apart": "hard", "face": null } },
+        { "id": "E-102-B", "tab": "2B", "requested": 0.1, "realized": 0.12, "as_asked": false, "unit": "mm", "grade": { "print": "clean", "apart": "no" } }
       ],
       "reference_variants": ["E-101-A"],
       "estimate": { "minutes": 110.0, "g": 40.0 },

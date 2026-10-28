@@ -2,8 +2,8 @@
 // One guided session per printed pair or strip: identify the part, then only the questions that belong to each subject
 // (the pair: separation and overall; each tile: face, back and mounting; a strip: face, separation and overall), then
 // the light. Nothing is preselected; every question also offers "Not looked at", "Couldn't tell" and "Doesn't apply".
-// The draft lives on the phone until the Mac records it; the request id and the snapshots are made once and reused, so a
-// retry after a lost answer is the same request. Everything from the Mac is escaped. The pure parts are exported for node.
+// The draft lives on the phone until the Mac records it; the request id is made once and kept until the Mac refuses it,
+// so a retry after a lost answer, or after an edit while the Mac sleeps, is the same request and is never recorded twice. Everything from the Mac is escaped. The pure parts are exported for node.
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const list = (v) => (Array.isArray(v) ? v : []);
 
@@ -89,21 +89,24 @@ export function snapshots(d, x) {
 
 export const observationRequest = (x, snaps, id) => ({ id, kind: "observation", experiment: x.id, run: x.run || null, payload: { snapshots: snaps } });
 
-// The request to send: the first send makes the id and freezes the snapshots on the draft; a retry returns the very
-// same id and snapshots, even if the form has been read again since.
+// The request to send (Local AI's print-lab-observe.js send()): the id is made on the first send and kept until the Mac
+// refuses it; the snapshots are read from the form on every send and kept with the draft as what was sent.
 export function prepareSend(draft, x, makeId) {
-  if (!draft.requestId || !draft.sentSnapshots) { draft.requestId = makeId(); draft.sentSnapshots = snapshots(draft, x); }
+  draft.requestId = draft.requestId || makeId();
+  draft.sentSnapshots = snapshots(draft, x);
   return observationRequest(x, draft.sentSnapshots, draft.requestId);
 }
-// Changing an answer makes a different request: the old id and snapshots go.
-export function edited(draft) { delete draft.requestId; delete draft.sentSnapshots; return draft; }
+// Only a refusal frees the id: the next send is then a new request.
+const release = (draft) => { delete draft.requestId; delete draft.sentSnapshots; return draft; };
 
-// What the Mac's answer does to the draft: recorded clears it; refused keeps the answers and frees the next send.
+// What the Mac's answer does to the draft: recorded (or already recorded) clears it; refused keeps the answers and frees
+// the next send.
 export function settle(draft, item) {
   if (!draft || !item || draft.requestId !== item.id) return null;
   if (item.status === "applied") return { draft: null, status: `Recorded. ${item.message || ""}`.trim(), error: "" };
-  if (item.status === "refused" || item.status === "conflict") {
-    const d = edited({ ...draft });
+  if (item.status === "duplicate") return { draft: null, status: "Already recorded on the Mac", error: "" };
+  if (item.status === "refused") {
+    const d = release({ ...draft });
     return { draft: d, status: "", error: item.message || "The Mac refused it. Your answers are kept." };
   }
   return { draft, status: "Waiting for the Mac", error: "" };
@@ -201,7 +204,6 @@ export function mountObserve(state, deps) {
     } else if (t.id === "obsLabel") d.label = t.value;
     else if (t.id === "obsWords") d.words = t.value;
     else return;
-    edited(d);
     save();
     refresh();
   }
