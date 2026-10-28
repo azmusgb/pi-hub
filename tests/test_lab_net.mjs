@@ -1,6 +1,7 @@
 // labFetch (sign-in, plain errors) and watchRequests (one gentle poller). fetch, ensure and visibility are injected.
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { fetchLab } from '../hub/static/js/lab.js';
 import { labFetch, watchRequests, setDeps } from '../hub/static/js/lab-net.js';
 
 const res = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
@@ -126,7 +127,7 @@ test('no fetch while the page is hidden, and no burst on wake', async () => {
   assert.equal(calls.fetch.length, 0);
   state.hidden = false;
   await tick(10000);
-  assert.ok(calls.fetch.length <= 1);
+  assert.equal(calls.fetch.length, 1);
   stop(); mock.timers.reset();
 });
 
@@ -173,4 +174,34 @@ test('stop() ends it; a failed fetch keeps going; it gives up after 10 minutes',
   assert.equal(r.calls.fetch.length, after);
   assert.equal(r.calls.ensure, 0, 'the poller never opens a PIN sheet');
   mock.timers.reset();
+});
+
+// ---- the page's load decision ----
+test('first load may prompt once; a cancelled sheet means later refreshes never prompt', async () => {
+  const { calls, state } = rig([res(401, { detail: 'Enter the household PIN first.' })]);
+  state.ensureResult = false;
+  const page = {};
+  await assert.rejects(fetchLab(page), /PIN/);
+  assert.equal(calls.ensure, 1);
+  await assert.rejects(fetchLab(page), /PIN/);
+  await assert.rejects(fetchLab(page), /PIN/);
+  assert.equal(calls.ensure, 1);
+});
+
+test('after a good load the refresh uses prompt:false', async () => {
+  const { calls } = rig([
+    res(200, { projects: [{ name: 'print-lab' }] }), res(200, { index: {} }), res(200, { items: [] }),
+    res(401, { detail: 'Enter the household PIN first.' }),
+  ]);
+  const page = {};
+  assert.ok(await fetchLab(page));
+  await assert.rejects(fetchLab(page), /PIN/);
+  assert.equal(calls.ensure, 0);
+});
+
+test('a 404 on the project is the empty state, and no projects is too', async () => {
+  rig([res(200, { projects: [{ name: 'print-lab' }] }), res(404, { detail: 'No lab data' }), res(200, { items: [] })]);
+  assert.equal(await fetchLab({}), null);
+  rig([res(200, { projects: [] })]);
+  assert.equal(await fetchLab({}), null);
 });

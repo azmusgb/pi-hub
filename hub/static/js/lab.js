@@ -405,7 +405,7 @@ export function mount(state) {
   state.stopWatch = null;
   state.watching = new Set();
   state.sentAt = {};
-  state.loadedOnce = false;
+  state.triedOnce = false;
   state.selectedPhotoFiles = [];
   state.selectedPhotoTabs = [];
   state.currentPhotosExp = null;
@@ -822,29 +822,29 @@ export function mount(state) {
   }
 }
 
-export async function load(state) {
-  // The 15 s refresh never opens a PIN sheet; only the first load after opening the page, and taps, may.
-  const quiet = { prompt: !state.loadedOnce };
+// What a refresh fetches. The first attempt after mount may open the PIN sheet, once, whatever its outcome; every
+// later refresh (main.js repeats load every 15 s) is quiet. Returns null when there is no lab data yet.
+export async function fetchLab(state) {
+  const quiet = { prompt: !state.triedOnce };
+  state.triedOnce = true;
   const projects = ((await labFetch("/api/lab/projects", {}, quiet)) || {}).projects;
-  if (!projects || !projects.length) {
-    state.loadedOnce = true;
-    state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
-    return;
-  }
-
+  if (!projects || !projects.length) return null;
   const pName = projects[0].name;
   state.currentProject = pName;
-
   const [labData, reqData] = await Promise.all([
     labFetch(`/api/lab/${encodeURIComponent(pName)}`, {}, quiet),
     labFetch(`/api/lab/${encodeURIComponent(pName)}/requests`, {}, { prompt: false }).catch(() => ({ items: [] })),
   ]);
-  state.loadedOnce = true;
-  if (!labData) {
+  return labData ? { labData, reqData } : null;
+}
+
+export async function load(state) {
+  const got = await fetchLab(state);
+  if (!got) {
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
     return;
   }
-
+  const { labData, reqData } = got;
   state.currentRequests = (reqData && reqData.items) || [];
   state.currentData = labData;
 
