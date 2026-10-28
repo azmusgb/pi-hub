@@ -27,12 +27,17 @@ def _lab():
     return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
 
 
+def _obico():
+    from .. import bambuddy
+    return bambuddy.obico_status()
+
+
 def _fetchers():
     from .. import outside, printing, sources
     return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
             "netmon": sources.network_metrics, "lab": _lab, "sessions": sources.plex_sessions,
             "paper": printing.printer_state, "weather": outside.weather, "adguard": _adguard,
-            "backups": _backups, "camera": sources.camera_health}
+            "backups": _backups, "obico": _obico, "camera": sources.camera_health}
 
 
 def gather():
@@ -77,6 +82,24 @@ def build_all(inputs, prev, now):
         "backups": lambda: network.backups(i("backups"), now),
         "camera": lambda: network.camera(i("camera")),
     }
+    # Failure detection reads the printer's state: this cycle's record, or the last one if Bambuddy was silent
+    printer_rec = out["printer"] if out["printer"] is not None else prev.get("printer")
+    builders["obico"] = lambda: printer.obico(i("obico"), printer_rec)
+    builders["hms"] = lambda: printer.hms(i("bambuddy"))
     for id, fn in builders.items():
         out[id] = _build(id, fn)
+    # The PC off during a print: this cycle's printer and Local AI, or the last ones if their source was
+    # silent, but never a stale one (it would repeat a state nobody has confirmed). This cycle's Local AI
+    # record has no since yet, so a down that was already down last cycle keeps that cycle's since.
+    def fresh(rec):
+        return rec if rec is not None and not rec.get("stale") else None
+
+    def current(id):
+        return out[id] if out[id] is not None else fresh(prev.get(id))
+
+    ai = current("local_ai")
+    if ai is not None and "since" not in ai:
+        old = fresh(prev.get("local_ai"))
+        ai = dict(ai, since=old["since"] if old and old["state"] == "down" and "since" in old else now)
+    out["pc_printing"] = _build("pc_printing", lambda: house.pc_printing(current("printer"), ai, now))
     return out

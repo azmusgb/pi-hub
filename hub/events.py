@@ -6,6 +6,7 @@ The records keep the existing debounce (a change has to last two checks) and the
 off the network for 5 minutes. The Watcher still checks the movie copy, the Paperless backup,
 spools, the network alerts and the weather.
 """
+import base64
 import sys
 import time
 import traceback
@@ -81,6 +82,11 @@ MESSAGES = {
     "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
 }
 
+# A print failure reaches the phone only through hub/urgent.py; the seeded print_failed notify rule stays, labelled so
+PRINT_FAILED_TEXT = "Print failures are sent by the hub's urgent alerts"
+PRINT_FAILED_OLD_TEXT = "Send a phone alert when a 3D print fails or stops early"
+PRINT_FAILED_SKIP = {"status": "skipped", "message": "Print failures reach your phone as the hub's urgent alerts."}
+
 DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
     ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
@@ -89,7 +95,7 @@ DEFAULT_RULES = [
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
     ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
-    ("print_failed", "notify", None, "Send a phone alert when a 3D print fails or stops early", 1),
+    ("print_failed", "notify", None, PRINT_FAILED_TEXT, 1),
     ("mirror_stale", "notify", None, "Tell me when the movies haven't been copied from the PC for two days", 1),
     ("paperless_stale", "notify", None, "Tell me when Paperless hasn't been backed up to the Pi for two days", 1),
 ]
@@ -108,6 +114,9 @@ def ntfy_servers():
     return servers or ["https://ntfy.sh"]
 
 
+_relabelled = set()  # DB files this process has relabelled the old print_failed rule in
+
+
 def ready():
     db.conn().executescript(SCHEMA)
     seeded = auth.get("rules_seeded")
@@ -115,6 +124,11 @@ def ready():
         seeded = 1
     for trig, act, target, label, on in DEFAULT_RULES[seeded or 0:]:
         db.run("INSERT INTO rules (trigger, action, target, label, enabled) VALUES (?, ?, ?, ?, ?)", trig, act, target, label, on)
+    path = db.conn().execute("PRAGMA database_list").fetchone()[2]
+    if path not in _relabelled:  # an existing install: the seeded rule, if its words are still the old default
+        db.run("UPDATE rules SET label = ? WHERE trigger = 'print_failed' AND action = 'notify' AND label = ?",
+               PRINT_FAILED_TEXT, PRINT_FAILED_OLD_TEXT)
+        _relabelled.add(path)
     if (seeded or 0) < len(DEFAULT_RULES):
         auth.put("rules_seeded", len(DEFAULT_RULES))
 
@@ -131,8 +145,9 @@ def quiet_now(now=None):
     return start <= minutes < end if start < end else minutes >= start or minutes < end
 
 
-def push(title, body="", tags="", priority="default", urgent=False):
-    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent."""
+def push(title, body="", tags="", priority="default", urgent=False, click=None):
+    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent.
+    click is the link a tap opens."""
     if quiet_now() and not urgent:
         return "Held back for quiet hours."
     try:
@@ -140,14 +155,22 @@ def push(title, body="", tags="", priority="default", urgent=False):
             topic = f.read().strip()
     except OSError:
         return "No alert topic is set up."
+    title = " ".join(str(title).replace("\r", "").split("\n")).strip()
+    try:
+        title.encode("latin-1")
+    except UnicodeEncodeError:  # ntfy reads RFC 2047 UTF-8 titles
+        title = "=?UTF-8?B?" + base64.b64encode(title.encode()).decode() + "?="
+    headers = {"Title": title, "Tags": tags, "Priority": priority}
+    if click:
+        headers["Click"] = click.replace("\r", "").replace("\n", "")
     sent = False
     for server in ntfy_servers():
         req = urllib.request.Request(f"{server}/{topic}", data=(body or title).encode(), method="POST",
-                                     headers={"Title": title, "Tags": tags, "Priority": priority})
+                                     headers=headers)
         try:
             urllib.request.urlopen(req, timeout=10).close()
             sent = True
-        except OSError:
+        except (OSError, ValueError):
             pass
     return "Sent." if sent else "The phone message didn't go out."
 
@@ -160,6 +183,8 @@ def rules():
 
 
 def describe(rule, names=None):
+    if rule["trigger"] == "print_failed" and rule["action"] == "notify":
+        return PRINT_FAILED_TEXT + "."
     when = TRIGGERS.get(rule["trigger"], rule["trigger"])
     what, needs = ACTIONS.get(rule["action"], (rule["action"], False))
     target = ((names or {}).get(rule["target"]) or "an accessory") if needs else ""
@@ -179,6 +204,8 @@ def policy(rule, kind, stamp=None, names=None, alerts_ready=None):
     if not rule.get("enabled", 1):
         return {"status": "skipped", "message": "Automation is turned off."}
     if rule["action"] == "notify":
+        if kind == "print_failed":  # urgent.check is the one sender for a print failure
+            return dict(PRINT_FAILED_SKIP)
         if kind != "weather_alert" and quiet_now(stamp):
             return {"status": "skipped", "message": "Phone alert held back for quiet hours."}
         if alerts_ready is False:
@@ -219,7 +246,13 @@ def validate_rule(trigger, action, target=None):
 
 
 def execute(rule, kind, detail=""):
-    from . import actions, homecontrol
+    from . import actions, homecontrol, urgent
+    if rule.get("enabled", 1) and rule["action"] == "notify" and kind == "pc_down":
+        try:
+            if urgent.recently_pushed("pc", time.time()):
+                return {"status": "skipped", "message": "Already sent as an urgent alert."}
+        except Exception:  # can't tell: send the rule's own alert rather than leave the run stuck
+            traceback.print_exc(file=sys.stderr)
     decision = policy(rule, kind)
     if decision["status"] != "would_run":
         return decision
@@ -499,17 +532,36 @@ class Watcher:
             fire("freeze_tonight", f"Down to {w.get('tonight_low')}°.")
 
 
+def loop_pass(first, now=None, inputs=None):
+    """One records pass: refresh, the urgent pushes (every pass, the first too), then the rule triggers.
+    The urgent check comes before the triggers so a print_failed or pc_down rule fired by this same
+    refresh finds the urgent alert already sent and skips its own. Returns False when the refresh failed,
+    so the hub's first pass is still to come."""
+    from . import urgent
+    try:
+        changes = records.refresh() if now is None and inputs is None else records.refresh(now, inputs=inputs)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        return False
+    now = time.time() if now is None else now
+    try:
+        urgent.check(records.all(), now)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    try:
+        on_changes(changes, first)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    return True
+
+
 def run(every=30):
     w = Watcher()
     time.sleep(20)
     first = True  # the first refresh after the hub starts only learns the state
     while True:
-        try:
-            changes = records.refresh()
-            is_first, first = first, False
-            on_changes(changes, is_first)
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
+        if loop_pass(first):
+            first = False
         try:
             w.check(sources.pi_status())
         except Exception:

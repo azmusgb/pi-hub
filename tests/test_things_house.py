@@ -178,3 +178,77 @@ def test_heat_wins_over_heat_power_flags():  # R17
     assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage earlier"})["state"] == "hot"
     assert house.pi({"pi_temp": 60, "pi_power": "Slowed by heat earlier"})["state"] == "power"
     assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage"})["state"] == "power"
+
+
+def _pc_printing(printer_state, ai_state, down_for, now=T + 1000):
+    printer = {"id": "printer", "state": printer_state}
+    ai = {"id": "local_ai", "state": ai_state, "since": now - down_for}
+    return house.pc_printing(printer, ai, now)
+
+
+def test_pc_off_for_90s_during_a_print_is_fine():
+    assert _pc_printing("printing", "down", 90)["state"] == "fine"
+
+
+def test_pc_off_for_150s_during_a_print_is_a_problem():
+    rec = _pc_printing("printing", "down", 150)
+    assert rec["state"] == "off_while_printing" and rec["source"] == "hub"
+    assert rec["headline"] == "The PC is off during a print"
+    assert rec["cause"] == "Failure detection has stopped until it's back."
+    assert records.merge(None, rec, T)["severity"] == "problem"
+
+
+def test_pc_off_while_idle_is_fine():
+    assert _pc_printing("idle", "down", 500)["state"] == "fine"
+
+
+def test_pc_off_while_paused_counts():
+    assert _pc_printing("paused", "down", 150)["state"] == "off_while_printing"
+
+
+def test_pc_back_during_a_print_is_fine():
+    assert _pc_printing("printing", "ready", 500)["state"] == "fine"
+
+
+def _prev(printer="printing", ai="down", ai_since=T, stale=False):
+    out = {"printer": records.merge(None, records.make("printer", printer, "x", "bambuddy"), T),
+           "local_ai": dict(records.merge(None, records.make("local_ai", ai, "x", "pi_status"), T), since=ai_since)}
+    return {k: dict(v, stale=True) if stale else v for k, v in out.items()}
+
+
+def _build(prev, pi=None, bambuddy=None, now=T + 150):
+    from hub import things
+    from tests.helpers_records import inputs
+    return things.build_all(inputs(pi=pi, bambuddy=bambuddy), prev, now)["pc_printing"]
+
+
+def test_build_all_uses_the_previous_since_for_this_cycles_down_record():
+    down = {"ai_state": "Down"}
+    assert _build(_prev(), pi=down)["state"] == "off_while_printing"
+    assert _build(_prev(ai_since=T + 100), pi=down)["state"] == "fine"
+
+
+def test_silent_pi_status_with_a_stale_down_local_ai_is_fine():
+    from hub import things
+    from tests.helpers_records import inputs
+    prev = _prev()
+    prev["local_ai"]["stale"] = True
+    ins = inputs(pi_status=None)  # Bambuddy answers: the printer is printing
+    ins["bambuddy"] = __import__("tests.helpers_records", fromlist=["bud"]).bud("RUNNING")
+    assert things.build_all(ins, prev, T + 150)["pc_printing"]["state"] == "fine"
+
+
+def test_silent_bambuddy_with_a_stale_printing_printer_is_fine():
+    prev = _prev()
+    prev["printer"]["stale"] = True
+    r = _build(prev, pi={"ai_state": "Down"}, bambuddy=None)
+    assert r["state"] == "fine" and r["headline"] == "Can't tell while a source is quiet"
+
+
+def test_after_a_restart_with_everything_stale_it_is_fine():
+    assert _build(_prev(stale=True), pi={"ai_state": "Down"}, bambuddy=None)["state"] == "fine"
+
+
+def test_the_print_ending_while_the_pc_stays_down_is_fine():
+    from tests.helpers_records import bud
+    assert _build(_prev(), pi={"ai_state": "Down"}, bambuddy=bud("IDLE"))["state"] == "fine"

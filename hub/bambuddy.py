@@ -65,6 +65,15 @@ def projects():
     return sources.cached("bambuddy_projects", 60, _projects)
 
 
+def _obico_status():
+    return sources._get_json(URL + "/api/v1/obico/printer-status", headers(), timeout=3)
+
+
+def obico_status():
+    """Obico failure detection as Bambuddy reports it, or None when Bambuddy doesn't answer."""
+    return sources.cached("bambuddy_obico", 30, _obico_status)
+
+
 FETCH = 100  # entries per fetch; prints(limit) trims from these
 
 

@@ -122,3 +122,37 @@ def test_the_printer_camera_and_document_printer_are_not_folded_into_the_x2d():
     found = problems(b=FAILED, camera={"ok": False, "reason": "printer_unreachable"}, paper={"state": "Paused"})
     titles = {i["title"] for i in needs.build([], {"cards": []}, NOW, found)["items"]}
     assert titles == {"Bambu X2D", "Printer camera", "Document printer"}
+
+
+def _hms(*errs):
+    return {**bud("PAUSE", progress=40), "hms": [{"code": c, "severity": s, "module": 5} for c, s in errs]}
+
+
+def test_needs_lists_one_item_per_hms_code():
+    b = _hms(("0500_0200", 2), ("0300_0100", 3))
+    items = needs.build([], {"cards": []}, NOW, problems(b=b))["items"]
+    by_id = {i["id"]: i for i in items}
+    assert by_id["pi:source:hms:0500_0200"]["title"] == "Printer needs attention (0500_0200)"
+    assert by_id["pi:source:hms:0500_0200"]["tone"] == "bad"
+    assert by_id["pi:source:hms:0300_0100"]["tone"] == "warn"
+    assert by_id["pi:source:hms:0300_0100"]["link"] == "/workshop"
+
+
+def test_obico_and_hms_items_are_not_folded_into_the_printer_row():
+    obico = {"enabled": True, "per_printer": {"1": {"class": "failure", "error": None}}}
+    b = {**FAILED, "hms": [{"code": "0500_0200", "severity": 2, "module": 5}]}
+    items = needs.build([], {"cards": []}, NOW, problems(b=b, obico=obico))["items"]
+    ids = {i["id"] for i in items}
+    assert len(items) == 3
+    assert {"Failure detection", "Printer needs attention (0500_0200)"} <= {i["title"] for i in items}
+    assert "Failure detected on the X2D" in {i["detail"] for i in items}
+
+
+def test_each_hms_item_says_its_own_code_and_severity():  # final review M4, I2
+    b = _hms(("0500_0200", 2), ("0300_0100", 3), ("0700_0100", None))
+    items = needs.build([], {"cards": []}, NOW, problems(b=b))["items"]
+    by_id = {i["id"]: i for i in items}
+    assert by_id["pi:source:hms:0500_0200"]["detail"] == "0500_0200, severity 2"
+    assert by_id["pi:source:hms:0300_0100"]["detail"] == "0300_0100, severity 3"
+    assert by_id["pi:source:hms:0700_0100"]["detail"] == "0700_0100, severity unknown"
+    assert by_id["pi:source:hms:0700_0100"]["tone"] == "warn"

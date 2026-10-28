@@ -190,3 +190,40 @@ def printer(b, s, lab, prev, now):
     return records.make("printer", state, _headline(state, job, pct_said, attempt, detail.get("starting", False)),
                         "bambuddy", cause=cause, actions=actions, detail=detail,
                         disagree=_disagree(s, state))
+
+
+def obico(o, printer_rec):
+    """Failure detection for the X2D (Bambuddy's printer 1); None when Bambuddy didn't answer."""
+    if o is None:
+        return None
+    if not o.get("enabled"):
+        return records.make("obico", "off", "Failure detection is off", "bambuddy")
+    mine = (o.get("per_printer") or {}).get("1") or {}
+    cls = mine.get("class")
+    if cls == "failure":
+        return records.make("obico", "failure", "Failure detected on the X2D", "bambuddy", detail={"score": mine.get("score")})
+    if cls == "warning":
+        return records.make("obico", "warning", "Possible print problem", "bambuddy", detail={"score": mine.get("score")})
+    if cls == "error" and printer_rec and printer_rec["state"] in ("printing", "paused"):
+        return records.make("obico", "blind", "Failure detection can't see the printer", "bambuddy",
+                            cause=mine.get("error") or "")
+    return records.make("obico", "watching", "Watching for failures", "bambuddy")
+
+
+def hms(b):
+    """The printer's own fault codes (severity 1 stop, 2 pause, 3 notice); None when Bambuddy didn't answer."""
+    if b is None:
+        return None
+    errors = list(b.get("hms") or [])
+    if not errors:
+        return records.make("hms", "clear", "No printer alerts", "bambuddy", detail={"errors": errors})
+    stopping = [e for e in errors if stops(e)]  # any other severity (3, unknown, odd) stays visible as a notice
+    first = (stopping or errors)[0]
+    return records.make("hms", "stopped" if stopping else "notice", f"Printer needs attention ({first['code']})",
+                        "bambuddy", detail={"errors": errors})
+
+
+def stops(error):
+    """An HMS fault that stops or pauses the print: severity 1 or 2, as a whole number."""
+    sev = error.get("severity")
+    return isinstance(sev, int) and not isinstance(sev, bool) and sev in (1, 2)
