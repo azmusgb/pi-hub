@@ -131,8 +131,9 @@ def quiet_now(now=None):
     return start <= minutes < end if start < end else minutes >= start or minutes < end
 
 
-def push(title, body="", tags="", priority="default", urgent=False):
-    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent."""
+def push(title, body="", tags="", priority="default", urgent=False, click=None):
+    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent.
+    Urgent messages go out at high priority unless one is given; click is the link a tap opens."""
     if quiet_now() and not urgent:
         return "Held back for quiet hours."
     try:
@@ -140,10 +141,15 @@ def push(title, body="", tags="", priority="default", urgent=False):
             topic = f.read().strip()
     except OSError:
         return "No alert topic is set up."
+    if urgent and priority == "default":
+        priority = "high"
+    headers = {"Title": title, "Tags": tags, "Priority": priority}
+    if click:
+        headers["Click"] = click
     sent = False
     for server in ntfy_servers():
         req = urllib.request.Request(f"{server}/{topic}", data=(body or title).encode(), method="POST",
-                                     headers={"Title": title, "Tags": tags, "Priority": priority})
+                                     headers=headers)
         try:
             urllib.request.urlopen(req, timeout=10).close()
             sent = True
