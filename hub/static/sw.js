@@ -4,7 +4,7 @@ const FILES = ["/static/household-features.css", "/static/js/movie-night.js", "/
 "/static/components.css",
   "/static/js/movies.js", "/static/js/workshop.js", "/static/js/lab.js", "/static/js/lab-net.js", "/static/js/lab-photos.js", "/static/js/lab-observe.js", "/static/js/lab-refresh.js", "/static/lab.css", "/static/js/printer-actions.js", "/static/js/print.js", "/static/js/lists.js", "/static/js/pi.js",
   "/static/js/alerts.js", "/static/js/control.js", "/static/js/settings.js", "/static/js/more.js", "/static/js/rules.js", "/static/js/drives.js", "/static/js/weather.js",
-  "/static/js/documents.js", "/static/js/home-cards.js", "/static/js/network.js", "/static/js/saved-theme.js", "/static/js/section-links.js", "/static/js/sections.js", "/static/js/system.js", "/static/js/wording.js",
+  "/static/js/documents.js", "/static/js/home-cards.js", "/static/js/network.js", "/static/js/next.js", "/static/js/saved-theme.js", "/static/js/section-links.js", "/static/js/sections.js", "/static/js/system.js", "/static/js/wording.js",
   "/static/icon.svg", "/static/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

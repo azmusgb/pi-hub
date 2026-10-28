@@ -142,6 +142,19 @@ def _bambuddy(timeout=1):
         first_ams = ams_list[0] if ams_list else {}
         tray_list = first_ams.get("tray") or []
         first_tray = next((t for t in tray_list if t.get("exists")), {})
+        ams_trays = []
+        for idx, t in enumerate(tray_list):
+            if not isinstance(t, dict) or not t.get("exists"):
+                continue
+            slot = _int_or_none(t.get("id"))
+            raw_col = str(t.get("tray_color") or "").lstrip("#")
+            ams_trays.append({
+                "slot": (slot + 1) if slot is not None else (idx + 1),
+                "type": t.get("tray_type") or "Filament",
+                "color": f"#{raw_col[:6]}" if len(raw_col) >= 6 else None,
+                "name": t.get("tray_sub_brands") or t.get("tray_type") or f"Slot {idx + 1}",
+                "remain": _int_or_none(t.get("remain")),
+            })
         return {
             "connected": bool(data.get("connected")),
             "state": data.get("state"),
@@ -157,6 +170,7 @@ def _bambuddy(timeout=1):
             "ams_temp": first_ams.get("temp"),
             "filament_type": first_tray.get("tray_type"),
             "filament_color": first_tray.get("tray_color"),
+            "ams_trays": ams_trays,
             "wifi_signal": data.get("wifi_signal"),
             "bambuddy_state": data.get("state"),
             "awaiting_plate_clear": bool(data.get("awaiting_plate_clear")),

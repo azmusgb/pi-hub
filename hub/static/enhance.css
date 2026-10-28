@@ -681,3 +681,97 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .source-freshness [data-stale="true"] dd { font-style: italic; }
 body.wall .source-freshness { display: none; }
 .fix-result[data-tone="warn"] { border-color: var(--warn); }
+
+/* ---- Control Room (/next) & Command Bar (⌘K) ---- */
+.top-cmd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .55rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: .8125rem;
+  cursor: pointer;
+}
+.top-cmd-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+[data-wall] .top-cmd-btn,
+[data-wall] #next-link {
+  display: none !important;
+}
+.page-next {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 960px;
+}
+.cr-command-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  width: 100%;
+  padding: .85rem 1.1rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: .9375rem;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+}
+.cr-command-bar:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.cr-command-placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cr-quiet-lead {
+  margin: 0 0 .5rem;
+  color: var(--text-2);
+}
+.cr-calm-details {
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--line);
+}
+.cr-calm-summary {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: .875rem;
+  font-weight: 500;
+}
+.cr-calm-grid {
+  margin-top: .75rem;
+}
+.cr-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.cr-item-actions,
+.cr-row-side {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-top: .35rem;
+}
+.log-row[data-new="true"] {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: var(--r-xs);
+  padding-inline: .5rem;
+}

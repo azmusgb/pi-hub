@@ -3,6 +3,7 @@ import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.j
 import { updateNavigation } from "./navigation.js";
 import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
+import * as nextPage from "./next.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
 import * as labPage from "./lab.js";
@@ -48,6 +49,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
+  "/next": { key: "next", title: "Control room", mod: nextPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
@@ -71,6 +73,7 @@ const PAGES = {
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
+  "/next": "Now, problems and what changed since you last looked",
   "/wall": "Glanceable ambient display",
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",
@@ -324,5 +327,6 @@ setInterval(updateNavigation, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
 gateSignIn();
+nextPage.initCommandPalette();
 
 

@@ -263,6 +263,29 @@ def problems(recs=None):
     return sorted(bad, key=lambda r: (-LEVEL[r["severity"]], r["since"]))
 
 
+def recent_events(since=0, limit=40):
+    """Recent state and severity changes from record_events, newest first, with human-readable labels."""
+    try:
+        ready()
+        rows = db.rows(
+            "SELECT ts, thing, old, new, severity, headline, cause "
+            "FROM record_events WHERE ts >= ? ORDER BY ts DESC, rowid DESC LIMIT ?",
+            int(since or 0), max(1, min(int(limit or 40), 100))
+        )
+    except Exception:
+        return []
+    return [{
+        "ts": r["ts"],
+        "thing": r["thing"],
+        "label": LABELS.get(r["thing"], r["thing"]),
+        "old": r["old"],
+        "new": r["new"],
+        "severity": r["severity"],
+        "headline": r["headline"] or "",
+        "cause": r["cause"] or "",
+    } for r in rows]
+
+
 def subscribe():
     q = queue.Queue()
     with _lock:

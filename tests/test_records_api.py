@@ -29,12 +29,41 @@ def fresh_db(monkeypatch):
 def test_records_list_order_and_fields():
     body = client.get("/api/records").json()
     assert isinstance(body["as_of"], float)
+    assert isinstance(body["events"], list) and body["events"]
+    assert {"ts", "thing", "label", "new", "severity", "headline"} <= set(body["events"][0])
     ids = [r["id"] for r in body["records"]]
     assert ids and ids == [k for k in records.KINDS if k in records.all()]
     assert body["records"][0]["id"] in records.KINDS
     for r in body["records"]:
         assert {"id", "state", "headline"} <= set(r)
     assert client.get("/api/records").headers["cache-control"] == "no-store"
+
+
+def test_workshop_includes_lab_summary_and_ams_trays(monkeypatch):
+    from hub import lab, sources
+    lab.ready()
+    records.db.run(
+        "INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, ?, ?, ?)",
+        "hex-tile",
+        json.dumps({"synced_at": "2026-10-28T20:00:00Z"}),
+        json.dumps({
+            "project": "hex-tile",
+            "generated_at": "2026-10-28T20:00:00Z",
+            "needs": [{"id": "E-022", "action": "Judge the print", "why": "Finished"}],
+            "experiments": [{"id": "E-022", "status": "printing", "question_text": "Does gap 0.12 release cleanly?", "judge_on": "seam face"}],
+            "questions": [{"id": "Q-003", "status": "open", "question": "Best tolerance?", "answered": 1, "experiments": ["E-021", "E-022"]}],
+        }),
+        "2026-10-28T20:00:00Z",
+    )
+    records.refresh(T + 30, inputs=inputs(bambuddy={
+        **bud("IDLE", 0),
+        "ams_trays": [{"slot": 1, "type": "PLA", "color": "#112233", "remain": 80}],
+    }))
+    w = client.get("/api/workshop").json()
+    assert w["ams_trays"] == [{"slot": 1, "type": "PLA", "color": "#112233", "remain": 80}]
+    assert w["lab"]["projects"] == ["hex-tile"]
+    assert w["lab"]["needs"][0]["id"] == "E-022"
+    assert w["lab"]["needs"][0]["href"] == "/lab?p=hex-tile&e=E-022&do=judge"
 
 
 class Req:

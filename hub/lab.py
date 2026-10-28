@@ -209,6 +209,84 @@ def stored_needs() -> list:
     return out
 
 
+def workshop_summary() -> Optional[dict]:
+    """Summary of the stored Print Lab projects for Workshop & Control Room, independent of the Windows PC."""
+    try:
+        ready()
+        rows = db.rows("SELECT project, meta, index_json, synced_at FROM lab_projects ORDER BY synced_at DESC, project")
+    except Exception:
+        return None
+    if not rows:
+        return None
+    projects = []
+    all_needs = []
+    active_exps = []
+    open_questions = []
+    latest_sync = None
+    for r in rows:
+        proj = r["project"]
+        synced = r["synced_at"]
+        if synced and (latest_sync is None or synced > latest_sync):
+            latest_sync = synced
+        try:
+            ix = json.loads(r["index_json"] or "{}")
+        except Exception:
+            continue
+        exps = [e for e in (ix.get("experiments") or []) if isinstance(e, dict)]
+        by_id = {e.get("id"): e for e in exps if e.get("id")}
+        for n in (ix.get("needs") or []):
+            if not isinstance(n, dict) or not n.get("id"):
+                continue
+            exp_id = str(n["id"])
+            exp = by_id.get(exp_id) or {}
+            action = str(n.get("action") or "Needs you")
+            href = f"/lab?p={proj}&e={exp_id}&do=judge" if action == "Judge the print" else f"/lab?p={proj}&e={exp_id}"
+            all_needs.append({
+                "project": proj,
+                "id": exp_id,
+                "action": action,
+                "why": str(n.get("why") or ""),
+                "due_at": n.get("due_at"),
+                "question_text": str(exp.get("question_text") or ""),
+                "judge_on": str(exp.get("judge_on") or ""),
+                "href": href,
+            })
+        for e in exps:
+            st = e.get("status")
+            if st in ("printing", "ready", "needs_approval", "approved", "built"):
+                active_exps.append({
+                    "project": proj,
+                    "id": e.get("id"),
+                    "status": st,
+                    "question_text": e.get("question_text") or "",
+                    "filament": e.get("filament") or "",
+                    "estimate": e.get("estimate"),
+                    "href": f"/lab?p={proj}&e={e.get('id')}",
+                })
+        for q in (ix.get("questions") or []):
+            if isinstance(q, dict) and q.get("status") not in ("answered", "stopped"):
+                open_questions.append({
+                    "project": proj,
+                    "id": q.get("id"),
+                    "question": q.get("question") or "",
+                    "answered": q.get("answered") or 0,
+                    "total": len(q.get("experiments") or []),
+                })
+        projects.append(proj)
+    try:
+        pending_reqs = db.one("SELECT COUNT(*) AS c FROM lab_requests WHERE status = 'pending'")["c"]
+    except Exception:
+        pending_reqs = 0
+    return {
+        "projects": projects,
+        "synced_at": latest_sync,
+        "needs": all_needs[:6],
+        "active": active_exps[:6],
+        "questions": open_questions[:4],
+        "pending_requests": pending_reqs,
+    }
+
+
 @router.get("/projects")
 def list_projects(request: Request):
     need(request, "household")

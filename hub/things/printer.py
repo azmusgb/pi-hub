@@ -166,6 +166,7 @@ def printer(b, s, lab, prev, now):
               "nozzle_target": b.get("nozzle_target"), "bed": b.get("bed_temp"),
               "bed_target": b.get("bed_target"), "ams_humidity": b.get("ams_humidity"),
               "filament_type": b.get("filament_type"), "filament_color": b.get("filament_color"),
+              "ams_trays": b.get("ams_trays") or [],
               "attempt": attempt, "started": started, "last_progress": last, "bambuddy_state": _raw(b),
               "minutes_left": _minutes(b.get("remaining_time"))}
     if inferred:

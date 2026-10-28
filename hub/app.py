@@ -113,8 +113,10 @@ def records_body():
 
 
 @app.get("/api/records")
-def api_records():
-    return fresh(records_body())
+def api_records(since: int = 0):
+    body = records_body()
+    body["events"] = records.recent_events(since=since, limit=40)
+    return fresh(body)
 
 
 async def records_stream(request, ping=None):
@@ -333,8 +335,9 @@ def api_workshop():
     log = bambuddy.prints(20)  # None when Bambuddy doesn't answer
     prints = [dict(p, has_photo=os.path.exists(os.path.join(recorder.photos_dir(), f"{p['id']}.jpg"))) for p in log or []]
     this_week = [p for p in prints if (p["started"] or 0) >= int(time.time()) - 7 * 86400]
+    p_rec = records.get("printer")
     return fresh({
-        "printer": now.printer_from(records.get("printer")),  # the same card /api/now gives
+        "printer": now.printer_from(p_rec),  # the same card /api/now gives
         "prints": prints,
         "prints_available": log is not None,
         "week": None if log is None else {  # None, not zeros, when Bambuddy's log isn't there
@@ -344,6 +347,8 @@ def api_workshop():
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
         "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer
+        "ams_trays": (p_rec.get("detail") or {}).get("ams_trays") or [] if p_rec else [],
+        "lab": lab.workshop_summary(),
         "filament_month": filament.summary(30),
         "ai": {"state": (s or {}).get("ai_state", "Unknown"),
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],

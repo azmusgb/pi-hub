@@ -22,9 +22,27 @@ export function mount(state) {
     const img = state.root.querySelector(".cam-img");
     if (img && !document.hidden) img.src = `/api/camera.jpg?t=${Date.now()}`;
   }, 2000);
+  if (typeof EventSource !== "undefined") {
+    try {
+      const es = new EventSource("/api/records/stream");
+      state.es = es;
+      es.addEventListener("change", (ev) => {
+        try {
+          const ch = JSON.parse(ev.data);
+          if (ch?.id === "printer") load(state);
+        } catch {}
+      });
+    } catch {}
+  }
 }
 
-export function leave(state) { clearInterval(state.camTimer); }
+export function leave(state) {
+  clearInterval(state.camTimer);
+  if (state.es) {
+    try { state.es.close(); } catch {}
+    state.es = null;
+  }
+}
 
 function camera(c) {
   const src = c.source === "Pi" ? "From the Pi" : c.source === "MacBook" ? "From the MacBook (backup)" : null;
@@ -89,13 +107,27 @@ function printRow(p) {
 // the hub only shows them and links there to change anything.
 const bambuddyUrl = (path) => `http://${location.hostname}:8000${path}`;
 
-function shelf(spools) {
+function shelf(spools, amsTrays = [], printer = null) {
   if (spools === null) {
     return card("Filament", { cls: "wide", pill: "No answer", tone: "warn" },
       h("p", { class: "meta" }, "Bambuddy isn't answering, so the spools can't be shown right now."),
       h("a", { class: "action", href: bambuddyUrl("/inventory"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"));
   }
+  const trays = Array.isArray(amsTrays) ? amsTrays : [];
   const low = spools.filter((s) => s.low);
+  const activePrint = printer && ["printing", "paused"].includes(printer.state);
+  const shortfallBanner = low.length
+    ? h("div", { class: "callout callout--warn", style: "margin-bottom: .75rem;" },
+      h("span", {}, activePrint
+        ? `Spool shortfall check: ${low.map((s) => `${s.colour} (${s.grams_left} g)`).join(", ")} running low while the X2D is active.`
+        : `Low filament warning: ${low.map((s) => `${s.colour} (${s.grams_left} g left)`).join(", ")}.`))
+    : null;
+  const amsRow = trays.length
+    ? h("div", { class: "ws-ams-strip", style: "display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem;" },
+      trays.map((t) => h("span", { class: "pill", style: "display: inline-flex; align-items: center; gap: .35rem;" },
+        h("span", { class: "swatch", style: `width: 10px; height: 10px; border-radius: 50%; background:${t.color || "#888"}`, "aria-hidden": "true" }),
+        `AMS ${t.slot}: ${t.type}${Number.isFinite(t.remain) && t.remain >= 0 ? ` (${t.remain}%)` : ""}`)))
+    : null;
   const rows = spools.map((s) => {
     const pct = s.grams_total ? Math.round((s.grams_left / s.grams_total) * 100) : 0;
     return h("li", { class: "spool", dataset: { low: String(s.low) } },
@@ -106,9 +138,53 @@ function shelf(spools) {
         h("span", { class: "grams" }, s.measured ? `${s.grams_left} g` : "not weighed")));
   });
   return card("Filament", { cls: "wide", pill: low.length ? `${low.length} running low` : spools.length ? `${spools.length} spools` : null, tone: low.length ? "bad" : "ok" },
+    shortfallBanner,
+    amsRow,
     rows.length ? h("ul", { class: "spools" }, rows) : empty("No spools in Bambuddy yet."),
     h("p", { class: "meta" }, "From Bambuddy, which takes each print's filament off its spool. You get a phone alert when one runs low."),
     h("a", { class: "action", href: bambuddyUrl("/inventory"), target: "_blank", rel: "noopener" }, "Add or change spools in Bambuddy ↗"));
+}
+
+function labWorkshopCard(labData) {
+  if (!labData) {
+    return card("Print lab & queue", { pill: "Bambuddy", tone: "ok" },
+      h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."),
+      h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
+        h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"),
+        h("a", { class: "action ghost", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
+  }
+  const needs = Array.isArray(labData.needs) ? labData.needs : [];
+  const active = Array.isArray(labData.active) ? labData.active : [];
+  const questions = Array.isArray(labData.questions) ? labData.questions : [];
+  const pill = needs.length ? `${needs.length} need${needs.length === 1 ? "s" : ""} you`
+    : active.length ? `${active.length} active` : "Ready";
+  const tone = needs.length ? "warn" : "ok";
+
+  return card("Print lab & queue", { pill, tone },
+    needs.length
+      ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
+        needs.slice(0, 3).map((n) => h("li", { class: "log-row" },
+          h("span", { class: "dot", dataset: { tone: "warn" }, "aria-hidden": "true" }),
+          h("span", { class: "log-main" },
+            h("strong", {}, `${n.id}: ${n.action}`),
+            n.question_text ? h("span", { class: "meta" }, n.question_text) : null,
+            n.judge_on ? h("span", { class: "meta" }, `Look at: ${n.judge_on}`) : null),
+          h("span", { class: "log-side" },
+            h("a", { class: "btn btn--primary", href: n.href || `/lab?e=${n.id}`, "data-link": true },
+              n.action === "Judge the print" ? `Judge ${n.id}` : "Open")))))
+      : active.length
+        ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
+          active.slice(0, 2).map((e) => h("li", { class: "log-row" },
+            h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
+            h("span", { class: "log-main" },
+              h("strong", {}, `${e.id} · ${e.status}`),
+              e.question_text ? h("span", { class: "meta" }, e.question_text) : null))))
+        : questions.length
+          ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
+          : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
+    h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
+      h("a", { class: "action", href: "/lab", "data-link": true }, "Print lab"),
+      h("a", { class: "action ghost", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
 }
 
 function projectsCard(projects) {
@@ -139,11 +215,7 @@ export async function load(state) {
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;
   state.info.replaceChildren(
-    card("Filament and projects", { pill: "Bambuddy", tone: "ok" },
-      h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy."),
-      h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
-        h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"),
-        h("a", { class: "action ghost", href: "/lab", "data-link": true }, "Print lab"))),
+    labWorkshopCard(d.lab),
     card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
@@ -164,6 +236,6 @@ export async function load(state) {
       d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
         (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null),
     projectsCard(pr.available ? pr.projects : null),
-    shelf(d.spools),
+    shelf(d.spools, d.ams_trays, d.printer),
   ].filter(Boolean));
 }
