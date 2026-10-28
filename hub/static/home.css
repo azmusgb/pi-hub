@@ -74,7 +74,10 @@ body.wall.night { filter: brightness(0.55); }
 .wall-board .status-list li { padding: .3em 0; gap: .5em; }
 .wall-board .status-list li .meta { display: none; }  /* name and latency only; the descriptions were always cut off */
 .wall-board .status-list li > strong, .wall-board .status-side { white-space: nowrap; }
-.wall-board .net-panel > p.meta { margin: 0; }
+.wall-board .net-panel > p.meta { margin: 0; display: flex; flex-wrap: wrap; gap: .4em; }
+.wall-board .net-panel .tool-link { padding: 0 .9em; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; text-decoration: none; }
+/* All six checks answering: the headline says it; the rows come back when one doesn't. */
+.wall-board .net-panel:not(:has(.dot[data-tone="warn"], .dot[data-tone="bad"])) .status-list { display: none; }
 
 /* The clock and the weather share the top row: the time on one line with a small AM/PM. */
 .wall-head { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: .5rem clamp(1rem, 3vmin, 3rem); align-items: end; }
@@ -83,7 +86,7 @@ body.wall.night { filter: brightness(0.55); }
   letter-spacing: -.05em; line-height: .9; font-variant-numeric: tabular-nums; }
 .wall-ampm { margin-left: .18em; font-size: .3em; font-weight: 700; letter-spacing: 0; color: var(--text-2); }
 .wall-date { margin: .25em 0 0; font-size: max(1rem, calc(var(--wall-clock) * .2)); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wall-weather { justify-self: end; display: grid; grid-template-columns: auto auto; gap: 0 .35em; align-items: center; text-align: right;
+.wall-weather { justify-self: end; display: grid; grid-template-columns: auto auto; justify-content: end; gap: 0 .35em; align-items: center; text-align: right;
   font-size: calc(var(--wall-clock) * .5); min-width: 0; }
 .wall-weather > .wx { width: 1em; height: 1em; }
 .wall-temp { margin: 0; font-size: 1em; font-weight: 800; letter-spacing: -.04em; line-height: 1; white-space: nowrap; }
@@ -162,8 +165,18 @@ body.wall.night { filter: brightness(0.55); }
 .kiosk-badge[data-tone="bad"] { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .kiosk-pct { margin: .1em 0 0; font-size: 2.4em; font-weight: 800; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .kiosk-sub { margin: .3em 0 0; color: var(--text-2); font-size: .9em; overflow-wrap: anywhere; }
+.kiosk-done { font-size: 2em; }
+.kiosk-done-label { font-size: .45em; font-weight: 600; letter-spacing: 0; color: var(--text-2); }
 .kiosk-links { display: flex; gap: .4em; flex-wrap: wrap; }
+/* Links, not disabled chips: the toolbar's look. */
+.wall-board .kiosk-links .chip { background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+.wall-board .kiosk-links .chip:hover { border-color: var(--accent); }
+/* A progress line, not a slider: no knob to drag. */
+.wall-board .line-nozzle { display: none; }
 .kiosk-line { margin: 0; }
+/* The camera's slot: on one-screen sizes it takes the tile's spare height, and the picture's frame keeps the
+   picture's own shape inside it (--cam-w / --cam-h are set when the image loads), so there are no black bands. */
+.kiosk-cam-slot { display: grid; place-items: center; min-height: 0; }
 .kiosk-cam-container {
   position: relative;
   flex: 0 1 auto;
@@ -181,7 +194,7 @@ body.wall.night { filter: brightness(0.55); }
 .kiosk-cam-container:has(> .kiosk-cam-none) { background: var(--surface-2); box-shadow: none; }
 .kiosk-cam-container > .kiosk-cam-none { color: var(--text-2); }
 /* No picture: only as tall as its line and the temperatures under it, never a large empty box. */
-#view .kiosk-cam-container:has(> .kiosk-cam-none) { flex: none; aspect-ratio: auto; min-height: 0; display: flex; flex-direction: column; }
+#view .kiosk-cam-container:has(> .kiosk-cam-none) { flex: none; aspect-ratio: auto; width: 100%; height: auto; min-height: 0; display: flex; flex-direction: column; }
 .kiosk-cam-container:has(> .kiosk-cam-none) > .kiosk-hud-overlay { position: static; background: none; backdrop-filter: none; color: var(--text); }
 .kiosk-cam-container:has(> .kiosk-cam-none) .kiosk-hud-chip { background: var(--surface); border-color: var(--line); }
 .kiosk-cam-container:has(> .kiosk-cam-none) > .kiosk-cam-none { padding: .8rem 1rem .2rem; }
@@ -235,7 +248,6 @@ body.wall.night { filter: brightness(0.55); }
   border: 1px solid rgba(255, 255, 255, 0.15);
   white-space: nowrap;
 }
-.kiosk-hud-chip--end { margin-left: auto; opacity: .85; }
 
 /* The workshop light: one big switch. */
 .kiosk-light-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6em; align-content: start; container-type: inline-size; }
@@ -305,8 +317,16 @@ body.wall.night { filter: brightness(0.55); }
   .wall-needs, .wall-house, .wall-extra { overflow: auto; }
   .wall-tools { align-self: end; }
   /* The camera takes the printer tile's spare height and shows the whole picture. */
-  .kiosk-cam-container { flex: 1 1 0; min-height: 7em; aspect-ratio: auto; }
-  #view .kiosk-cam-container > .kiosk-cam-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; object-fit: contain; }
+  .kiosk-cam-slot { flex: 1 1 0; min-height: 7em; container-type: size; place-items: start center; }
+  .kiosk-cam-slot:has(.kiosk-cam-none) { flex: none; min-height: 0; container-type: normal; }
+  /* Up to 15% of the picture may be trimmed to fill the slot; never more, so no black bands and no lost plate. */
+  .kiosk-cam-container { --cam-w: 16; --cam-h: 9; aspect-ratio: auto;
+    width: min(100cqw, 100cqh * var(--cam-w) / var(--cam-h) * 1.15);
+    height: min(100cqh, 100cqw * var(--cam-h) / var(--cam-w) * 1.15); }
+  #view .kiosk-cam-container > .kiosk-cam-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; object-fit: cover; }
+  /* Readable from across the room: the temperatures and LIVE at the size of the tile's own words. */
+  .kiosk-hud-overlay { font-size: max(.875rem, .8em); }
+  .kiosk-cam-badge { font-size: max(.8rem, .75em); }
 }
 
 /* Tall portrait screens (a monitor on its side): the next hours and the agenda fill what would be empty. */
@@ -322,38 +342,29 @@ body.wall.night { filter: brightness(0.55); }
   .wall-board > .wall-extra { display: grid; }
 }
 
-/* Wide (laptop, TV, landscape tablet): a header strip about a quarter of the height, then three columns —
-   Needs you · printer and camera · the house. The printer's column widens while it prints. */
+/* Wide (laptop, TV, landscape tablet): a short header strip (the clock, the weather), then two columns — the printer
+   and its camera, full height, and one stack beside it: Needs you, the next hours and the house; the toolbar under
+   both. No tile is stretched past its contents (the 28 Oct iPad critique: an empty Next hours card, a small camera). */
 @media (orientation: landscape) and (min-width: 1000px) and (min-height: 500px) {
   .wall-board {
     --wall-clock: clamp(4rem, min(15vh, 10vw), 13rem);
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
   }
   .wall-board, .wall-board[data-printing="0"], .wall-board[data-printing="1"] {
-    grid-template-areas: "head head tools" "needs print house" "extra print house";
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+    grid-template-areas: "head head" "print needs" "print extra" "print house" "print ." "tools tools";
+    /* A long Needs you list scrolls inside its tile; the house below it is never cut off. */
+    grid-template-rows: auto minmax(0, auto) auto auto minmax(0, 1fr) auto;
   }
-  .wall-board[data-printing="1"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr); }
   .wall-board > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
-  /* The left column's cards share its height instead of leaving the lower half empty. */
-  .wall-board[data-layout="wall"] > .wall-extra { align-content: stretch; }
-  .wall-board > .wall-print { grid-row: 2 / 4; }
-  .wall-board > .wall-house { grid-row: 2 / 4; grid-template-columns: minmax(0, 1fr); }
-  /* The toolbar sits in the header strip's top-right corner, above the weather. */
-  .wall-board, .wall-board[data-printing="0"], .wall-board[data-printing="1"] {
-    grid-template-areas: "head head head" "needs print house" "extra print house";
-  }
-  .wall-board > .wall-tools { grid-area: head; align-self: start; justify-self: end; }
-  .wall-weather { margin-top: calc(44px + 1rem); }
-  .wall-head { padding-bottom: calc(var(--wall-gap) * .5); }
+  /* Many things need you: the next hours step aside so the list has the room. */
+  .wall-board[data-needs-many="1"] > .wall-extra { display: none; }
+  .wall-board > .wall-house { grid-template-columns: minmax(0, 1fr); }
+  .wall-board > .wall-tools { align-self: end; justify-content: flex-end; }
+  .wall-head { padding-bottom: calc(var(--wall-gap) * .25); }
   /* Idle: the printer tile is only as tall as its 16:9 picture. */
   .wall-board[data-printing="0"] > .wall-print { align-self: start; }
-  .wall-board[data-printing="0"] .kiosk-cam-container { flex: none; aspect-ratio: 16 / 9; }
-  /* Wall layout: the camera box takes the picture's own shape (--cam-ar is set when the image loads), so no black bands. */
-  .wall-board[data-layout="wall"] > .wall-print { align-self: start; }
-  .wall-board[data-layout="wall"] .kiosk-console { flex: none; }
-  .wall-board[data-layout="wall"] .kiosk-cam-container { flex: none; min-height: 0; aspect-ratio: var(--cam-ar, 16 / 9); }
+  .wall-board[data-printing="0"] .kiosk-cam-slot { flex: none; container-type: normal; }
+  .wall-board[data-printing="0"] .kiosk-cam-container { width: 100%; height: auto; aspect-ratio: 16 / 9; }
 }
 
 /* Weather */
@@ -1023,7 +1034,8 @@ body:not(.wall) .page-now { display: block; }
   .wall-board[data-layout="desk"] > .wall-head { grid-template-columns: 1fr auto; }
   .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   /* While printing, the picture fills its box (cropped at the edges) instead of sitting between black bars. */
-  .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-container { flex: 1 1 0; min-height: 0; aspect-ratio: auto; }
+  .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-slot { flex: 1 1 0; min-height: 0; container-type: normal; place-items: stretch; }
+  .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-container { width: 100%; height: 100%; }
   #view .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-container > .kiosk-cam-img { object-fit: cover; }
   /* Idle: no picture, so the printer tile is only as tall as what it says. */
   .wall-board[data-layout="desk"][data-printing="0"] > .wall-print { align-self: start; }

@@ -12,6 +12,14 @@ import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNee
 export const every = 15;
 
 const finishAt = (m) => Number.isFinite(m) ? new Date(Date.now() + m * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+// The wall's headline: the finish time, with the day when it isn't today ("Tomorrow 3:10 AM").
+const finishDay = (m) => {
+  if (!Number.isFinite(m)) return "";
+  const end = new Date(Date.now() + m * 60000), today = new Date();
+  const days = Math.round((new Date(end).setHours(0, 0, 0, 0) - new Date(today).setHours(0, 0, 0, 0)) / 864e5);
+  const day = days === 0 ? "" : days === 1 ? "Tomorrow " : `${end.toLocaleDateString([], { weekday: "long" })} `;
+  return day + finishAt(m);
+};
 
 function greeting(now = new Date()) {
   const hr = now.getHours();
@@ -113,7 +121,6 @@ export function band(p, cam = null) {
 
 function workshopKioskConsole(d, cam) {
   const p = d.printer || {};
-  const w = d.workshop || {};
   const isPrinting = printing(p);
   const pct = p.progress || 0;
   const badge = kioskBadge(p);
@@ -124,8 +131,7 @@ function workshopKioskConsole(d, cam) {
       ? chip(`🌡️ Nozzle: ${p.nozzle_temp}°C${p.nozzle_target ? ` / ${p.nozzle_target}°C` : ""}`) : null,
     p.bed_temp !== undefined && p.bed_temp !== null
       ? chip(`🛏️ Bed: ${p.bed_temp}°C${p.bed_target ? ` / ${p.bed_target}°C` : ""}`) : null,
-    p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null,
-    w.display ? h("span", { class: "kiosk-hud-chip kiosk-hud-chip--end" }, `Workshop display: ${workshopDisplayLabel(w.display)}`) : null
+    p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null
   );
 
   // No picture (the camera bridge is down, or the image fails to load): say so in words, not a broken-image icon.
@@ -138,7 +144,7 @@ function workshopKioskConsole(d, cam) {
       loading: "eager",
       onload: (e) => {  // the box takes the picture's own shape
         const { naturalWidth: nw, naturalHeight: nh } = e.target;
-        if (nw && nh) e.target.parentNode?.style.setProperty("--cam-ar", `${nw} / ${nh}`);
+        if (nw && nh) { e.target.parentNode?.style.setProperty("--cam-w", nw); e.target.parentNode?.style.setProperty("--cam-h", nh); }
       },
       onerror: (e) => e.target.replaceWith(noPicture()),
     }) : noPicture(),
@@ -146,10 +152,12 @@ function workshopKioskConsole(d, cam) {
     camHud
   );
 
+  // The headline is when it will be done (what you look up for); the percentage and the layer sit under it.
   // "Layer 93 / 150" wraps as one piece, never "Layer 93 /" over "150".
+  const done = isPrinting ? finishDay(p.minutes_left) : "";
+  const layer = p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null;
   const jobSubtitle = isPrinting && p.left
-    ? [`Done in about ${p.left}${finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""}`,
-       p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null]
+    ? [done ? `${pct}% · ${p.left} to go` : `Done in about ${p.left}`, layer]
     : (p.job_name ? `Job: ${p.job_name}` : (p.detail || "Ready for next print"));
 
   const progressSection = isPrinting ? h("div", {
@@ -172,17 +180,18 @@ function workshopKioskConsole(d, cam) {
           h("span", { "aria-hidden": "true" }, "🖨️"),
           h("h2", {}, "Bambu X2D"),
           h("span", { class: "kiosk-badge", dataset: { tone: badge.tone } }, badge.label)),
-        isPrinting ? h("p", { class: "kiosk-pct" }, `${pct}%`) : null,
+        done ? h("p", { class: "kiosk-pct kiosk-done" }, h("span", { class: "kiosk-done-label" }, "Done around "), done)
+          : isPrinting ? h("p", { class: "kiosk-pct" }, `${pct}%`) : null,
         h("p", { class: "kiosk-sub" }, jobSubtitle)),
       h("div", { class: "kiosk-links" },
         h("a", { class: "chip", href: "/workshop", "data-link": true }, "Workshop History"),
         h("a", { class: "chip", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"))),
     progressSection,
-    camContainer
+    h("div", { class: "kiosk-cam-slot" }, camContainer)
   );
 }
 
-function workshopLightCard(light) {
+function workshopLightCard(light, w = {}) {
   if (!light) return null;
   const label = (on) => on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
   const bulbIcon = h("span", { class: "kiosk-light-bulb", "aria-hidden": "true" }, "💡");
@@ -214,8 +223,8 @@ function workshopLightCard(light) {
 
   return h("section", { class: "kiosk-light-card wall-tile", "aria-labelledby": "wall-light-title" },
     h("div", { class: "kiosk-light-head" },
-      h("h2", { id: "wall-light-title" }, "Workshop Controls"),
-      h("span", { class: "meta" }, "One-Touch Workbench Light")),
+      h("h2", { id: "wall-light-title" }, "Workshop"),
+      w.display ? h("span", { class: "meta" }, `Workshop display: ${workshopDisplayLabel(w.display)}`) : null),
     toggleBtn
   );
 }
@@ -495,6 +504,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   renderWallExtra(state, out);
   state.wallBoard.dataset.printing = printing(d.printer) ? "1" : "0";
   state.wallBoard.dataset.extra = state.wallExtra.childElementCount ? "1" : "0";
+  state.wallBoard.dataset.needsMany = (needs?.items?.length || 0) > 2 ? "1" : "0";
   state.wallTools.replaceChildren(...wallToolbar(state));
   state.wallPrint.replaceChildren(workshopKioskConsole(d, cam));
 
@@ -504,7 +514,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
     const lab = deskLab(d.printer, toolUrl("assistant"));
     state.wallExtra.replaceChildren();
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight),
+      workshopLightCard(shopLight, d.workshop),
       h("a", { class: `btn desk-lab${lab.judge ? " btn--primary" : ""}`, href: lab.href, target: "_blank", rel: "noopener" }, lab.label),
     ].filter(Boolean));
     return;
@@ -513,7 +523,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
     const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
     const others = displayAccessories.filter(a => a.id !== shopLight?.id);
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight),
+      workshopLightCard(shopLight, d.workshop),
       networkPanel(d.network),
       others.length ? h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },
