@@ -88,4 +88,11 @@ def build_all(inputs, prev, now):
     builders["hms"] = lambda: printer.hms(i("bambuddy"))
     for id, fn in builders.items():
         out[id] = _build(id, fn)
+    # The PC off during a print: this cycle's printer and Local AI. This cycle's Local AI record has no
+    # since yet, so a down that was already down last cycle keeps that cycle's since.
+    ai = out["local_ai"] if out["local_ai"] is not None else prev.get("local_ai")
+    if ai is not None and "since" not in ai:
+        old = prev.get("local_ai")
+        ai = dict(ai, since=old["since"] if old and old["state"] == "down" and "since" in old else now)
+    out["pc_printing"] = _build("pc_printing", lambda: house.pc_printing(out["printer"] or prev.get("printer"), ai, now))
     return out

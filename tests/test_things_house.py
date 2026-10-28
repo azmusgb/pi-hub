@@ -178,3 +178,45 @@ def test_heat_wins_over_heat_power_flags():  # R17
     assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage earlier"})["state"] == "hot"
     assert house.pi({"pi_temp": 60, "pi_power": "Slowed by heat earlier"})["state"] == "power"
     assert house.pi({"pi_temp": 82, "pi_power": "Under-voltage"})["state"] == "power"
+
+
+def _pc_printing(printer_state, ai_state, down_for, now=T + 1000):
+    printer = {"id": "printer", "state": printer_state}
+    ai = {"id": "local_ai", "state": ai_state, "since": now - down_for}
+    return house.pc_printing(printer, ai, now)
+
+
+def test_pc_off_for_90s_during_a_print_is_fine():
+    assert _pc_printing("printing", "down", 90)["state"] == "fine"
+
+
+def test_pc_off_for_150s_during_a_print_is_a_problem():
+    rec = _pc_printing("printing", "down", 150)
+    assert rec["state"] == "off_while_printing" and rec["source"] == "hub"
+    assert rec["headline"] == "The PC is off during a print"
+    assert rec["cause"] == "Failure detection has stopped until it's back."
+    assert records.merge(None, rec, T)["severity"] == "problem"
+
+
+def test_pc_off_while_idle_is_fine():
+    assert _pc_printing("idle", "down", 500)["state"] == "fine"
+
+
+def test_pc_off_while_paused_counts():
+    assert _pc_printing("paused", "down", 150)["state"] == "off_while_printing"
+
+
+def test_pc_back_during_a_print_is_fine():
+    assert _pc_printing("printing", "ready", 500)["state"] == "fine"
+
+
+def test_build_all_uses_the_previous_since_for_this_cycles_down_record():
+    from hub import things
+    from tests.helpers_records import inputs
+    prev = {"printer": merged(house.pc({"win_ok": True}, None, T)),
+            "local_ai": dict(merged(house.local_ai({"ai_state": "Down"}, None)), since=T)}
+    prev["printer"] = dict(merged(things.printer.printer(None, None, None, None, T) or records.make("printer", "printing", "x", "bambuddy")), state="printing")
+    out = things.build_all(inputs(pi={"ai_state": "Down"}, bambuddy=None), prev, T + 150)
+    assert out["pc_printing"]["state"] == "off_while_printing"
+    out = things.build_all(inputs(pi={"ai_state": "Down"}, bambuddy=None), {**prev, "local_ai": dict(prev["local_ai"], since=T + 100)}, T + 150)
+    assert out["pc_printing"]["state"] == "fine"

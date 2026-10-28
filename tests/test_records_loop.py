@@ -419,7 +419,9 @@ def test_a_builder_that_raises_gives_unknown_and_the_rest_still_build(monkeypatc
 def test_build_all_makes_every_thing_but_the_hub():
     recs = things.build_all(GOOD, {}, T)
     assert set(recs) == set(records.KINDS) - {"hub"}
-    assert all(r is None for r in things.build_all({k: None for k in GOOD}, {}, T).values())
+    silent = things.build_all({k: None for k in GOOD}, {}, T)
+    # pc_printing is the hub's own reading of other records, so it is always there
+    assert all(r is None for id, r in silent.items() if id != "pc_printing") and silent["pc_printing"]["state"] == "fine"
 
 
 def test_local_ai_hears_about_the_new_pc_record():

@@ -41,6 +41,7 @@ KINDS = {
     "paper_printer": {"ready": "ok", "busy": "info", "problem": "attention"},
     "weather": {"ok": "ok", "warning": "attention"},
     "hub": {"ok": "ok", "disagreement": "attention"},
+    "pc_printing": {"fine": "ok", "off_while_printing": "problem"},
 }
 for _states in KINDS.values():
     _states["unknown"] = "attention"
@@ -60,13 +61,14 @@ DISAGREE_AFTER = 300
 SOURCE = {"printer": "bambuddy", "obico": "bambuddy", "hms": "bambuddy", "camera": "camera", "workshop_display": "pi_status", "local_ai": "pi_status",
           "pi": "pi_status", "movies_drive": "pi_status", "movie_copy": "pi_status", "pc": "netmon",
           "internet": "netmon", "adguard": "adguard", "backups": "backrest", "plex": "pi_status",
-          "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub"}
+          "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub", "pc_printing": "hub"}
 
 LABELS = {"printer": "Bambu X2D", "obico": "Failure detection", "hms": "Printer alerts", "camera": "Printer camera", "workshop_display": "Workshop display",
           "pc": "Windows PC", "local_ai": "Local AI", "pi": "Raspberry Pi", "movies_drive": "Movies drive",
           "movie_copy": "Movie copy from the PC", "internet": "Internet", "adguard": "Ad blocking",
           "backups": "Backups", "plex": "Movies", "devices": "Smart-home controls",
-          "paper_printer": "Document printer", "weather": "Weather", "hub": "The hub's sources"}
+          "paper_printer": "Document printer", "weather": "Weather", "hub": "The hub's sources",
+          "pc_printing": "PC during a print"}
 
 # source key -> how it reads in a sentence
 SOURCE_NAMES = {"bambuddy": "Bambuddy", "pi_status": "The Pi's status service", "netmon": "NETMON",

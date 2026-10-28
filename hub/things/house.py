@@ -75,6 +75,19 @@ def local_ai(s, pc_rec):
     return _rec("local_ai", "down", "Local AI isn't answering", cause=cause, detail=detail)
 
 
+PC_OFF_PRINT_AFTER = 120  # seconds the PC may be down during a print before it matters
+
+
+def pc_printing(printer_rec, local_ai_rec, now):
+    """The PC is off while a print runs: Obico runs on the PC, so nothing is watching the print."""
+    printing = bool(printer_rec) and printer_rec["state"] in ("printing", "paused")
+    down = bool(local_ai_rec) and local_ai_rec["state"] == "down"
+    if printing and down and now - local_ai_rec.get("since", now) >= PC_OFF_PRINT_AFTER:
+        return _rec("pc_printing", "off_while_printing", "The PC is off during a print",
+                    cause="Failure detection has stopped until it's back.")
+    return _rec("pc_printing", "fine", "The PC is fine during prints")
+
+
 def workshop_display(s):
     if s is None:
         return None
