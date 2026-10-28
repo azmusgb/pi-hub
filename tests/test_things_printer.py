@@ -328,3 +328,90 @@ def test_whole_number_progress_reads_without_a_decimal():
     assert r["detail"]["progress"] == 0 and isinstance(r["detail"]["progress"], int)
     assert printer.printer(bud("PAUSE", 16.0), None, None, None, T)["headline"] == "Paused at 16%"
     assert printer.printer(bud("RUNNING", 16.5), None, None, None, T)["headline"] == "Printing HEX_TILE_v72, 16.5%"
+
+
+# --- obico and hms ---
+def _obico(cls="safe", enabled=True, error=None, per=True):
+    return {"enabled": enabled, "monitored_printers": 1, "last_error": None,
+            "per_printer": {"1": {"class": cls, "frame_count": 5, "score": 0.9, "error": error}} if per else {}}
+
+
+def _prec(state):
+    from hub import records
+    return records.make("printer", state, "x", "bambuddy")
+
+
+def test_obico_failure_is_a_problem():
+    from hub.things import printer as p
+    r = p.obico(_obico("failure"), _prec("printing"))
+    assert r["state"] == "failure" and r["headline"] == "Failure detected on the X2D"
+    assert r["source"] == "bambuddy" and r["id"] == "obico"
+
+
+def test_obico_warning_is_attention():
+    from hub.things import printer as p
+    r = p.obico(_obico("warning"), _prec("printing"))
+    assert r["state"] == "warning" and r["headline"] == "Possible print problem"
+
+
+def test_obico_error_while_printing_is_blind_and_quiet_when_idle():
+    from hub.things import printer as p
+    o = _obico("error", error="camera unreachable")
+    for st in ("printing", "paused"):
+        r = p.obico(o, _prec(st))
+        assert r["state"] == "blind" and r["cause"] == "camera unreachable"
+        assert r["headline"] == "Failure detection can't see the printer"
+    assert p.obico(o, _prec("idle"))["state"] == "watching"
+    assert p.obico(o, None)["state"] == "watching"
+    assert p.obico(_obico(per=False), _prec("printing"))["state"] == "watching"
+
+
+def test_obico_off_when_disabled():
+    from hub.things import printer as p
+    assert p.obico(_obico("failure", enabled=False), _prec("printing"))["state"] == "off"
+
+
+def test_obico_none_when_bambuddy_silent():
+    from hub.things import printer as p
+    assert p.obico(None, _prec("printing")) is None
+
+
+def test_hms_severity_maps_to_state():
+    from hub.things import printer as p
+    def err(code, sev):
+        return {"code": code, "severity": sev, "module": 5}
+    assert p.hms({"hms": [err("0300_0100", 3), err("0500_0200", 2)]})["state"] == "stopped"
+    assert p.hms({"hms": [err("0300_0100", 1)]})["state"] == "stopped"
+    r = p.hms({"hms": [err("0300_0100", 3)]})
+    assert r["state"] == "notice" and r["headline"] == "Printer needs attention (0300_0100)"
+    assert r["detail"]["errors"] == [err("0300_0100", 3)]
+    assert p.hms(None) is None
+
+
+def test_hms_empty_is_clear():
+    from hub.things import printer as p
+    assert p.hms({"hms": []})["state"] == "clear"
+    assert p.hms({})["state"] == "clear"
+
+
+def test_bambuddy_status_carries_hms_errors(monkeypatch):
+    from hub import sources
+    raw = {"connected": True, "state": "PAUSE", "hms_errors": [
+        {"code": "0500_0200", "module": 5, "severity": 2, "attr": 1, "actions": []}]}
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: raw)
+    assert sources._bambuddy()["hms"] == [{"code": "0500_0200", "severity": 2, "module": 5}]
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: {"connected": True})
+    assert sources._bambuddy()["hms"] == []
+
+
+def test_obico_status_is_cached_and_none_when_silent(monkeypatch):
+    from hub import bambuddy, sources
+    sources._cache.pop("bambuddy_obico", None)
+    calls = []
+    monkeypatch.setattr(sources, "_get_json", lambda url, headers=None, timeout=4: calls.append(url) or {"enabled": True})
+    assert bambuddy.obico_status() == {"enabled": True} and bambuddy.obico_status() == {"enabled": True}
+    assert len(calls) == 1 and calls[0].endswith("/api/v1/obico/printer-status")
+    sources._cache.pop("bambuddy_obico", None)
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
+    assert bambuddy.obico_status() is None
+    sources._cache.pop("bambuddy_obico", None)

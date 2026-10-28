@@ -27,7 +27,16 @@ def build(events, feed, now, problems=()):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
     knows when the plate is cleared."""
     items = []
+    by_id = {r["id"]: r for r in problems}
     for key, i in issue_items(list(problems)):
+        errors = (by_id.get(key) or {}).get("detail", {}).get("errors") if key == "hms" else None
+        if errors:  # one item per fault code, so each can be told apart and dismissed on its own
+            for e in errors:
+                items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB,
+                              "tone": "bad" if e.get("severity") in (1, 2) else "warn",
+                              "title": f"Printer needs attention ({e['code']})", "detail": i["say"],
+                              "link": i["href"], "ts": now, "thing": key})
+            continue
         id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
         items.append({"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
                       "detail": i["say"], "link": i["href"], "ts": now, "thing": key})

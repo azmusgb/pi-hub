@@ -435,7 +435,7 @@ def test_local_ai_hears_about_the_new_pc_record():
 
 
 def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
-    from hub import actions, outside, printing, sources
+    from hub import actions, bambuddy, outside, printing, sources
     calls = []
 
     def answer(name, value=None, fail=False):
@@ -453,17 +453,18 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
     monkeypatch.setattr(printing, "printer_state", answer("paper", fail=True))
     monkeypatch.setattr(outside, "weather", answer("weather"))
     monkeypatch.setattr(sources, "camera_health", answer("camera"))
+    monkeypatch.setattr(bambuddy, "obico_status", answer("obico"))
     monkeypatch.setattr(actions, "helper", lambda name, timeout=None: calls.append(name) or {"from": name})
     sources._cache.pop("helper-adguard", None)
     sources._cache.pop("helper-backups", None)
     records.refresh(T, inputs=PRINTING)  # the lab is asked only while the printer is printing or paused
     got = things.gather()
     assert set(got) == {"bambuddy", "pi_status", "netmon", "lab", "sessions", "paper", "weather", "adguard",
-                        "backups", "camera"}
+                        "backups", "camera", "obico"}
     assert got["sessions"] is None and got["paper"] is None
     assert got["adguard"] == {"from": "adguard:stats"} and got["backups"] == {"from": "backups:ages"}
     assert sorted(calls) == sorted(["bambuddy", "pi_status", "netmon", "lab", "sessions", "paper", "weather",
-                                    "camera", "adguard:stats", "backups:ages"])
+                                    "camera", "obico", "adguard:stats", "backups:ages"])
     things.gather()  # the helper reports are shared with /api/network/adguard and /api/system/backups for 5 min
     assert calls.count("adguard:stats") == 1 and calls.count("backups:ages") == 1
 

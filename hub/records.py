@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS record_events (
 KINDS = {
     "printer": {"printing": "ok", "paused": "attention", "finished": "attention", "failed": "problem",
                 "idle": "ok", "offline": "attention"},
+    "obico": {"watching": "ok", "off": "ok", "warning": "attention", "failure": "problem", "blind": "attention"},
+    "hms": {"clear": "ok", "notice": "attention", "stopped": "problem"},
     "camera": {"live": "ok", "no_picture": "attention"},
     "workshop_display": {"online": "ok", "offline": "attention"},
     "pc": {"on": "ok", "off": "problem"},
@@ -55,12 +57,12 @@ DEBOUNCED = {"workshop_display", "local_ai", "pi", "movies_drive", "internet", "
 DISAGREE_AFTER = 300
 
 # thing -> the source that is the one designated answer for it
-SOURCE = {"printer": "bambuddy", "camera": "camera", "workshop_display": "pi_status", "local_ai": "pi_status",
+SOURCE = {"printer": "bambuddy", "obico": "bambuddy", "hms": "bambuddy", "camera": "camera", "workshop_display": "pi_status", "local_ai": "pi_status",
           "pi": "pi_status", "movies_drive": "pi_status", "movie_copy": "pi_status", "pc": "netmon",
           "internet": "netmon", "adguard": "adguard", "backups": "backrest", "plex": "pi_status",
           "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub"}
 
-LABELS = {"printer": "Bambu X2D", "camera": "Printer camera", "workshop_display": "Workshop display",
+LABELS = {"printer": "Bambu X2D", "obico": "Failure detection", "hms": "Printer alerts", "camera": "Printer camera", "workshop_display": "Workshop display",
           "pc": "Windows PC", "local_ai": "Local AI", "pi": "Raspberry Pi", "movies_drive": "Movies drive",
           "movie_copy": "Movie copy from the PC", "internet": "Internet", "adguard": "Ad blocking",
           "backups": "Backups", "plex": "Movies", "devices": "Smart-home controls",

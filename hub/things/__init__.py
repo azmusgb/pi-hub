@@ -27,12 +27,17 @@ def _lab():
     return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
 
 
+def _obico():
+    from .. import bambuddy
+    return bambuddy.obico_status()
+
+
 def _fetchers():
     from .. import outside, printing, sources
     return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
             "netmon": sources.network_metrics, "lab": _lab, "sessions": sources.plex_sessions,
             "paper": printing.printer_state, "weather": outside.weather, "adguard": _adguard,
-            "backups": _backups, "camera": sources.camera_health}
+            "backups": _backups, "obico": _obico, "camera": sources.camera_health}
 
 
 def gather():
@@ -77,6 +82,10 @@ def build_all(inputs, prev, now):
         "backups": lambda: network.backups(i("backups"), now),
         "camera": lambda: network.camera(i("camera")),
     }
+    # Failure detection reads the printer's state: this cycle's record, or the last one if Bambuddy was silent
+    printer_rec = out["printer"] if out["printer"] is not None else prev.get("printer")
+    builders["obico"] = lambda: printer.obico(i("obico"), printer_rec)
+    builders["hms"] = lambda: printer.hms(i("bambuddy"))
     for id, fn in builders.items():
         out[id] = _build(id, fn)
     return out
