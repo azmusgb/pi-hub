@@ -69,17 +69,20 @@ const runs = STUB
      ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', shot: n === 'tv1080' ? 'after-tv1080-printing' : null })),
      { n: 'tv1080', w: 1920, h: 1080, printer: 'printing', at: '2026-10-26T22:48:00', shot: 'after-tv1080-night' },
      { n: 'laptop', w: 1280, h: 800, printer: 'idle', at: '2026-10-26T12:48:00', shot: 'after-laptop-all-clear', clear: true },
-     ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null }))]
+     ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null })),
+     // The desk layout (an iPad at the desk, 28 Oct): both orientations, printing and idle.
+     ...SIZES.filter(([n]) => n.startsWith('ipad')).flatMap(([n, w, h]) => ['printing', 'idle'].map((printer) =>
+       ({ n, w, h, printer, desk: true, at: '2026-10-26T12:48:00', shot: `after-desk-${n}-${printer}` })))]
   : SIZES.map(([n, w, h]) => ({ n, w, h, printer: null, shot: `live-${n}` }));
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
+  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
   if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS, !run.noCamera);
-  await page.goto(`${BASE}/wall`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/wall${run.desk ? '?layout=desk' : ''}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.wall-board[data-printing]', { timeout: 15000 }).catch(() => problems.push(`${where}: the wall never loaded`));
   await page.waitForTimeout(400);
 
@@ -95,6 +98,8 @@ for (const run of runs) {
     const area = (s) => { const b = r(s); return b ? b.width * b.height : 0; };
     return {
       sw: doc.scrollWidth, sh: doc.scrollHeight, iw: innerWidth, ih: innerHeight,
+      // The one-screen board hides its overflow, so a tile pushed off the bottom doesn't scroll: measure the tiles.
+      lowest: Math.max(...[...document.querySelectorAll('.wall-board > *')].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect().bottom)),
       clockH: time ? time.getBoundingClientRect().height : 0, clockFs: fs, clockText: time?.textContent,
       needs: !!document.querySelector('.wall-needs .wall-needs-head h2'),
       needItems: document.querySelectorAll('.wall-needs .ui-need').length,
@@ -114,6 +119,7 @@ for (const run of runs) {
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
   if (fits(w, h) && m.sh > m.ih) problems.push(`${where}: scrolls down (${m.sh} > ${m.ih}) on a one-screen size`);
+  if (fits(w, h) && m.lowest > m.ih + 1) problems.push(`${where}: a tile runs off the bottom (${Math.round(m.lowest)} > ${m.ih})`);
   if (!m.clockText || m.clockH > m.clockFs * 1.3) problems.push(`${where}: the clock "${m.clockText}" wraps (${Math.round(m.clockH)} px at ${m.clockFs} px)`);
   if (!m.needs) problems.push(`${where}: no Needs you tile`);
   if (run.clear && !m.allClear) problems.push(`${where}: Needs you doesn't say All clear when nothing needs you`);
