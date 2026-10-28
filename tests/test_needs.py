@@ -328,3 +328,12 @@ def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk
     assert mac["link"].startswith("tool:assistant/#ask?context=")
     assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
     assert by_id["localai:watch-disk"]["link"] == "tool:assistant"  # other cards keep the plain Assistant link
+
+
+def test_a_local_ai_item_about_another_printer_is_not_about_the_x2d():  # review: "printer" alone isn't the X2D
+    def card(id, title, text):
+        return {"cards": [{"kind": "watch", "id": id, "title": title, "text": text, "tone": "warning"}]}
+    assert _about(needs.build([], card("watch-doc", "Heads up", "Document printer offline"), NOW, [])["items"]) == set()
+    assert _about(needs.build([], card("watch-toner", "Brother printer", "Toner low"), NOW, [])["items"]) == set()
+    assert _about(needs.build([], card("watch-bambu", "Heads up", "Bambu printer offline"), NOW, [])["items"]) == \
+        {"localai:watch-bambu"}

@@ -172,3 +172,9 @@ test("the Mac disk item's link opens the Assistant with the question (its #ask?c
   assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
   assert.ok(resolveLink(link, 'home.home.arpa').startsWith('https://assistant.home.arpa/#ask?context='));
 });
+
+test("a Local AI item about another printer leaves the X2D card green (review, 28 Oct)", () => {
+  // needs.py tags only X2D/Bambu items; an untagged "Document printer offline" must not touch the card
+  const doc = { id: 'localai:watch-doc', source: 'Local AI', tone: 'warn', title: 'Heads up', detail: 'Document printer offline' };
+  assert.equal(by(all({ needs: { count: 1, items: [doc], unread: [] } })).workshop.tone, 'ok');
+});
