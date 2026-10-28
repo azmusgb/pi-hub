@@ -4,6 +4,7 @@ went offline", "display is back"), and the records already say what is still wro
 the printer record's own "clear the plate"."""
 import re
 from datetime import datetime
+from urllib.parse import quote
 
 from .now import issue_items
 
@@ -11,10 +12,17 @@ ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
+BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
 LAB_PROJECT = re.compile(r"^[a-z0-9-]{1,40}$")
+# Home's printer card goes amber or red while Needs you lists an item about the X2D, so the card never stays green beside
+# "the printer has a problem": the hub's records about it, one row for Bambuddy gone quiet (it stands for those records),
+# and other sources' items that name the X2D or Bambu. Narrower than ABOUT_PRINTER: a bare "printer" may be the document
+# printer or another one ("Brother printer toner low"), which must not turn the X2D's card amber.
+PRINTER_THINGS = {"printer", "obico", "hms", "source:bambuddy"}
+NAMES_X2D = re.compile(r"\b(x2d|bambu)\b", re.I)
 LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Send it to the printer": "warn",
             "Fix the plan": "warn"}
 
@@ -58,6 +66,15 @@ def _lab_items(lab, now, printer_done):
     return out
 
 
+def _whats_using_it(item):
+    """Local AI's "Mac disk is 95% full": the Assistant, opened with the question (its #ask?context= hand-off, as the
+    hub's Assistant button). Local AI has no page listing the Mac's largest folders yet, so none is linked. The kit
+    draws only its own action phrases, so the words go after the detail."""
+    said = item["detail"].rstrip(".")
+    item["detail"] = f"{said} · What's using it"
+    item["link"] = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's using the space?", safe="")
+
+
 def _one_row(items, about, ours):
     """One row for a thing several sources name: the hub's own record (`ours`) if it has one, else the most urgent.
     The hub's other records are never folded in (the printer camera and the document printer also say "printer")."""
@@ -86,8 +103,14 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                               "link": i["href"], "ts": now, "thing": key})
             continue
         id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
-        items.append({"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
-                      "detail": i["say"], "link": i["href"], "ts": now, "thing": key})
+        item = {"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
+                "detail": i["say"], "link": i["href"], "ts": now, "thing": key}
+        rec = by_id.get(key) or {}
+        if key == "obico" and rec.get("state") == "blind" and not rec.get("stale"):
+            # nothing watches the print: above "Worth a look", and the fix is in Bambuddy's settings (IMG_1047, 28 Oct)
+            item.update(tone="attention", title=rec["headline"], detail=rec.get("cause") or "", link=BLIND_FIX,
+                        action={"key": "open_bambuddy", "link": BLIND_FIX})
+        items.append(item)
     unread = []
     if feed is None:
         unread.append("Local AI")
@@ -98,9 +121,12 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                 continue
             if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
                 continue
-            items.append({"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
-                          "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
-                          "link": ASSISTANT, "ts": now})
+            item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
+                    "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
+                    "link": ASSISTANT, "ts": now}
+            if c.get("id") == "watch-mac-disk":
+                _whats_using_it(item)
+            items.append(item)
     seen = {}
     for i in items:  # ids stay unique within a build (cards without their own id fall back to their kind)
         n = seen[i["id"]] = seen.get(i["id"], 0) + 1
@@ -112,6 +138,9 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
     items = _one_row(items, ABOUT_PRINTER, lambda i: i.get("thing") == "printer")
     # Local AI and the hub can both report the Workshop touchscreen outage; the hub's record is the direct source.
     items = _one_row(items, ABOUT_WORKSHOP_DISPLAY, lambda i: i.get("thing") == "workshop_display")
+    for i in items:
+        if i.get("thing") in PRINTER_THINGS or (i["source"] != HUB and NAMES_X2D.search(f'{i["title"]} {i["detail"]}')):
+            i["about"] = "printer"
     # After the folds: the lab's text says "printer"/"print", and must not be folded into the printer's row.
     items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     drop = ("ts", "thing")

@@ -275,3 +275,65 @@ def test_stored_needs_parses_only_on_resync(monkeypatch):
     put("t2", [{"id": "E-2"}])
     assert lab.stored_needs() == [("p", "g", [{"id": "E-2"}])]
     assert len(calls) > n
+
+
+# ---- which items are about the X2D (Home's printer card goes amber or red with them; IMG_1047, 28 Oct) ----
+def _about(items):
+    return {i["id"] for i in items if i.get("about") == "printer"}
+
+
+def test_printer_items_say_they_are_about_the_printer():
+    obico = {"enabled": True, "per_printer": {"1": {"class": "error", "error": "Failed to capture snapshot for printer 1"}}}
+    b = {**bud("RUNNING", progress=10), "hms": [{"code": "0500_0200", "severity": 2, "module": 5}]}
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning"}]}
+    n = needs.build([], feed, NOW, problems({"drive_state": "Missing"}, b, obico=obico),
+                    lab=_lab(_need("E-022", "Judge the print")))
+    assert _about(n["items"]) == {"pi:source:hms:0500_0200", "pi:Failure detection"}
+    assert all("about" not in i for i in n["items"] if i["id"] in ("pi:Movies drive", "localai:watch-mac-disk",
+                                                                    "pi:lab:hex-tile:E-022"))
+    assert _about(needs.build([], {"cards": []}, NOW, problems(b=FAILED))["items"]) == {"pi:Bambu X2D"}
+
+
+def test_a_local_ai_item_that_names_the_printer_is_about_it():
+    feed = {"cards": [{"kind": "watch", "id": "watch-x2d", "title": "Heads up", "text": "The X2D is offline.", "tone": "warning"},
+                      {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
+    assert _about(needs.build([], feed, NOW, [])["items"]) == {"localai:watch-x2d"}
+
+
+def test_blind_failure_detection_says_what_to_do_and_sorts_above_worth_a_look():  # IMG_1047, 28 Oct
+    obico = {"enabled": True, "per_printer": {"1": {"class": "error", "error": "Failed to capture snapshot for printer 1"}}}
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning", "at": NOW + 100}]}
+    n = needs.build([], feed, NOW, problems(b=bud("RUNNING", progress=10), obico=obico))
+    assert [i["id"] for i in n["items"]] == ["pi:Failure detection", "localai:watch-mac-disk"]
+    blind = n["items"][0]
+    assert blind["title"] == "Failure detection is blind"
+    assert blind["detail"] == "The camera isn't sending frames to Bambuddy."
+    assert blind["tone"] == "attention"
+    assert blind["link"] == "tool:bambuddy/settings?tab=failure-detection"
+    assert blind["action"] == {"key": "open_bambuddy", "link": "tool:bambuddy/settings?tab=failure-detection"}
+    assert "snapshot" not in str(n)
+
+
+def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk is 95% full" had nothing to do
+    from urllib.parse import unquote
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning", "ask": "health"},
+                      {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
+    by_id = {i["id"]: i for i in needs.build([], feed, NOW, [])["items"]}
+    mac = by_id["localai:watch-mac-disk"]
+    assert mac["title"] == "Worth a look"
+    assert mac["detail"] == "Mac disk is 95% full · What's using it"
+    assert mac["link"].startswith("tool:assistant/#ask?context=")
+    assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
+    assert by_id["localai:watch-disk"]["link"] == "tool:assistant"  # other cards keep the plain Assistant link
+
+
+def test_a_local_ai_item_about_another_printer_is_not_about_the_x2d():  # review: "printer" alone isn't the X2D
+    def card(id, title, text):
+        return {"cards": [{"kind": "watch", "id": id, "title": title, "text": text, "tone": "warning"}]}
+    assert _about(needs.build([], card("watch-doc", "Heads up", "Document printer offline"), NOW, [])["items"]) == set()
+    assert _about(needs.build([], card("watch-toner", "Brother printer", "Toner low"), NOW, [])["items"]) == set()
+    assert _about(needs.build([], card("watch-bambu", "Heads up", "Bambu printer offline"), NOW, [])["items"]) == \
+        {"localai:watch-bambu"}
