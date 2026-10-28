@@ -47,9 +47,15 @@ async def guard(request: Request, call_next):
     # Server-to-server webhooks (/api/webhook/) are machine endpoints.
     shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
     webhook = request.url.path.startswith("/api/webhook/")
-    # The Mac's lab sync is exempt only when it carries the hub's lab key and that key verifies, never for the path alone.
-    mac = request.url.path.startswith("/api/lab/") and lab_guard.mac_key_ok(request)
-    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook and not mac:
+    unsafe = request.method not in ("GET", "HEAD", "OPTIONS")
+    # The Mac's lab calls are exempt only when they carry the hub's lab key and that key verifies, never for the path alone.
+    # A key that is sent but wrong is refused as such; with no key header the normal same-origin check applies.
+    mac = False
+    if unsafe and request.url.path.startswith("/api/lab/") and "x-hub-mac-key" in request.headers:
+        if not lab_guard.mac_key_ok(request):
+            return JSONResponse({"detail": "The Mac's lab key is missing or wrong."}, status_code=401)
+        mac = True
+    if unsafe and not shortcut and not webhook and not mac:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)

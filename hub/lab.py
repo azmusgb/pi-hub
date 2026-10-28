@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import db
 from .auth import need
-from .lab_guard import mac_key_ok, require_mac
+from .lab_guard import mac_key_ok, read_capped, require_mac
 
 router = APIRouter(prefix="/api/lab")
 
@@ -25,9 +25,9 @@ REQUEST_ID_RE = re.compile(r"^rq-[0-9a-f]{16}$")
 EXPERIMENT_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}(-\d{2})?$")
 RUN_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}(-\d{2})?$")
 
-MAX_SYNC = 4 * 1024 * 1024       # 4 MB
-MAX_PHOTO = 8 * 1024 * 1024      # 8 MB
-MAX_REQUEST = 4 * 1024           # 4 KB
+MAX_SYNC = 4 * 1024 * 1024       # 4 MiB
+MAX_PHOTO = 8 * 1024 * 1024      # 8 MiB
+MAX_REQUEST = 64 * 1024          # 64 KiB
 MAX_RECORDS = 2000
 MAX_PENDING = 20
 
@@ -137,9 +137,7 @@ async def sync_project(project: str, request: Request):
     ready()
     check_project(project)
 
-    body = await request.body()
-    if len(body) > MAX_SYNC:
-        raise HTTPException(413, "Too large for the print lab.")
+    body = await read_capped(request, MAX_SYNC)
     try:
         ix = json.loads(body.decode("utf-8"))
     except Exception:
@@ -238,9 +236,7 @@ async def upload_photo(project: str, sha_ext: str, request: Request):
     if not SHA_RE.match(sha):
         raise HTTPException(400, "Name a photo by its sha256: <sha256>.jpg")
 
-    body = await request.body()
-    if len(body) > MAX_PHOTO:
-        raise HTTPException(413, "Too large for the print lab.")
+    body = await read_capped(request, MAX_PHOTO)
     if len(body) < 2 or body[0] != 0xFF or body[1] != 0xD8:
         raise HTTPException(415, "Only JPEG photos.")
     if hashlib.sha256(body).hexdigest() != sha:
@@ -298,9 +294,7 @@ async def create_request(project: str, request: Request):
     ready()
     check_project(project)
 
-    body = await request.body()
-    if len(body) > MAX_REQUEST:
-        raise HTTPException(413, "Too large for the print lab.")
+    body = await read_capped(request, MAX_REQUEST)
     try:
         data = json.loads(body.decode("utf-8"))
     except Exception:
@@ -399,9 +393,7 @@ async def post_request_result(project: str, req_id: str, request: Request):
     ready()
     check_project(project)
 
-    body = await request.body()
-    if len(body) > MAX_REQUEST:
-        raise HTTPException(413, "Too large for the print lab.")
+    body = await read_capped(request, MAX_REQUEST)
     try:
         data = json.loads(body.decode("utf-8"))
     except Exception:
@@ -446,9 +438,7 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
     if not SHA_RE.match(sha):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
 
-    body = await request.body()
-    if len(body) > MAX_PHOTO:
-        raise HTTPException(413, "Too large for the print lab.")
+    body = await read_capped(request, MAX_PHOTO)
     if len(body) < 2 or body[0] != 0xFF or body[1] != 0xD8:
         raise HTTPException(415, "Only JPEG photos.")
     if hashlib.sha256(body).hexdigest() != sha:

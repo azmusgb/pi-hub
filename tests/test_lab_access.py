@@ -136,9 +136,13 @@ def test_no_key_file_refuses_every_mac_route(client, monkeypatch, tmp_path):
 def test_the_key_exempts_the_guard_only_when_it_verifies(client):
     sync = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T10:00:00+00:00",
             "fingerprint": "fp", "experiments": [], "records": {}}
-    # The Mac sends no Origin: a wrong or borrowed key leaves the guard in place.
-    for h in ({}, {"X-Hub-Mac-Key": "wrong"}, {"X-LocalAI-Mac-Key": KEY}):
+    # The Mac sends no Origin: no key (or a borrowed header) leaves the same-origin check in place.
+    for h in ({}, {"X-LocalAI-Mac-Key": KEY}):
         assert client.post("/api/lab/hex-tile/sync", json=sync, headers=h).status_code == 403
+    # A key that is present but wrong is refused as a bad key.
+    r = client.post("/api/lab/hex-tile/sync", json=sync, headers={"X-Hub-Mac-Key": "wrong"})
+    assert r.status_code == 401
+    assert r.json()["detail"] == "The Mac's lab key is missing or wrong."
     assert client.post("/api/lab/hex-tile/sync", json=sync, headers={"X-Hub-Mac-Key": KEY}).status_code == 200
     # Nothing else under /api/lab is exempt just for its path.
     household(client)
@@ -146,3 +150,32 @@ def test_the_key_exempts_the_guard_only_when_it_verifies(client):
     # The key opens only the lab, not the rest of the hub.
     r = client.post("/api/lists/shopping", json={"text": "milk"}, headers={"X-Hub-Mac-Key": KEY})
     assert r.status_code == 403
+
+
+def test_wrong_key_on_a_mac_post_with_no_origin_is_401(client):
+    for h in ({"X-Hub-Mac-Key": "wrong"}, {"X-Hub-Mac-Key": LOCALAI_KEY}):
+        r = client.post("/api/lab/hex-tile/sync", json={}, headers=h)
+        assert r.status_code == 401, r.text
+        assert r.json()["detail"] == "The Mac's lab key is missing or wrong."
+
+
+def test_invalid_utf8_hash_file_refuses_the_mac_and_never_500s(client, monkeypatch, tmp_path):
+    bad = tmp_path / "garbled"
+    bad.write_bytes(b"\xff\xfe\x80not hex at all\n")
+    monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(bad))
+    for method, path in MAC_ROUTES:
+        r = call(client, method, path, headers={**SAME, "X-Hub-Mac-Key": KEY})
+        assert r.status_code in (401, 403), (method, path, r.status_code)
+    r = client.post("/api/lab/hex-tile/sync", json={}, headers={"X-Hub-Mac-Key": KEY})
+    assert r.status_code in (401, 403)
+    # Household reads still work.
+    household(client)
+    assert client.get("/api/lab/projects").status_code == 200
+    assert client.get("/api/lab/hex-tile/photos").status_code == 200
+
+
+def test_a_hub_gate_cookie_gives_no_lab_access(client):
+    client.cookies.set("hub_gate", "anything-at-all")
+    for method, path in PHONE_ROUTES[:3] + MAC_ROUTES[:3]:
+        r = call(client, method, path, headers=SAME)
+        assert r.status_code == 401, (method, path, r.status_code)
