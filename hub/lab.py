@@ -28,8 +28,23 @@ RUN_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}(-\d{2})?$")
 MAX_SYNC = 4 * 1024 * 1024       # 4 MiB
 MAX_PHOTO = 8 * 1024 * 1024      # 8 MiB
 MAX_REQUEST = 64 * 1024          # 64 KiB
+MAX_OBS_REQUEST = 16 * 1024      # an observation session, as compact JSON (Local AI's MAX_OBS_REQUEST)
 MAX_RECORDS = 2000
 MAX_PENDING = 20
+MAX_REASON = 500
+MAX_PHOTOS = 50
+
+# The kinds Local AI queues (app/print-lab.js): the phone's verdict and photos, the page's buttons (start = It's
+# printing now, approve, abandon = Drop) and an observation session. Local AI also has observation_correction; the
+# hub doesn't take it yet.
+DATA_KINDS = ("verdict", "photos")
+ACT_KINDS = ("start", "approve", "abandon")
+OBS_KINDS = ("observation",)
+KINDS = DATA_KINDS + ACT_KINDS + OBS_KINDS
+ACT_EXPERIMENT_RE = re.compile(r"^E-\d{1,6}$")
+BUILD_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}-\d{1,4}$")
+GUARD_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+TAB_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
 
 DB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab_projects (
@@ -73,6 +88,7 @@ def ready():
     path = os.environ.get("HUB_DB", "")
     if path not in _ready_dbs:
         db.conn().executescript(DB_SCHEMA)
+        db.ensure_columns("lab_requests", {"run_seen": "TEXT"})
         _ready_dbs.add(path)
 
 
@@ -288,9 +304,91 @@ def get_record(project: str, rec_id: str, request: Request):
     })
 
 
+def _full(rx, v) -> bool:
+    """rx matches all of v, a str. (`$` alone would also let a trailing newline through.)"""
+    return isinstance(v, str) and rx.fullmatch(v) is not None
+
+
+def _photos_problem(payload: dict) -> Optional[str]:
+    # Local AI's photosProblem: each photo is named by its sha256 (the clean-up after it is applied deletes
+    # incoming/<sha256>.jpg, so nothing else may reach a path) with a short plain tab or none.
+    photos = payload.get("photos")
+    if not isinstance(photos, list) or not 1 <= len(photos) <= MAX_PHOTOS:
+        return f"photos must list 1 to {MAX_PHOTOS} photos"
+    for p in photos:
+        if not isinstance(p, dict) or not _full(SHA_RE, p.get("sha256")) \
+                or not (p.get("tab") is None or _full(TAB_RE, p.get("tab"))):
+            return "Each photo needs its sha256 and at most a short tab name."
+    return None
+
+
+def _act_problem(kind: str, payload: dict, runs_seen: set) -> Optional[str]:
+    # Local AI's actProblem: only the fields lab pull reads pass, and only in the shapes it expects.
+    if kind == "start":
+        t = payload.get("tapped_at")
+        if not isinstance(t, str) or len(t) > 40 or parse_iso(t) is None:
+            return "tapped_at must be a date"
+        if any(not _full(RUN_ID_RE, r) for r in runs_seen):
+            return "Invalid run id"
+        return None
+    reason = payload.get("reason").strip() if isinstance(payload.get("reason"), str) else ""
+    if not reason:
+        return "Dropping needs a reason." if kind == "abandon" else "Approving needs a reason."
+    if len(reason) > MAX_REASON:
+        return f"Keep the reason to {MAX_REASON} characters."
+    if kind == "approve":
+        if not _full(BUILD_ID_RE, payload.get("build_seen")):
+            return "build_seen must be a build id"
+        seen = payload.get("reasons_seen")
+        if not isinstance(seen, list) or len(seen) > 30 or not all(_full(GUARD_CODE_RE, c) for c in seen):
+            return "reasons_seen must be a list of guard codes"
+    return None
+
+
+def _obs_problem(payload: dict) -> Optional[str]:
+    # Local AI's obsProblem (observation): shape checks only; lab pull checks every field against the spec.
+    def is_snap(x):
+        return isinstance(x, dict) and all(isinstance(x.get(k), dict) for k in ("subject", "outcomes", "source"))
+    snaps = payload.get("snapshots")
+    if not isinstance(snaps, list) or not 1 <= len(snaps) <= 8:
+        return "An observation session has 1 to 8 snapshots."
+    if not all(is_snap(x) for x in snaps):
+        return "Each snapshot has a subject, outcomes and a source."
+    return None
+
+
+def request_problem(kind: str, payload: dict, runs_seen: set) -> Optional[str]:
+    """What is wrong with a request's payload, or None. A port of Local AI's actProblem / photosProblem / obsProblem.
+    runs_seen holds the run ids the request names besides its own run (start's run_seen); each must be a run id."""
+    if kind not in KINDS:
+        return "kind must be " + ", ".join(KINDS[:-1]) + " or " + KINDS[-1]
+    if not isinstance(payload, dict):
+        return "payload must be an object"
+    if kind in ACT_KINDS:
+        return _act_problem(kind, payload, runs_seen)
+    if kind == "photos":
+        return _photos_problem(payload)
+    if kind in OBS_KINDS:
+        return _obs_problem(payload)
+    return None
+
+
+def _stored_payload(kind: str, payload: dict) -> dict:
+    # As Local AI stores them: the buttons keep only what lab pull reads, the reason trimmed.
+    if kind == "start":
+        return {"tapped_at": payload["tapped_at"]}
+    if kind == "abandon":
+        return {"reason": payload["reason"].strip()}
+    if kind == "approve":
+        return {"reason": payload["reason"].strip(), "build_seen": payload["build_seen"],
+                "reasons_seen": payload["reasons_seen"]}
+    return payload
+
+
 @router.post("/{project}/requests")
 async def create_request(project: str, request: Request):
-    need(request, "household")
+    # `by` is who signed in (the person and device need() knows), never what the browser says it is.
+    _, by = need(request, "household")
     ready()
     check_project(project)
 
@@ -303,22 +401,33 @@ async def create_request(project: str, request: Request):
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid JSON request body")
 
-    req_id = data.get("id") or ""
-    kind = data.get("kind") or ""
-    experiment = data.get("experiment") or ""
-    run = data.get("run") or ""
+    req_id = data.get("id")
+    kind = data.get("kind")
+    experiment = data.get("experiment")
+    run = data.get("run")
+    run_seen = data.get("run_seen")
     payload = data.get("payload")
 
-    if not REQUEST_ID_RE.match(req_id):
-        raise HTTPException(422, "Request id must look like rq-0123456789abcdef")
-    if kind not in ("verdict", "photos"):
-        raise HTTPException(422, "kind must be verdict or photos")
-    if not EXPERIMENT_ID_RE.match(experiment):
-        raise HTTPException(422, "Invalid experiment id")
-    if not RUN_ID_RE.match(run):
-        raise HTTPException(422, "Invalid run id")
-    if not isinstance(payload, dict) or isinstance(payload, list):
-        raise HTTPException(422, "payload must be an object")
+    if not isinstance(kind, str) or kind not in KINDS:
+        raise HTTPException(400, request_problem("", {}, set()))
+    acting = kind in ACT_KINDS
+    if kind in OBS_KINDS and len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()) > MAX_OBS_REQUEST:
+        raise HTTPException(413, "Too large for the print lab: an observation session is at most 16 KB.")
+    if not _full(REQUEST_ID_RE, req_id):
+        raise HTTPException(400, "Request id must look like rq-0123456789abcdef")
+    if not _full(ACT_EXPERIMENT_RE if acting else EXPERIMENT_ID_RE, experiment):
+        raise HTTPException(400, "Invalid experiment id")
+    # The buttons' requests are about the experiment, not a run: lab pull refuses any run that isn't a print run id.
+    if acting:
+        run = None
+    elif not _full(RUN_ID_RE, run):
+        raise HTTPException(400, "Invalid run id")
+    if kind == "start" and run_seen is not None and not isinstance(run_seen, str):
+        raise HTTPException(400, "Invalid run id")
+    runs_seen = {run_seen} if kind == "start" and run_seen is not None else set()
+    problem = request_problem(kind, payload, runs_seen)
+    if problem:
+        raise HTTPException(400, problem)
 
     existing = db.one("SELECT id, status FROM lab_requests WHERE id = ?", req_id)
     if existing:
@@ -328,13 +437,11 @@ async def create_request(project: str, request: Request):
     if pending_count >= MAX_PENDING:
         raise HTTPException(429, "The Mac hasn't picked up the last 20 requests. Check that the Mac is awake.")
 
-    device = request.headers.get("user-agent", "Browser")[:50]
-    now_str = now_iso()
-
     db.run(
-        "INSERT INTO lab_requests (id, project, kind, experiment, run, payload, status, created_at, by_device) "
-        "VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
-        req_id, project, kind, experiment, run, json.dumps(payload), now_str, device
+        "INSERT INTO lab_requests (id, project, kind, experiment, run, run_seen, payload, status, created_at, by_device) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+        req_id, project, kind, experiment, run or "", run_seen if kind == "start" else None,
+        json.dumps(_stored_payload(kind, payload)), now_iso(), (by or "")[:80]
     )
 
     return JSONResponse({"ok": True, "id": req_id, "status": "pending"})
@@ -351,22 +458,25 @@ def list_requests(project: str, request: Request, status: Optional[str] = None):
     check_project(project)
     if status == "pending":
         rows = db.rows(
-            "SELECT id, kind, experiment, run, payload, status, created_at, by_device "
+            "SELECT id, kind, experiment, run, run_seen, payload, status, created_at, by_device "
             "FROM lab_requests WHERE project = ? AND status = 'pending' ORDER BY created_at ASC",
             project
         )
         items = []
         for r in rows:
-            items.append({
+            item = {
                 "id": r["id"],
                 "kind": r["kind"],
                 "experiment": r["experiment"],
-                "run": r["run"],
+                "run": None if r["kind"] in ACT_KINDS else r["run"],
                 "payload": json.loads(r["payload"]) if r["payload"] else {},
                 "status": r["status"],
                 "at": r["created_at"],
                 "by": r["by_device"]
-            })
+            }
+            if r["kind"] == "start":
+                item["run_seen"] = r["run_seen"]
+            items.append(item)
         return JSONResponse({"items": items})
 
     rows = db.rows(
@@ -393,39 +503,60 @@ async def post_request_result(project: str, req_id: str, request: Request):
     ready()
     check_project(project)
 
+    if not _full(REQUEST_ID_RE, req_id):
+        raise HTTPException(404, "No such request.")
+
     body = await read_capped(request, MAX_REQUEST)
     try:
         data = json.loads(body.decode("utf-8"))
     except Exception:
         raise HTTPException(400, "Invalid JSON request body")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Invalid JSON request body")
 
     result_status = data.get("status")
     if result_status not in ("applied", "refused", "duplicate"):
         raise HTTPException(422, "status must be applied, refused, or duplicate")
+    message = data.get("message")
+    if message is not None and not isinstance(message, str):
+        raise HTTPException(400, "message must be text")
 
     row = db.one("SELECT id, kind, payload FROM lab_requests WHERE id = ? AND project = ?", req_id, project)
     if not row:
         raise HTTPException(404, f"No request {req_id}.")
 
-    now_str = now_iso()
-    message = data.get("message")
     db.run(
         "UPDATE lab_requests SET status = ?, message = ?, resolved_at = ? WHERE id = ? AND project = ?",
-        result_status, message, now_str, req_id, project
+        result_status, message or None, now_iso(), req_id, project
     )
 
-    if result_status == "applied" and row["kind"] == "photos" and row["payload"]:
-        try:
-            p_obj = json.loads(row["payload"])
-            for p in p_obj.get("photos") or []:
-                if p and p.get("sha256"):
-                    inc = incoming_dir(project) / f"{p['sha256']}.jpg"
-                    if inc.exists():
-                        inc.unlink()
-        except Exception:
-            pass
+    if result_status == "applied" and row["kind"] == "photos":
+        _remove_incoming(project, row["payload"])
 
     return JSONResponse({"ok": True})
+
+
+def _remove_incoming(project: str, payload_json: Optional[str]):
+    """Deletes incoming/<sha256>.jpg for each photo of an applied request. The sha256 is checked again here, whatever
+    the stored row says, and the path must still sit directly in incoming/: nothing else can be reached."""
+    try:
+        photos = (json.loads(payload_json or "{}") or {}).get("photos")
+    except (ValueError, AttributeError):
+        return
+    if not isinstance(photos, list):
+        return
+    idir = incoming_dir(project)
+    for p in photos:
+        sha = p.get("sha256") if isinstance(p, dict) else None
+        if not _full(SHA_RE, sha):
+            continue
+        target = idir / f"{sha}.jpg"
+        if target.parent != idir:
+            continue
+        try:
+            target.unlink()
+        except (FileNotFoundError, IsADirectoryError, PermissionError):
+            pass
 
 
 @router.put("/{project}/incoming/{sha_ext}")
