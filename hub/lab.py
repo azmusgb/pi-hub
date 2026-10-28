@@ -1,7 +1,6 @@
 """Print Lab backend engine: stores index projections, specimen photos, and operator requests.
 Compatible with print-lab sync and pull (schema print-lab-index/1)."""
 import hashlib
-import hmac
 import json
 import os
 import re
@@ -13,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import db
+from .auth import need
+from .lab_guard import mac_key_ok, require_mac
 
 router = APIRouter(prefix="/api/lab")
 
@@ -29,8 +30,6 @@ MAX_PHOTO = 8 * 1024 * 1024      # 8 MB
 MAX_REQUEST = 4 * 1024           # 4 KB
 MAX_RECORDS = 2000
 MAX_PENDING = 20
-
-KEY_FILE = os.environ.get("HUB_MAC_KEY_FILE", "/etc/pi-hub/secrets/mac_key")
 
 DB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab_projects (
@@ -93,41 +92,6 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _expected_key_hash() -> Optional[str]:
-    env_hash = os.environ.get("HUB_MAC_KEY_SHA256")
-    if env_hash:
-        return env_hash.strip().lower()
-    if os.path.exists(KEY_FILE):
-        try:
-            with open(KEY_FILE) as f:
-                content = f.read().strip()
-                if content:
-                    return hashlib.sha256(content.encode()).hexdigest().lower()
-        except OSError:
-            pass
-    # Local development fallback
-    home_key = Path.home() / ".claude" / "localai-chat" / "mac.key"
-    if home_key.exists():
-        try:
-            raw = home_key.read_text().strip()
-            if raw:
-                return hashlib.sha256(raw.encode()).hexdigest().lower()
-        except OSError:
-            pass
-    return None
-
-
-def verify_mac_key(request: Request) -> bool:
-    key = request.headers.get("x-localai-mac-key") or request.headers.get("x-hub-mac-key")
-    if not key:
-        return False
-    expected = _expected_key_hash()
-    if not expected:
-        return False
-    h = hashlib.sha256(key.strip().encode()).hexdigest().lower()
-    return hmac.compare_digest(h, expected)
-
-
 def parse_iso(ts_str: str) -> Optional[float]:
     try:
         dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
@@ -142,7 +106,8 @@ def check_project(project: str):
 
 
 @router.get("/projects")
-def list_projects():
+def list_projects(request: Request):
+    need(request, "household")
     ready()
     rows = db.rows("SELECT project, meta FROM lab_projects ORDER BY project")
     projects = []
@@ -153,7 +118,8 @@ def list_projects():
 
 
 @router.get("/{project}")
-def get_project(project: str):
+def get_project(project: str, request: Request):
+    need(request, "household")
     ready()
     check_project(project)
     row = db.one("SELECT meta, index_json FROM lab_projects WHERE project = ?", project)
@@ -167,10 +133,9 @@ def get_project(project: str):
 
 @router.post("/{project}/sync")
 async def sync_project(project: str, request: Request):
+    require_mac(request)
     ready()
     check_project(project)
-    if not verify_mac_key(request):
-        raise HTTPException(401, "Only the Mac (lab sync) writes the print lab.")
 
     body = await request.body()
     if len(body) > MAX_SYNC:
@@ -253,7 +218,8 @@ async def sync_project(project: str, request: Request):
 
 
 @router.get("/{project}/photos")
-def list_photos(project: str):
+def list_photos(project: str, request: Request):
+    need(request, "household")
     check_project(project)
     pdir = photo_dir(project)
     if not pdir.exists():
@@ -264,9 +230,8 @@ def list_photos(project: str):
 
 @router.put("/{project}/photos/{sha_ext}")
 async def upload_photo(project: str, sha_ext: str, request: Request):
+    require_mac(request)
     check_project(project)
-    if not verify_mac_key(request):
-        raise HTTPException(401, "Only the Mac (lab sync) writes the print lab.")
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(400, "Name a photo by its sha256: <sha256>.jpg")
     sha = sha_ext[:-4]
@@ -293,7 +258,8 @@ async def upload_photo(project: str, sha_ext: str, request: Request):
 
 
 @router.get("/{project}/photo/{sha_ext}")
-def get_photo(project: str, sha_ext: str):
+def get_photo(project: str, sha_ext: str, request: Request):
+    need(request, "household")
     check_project(project)
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(404, "No such photo.")
@@ -307,7 +273,8 @@ def get_photo(project: str, sha_ext: str):
 
 
 @router.get("/{project}/record/{rec_id}")
-def get_record(project: str, rec_id: str):
+def get_record(project: str, rec_id: str, request: Request):
+    need(request, "household")
     ready()
     check_project(project)
     if not ID_RE.match(rec_id):
@@ -327,6 +294,7 @@ def get_record(project: str, rec_id: str):
 
 @router.post("/{project}/requests")
 async def create_request(project: str, request: Request):
+    need(request, "household")
     ready()
     check_project(project)
 
@@ -380,11 +348,14 @@ async def create_request(project: str, request: Request):
 
 @router.get("/{project}/requests")
 def list_requests(project: str, request: Request, status: Optional[str] = None):
+    # The pending queue is the Mac's (its key only); the recent history is for people, or the Mac with its key.
+    if status == "pending":
+        require_mac(request)
+    elif not mac_key_ok(request):
+        need(request, "household")
     ready()
     check_project(project)
     if status == "pending":
-        if not verify_mac_key(request):
-            raise HTTPException(401, "Only the Mac reads pending requests.")
         rows = db.rows(
             "SELECT id, kind, experiment, run, payload, status, created_at, by_device "
             "FROM lab_requests WHERE project = ? AND status = 'pending' ORDER BY created_at ASC",
@@ -424,10 +395,9 @@ def list_requests(project: str, request: Request, status: Optional[str] = None):
 
 @router.post("/{project}/requests/{req_id}/result")
 async def post_request_result(project: str, req_id: str, request: Request):
+    require_mac(request)
     ready()
     check_project(project)
-    if not verify_mac_key(request):
-        raise HTTPException(401, "Only the Mac writes request results.")
 
     body = await request.body()
     if len(body) > MAX_REQUEST:
@@ -468,6 +438,7 @@ async def post_request_result(project: str, req_id: str, request: Request):
 
 @router.put("/{project}/incoming/{sha_ext}")
 async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
+    need(request, "household")
     check_project(project)
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(400, "Name an incoming photo by its sha256: <sha256>.jpg")
@@ -496,9 +467,8 @@ async def upload_incoming_photo(project: str, sha_ext: str, request: Request):
 
 @router.get("/{project}/incoming/{sha_ext}")
 def get_incoming_photo(project: str, sha_ext: str, request: Request):
+    require_mac(request)
     check_project(project)
-    if not verify_mac_key(request):
-        raise HTTPException(401, "Only the Mac reads incoming photos.")
     if not sha_ext.endswith(".jpg"):
         raise HTTPException(404, "No such photo.")
     sha = sha_ext[:-4]

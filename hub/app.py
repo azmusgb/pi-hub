@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -47,8 +47,9 @@ async def guard(request: Request, call_next):
     # Server-to-server webhooks (/api/webhook/) are machine endpoints.
     shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
     webhook = request.url.path.startswith("/api/webhook/")
-    lab_path = request.url.path.startswith("/api/lab/")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook and not lab_path:
+    # The Mac's lab sync is exempt only when it carries the hub's lab key and that key verifies, never for the path alone.
+    mac = request.url.path.startswith("/api/lab/") and lab_guard.mac_key_ok(request)
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook and not mac:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -561,18 +562,8 @@ def api_alerts():
 
 # ---- Sign-in ----
 
-def who(request: Request):
-    s = auth.session(request.cookies.get(auth.COOKIE))
-    return (s["role"], s["device"]) if s else ("none", "")
-
-
-def need(request: Request, role):
-    have, device = who(request)
-    if not auth.allowed(have, role):
-        if have == "kid":
-            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
-        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
-    return have, device
+# who and need live in auth so routers (the print lab) can use them without importing the app.
+who, need = auth.who, auth.need
 
 
 def _device(request: Request):

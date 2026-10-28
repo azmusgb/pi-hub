@@ -11,24 +11,35 @@ from fastapi.testclient import TestClient
 os.environ["HUB_NO_SAMPLER"] = "1"
 TEST_KEY = "test-mac-key-1234567890abcdef1234567890abcdef"
 TEST_KEY_SHA256 = hashlib.sha256(TEST_KEY.encode()).hexdigest()
-os.environ["HUB_MAC_KEY_SHA256"] = TEST_KEY_SHA256
+CODE_FILE = os.path.join(tempfile.mkdtemp(), "setup-code")
+open(CODE_FILE, "w").write("LABS-1234\n")
 
-from hub import app as hub_app, auth, lab  # noqa: E402
+from hub import app as hub_app, auth, lab, lab_guard  # noqa: E402
 
 ORIGIN = {"Origin": "http://testserver"}
-MAC_HEADER = {"X-LocalAI-Mac-Key": TEST_KEY}
+MAC_HEADER = {"X-Hub-Mac-Key": TEST_KEY}
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
+    """Signed in with the household PIN (the phone); Mac calls add MAC_HEADER."""
     db_path = str(tmp_path / "hub.db")
     lab_dir = tmp_path / "lab"
     os.environ["HUB_DB"] = db_path
     os.environ["HUB_LAB_DIR"] = str(lab_dir)
+    os.environ["HUB_SETUP_CODE_FILE"] = CODE_FILE
     lab._ready_dbs.clear()
     auth._tries.clear()
+    key_file = tmp_path / "lab_mac_key.sha256"
+    key_file.write_text(TEST_KEY_SHA256 + "\n")
+    monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(key_file))
 
     c = TestClient(hub_app.app)
+    r = c.post("/api/setup", json={"code": "LABS-1234", "owner_password": "long enough", "pin": "123456"},
+               headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    c.cookies.clear()
+    assert c.post("/api/signin", json={"pin": "123456"}, headers=ORIGIN).json()["role"] == "household"
     return c
 
 
@@ -39,9 +50,10 @@ def test_list_projects_empty(client):
 
 
 def test_sync_unauthorized(client):
-    r = client.post("/api/lab/hex-tile/sync", json={"schema": "print-lab-index/1"})
+    # Same-origin and signed in as the household, but without the Mac's key: still refused.
+    r = client.post("/api/lab/hex-tile/sync", json={"schema": "print-lab-index/1"}, headers=ORIGIN)
     assert r.status_code == 401
-    assert "Only the Mac" in r.json()["detail"]
+    assert r.json()["detail"] == "The Mac's lab key is missing or wrong."
 
 
 def test_sync_invalid_schema_or_project(client):
