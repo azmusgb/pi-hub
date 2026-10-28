@@ -7,6 +7,7 @@ import re
 import time
 
 from .. import records
+from ..bambuddy import LAB_NAME
 from ..now import printer_actions
 
 FINISHED_AT = 97  # percent; an idle printer that stopped below this didn't finish
@@ -132,6 +133,14 @@ def _disagree(s, state):
     return f"pi-status reports {said}; Bambuddy reports {state}"
 
 
+def _is_lab_print(job, lab):
+    """Local AI's lab names the experiment it last sent to the printer, and keeps calling it live while any print runs
+    (IMG_1047, 28 Oct: "Print lab: E-022" over a RIFT print). Only the print's own name says it is that experiment:
+    the lab names its prints <project>_<experiment>_<build>."""
+    m = LAB_NAME.match(job or "")
+    return isinstance(lab, dict) and bool(m) and m["exp"] == lab.get("experiment")
+
+
 def printer(b, s, lab, prev, now):
     if b is None:
         return None
@@ -178,7 +187,7 @@ def printer(b, s, lab, prev, now):
             detail.pop(k, None)
         detail.update({k: old[k] for k in CHAIN if k in old})
         detail["last_known"] = _remember(prev)
-    if live and lab is not None:
+    if live and _is_lab_print(job, lab):
         detail["lab"] = lab
     if state == "failed" and was_failed:
         cause = prev["cause"]

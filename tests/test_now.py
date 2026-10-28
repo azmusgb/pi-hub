@@ -313,7 +313,7 @@ def test_localai_lab_reads_the_projects_feed(monkeypatch):
 
 
 def test_now_and_workshop_carry_the_lab_link(monkeypatch):
-    hold(monkeypatch, recs(lab={"experiment": "E-020"}))
+    hold(monkeypatch, recs(b={**RUNNING, "job_name": "hex-tile_E-020_BLD-020-01.gcode.3mf"}, lab={"experiment": "E-020"}))
     monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
     monkeypatch.setattr(sources, "bambuddy_printer", lambda: None)
     monkeypatch.setattr(sources, "localai_lab", lambda: {"experiment": "E-020"})

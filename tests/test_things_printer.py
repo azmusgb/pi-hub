@@ -14,6 +14,8 @@ def bud(state, progress=12, job="HEX_TILE_v72.gcode.3mf", awaiting=False, connec
 
 
 RUNNING_V72 = bud("RUNNING")
+LAB_JOB = "hex-tile_E-022_BLD-022-01.gcode.3mf"  # how the lab names its prints (bambuddy.LAB_NAME)
+E022 = {"experiment": "E-022"}
 IDLE_V72 = bud("IDLE", progress=0)
 
 
@@ -88,8 +90,8 @@ def test_finished_asks_to_clear_the_plate_until_bambuddy_says_cleared():
 def test_failed_state_from_bambuddy_and_paused_and_offline():
     assert printer.printer(bud("FAILED", 30, awaiting=True), None, None, None, T)["state"] == "failed"
     assert printer.printer(bud("FAILED", 30), None, None, None, T)["state"] == "idle"
-    p = printer.printer(bud("PAUSE", 40), None, {"x": 1}, None, T)
-    assert p["state"] == "paused" and p["headline"] == "Paused at 40%" and p["detail"]["lab"] == {"x": 1}
+    p = printer.printer(bud("PAUSE", 40, job=LAB_JOB), None, E022, None, T)
+    assert p["state"] == "paused" and p["headline"] == "Paused at 40%" and p["detail"]["lab"] == E022
     assert p["actions"][0] == {"name": "resume", "label": "Resume the print", "confirm": False}
     o = printer.printer(bud("RUNNING", connected=False), None, None, None, T)
     assert o["state"] == "offline" and o["headline"] == "The printer isn't connected to Bambuddy"
@@ -97,8 +99,19 @@ def test_failed_state_from_bambuddy_and_paused_and_offline():
 
 
 def test_lab_only_while_printing_or_paused():
-    assert "lab" not in printer.printer(IDLE_V72, None, {"x": 1}, None, T)["detail"]
-    assert printer.printer(RUNNING_V72, None, {"x": 1}, None, T)["detail"]["lab"] == {"x": 1}
+    assert "lab" not in printer.printer(bud("IDLE", 0, job=LAB_JOB), None, E022, None, T)["detail"]
+    assert printer.printer(bud("RUNNING", job=LAB_JOB), None, E022, None, T)["detail"]["lab"] == E022
+
+
+def test_lab_only_when_the_print_is_that_experiment():  # IMG_1047, 28 Oct: "Print lab: E-022" over a RIFT print
+    # the real case: Local AI's lab still says E-022 is live while the printer runs a print from outside the lab
+    rift = bud("RUNNING", 27, job="RIFT_ab-pair_marked-plus-unmarked.gcode.3mf")
+    assert "lab" not in printer.printer(rift, None, E022, None, T)["detail"]
+    assert "lab" not in printer.printer(RUNNING_V72, None, E022, None, T)["detail"]
+    other = bud("RUNNING", job="hex-tile_E-023_BLD-023-01.gcode.3mf")  # the lab's next experiment, not E-022
+    assert "lab" not in printer.printer(other, None, E022, None, T)["detail"]
+    assert "lab" not in printer.printer(bud("RUNNING", job=None), None, E022, None, T)["detail"]
+    assert printer.printer(bud("RUNNING", job="hex-tile_E-022_BLD-022-01.3mf"), None, E022, None, T)["detail"]["lab"] == E022
 
 
 def test_no_answer_from_bambuddy_returns_none():
