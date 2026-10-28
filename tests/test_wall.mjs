@@ -55,13 +55,12 @@ test('the desk layout is chosen by ?layout=desk, remembered on the device, and ?
   assert.deepEqual(wallLayout('?layout=sideways', null), { layout: 'wall', remember: null });
 });
 
-test('the desk links to the print lab, and asks to judge a finished print', () => {
-  const lab = 'https://10.0.0.21/';
-  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }, lab),
-    { label: 'Print lab: E-024 ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: false });
-  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }, lab),
-    { label: 'Judge E-024 in the print lab ↗', href: 'https://10.0.0.21/#printLab?e=E-024', judge: true });
-  assert.deepEqual(deskLab({ state: 'finished' }, lab), { label: 'Judge it in the print lab ↗', href: 'https://10.0.0.21/#printLab', judge: true });
-  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
-  assert.deepEqual(deskLab(null, lab), { label: 'Print lab ↗', href: 'https://10.0.0.21/#printLab', judge: false });
+test('the desk links to the hub\'s /lab page, and asks to judge a finished print', () => {
+  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }),
+    { label: 'Print lab: E-024', href: '/lab?e=E-024', judge: false });
+  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }),
+    { label: 'Judge E-024 in the print lab', href: '/lab?e=E-024&do=judge', judge: true });
+  assert.deepEqual(deskLab({ state: 'finished' }), { label: 'Judge it in the print lab', href: '/lab', judge: true });
+  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }), { label: 'Print lab', href: '/lab', judge: false });
+  assert.deepEqual(deskLab(null), { label: 'Print lab', href: '/lab', judge: false });
 });

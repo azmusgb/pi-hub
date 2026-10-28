@@ -32,7 +32,7 @@ function needsCard(needs) {
   };
 }
 
-// Local AI's Print lab for the experiment printing now (the hub reads it from Local AI's lab list), or null.
+// The hub's /lab page for the experiment printing now (the hub reads it from Local AI's lab list), or null.
 // Home's summary line, counted from Needs you once it has answered, so the line and the list never disagree (on 27 Oct
 // the line counted only house problems: "2 things need a look" over a list of 3). `fallback` is the hub's own line.
 export function needsSummary(needs, fallback) {
@@ -45,7 +45,7 @@ export function needsSummary(needs, fallback) {
 export function labLink(p, host) {
   const id = p?.lab?.experiment;
   if (typeof id !== "string" || !/^E-\d{1,6}$/.test(id)) return null;
-  return { label: `Print lab: ${id} ↗`, href: `${toolUrl("assistant", host)}#printLab?e=${id}` };
+  return { label: `Print lab: ${id}`, href: `/lab?e=${id}` };
 }
 
 function workshopCard(p, at, host) {

@@ -58,10 +58,10 @@ export function wallLayout(search = "", stored = null) {
   return { layout: stored === "desk" ? "desk" : "wall", remember: null };
 }
 
-// The desk's way to the print lab (Local AI): the experiment printing when the hub knows it, and "Judge" once it's done.
-export function deskLab(p, labBase) {
+// The desk's way to the hub's print lab: the experiment printing when the hub knows it, and "Judge" once it's done.
+export function deskLab(p) {
   const id = typeof p?.lab?.experiment === "string" && /^E-\d{1,6}$/.test(p.lab.experiment) ? p.lab.experiment : null;
   const judge = p?.state === "finished";
-  const label = judge ? `Judge ${id || "it"} in the print lab ↗` : `Print lab${id ? `: ${id}` : ""} ↗`;
-  return { label, href: `${labBase}#printLab${id ? `?e=${id}` : ""}`, judge };
+  const label = judge ? `Judge ${id || "it"} in the print lab` : `Print lab${id ? `: ${id}` : ""}`;
+  return { label, href: id ? `/lab?e=${id}${judge ? "&do=judge" : ""}` : "/lab", judge };
 }
