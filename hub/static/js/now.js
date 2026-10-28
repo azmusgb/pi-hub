@@ -7,7 +7,7 @@ import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
-import { clockParts, deskLab, nextHours, printing, upcoming, wallLayout, wallNeeds } from "./wall.js";
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds } from "./wall.js";
 
 export const every = 15;
 
@@ -513,18 +513,18 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   if (state.desk) {
     // The desk: the workshop light (the print lab link is on the printer tile); the next hours and the network where
     // there's room (landscape).
-    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
+    const light = shopLight(home.accessories);
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight, d.workshop),
+      workshopLightCard(light, d.workshop),
       networkPanel(d.network),
     ].filter(Boolean));
     return;
   }
   if (wallView() === "workshop") {
-    const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
-    const others = displayAccessories.filter(a => a.id !== shopLight?.id);
+    const light = shopLight(home.accessories);
+    const others = displayAccessories.filter(a => a.id !== light?.id);
     state.wallHouse.replaceChildren(...[
-      workshopLightCard(shopLight, d.workshop),
+      workshopLightCard(light, d.workshop),
       networkPanel(d.network),
       others.length ? h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },
