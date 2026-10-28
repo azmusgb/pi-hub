@@ -64,7 +64,15 @@ def client(tmp_path, monkeypatch):
     assert r.status_code == 200, r.text
     c.cookies.clear()
     assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).json()["role"] == "household"
+    make_project(c, "hex-tile")
     return c
+
+
+def make_project(c, name):
+    ix = {"schema": "print-lab-index/1", "project": name, "generated_at": "2026-10-28T09:00:00Z",
+          "fingerprint": "fp-" + name, "experiments": [], "records": {}}
+    r = c.post(f"/api/lab/{name}/sync", json=ix, headers=MAC)
+    assert r.status_code == 200, r.text
 
 
 def post(c, data, **headers):
@@ -384,3 +392,54 @@ def test_result_refuses_overflowing_numbers(client, number):
             url=f"{URL}/{data['id']}/result", **MAC)
     assert r.status_code == 400
     assert pending(client)[data["id"]]["status"] == "pending"
+
+
+def test_request_in_unknown_project_is_404(client):
+    r = client.post("/api/lab/fake-0/requests", json=VALID["verdict"](), headers=SAME)
+    assert r.status_code == 404, r.text
+
+
+def test_global_pending_cap_across_projects(client):
+    names = [f"proj-{i}" for i in range(6)]
+    for n in names:
+        make_project(client, n)
+    sent = 0
+    for n in names[:5]:
+        for _ in range(20):
+            r = client.post(f"/api/lab/{n}/requests", json=VALID["verdict"](), headers=SAME)
+            assert r.status_code == 200, r.text
+            sent += 1
+    assert sent == 100
+    r = client.post(f"/api/lab/{names[5]}/requests", json=VALID["verdict"](), headers=SAME)
+    assert r.status_code == 429
+    assert "100" in r.json()["detail"]
+
+
+def test_project_name_with_trailing_newline_is_refused(client):
+    r = client.get("/api/lab/hex-tile%0A/requests", headers=MAC)
+    assert r.status_code == 400, r.text
+    r = client.post("/api/lab/hex-tile%0A/requests", json=VALID["verdict"](), headers=SAME)
+    assert r.status_code == 400, r.text
+
+
+def test_record_id_with_trailing_newline_is_refused(client):
+    r = client.get("/api/lab/hex-tile/record/E-001%0A", headers=SAME)
+    assert r.status_code == 404, r.text
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T10:00:00Z",
+          "fingerprint": "fp-nl", "experiments": [], "records": {"E-001\n": {"sha256": "x"}}}
+    r = client.post("/api/lab/hex-tile/sync", json=ix, headers=MAC)
+    assert r.status_code == 422, r.text
+
+
+def test_sync_record_not_an_object_is_422(client):
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T10:00:00Z",
+          "fingerprint": "fp-bad", "experiments": [], "records": {"E-001": "nope"}}
+    r = client.post("/api/lab/hex-tile/sync", json=ix, headers=MAC)
+    assert r.status_code == 422, r.text
+
+
+def test_sync_experiments_not_a_list_is_422(client):
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T10:00:00Z",
+          "fingerprint": "fp-bad2", "experiments": 5, "records": {}}
+    r = client.post("/api/lab/hex-tile/sync", json=ix, headers=MAC)
+    assert r.status_code == 422, r.text

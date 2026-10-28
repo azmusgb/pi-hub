@@ -185,6 +185,11 @@ def test_requests_lifecycle(client):
         "payload": {"lighting": "diagnostic", "grades": {"tabs": {"outer_wall": "A"}}}
     }
 
+    # The project exists once the Mac has synced it
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T09:00:00Z",
+          "fingerprint": "fp-life", "experiments": [], "records": {}}
+    assert client.post("/api/lab/hex-tile/sync", json=ix, headers=MAC_HEADER).status_code == 200
+
     # Phone creates request
     r = client.post("/api/lab/hex-tile/requests", json=req_body, headers=ORIGIN)
     assert r.status_code == 200

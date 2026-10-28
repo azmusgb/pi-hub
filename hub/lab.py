@@ -32,10 +32,11 @@ MAX_KIND_REQUEST = 4 * 1024      # any other request, as compact JSON (Local AI'
 MAX_OBS_REQUEST = 16 * 1024      # an observation session, as compact JSON (Local AI's MAX_OBS_REQUEST)
 MAX_RECORDS = 2000
 MAX_PENDING = 20
+MAX_PENDING_TOTAL = 100          # pending requests across all projects
 MAX_REASON = 500
 MAX_PHOTOS = 50
 MAX_INCOMING_FILES = 200
-MAX_INCOMING_BYTES = 500 * 1024 * 1024   # 500 MiB per project
+MAX_INCOMING_BYTES = 500 * 1024 * 1024   # 500 MiB across all projects
 INCOMING_DAYS = 7
 MIN_FREE_GB = 1024 ** 3 / 1e9            # 1 GiB, in the units of sources.disk_free_gb
 
@@ -169,7 +170,7 @@ def _prune_incoming():
 
 
 def check_project(project: str):
-    if not PROJECT_RE.match(project):
+    if not _full(PROJECT_RE, project):
         raise HTTPException(400, "Invalid project name")
 
 
@@ -221,8 +222,14 @@ async def sync_project(project: str, request: Request):
     if not isinstance(records, dict):
         records = {}
     ids = list(records.keys())
-    if len(ids) > MAX_RECORDS or any(not ID_RE.match(i) for i in ids):
+    if len(ids) > MAX_RECORDS or any(not _full(ID_RE, i) for i in ids):
         raise HTTPException(422, "Record ids must look like E-001 or Q-001.")
+
+    if any(not isinstance(v, dict) for v in records.values()):
+        raise HTTPException(422, "Each record must be an object.")
+    experiments = ix.get("experiments")
+    if experiments is not None and not isinstance(experiments, list):
+        raise HTTPException(422, "experiments must be a list.")
 
     meta_row = db.one("SELECT meta FROM lab_projects WHERE project = ?", project)
     old_meta = json.loads(meta_row["meta"]) if meta_row and meta_row["meta"] else None
@@ -339,7 +346,7 @@ def get_record(project: str, rec_id: str, request: Request):
     need(request, "household")
     ready()
     check_project(project)
-    if not ID_RE.match(rec_id):
+    if not _full(ID_RE, rec_id):
         raise HTTPException(404, f"No record {rec_id}.")
     row = db.one("SELECT id, type, file, sha256, payload, received_at FROM lab_records WHERE project = ? AND id = ?", project, rec_id)
     if not row:
@@ -469,6 +476,8 @@ async def create_request(project: str, request: Request):
     _, by = need(request, "household")
     ready()
     check_project(project)
+    if not db.one("SELECT 1 FROM lab_projects WHERE project = ?", project):
+        raise HTTPException(404, "No such project.")
 
     data = _load_request_json(await read_capped(request, MAX_REQUEST))
 
@@ -514,6 +523,10 @@ async def create_request(project: str, request: Request):
     pending_count = db.one("SELECT COUNT(*) as c FROM lab_requests WHERE project = ? AND status = 'pending'", project)["c"]
     if pending_count >= MAX_PENDING:
         raise HTTPException(429, "The Mac hasn't picked up the last 20 requests. Check that the Mac is awake.")
+    total_pending = db.one("SELECT COUNT(*) as c FROM lab_requests WHERE status = 'pending'")["c"]
+    if total_pending >= MAX_PENDING_TOTAL:
+        raise HTTPException(429, f"The Mac hasn't picked up the last {MAX_PENDING_TOTAL} requests across all projects. "
+                                 "Check that the Mac is awake.")
 
     db.run(
         "INSERT INTO lab_requests (id, project, kind, experiment, run, run_seen, payload, status, created_at, by_device) "

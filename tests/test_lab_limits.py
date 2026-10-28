@@ -94,6 +94,9 @@ def test_index_over_4mib_streamed_is_refused_early(env):
 
 
 def test_request_over_64kib_streamed_is_refused_early(env):
+    from hub import db
+    lab.ready()
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "hex-tile")
     cookie = "; ".join(f"{k}={v}" for k, v in env.cookies.items())
     h = {"host": "testserver", "origin": "http://testserver", "cookie": cookie,
          "content-type": "application/json"}

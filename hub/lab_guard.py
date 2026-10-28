@@ -38,16 +38,15 @@ def _limit_text(cap: int) -> str:
     return f"{cap // (1024 * 1024)} MB" if cap >= 1024 * 1024 else f"{cap // 1024} KB"
 
 
-async def read_capped(request: Request, cap: int) -> bytes:
+async def read_capped(request: Request, cap: int) -> bytearray:
     """Read the body as it arrives and refuse with 413 as soon as it passes `cap`, never holding more than cap plus one chunk."""
     too_big = HTTPException(413, f"That's too big for the lab (limit {_limit_text(cap)}).")
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > cap:
         raise too_big
-    chunks, total = [], 0
+    buf = bytearray()
     async for chunk in request.stream():
-        total += len(chunk)
-        if total > cap:
+        if len(buf) + len(chunk) > cap:
             raise too_big
-        chunks.append(chunk)
-    return b"".join(chunks)
+        buf += chunk
+    return buf

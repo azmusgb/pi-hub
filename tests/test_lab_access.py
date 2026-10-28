@@ -84,6 +84,9 @@ def test_household_can_read_and_post(client):
     household(client)
     assert client.get("/api/lab/projects").json() == {"projects": []}
     assert client.get("/api/lab/hex-tile/photos").json() == {"have": []}
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T09:00:00Z",
+          "fingerprint": "fp-acc", "experiments": [], "records": {}}
+    assert client.post("/api/lab/hex-tile/sync", json=ix, headers={"X-Hub-Mac-Key": KEY}).status_code == 200
     r = client.post("/api/lab/hex-tile/requests", json=VERDICT, headers=SAME)
     assert r.status_code == 200 and r.json()["status"] == "pending"
     assert client.get("/api/lab/hex-tile/requests").json()["items"][0]["id"] == VERDICT["id"]
