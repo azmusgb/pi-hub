@@ -163,3 +163,12 @@ test("the blind failure-detection item's link opens Bambuddy's Failure detection
   assert.equal(resolveLink(link, 'home.home.arpa'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');
   assert.equal(resolveLink(link, '10.0.0.30'), 'http://10.0.0.30:8000/settings?tab=failure-detection');
 });
+
+test("the Mac disk item's link opens the Assistant with the question (its #ask?context= hand-off)", async () => {
+  const { resolveLink } = await import('../hub/static/js/sections.js');
+  const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
+  const url = new URL(resolveLink(link, '10.0.0.30'));
+  assert.equal(url.origin, 'https://10.0.0.21');
+  assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
+  assert.ok(resolveLink(link, 'home.home.arpa').startsWith('https://assistant.home.arpa/#ask?context='));
+});

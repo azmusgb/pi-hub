@@ -314,3 +314,17 @@ def test_blind_failure_detection_says_what_to_do_and_sorts_above_worth_a_look():
     assert blind["link"] == "tool:bambuddy/settings?tab=failure-detection"
     assert blind["action"] == {"key": "open_bambuddy", "link": "tool:bambuddy/settings?tab=failure-detection"}
     assert "snapshot" not in str(n)
+
+
+def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk is 95% full" had nothing to do
+    from urllib.parse import unquote
+    feed = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full",
+                       "tone": "warning", "ask": "health"},
+                      {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"}]}
+    by_id = {i["id"]: i for i in needs.build([], feed, NOW, [])["items"]}
+    mac = by_id["localai:watch-mac-disk"]
+    assert mac["title"] == "Worth a look"
+    assert mac["detail"] == "Mac disk is 95% full · What's using it"
+    assert mac["link"].startswith("tool:assistant/#ask?context=")
+    assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
+    assert by_id["localai:watch-disk"]["link"] == "tool:assistant"  # other cards keep the plain Assistant link

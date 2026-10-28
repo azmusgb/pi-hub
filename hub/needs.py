@@ -4,6 +4,7 @@ went offline", "display is back"), and the records already say what is still wro
 the printer record's own "clear the plate"."""
 import re
 from datetime import datetime
+from urllib.parse import quote
 
 from .now import issue_items
 
@@ -62,6 +63,15 @@ def _lab_items(lab, now, printer_done):
     return out
 
 
+def _whats_using_it(item):
+    """Local AI's "Mac disk is 95% full": the Assistant, opened with the question (its #ask?context= hand-off, as the
+    hub's Assistant button). Local AI has no page listing the Mac's largest folders yet, so none is linked. The kit
+    draws only its own action phrases, so the words go after the detail."""
+    said = item["detail"].rstrip(".")
+    item["detail"] = f"{said} · What's using it"
+    item["link"] = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's using the space?", safe="")
+
+
 def _one_row(items, about, ours):
     """One row for a thing several sources name: the hub's own record (`ours`) if it has one, else the most urgent.
     The hub's other records are never folded in (the printer camera and the document printer also say "printer")."""
@@ -108,9 +118,12 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                 continue
             if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
                 continue
-            items.append({"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
-                          "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
-                          "link": ASSISTANT, "ts": now})
+            item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
+                    "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
+                    "link": ASSISTANT, "ts": now}
+            if c.get("id") == "watch-mac-disk":
+                _whats_using_it(item)
+            items.append(item)
     seen = {}
     for i in items:  # ids stay unique within a build (cards without their own id fall back to their kind)
         n = seen[i["id"]] = seen.get(i["id"], 0) + 1
