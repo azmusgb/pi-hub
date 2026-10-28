@@ -145,7 +145,7 @@ test('the wall printer tile: short title, real external Bambuddy link, new HUD w
   const now = readFileSync(new URL('../hub/static/js/now.js', import.meta.url), 'utf8');
   assert.match(now, /h\("h2", \{\}, "Bambu X2D"\)/);
   assert.doesNotMatch(now, /Bambu X2D Workshop|WS350/);
-  assert.match(now, /`Workshop display: \$\{workshopDisplayLabel\(w\.display\)\}`/);
+  assert.match(now, /`Display: \$\{workshopDisplayLabel\(w\.display\)\}`/);  // under the Workshop heading
   assert.match(now, /href: toolUrl\("bambuddy"\), target: "_blank", rel: "noopener" \}, "Open Bambuddy ↗"/);
   assert.doesNotMatch(now, /href: "\/bambuddy"/);
 });

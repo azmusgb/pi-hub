@@ -45,6 +45,7 @@ export function kioskBadge(p) {
   if (s === "paused") return { label: "PAUSED", tone: "warn" };
   if (s === "error") return { label: "NEEDS ATTENTION", tone: "bad" };
   if (s === "stopped") return (p.actions || []).includes("clear") ? { label: "CLEAR THE PLATE", tone: "warn" } : { label: "STOPPED", tone: "text-3" };
+  if (s === "finished") return (p.actions || []).includes("clear") ? { label: "CLEAR THE PLATE", tone: "warn" } : { label: "FINISHED", tone: "ok" };
   if (s === "idle") return { label: "IDLE", tone: "text-3" };
   return { label: "NO STATUS", tone: "text-3" };
 }
