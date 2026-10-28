@@ -81,7 +81,7 @@ const runs = STUB
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
+  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
@@ -103,6 +103,13 @@ for (const run of runs) {
     return {
       sw: doc.scrollWidth, sh: doc.scrollHeight, iw: innerWidth, ih: innerHeight,
       // The one-screen board hides its overflow, so a tile pushed off the bottom doesn't scroll: measure the tiles.
+      // Tiles that overlap (a long Needs you list running under the card below it).
+      overlaps: (() => { const t = [...document.querySelectorAll('.wall-board > *, .wall-house > *')].filter((e) => e.checkVisibility() && !e.classList.contains('wall-house'))
+        .map((e) => ({ c: e.className.split(' ')[0], b: e.getBoundingClientRect() }));
+        return t.flatMap((x, i) => t.slice(i + 1).filter((y) => x.b.left < y.b.right - 1 && y.b.left < x.b.right - 1 && x.b.top < y.b.bottom - 1 && y.b.top < x.b.bottom - 1)
+          .map((y) => `${x.c} ${Math.round(x.b.top)}–${Math.round(x.b.bottom)} / ${y.c} ${Math.round(y.b.top)}–${Math.round(y.b.bottom)}`)); })(),
+      // The picture's box (a printer tile that stopped stretching left the camera a sliver on the idle desk).
+      cam: (() => { const b = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container')?.getBoundingClientRect(); return b ? { w: b.width, h: b.height } : null; })(),
       lowest: Math.max(...[...document.querySelectorAll('.wall-board > *')].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect().bottom)),
       clockH: time ? time.getBoundingClientRect().height : 0, clockFs: fs, clockText: time?.textContent,
       needs: !!document.querySelector('.wall-needs .wall-needs-head h2'),
@@ -124,6 +131,8 @@ for (const run of runs) {
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
   if (fits(w, h) && m.sh > m.ih) problems.push(`${where}: scrolls down (${m.sh} > ${m.ih}) on a one-screen size`);
+  for (const o of m.overlaps) problems.push(`${where}: tiles overlap (${o})`);
+  if (STUB && !run.noCamera && m.cam && (m.cam.h < 140 || m.cam.w < 0.3 * w)) problems.push(`${where}: the camera is only ${Math.round(m.cam.w)}×${Math.round(m.cam.h)}`);
   if (fits(w, h) && m.lowest > m.ih + 1) problems.push(`${where}: a tile runs off the bottom (${Math.round(m.lowest)} > ${m.ih})`);
   if (!m.clockText || m.clockH > m.clockFs * 1.3) problems.push(`${where}: the clock "${m.clockText}" wraps (${Math.round(m.clockH)} px at ${m.clockFs} px)`);
   if (!m.needs) problems.push(`${where}: no Needs you tile`);

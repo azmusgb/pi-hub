@@ -364,13 +364,13 @@ body.wall.night { filter: brightness(0.55); }
   .wall-board > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Many things need you: the next hours step aside so the list has the room. */
   .wall-board[data-needs-many="1"] > .wall-extra { display: none; }
-  .wall-board > .wall-house { grid-template-columns: minmax(0, 1fr); }
+  /* The house keeps its full height (a scrolling house could shrink to nothing and spill under the toolbar); Needs
+     you is the one that scrolls. */
+  .wall-board > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; min-height: auto; }
   .wall-board > .wall-tools { align-self: end; justify-content: flex-end; }
   .wall-head { padding-bottom: calc(var(--wall-gap) * .25); }
-  /* Idle: the printer tile is only as tall as its 16:9 picture. */
-  .wall-board[data-printing="0"] > .wall-print { align-self: start; }
-  .wall-board[data-printing="0"] .kiosk-cam-slot { flex: none; container-type: normal; }
-  .wall-board[data-printing="0"] .kiosk-cam-container { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+  /* Idle or printing, the picture fits the printer tile's height the same way (a full-width 16:9 picture ran past
+     the toolbar on laptops and TVs). */
 }
 
 /* Weather */
@@ -1031,25 +1031,23 @@ body:not(.wall) .page-now { display: block; }
 .wall-board[data-layout="desk"] > .wall-house > .net-panel { display: none; }
 /* The print lab link sits with the printer's own; "Judge E-022" once the print is done is the one to press. */
 .wall-board .kiosk-links .chip.desk-lab.is-judge { background: linear-gradient(180deg, var(--accent-strong), var(--accent)); border-color: transparent; color: var(--on-accent); }
-/* Landscape desk: the clock over the printer, so the camera's box is close to the picture's shape (trimmed at most
-   15%, not cropped to a square); Needs you, the next hours, the house and the toolbar beside it, none stretched. */
+/* Landscape desk: the clock and weather across the top, so the camera's box is close to the picture's shape (trimmed
+   at most 15%, not cropped to a square); Needs you, the next hours, the house and the toolbar beside it, none
+   stretched. The printer and Needs you start on one line and the toolbar ends on the printer's bottom edge. */
 @media (orientation: landscape) and (min-width: 900px) {
-  .wall-board[data-layout="desk"] { --wall-clock: clamp(2.6rem, min(11vh, 7vw), 6rem); }
+  .wall-board[data-layout="desk"] { --wall-clock: clamp(2.6rem, min(14vh, 9vw), 8rem); }
   .wall-board[data-layout="desk"], .wall-board[data-layout="desk"][data-printing="0"], .wall-board[data-layout="desk"][data-printing="1"] {
     height: 100dvh; min-height: 0; overflow: hidden;
     grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
-    grid-template-areas: "head needs" "print needs" "print extra" "print house" "print ." "print tools";
+    grid-template-areas: "head head" "print needs" "print extra" "print house" "print ." "print tools";
     grid-template-rows: auto minmax(0, auto) auto auto minmax(0, 1fr) auto;
   }
   .wall-board[data-layout="desk"] > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
   .wall-board[data-layout="desk"][data-needs-many="1"] > .wall-extra { display: none; }
   .wall-board[data-layout="desk"] > .wall-house > .net-panel { display: grid; }
-  .wall-board[data-layout="desk"] > .wall-needs { align-self: start; }
   .wall-board[data-layout="desk"] > .wall-print, .wall-board[data-layout="desk"] > .wall-house { grid-row: auto; }
   .wall-board[data-layout="desk"] > .wall-print { grid-area: print; align-self: stretch; }
   .wall-board[data-layout="desk"] > .wall-tools { grid-area: tools; align-self: end; justify-self: stretch; justify-content: flex-end; flex-wrap: wrap; }
   .wall-board[data-layout="desk"] > .wall-head { grid-template-columns: 1fr auto; padding-bottom: 0; }
-  .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; }
-  /* Idle: no picture, so the printer tile is only as tall as what it says. */
-  .wall-board[data-layout="desk"][data-printing="0"] > .wall-print { align-self: start; }
+  .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; min-height: auto; }
 }
