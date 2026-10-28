@@ -509,13 +509,14 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   state.wallPrint.replaceChildren(workshopKioskConsole(d, cam));
 
   if (state.desk) {
-    // The desk: the workshop light and the way to the print lab; the camera has the rest of the screen.
+    // The desk: the workshop light and the way to the print lab; the next hours and the network where there's room
+    // (landscape).
     const shopLight = home.accessories.find(a => a.id === "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6" || a.kind === "light");
     const lab = deskLab(d.printer, toolUrl("assistant"));
-    state.wallExtra.replaceChildren();
     state.wallHouse.replaceChildren(...[
       workshopLightCard(shopLight, d.workshop),
       h("a", { class: `btn desk-lab${lab.judge ? " btn--primary" : ""}`, href: lab.href, target: "_blank", rel: "noopener" }, lab.label),
+      networkPanel(d.network),
     ].filter(Boolean));
     return;
   }

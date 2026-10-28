@@ -1017,26 +1017,33 @@ body:not(.wall) .page-now { display: block; }
 /* The desk (an iPad beside a desk, `/wall?layout=desk`, 27 Oct): the camera takes about two thirds of the screen at
    full height and fills its box; a small clock, Needs you, the workshop light and the print lab share the side column.
    No hourly weather, agenda or network list. Last in the file and more specific, so it wins over the layouts above. */
-.wall-board[data-layout="desk"] { --wall-clock: clamp(2.2rem, min(8vh, 5vw), 4rem); font-size: clamp(14px, 1.6vmin, 20px); }
+/* Portrait desk: the wall's clock and order (the 28 Oct iPad critique: a small clock left an empty band under the
+   camera); the print lab button matches the Workshop card beside it. */
+.wall-board[data-layout="desk"] { font-size: clamp(14px, 1.6vmin, 20px); }
 .wall-board[data-layout="desk"] .wall-weather { margin-top: 0; font-size: calc(var(--wall-clock) * .45); }
 .wall-board[data-layout="desk"] > .wall-extra { display: none; }
+.wall-board[data-layout="desk"] > .wall-house { align-items: stretch; }
+.wall-board[data-layout="desk"] > .wall-house > .net-panel { display: none; }
 .wall-board[data-layout="desk"] .desk-lab { display: flex; align-items: center; justify-content: center; min-height: 52px; text-decoration: none; font-weight: 700; }
+/* Landscape desk: the clock over the printer, so the camera's box is close to the picture's shape (trimmed at most
+   15%, not cropped to a square); Needs you, the next hours, the house and the toolbar beside it, none stretched. */
 @media (orientation: landscape) and (min-width: 900px) {
+  .wall-board[data-layout="desk"] { --wall-clock: clamp(2.6rem, min(11vh, 7vw), 6rem); }
   .wall-board[data-layout="desk"], .wall-board[data-layout="desk"][data-printing="0"], .wall-board[data-layout="desk"][data-printing="1"] {
     height: 100dvh; min-height: 0; overflow: hidden;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    grid-template-areas: "print head" "print needs" "print house" "print tools";
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
+    grid-template-areas: "head needs" "print needs" "print extra" "print house" "print ." "print tools";
+    grid-template-rows: auto minmax(0, auto) auto auto minmax(0, 1fr) auto;
   }
+  .wall-board[data-layout="desk"] > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .wall-board[data-layout="desk"][data-needs-many="1"] > .wall-extra { display: none; }
+  .wall-board[data-layout="desk"] > .wall-house > .net-panel { display: grid; }
+  .wall-board[data-layout="desk"] > .wall-needs { align-self: start; }
   .wall-board[data-layout="desk"] > .wall-print, .wall-board[data-layout="desk"] > .wall-house { grid-row: auto; }
   .wall-board[data-layout="desk"] > .wall-print { grid-area: print; align-self: stretch; }
   .wall-board[data-layout="desk"] > .wall-tools { grid-area: tools; align-self: end; justify-self: stretch; justify-content: flex-end; flex-wrap: wrap; }
-  .wall-board[data-layout="desk"] > .wall-head { grid-template-columns: 1fr auto; }
+  .wall-board[data-layout="desk"] > .wall-head { grid-template-columns: 1fr auto; padding-bottom: 0; }
   .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; }
-  /* While printing, the picture fills its box (cropped at the edges) instead of sitting between black bars. */
-  .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-slot { flex: 1 1 0; min-height: 0; container-type: normal; place-items: stretch; }
-  .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-container { width: 100%; height: 100%; }
-  #view .wall-board[data-layout="desk"][data-printing="1"] .kiosk-cam-container > .kiosk-cam-img { object-fit: cover; }
   /* Idle: no picture, so the printer tile is only as tall as what it says. */
   .wall-board[data-layout="desk"][data-printing="0"] > .wall-print { align-self: start; }
 }
