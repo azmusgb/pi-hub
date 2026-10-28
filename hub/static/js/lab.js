@@ -4,6 +4,7 @@
 // is #rrggbb and a photo URL only from a 64-hex sha256. The renderers are exported so node can test them.
 import { card, empty, h, toast } from "./core.js";
 import { labFetch, watchRequests } from "./lab-net.js";
+import { mountPhotos } from "./lab-photos.js";
 import { toolUrl } from "./sections.js";
 
 export const every = 15;
@@ -167,10 +168,10 @@ export function verdictPayload(draft, isReplace = false) {
 }
 
 // Only a real sha256 makes a photo URL.
-function photoUrl(project, p) {
+export function photoUrl(project, p) {
   return `/api/lab/${encodeURIComponent(project || "")}/photo/${p.sha256}.jpg`;
 }
-const realPhotos = (x) => list(x.photos).filter((p) => p && SHA.test(p.sha256 || ""));
+export const realPhotos = (x) => list(x.photos).filter((p) => p && SHA.test(p.sha256 || ""));
 
 // The longest colour name found in the filament text wins ("light matte terracotta" before "terracotta"); only a
 // #rrggbb value is ever returned, so it is safe in a style attribute.
@@ -336,7 +337,7 @@ export function experimentHtml(x, ix, requests = []) {
     const verdictBtn = x.criteria && x.criteria.length ? `<button type="button" class="btn-outline lab-record-verdict" data-exp="${esc(x.id)}">Record verdict</button>` : "";
     const expReqs = (requests || []).filter((r) => r.experiment === x.id);
     const reqsHtml = `<div class="lab-requests" id="lab-requests-${esc(x.id)}" aria-live="polite">${renderRequestsList(expReqs)}</div>`;
-    actions = `${hint}<div class="lab-actions">${addBtn}${verdictBtn}</div>${reqsHtml}`;
+    actions = `${hint}<div class="lab-checklist" data-lab-checklist="${esc(x.id)}"></div><div class="lab-actions">${addBtn}${verdictBtn}</div>${reqsHtml}`;
   }
 
   const spine = spoolColour(x.filament, ix && ix.colours);
@@ -351,7 +352,8 @@ export function experimentHtml(x, ix, requests = []) {
     (x.finding ? `<p class="lab-verdict">Finding: ${esc(x.finding)}</p>` : "") +
     aiHtml(x) +
     actions +
-    (shots ? `<div class="lab-shots">${shots}</div>` : "") +
+    (shots ? `<div class="lab-photos" data-lab-photos="${esc(x.id)}"><div class="lab-shots">${shots}</div></div>` : "") +
+    (shots && list(x.reference_variants).length ? `<div class="lab-wipe-slot" data-lab-wipe="${esc(x.id)}"></div>` : "") +
     `<details class="lab-details" id="lab-d-${esc(x.id)}" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
 }
 
@@ -1075,6 +1077,7 @@ export async function load(state) {
   state.currentData = labData;
 
   state.box.innerHTML = renderNotebook(labData, state.currentRequests);
+  mountPhotos(state.box, labData.index);
 
   const e = state.context.get("e") || (location.hash.startsWith("#lab-") ? location.hash.slice(5) : null);
   if (e) {
