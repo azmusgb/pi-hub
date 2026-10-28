@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime, timezone
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 os.environ.setdefault("HUB_DB", os.path.join(tempfile.mkdtemp(), "hub.db"))
@@ -156,3 +157,121 @@ def test_each_hms_item_says_its_own_code_and_severity():  # final review M4, I2
     assert by_id["pi:source:hms:0300_0100"]["detail"] == "0300_0100, severity 3"
     assert by_id["pi:source:hms:0700_0100"]["detail"] == "0700_0100, severity unknown"
     assert by_id["pi:source:hms:0700_0100"]["tone"] == "warn"
+
+
+# ---- the print lab's own asks (Plan D, Task 1) ----
+def _need(id, action, why="why", urgency=1, **kw):
+    return dict({"id": id, "urgency": urgency, "action": action, "why": why, "command": "x"}, **kw)
+
+
+def _lab(*needs, project="hex-tile", at="2026-10-28T10:00:00+00:00"):
+    return [(project, at, list(needs))]
+
+
+def _labitems(n):
+    return [i for i in n["items"] if i["source"] == "Print lab"]
+
+
+def test_lab_kinds_tone_title_link_as_of():
+    lab = _lab(_need("E-001", "Judge the print", "Look at the face."), _need("E-002", "Approve or drop", urgency=2),
+               _need("E-003", "Send it to the printer"), _need("E-004", "Fix the plan", urgency=3))
+    got = {i["id"]: i for i in _labitems(needs.build([], None, NOW, lab=lab))}
+    assert got["pi:lab:hex-tile:E-001"]["tone"] == "attention"
+    assert got["pi:lab:hex-tile:E-001"]["title"] == "E-001: Judge the print"
+    assert got["pi:lab:hex-tile:E-001"]["detail"] == "Look at the face."
+    assert got["pi:lab:hex-tile:E-001"]["link"] == "/lab?e=E-001&do=judge"
+    assert got["pi:lab:hex-tile:E-002"]["tone"] == "attention" and got["pi:lab:hex-tile:E-002"]["link"] == "/lab?e=E-002"
+    assert got["pi:lab:hex-tile:E-003"]["tone"] == "warn"
+    assert got["pi:lab:hex-tile:E-004"]["tone"] == "warn"
+    assert all(i["as_of"] == "2026-10-28T10:00:00+00:00" for i in got.values())
+
+
+def test_lab_skips_run_the_check_keeps_fix_the_plan():
+    lab = _lab(_need("E-001", "Run the check", urgency=3), _need("E-002", "Run the build", urgency=3),
+               _need("E-003", "Fix the plan", urgency=3))
+    assert [i["id"] for i in _labitems(needs.build([], None, NOW, lab=lab))] == ["pi:lab:hex-tile:E-003"]
+
+
+def test_lab_judge_waits_for_due_at():
+    iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+    later, past = iso(NOW + 3600), iso(NOW - 60)
+    assert not _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=later))))
+    assert _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=past))))
+    assert _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=later)), printer_done=True))
+    assert _labitems(needs.build([], None, NOW, lab=_lab(_need("E-1", "Judge the print", due_at=None))))
+
+
+def test_lab_malformed_entries_skipped():
+    lab = [("p", "t", [None, "x", {"action": "Approve or drop"}, {"id": "E-1"}, {"id": 5, "action": "Approve or drop"},
+                       {"id": "bad id", "action": "Approve or drop", "urgency": 1},
+                       _need("E-2", "Judge the print", due_at="not a date"),
+                       {"id": "E-3", "action": "Approve or drop", "urgency": "x", "why": None}]),
+           ("q", "t", None), ("r", "t", "nope"), "junk", ("s",)]
+    n = needs.build([], None, NOW, lab=lab)
+    assert not _labitems(n)
+
+
+def test_lab_two_projects():
+    lab = _lab(_need("E-001", "Approve or drop"), project="a") + _lab(_need("E-001", "Approve or drop"), project="b")
+    assert {i["id"] for i in _labitems(needs.build([], None, NOW, lab=lab))} == {"pi:lab:a:E-001", "pi:lab:b:E-001"}
+
+
+def test_lab_feed_cards_dropped_others_kept():
+    feed = {"cards": [{"id": "judge-E-1", "kind": "needs", "title": "J", "text": "t", "tone": "attention"},
+                      {"id": "lab-x", "kind": "needs", "title": "L", "text": "t", "tone": "attention"},
+                      {"id": "disk", "kind": "watch", "title": "Disk", "text": "t", "tone": "warn"}]}
+    n = needs.build([], feed, NOW)
+    assert [i["id"] for i in n["items"]] == ["localai:disk"]
+
+
+def test_lab_item_survives_one_row_beside_printer_record():
+    lab = _lab(_need("E-001", "Judge the print", "Look at the printed face."), _need("E-002", "Send it to the printer"))
+    n = needs.build([], None, NOW, problems(None, FINISHED), lab=lab)
+    assert {i["id"] for i in _labitems(n)} == {"pi:lab:hex-tile:E-001", "pi:lab:hex-tile:E-002"}
+    assert any(i["title"] == "Bambu X2D" for i in n["items"])
+
+
+def test_api_needs_without_lab_table(monkeypatch):
+    import sqlite3
+    monkeypatch.setenv("HUB_DB", os.path.join(tempfile.mkdtemp(), "fresh.db"))
+    from hub import lab
+    lab._ready_dbs.discard(os.environ["HUB_DB"])
+    monkeypatch.setattr(sources, "localai_feed", lambda: None)
+    assert lab.stored_needs() == []
+    assert TestClient(hub_app.app).get("/api/needs").status_code == 200
+
+
+def test_printer_done_false_when_record_stale(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(sources, "localai_feed", lambda: None)
+    monkeypatch.setattr(needs, "build", lambda *a, **kw: seen.update(kw) or {"items": [], "count": 0})
+    for rec, want in (({"state": "finished"}, True), ({"state": "finished", "stale": True}, False),
+                      ({"state": "failed", "stale": True}, False)):
+        monkeypatch.setattr(records, "all", lambda rec=rec: {"printer": {"severity": "ok", **rec}})
+        TestClient(hub_app.app).get("/api/needs")
+        assert seen["printer_done"] is want
+
+
+def test_stored_needs_parses_only_on_resync(monkeypatch):
+    import json
+    from hub import lab
+    monkeypatch.setenv("HUB_DB", os.path.join(tempfile.mkdtemp(), "cache.db"))
+    lab.ready()
+    lab._needs_cache.clear()
+
+    def put(synced, needs_):
+        from hub import db
+        db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, ?, ?, ?)",
+               "p", "{}", json.dumps({"generated_at": "g", "needs": needs_}), synced)
+    put("t1", [{"id": "E-1"}])
+    calls = []
+    real = json.loads
+    monkeypatch.setattr(lab.json, "loads", lambda *a, **k: calls.append(1) or real(*a, **k))
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-1"}])]
+    n = len(calls)
+    assert n >= 1
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-1"}])]
+    assert len(calls) == n, "unchanged synced_at must not re-parse"
+    put("t2", [{"id": "E-2"}])
+    assert lab.stored_needs() == [("p", "g", [{"id": "E-2"}])]
+    assert len(calls) > n

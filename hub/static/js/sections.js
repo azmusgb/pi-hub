@@ -63,9 +63,9 @@ export function toolUrl(name, host = globalThis.location?.hostname || "") {
   return old.replace("{host}", host);
 }
 
-// Local AI's Print lab, opened on one experiment.
-export function printLabUrl(exp, host = globalThis.location?.hostname || "") {
-  return `${toolUrl("assistant", host)}#printLab?e=${exp}`;
+// The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).
+export function printLabUrl(exp) {
+  return `/lab?e=${exp}`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).

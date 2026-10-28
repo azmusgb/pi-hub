@@ -238,6 +238,13 @@ export function needView(need, now = Date.now(), byId = {}) {
   return { action: need.action, why: need.due_at ? look : need.why, command: need.command };
 }
 
+// ?do=judge opens the verdict sheet only when that experiment has a due "Judge the print" need; otherwise the link just
+// opens and scrolls to the experiment. due_at is only an estimate, so it isn't tested here: the printer may be done early.
+export function judgeOnOpen(ix, id, doParam) {
+  if (doParam !== "judge" || !id) return false;
+  return list(ix && ix.needs).some((n) => n && n.id === id && n.action === "Judge the print");
+}
+
 // The button(s) for a Needs you item, or "" when it needs the Mac (Fix the plan, Run the check or build).
 function actButtons(x, exp, busy) {
   const id = esc(x.id), off = busy ? " disabled" : "";
@@ -1181,8 +1188,8 @@ export async function load(state) {
   const e = first && (state.context.get("e") || (location.hash.startsWith("#lab-") ? location.hash.slice(5) : null));
   if (e) {
     state.openExperiment(e);
-    if (state.context.get("do") === "judge") {
-      const exp = labData?.index?.experiments?.find((x) => x.id === e);
+    if (judgeOnOpen(labData?.index, e, state.context.get("do"))) {
+      const exp = labData.index.experiments?.find((x) => x.id === e);
       if (exp) state.openVerdictSheet(exp);
     }
   }

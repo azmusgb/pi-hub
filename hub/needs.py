@@ -3,6 +3,7 @@ every call; nothing is copied (D8). The Pi's alert history isn't used: it mixes 
 went offline", "display is back"), and the records already say what is still wrong. A finished or failed print is
 the printer record's own "clear the plate"."""
 import re
+from datetime import datetime
 
 from .now import issue_items
 
@@ -11,6 +12,50 @@ ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 HUB = "Pi Hub"
+LAB = "Print lab"
+LAB_EXP = re.compile(r"^E-\d{1,6}$")
+LAB_PROJECT = re.compile(r"^[a-z0-9-]{1,40}$")
+LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Send it to the printer": "warn",
+            "Fix the plan": "warn"}
+
+
+def _due(s, now):
+    """True when `s` (an ISO time) is at or before `now`; None when it can't be read."""
+    try:
+        t = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        return t.timestamp() <= now if t.tzinfo else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _lab_items(lab, now, printer_done):
+    """The print lab's own asks, from the hub's copy of each project's index. Bad entries are skipped, never raised."""
+    out = []
+    for entry in lab or ():
+        try:
+            project, as_of, needs = entry
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(project, str) or not LAB_PROJECT.match(project) or not isinstance(needs, list):
+            continue
+        for n in needs:
+            if not isinstance(n, dict):
+                continue
+            eid, action, urgency = n.get("id"), n.get("action"), n.get("urgency")
+            if not isinstance(eid, str) or not LAB_EXP.match(eid) or action not in LAB_TONE:
+                continue
+            if not isinstance(urgency, int) or isinstance(urgency, bool):
+                continue
+            if urgency >= 3 and action != "Fix the plan":
+                continue
+            judge = action == "Judge the print"
+            if judge and n.get("due_at") is not None and not printer_done and not _due(n["due_at"], now):
+                continue  # not yet due (or an unreadable time): the verdict waits for the print
+            out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
+                        "title": f"{eid}: {action}"[:80], "detail": str(n.get("why") or "")[:200],
+                        "link": f"/lab?e={eid}&do=judge" if judge else f"/lab?e={eid}",
+                        "as_of": str(as_of or ""), "ts": now})
+    return out
 
 
 def _one_row(items, about, ours):
@@ -23,7 +68,7 @@ def _one_row(items, about, ours):
     return [i for i in items if i is keep or i not in named]
 
 
-def build(events, feed, now, problems=()):
+def build(events, feed, now, problems=(), lab=(), printer_done=False):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
     knows when the plate is cleared."""
     items = []
@@ -49,6 +94,8 @@ def build(events, feed, now, problems=()):
     else:
         for c in feed.get("cards") or []:
             tone = "warn" if c.get("tone") == "warning" else c.get("tone")
+            if str(c.get("id") or "").startswith(("judge-", "lab-")):  # the hub's copy is the source now
+                continue
             if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
                 continue
             items.append({"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
@@ -65,5 +112,7 @@ def build(events, feed, now, problems=()):
     items = _one_row(items, ABOUT_PRINTER, lambda i: i.get("thing") == "printer")
     # Local AI and the hub can both report the Workshop touchscreen outage; the hub's record is the direct source.
     items = _one_row(items, ABOUT_WORKSHOP_DISPLAY, lambda i: i.get("thing") == "workshop_display")
+    # After the folds: the lab's text says "printer"/"print", and must not be folded into the printer's row.
+    items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     drop = ("ts", "thing")
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
