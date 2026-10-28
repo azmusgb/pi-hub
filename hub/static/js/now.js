@@ -121,19 +121,30 @@ export function band(p, cam = null) {
 }
 
 // lab: the desk's way to the print lab, a link beside the printer's own (null on the wall).
-function workshopKioskConsole(d, cam, lab = null) {
+function workshopKioskConsole(d, cam, lab = null, onDone = null) {
   const p = d.printer || {};
   const isPrinting = printing(p);
   const pct = p.progress || 0;
   const badge = kioskBadge(p);
   const chip = (text) => h("span", { class: "kiosk-hud-chip" }, text);
 
+  const filamentText = p.filament_type ? `${p.filament_type}` : null;
+  const filamentColor = p.filament_color ? `#${String(p.filament_color).replace(/^#/, "").slice(0, 6)}` : null;
+
   const camHud = h("div", { class: "kiosk-hud-overlay" },
     p.nozzle_temp !== undefined && p.nozzle_temp !== null
       ? chip(`🌡️ Nozzle: ${p.nozzle_temp}°C${p.nozzle_target ? ` / ${p.nozzle_target}°C` : ""}`) : null,
     p.bed_temp !== undefined && p.bed_temp !== null
       ? chip(`🛏️ Bed: ${p.bed_temp}°C${p.bed_target ? ` / ${p.bed_target}°C` : ""}`) : null,
-    p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null
+    p.ams_humidity !== undefined && p.ams_humidity !== null ? chip(`💧 AMS: ${p.ams_humidity}% RH`) : null,
+    filamentText ? h("span", { class: "kiosk-hud-chip" },
+      filamentColor ? h("span", {
+        class: "kiosk-hud-swatch",
+        style: `background: ${filamentColor};`,
+        "aria-hidden": "true"
+      }) : null,
+      filamentText
+    ) : null
   );
 
   // No picture (the camera bridge is down, or the image fails to load): say so in words, not a broken-image icon.
@@ -158,9 +169,11 @@ function workshopKioskConsole(d, cam, lab = null) {
   // "Layer 93 / 150" wraps as one piece, never "Layer 93 /" over "150".
   const done = isPrinting ? finishDay(p.minutes_left) : "";
   const layer = p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null;
+  const cleanJob = p.job_name ? String(p.job_name).replace(/\.(gcode\.3mf|3mf|gcode)$/i, "") : "";
+  const jobTag = isPrinting && cleanJob ? [" · ", h("span", { class: "kiosk-job-tag" }, cleanJob)] : null;
   const jobSubtitle = isPrinting && p.left
-    ? [done ? `${pct}% · ${p.left} to go` : `Done in about ${p.left}`, layer]
-    : (p.job_name ? `Job: ${p.job_name}` : (p.detail || "Ready for next print"));
+    ? [done ? `${pct}% · ${p.left} to go` : `Done in about ${p.left}`, layer, jobTag]
+    : (p.job_name ? `Job: ${cleanJob || p.job_name}` : (p.detail || "Ready for next print"));
 
   const progressSection = isPrinting ? h("div", {
     class: "line kiosk-line",
@@ -175,6 +188,22 @@ function workshopKioskConsole(d, cam, lab = null) {
     h("div", { class: "line-nozzle", style: `left:${pct}%` })
   ) : null;
 
+  // Desk mode gets tactile printer action buttons (Pause / Resume / Clear the plate) right in the console header.
+  const actionBtns = [];
+  if (onDone && Array.isArray(p.actions)) {
+    for (const act of p.actions) {
+      const def = PRINTER_ACTIONS[act];
+      if (!def) continue;
+      const btn = h("button", {
+        type: "button",
+        class: `chip kiosk-action-btn${act === "clear" || act === "resume" ? " is-primary" : ""}`,
+        disabled: printerBusy(),
+      }, def.label);
+      btn.addEventListener("click", () => runPrinterAction(act, [btn], onDone));
+      actionBtns.push(btn);
+    }
+  }
+
   return h("section", { class: "kiosk-console wall-tile", "aria-label": "Bambu X2D printer" },
     h("div", { class: "kiosk-head" },
       h("div", { class: "kiosk-title" },
@@ -186,9 +215,10 @@ function workshopKioskConsole(d, cam, lab = null) {
           : isPrinting ? h("p", { class: "kiosk-pct" }, `${pct}%`) : null,
         h("p", { class: "kiosk-sub" }, jobSubtitle)),
       h("div", { class: "kiosk-links" },
+        ...actionBtns,
+        lab ? h("a", { class: `chip desk-lab${lab.judge ? " is-judge" : ""}`, ...go(lab.href) }, lab.label) : null,
         h("a", { class: "chip", href: "/workshop", "data-link": true }, "Workshop History"),
-        h("a", { class: "chip", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"),
-        lab ? h("a", { class: `chip desk-lab${lab.judge ? " is-judge" : ""}`, ...go(lab.href) }, lab.label) : null)),
+        h("a", { class: "chip", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"))),
     progressSection,
     h("div", { class: "kiosk-cam-slot" }, camContainer)
   );
@@ -606,28 +636,50 @@ function wallCustomConfig() {
   try { return getWallCustomConfig(localStorage.getItem("pi_wall_custom")); } catch { return getWallCustomConfig(null); }
 }
 
-// One quiet toolbar in a corner: View Switcher, Customize Panes, Kiosk (full screen) and Exit wall display.
+function switchWallLayoutMode(state, mode) {
+  const isDesk = mode === "desk";
+  state.desk = isDesk;
+  try { localStorage.setItem("pi_wall_layout", isDesk ? "desk" : "wall"); } catch {}
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("layout", isDesk ? "desk" : "wall");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {}
+  if (state.wallBoard) state.wallBoard.dataset.layout = isDesk ? "desk" : "wall";
+  load(state);
+}
+
+// One quiet toolbar in a corner: View Switcher, Desk/Wall Mode toggle, Kiosk (full screen) and Exit wall display.
 function wallToolbar(state) {
   const exit = h("a", { href: "/", class: "kiosk-btn", "data-link": true }, "← Exit wall display");
-  // The desk has one view, and iPad Safari has no full screen for pages (Add to Home Screen gives it): back to the
-  // wall's layout instead.
-  if (state.desk) return [h("a", { href: "/wall?layout=wall", class: "kiosk-btn" }, "Wall layout"), exit];
   const view = wallView();
   const panes = resolveWallPanes(view, wallCustomConfig());
   const toggleViewBtn = h("button", {
     type: "button",
     class: "kiosk-btn active",
-    title: "Switch view preset",
+    title: "Switch view preset or customize panes",
     onclick: () => openWallConfigDialog(state, "presets")
   }, `${panes.label} ▾`);
 
-  const customizeBtn = h("button", {
+  // The desk has a streamlined companion toolbar; switching between Desk and Wall layout is a single tap with no reload.
+  if (state.desk) {
+    const toWallBtn = h("button", {
+      type: "button",
+      class: "kiosk-btn",
+      title: "Switch to TV / Wall layout",
+      onclick: () => switchWallLayoutMode(state, "wall")
+    }, "📺 Wall mode");
+    return [toggleViewBtn, toWallBtn, exit];
+  }
+
+  const toDeskBtn = h("button", {
     type: "button",
     class: "kiosk-btn",
-    title: "Pick what appears in each pane",
-    onclick: () => openWallConfigDialog(state, "custom")
-  }, "⚙️ Customize");
+    title: "Switch to iPad Desk companion layout",
+    onclick: () => switchWallLayoutMode(state, "desk")
+  }, "📱 Desk mode");
 
+  // Customize lives in the view dialog's second tab, so the toolbar stays one short row.
   const fullscreenBtn = h("button", {
     type: "button",
     class: "kiosk-btn",
@@ -640,7 +692,7 @@ function wallToolbar(state) {
     }
   }, "⛶ Kiosk");
 
-  return [toggleViewBtn, customizeBtn, fullscreenBtn, exit];
+  return [toggleViewBtn, toDeskBtn, fullscreenBtn, exit];
 }
 
 function renderWallHeader(state, out) {
@@ -902,7 +954,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
   } else if (panes.hero === "weather") {
     heroElement = weatherHeroConsole(out);
   } else {
-    heroElement = workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer) : null);
+    heroElement = workshopKioskConsole(d, cam, state.desk ? deskLab(d.printer) : null, state.desk ? () => load(state) : null);
   }
   state.wallPrint.replaceChildren(heroElement);
 

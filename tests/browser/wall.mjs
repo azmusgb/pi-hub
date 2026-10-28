@@ -67,7 +67,7 @@ async function stub(page, printer, needs = NEEDS, camera = true) {
 }
 
 const problems = [];
-const browser = await chromium.launch();
+const browser = await chromium.launch().catch(() => chromium.launch({ channel: 'chrome' }));
 const runs = STUB
   ? [...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'idle', at: '2026-10-26T12:48:00', shot: `after-${n}` })),
      ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', shot: n === 'tv1080' ? 'after-tv1080-printing' : null })),
