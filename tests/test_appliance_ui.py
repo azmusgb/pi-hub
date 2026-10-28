@@ -65,6 +65,13 @@ def test_the_app_shell_caches_the_kit():
     assert "pi-hub-shell-v110" in sw
 
 
+def test_the_app_shell_caches_every_page_module():
+    sw = open(os.path.join(STATIC, "sw.js")).read()
+    missing = [f"/static/js/{os.path.basename(p)}" for p in sorted(glob.glob(os.path.join(STATIC, "js", "*.js")))
+               if f"/static/js/{os.path.basename(p)}" not in sw]
+    assert missing == []
+
+
 def _kit():
     import json
     return json.load(open(os.path.join(STATIC, "ui", "tokens.json")))["color"]

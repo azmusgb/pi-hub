@@ -218,7 +218,31 @@ def _localai_lab_projects():
         return json.loads(r.read(256 * 1024))
 
 
+def _stored_lab():
+    """The experiment currently printing according to Pi Hub's own lab_projects table, or None."""
+    try:
+        from . import db, lab
+        lab.ready()
+        rows = db.rows("SELECT index_json FROM lab_projects ORDER BY project")
+    except Exception:
+        return None
+    for r in rows:
+        try:
+            exps = (json.loads(r["index_json"] or "{}") or {}).get("experiments")
+        except Exception:
+            continue
+        for e in exps if isinstance(exps, list) else []:
+            if isinstance(e, dict) and e.get("status") == "printing":
+                exp = e.get("id")
+                if isinstance(exp, str) and LAB_EXPERIMENT.fullmatch(exp):
+                    return {"experiment": exp}
+    return None
+
+
 def _localai_lab():
+    stored = _stored_lab()
+    if stored:
+        return stored
     projects = (_localai_lab_projects() or {}).get("projects")
     for p in projects if isinstance(projects, list) else []:
         exp = ((p or {}).get("live") or {}).get("experiment") if isinstance(p, dict) else None

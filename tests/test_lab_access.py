@@ -189,3 +189,11 @@ def test_the_mac_can_list_photos_with_its_key(client):
     assert client.get("/api/lab/hex-tile/photos", headers={"X-Hub-Mac-Key": KEY}).json() == {"have": []}
     for h in ({}, {"X-Hub-Mac-Key": "wrong"}, {"X-Hub-Mac-Key": LOCALAI_KEY}, {"X-LocalAI-Mac-Key": KEY}):
         assert client.get("/api/lab/hex-tile/photos", headers={**SAME, **h}).status_code == 401, h
+
+
+def test_the_mac_key_is_refused_over_plain_http(client):
+    plain = {**SAME, "X-Hub-Mac-Key": KEY, "X-Forwarded-Proto": "http"}
+    for method, path in MAC_ROUTES:
+        r = call(client, method, path, headers=plain)
+        assert r.status_code == 401, (method, path, r.status_code)
+    assert client.get("/api/lab/hex-tile/photos", headers=plain).status_code == 401

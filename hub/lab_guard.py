@@ -22,6 +22,8 @@ def _expected() -> bytes:
 
 
 def mac_key_ok(request: Request) -> bool:
+    if request.headers.get("x-forwarded-proto", "").lower() == "http":
+        return False
     key = request.headers.get("x-hub-mac-key")
     expected = _expected()  # read each time, so a new key takes effect without a restart
     if not key or not expected:

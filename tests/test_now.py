@@ -296,6 +296,7 @@ def test_lab_link_only_while_a_lab_experiment_prints():
 
 
 def test_localai_lab_reads_the_projects_feed(monkeypatch):
+    monkeypatch.setattr(sources, "_stored_lab", lambda: None)
     feed = {"projects": [{"name": "other", "live": None}, {"name": "hex-tile", "live": {"experiment": "E-020", "state": "printing"}}]}
     monkeypatch.setattr(sources, "_localai_lab_projects", lambda: feed)
     sources._cache.pop("localai-lab", None)
@@ -310,6 +311,19 @@ def test_localai_lab_reads_the_projects_feed(monkeypatch):
     monkeypatch.setattr(sources, "_localai_lab_projects", down)
     sources._cache.pop("localai-lab", None)
     assert sources.localai_lab() is None
+
+
+def test_localai_lab_prefers_the_hubs_own_stored_lab(monkeypatch, tmp_path):
+    import json
+    from hub import db, lab
+    monkeypatch.setenv("HUB_DB", str(tmp_path / "lab-live.db"))
+    lab._ready_dbs.clear()
+    lab.ready()
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', ?, 'x')",
+           "hex-tile", json.dumps({"experiments": [{"id": "E-021", "status": "answered"}, {"id": "E-022", "status": "printing"}]}))
+    monkeypatch.setattr(sources, "_localai_lab_projects", lambda: (_ for _ in ()).throw(OSError("PC is off")))
+    sources._cache.pop("localai-lab", None)
+    assert sources.localai_lab() == {"experiment": "E-022"}
 
 
 def test_now_and_workshop_carry_the_lab_link(monkeypatch):

@@ -133,3 +133,5 @@ def test_caddyfile_caps_lab_bodies():
         lab = block.split("handle /api/lab/* {", 1)[1].split("reverse_proxy", 1)[0]
         assert "request_body" in lab and "max_size 9MB" in lab
         assert block.index("handle /api/lab/*") < block.rindex("\thandle {")
+    http_lab = blocks[1].split("handle /api/lab/* {", 1)[1].split("reverse_proxy", 1)[0]
+    assert "request_header -X-Hub-Mac-Key" in http_lab

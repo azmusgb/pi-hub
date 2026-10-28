@@ -153,8 +153,9 @@ http:// {
 		header Content-Type application/x-x509-ca-cert
 		file_server
 	}
-	# Same 8 MiB lab cap on the old addresses.
+	# Same 8 MiB lab cap on the old addresses; the Mac's lab key is never accepted over plain http.
 	handle /api/lab/* {
+		request_header -X-Hub-Mac-Key
 		request_body {
 			max_size 9MB
 		}
