@@ -1,144 +1,166 @@
 # One Needs you: every printing signal in one list, drawn one way (design)
 
-Written 27 Oct 2026. Suite step 2 of the consistency critique, built on `2026-10-27-one-print-design.md` (prints have
-one identity) and `2026-10-24-one-home-design.md` (D7: Needs you lives on Home; D8: read, never copy; D9: Pi Hub and
-Local AI share the appliance-ui kit). It also starts suite step 4 narrowly: the first kit component both apps render.
+Written 27 Oct 2026; revised the same day after an independent review against the code (11 findings, all folded in).
+Suite step 2 of the consistency critique, built on `2026-10-27-one-print-design.md` (prints have one identity) and
+`2026-10-24-one-home-design.md` (D3: home.arpa names resolve away from home through Tailscale; D7: Needs you lives on
+Home; D8: read, never copy; D9: Pi Hub and Local AI share the appliance-ui kit). It starts suite step 4 narrowly: the
+first kit component both apps render.
 
 ## Intent
 
 **Owner's words:** the list holds everything; push only what's urgent ("proceed as recommended", option 2); tapping a
-lab item opens Print lab's verdict form for that exact run (option 1); one look and behaviour across the suite ("all
+lab item opens Print lab's verdict form for that experiment (option 1); one look and behaviour across the suite ("all
 under a solution umbrella re design/layout/css").
 
 **Success:**
-- A failure Obico detects, a printer error or HMS fault, and the PC going off while a print runs each reach the phone
-  within a minute, past quiet hours, once.
-- Judge the print, approve or drop, send to the printer, AMS warnings and Obico warnings appear in Needs you on Pi Hub
-  (desk, iPad wall, phone) and on Local AI's Home, without a push.
-- An item looks and behaves the same wherever it appears, because both apps render it with one kit component from one
-  item shape, using one set of phrases.
+- A failure Obico detects, a failed print or HMS stop/pause, and the PC going off while a print runs each reach the
+  phone within a minute, past quiet hours, **once**, from **one** sender, and tapping the notification opens the right
+  page at home or away.
+- Judge the print, approve or drop, send to the printer, fix the plan, AMS notices and Obico warnings appear in Needs
+  you on Pi Hub (Home, iPad wall, desk) and Local AI's Home, without a push, each exactly once.
+- A Needs you item looks and behaves the same in both apps: one item shape, one kit renderer, one phrase table.
 
-**Not in scope:** filing outside-the-lab prints; Local AI's wider move to the kit (suite step 4 proper); Pi Hub
-pages other than Needs you.
+**Not in scope:** filing outside-the-lab prints; Local AI's wider move to the kit (suite step 4 proper); Print lab's
+own multi-action needs card (it keeps its Approve/Drop, Judge/Add photos and command box); the Workshop display.
 
-## Facts this design rests on (checked 27 Oct 2026)
+## Facts this design rests on (checked 27 Oct 2026; file:line from the review)
 
-- Pi Hub's Needs you (`hub/needs.py`) = the hub's own record problems + Local AI's cards from
-  `https://10.0.0.21/api/display/feed` (`sources.localai_feed`, cached 30 s). Cards carry `id`, `kind`, `tone`,
-  `title`, `text`; there is no action field yet.
-- Pi Hub pushes through ntfy (`events.push(title, body, tags, priority, urgent)`; quiet hours hold back non-urgent).
-- Bambuddy `GET /api/v1/obico/printer-status` → `{enabled, per_printer: {<id>: {class: "safe"|"warning"|"failure"|
-  "error"|"unknown", score, frame_count, error}}, last_error}`. Today `last_error` is "Failed to capture snapshot for
-  printer 1": detection can't run until the X2D's external camera is set.
-- Bambuddy printer status carries `hms_errors: [{code, module, severity, actions, …}]`; severity 1 = error (stopped),
-  2 = warning (paused), 3 = notification.
-- print-lab's `page.json` (synced to Local AI) carries `needs: [{id, urgency, action, why, command, due_at}]`, built by
-  `lab/page_index._needs`, and each experiment's `runs[]`.
-- Print lab opens an experiment from `#printLab?e=E-022`; it has no link that opens the verdict form directly.
-- The kit (`~/dev/appliance-ui`) ships `tokens.css`, `components.css` and `appliance-header(.lite).js`, synced into
-  `hub/static/ui` and `app/public/ui` by `scripts/sync.mjs` with a `VERSION` pin; an edited copy fails its tests. Kit
-  1.2.1 is unsynced, waiting on Pi Hub's lock step; this work ships as 1.3.0 and includes it.
+- **Pi Hub Needs you** (`hub/needs.py`): hub record problems with ids `"pi:" + key` for `source:` keys else
+  `"pi:" + what` (`:33`); Local AI cards from `https://10.0.0.21/api/display/feed` prefixed `localai:`, `warning`→`warn`,
+  `kind=="home"` dropped, every link forced to `tool:assistant` (`:40-46`); `_one_row` folds non-hub items naming
+  printer/x2d/bambu into the hub's printer row (`:17-23`). Quiet hours already let `urgent` through (`events.py:136`);
+  `events.push` has no click link and uses priority `default` (`:134-155`). Automation rules already fire on
+  `print_failed` and `pc_down` (`events.py:324-353`). Printer record states: printing, paused, finished, failed, idle,
+  offline, unknown (`records.py:25`). Pi Hub already loads `ui/components.css` (`index.html:87`).
+- **Local AI:** `/api/display/feed` is the Workshop display's feed: titles cut to 24 and text to 90 characters, tones
+  `warning|busy|info|ok` (`app/display-feed.js:5-8`). It already carries a lab judge card `judge-<run>` (tone attention,
+  24 h expiry; `app/print-lab.js:78-90`), which Pi Hub lists. Local AI's Home shows Pi Hub's items via
+  `app/pi-hub.js` (`hubPath` keeps only hub paths, `:45-51`), and `needs-you.js:60-62` routes `localai:(judge|lab)-`
+  ids to Print lab. Local AI loads no kit file (`index.html` links only `/app.css`).
+- **print-lab** `page.json` `needs` (`lab/page_index._needs`): one per experiment, `{id, urgency, action, why, command,
+  due_at}`; the page shows urgency < 3 plus "Fix the plan". Print lab hides "Judge" until `due_at` or the printer
+  reports finished (`print-lab.js` `needView`). Print lab opens `#printLab?e=<exp>`; no project parameter, no link to
+  the verdict form; the verdict sheet works on the experiment's current run (`exp.run`).
+- **Bambuddy:** `GET /api/v1/obico/printer-status` → `per_printer: {<id>: {class: safe|warning|failure|error|unknown,
+  score, frame_count, error}}`; printer status `hms_errors: [{code, module, severity 1 stop|2 pause|3 notice, ...}]`.
+  Today Obico reports "Failed to capture snapshot" until the X2D's external camera is set (printer settings; the
+  print-lab key can't change it, 403).
+- **Kit** (`~/dev/appliance-ui`): `build.mjs` writes a fixed file list; `appliance-header.js` is a classic IIFE, and
+  `.lite` means links-only for the Workshop display's flash portal; the contrast gate checks **token pairs**
+  (`build.mjs:17-45`); `tokens.css` sets `color-scheme` and the font on `:root`; four apps consume the kit
+  (`sync.mjs --status`); 1.2.1 is unsynced pending Pi Hub's lock step.
 
 ## Decisions
 
 | # | Decision |
 |---|---|
-| N1 | Each signal is read by the app that already owns it: printer-side signals by **Pi Hub** (always on, owns the printer record and push); lab signals by **Local AI** (holds the synced lab index and the verdict form). Nothing is copied. |
-| N2 | One **item shape** for every Needs you item in the suite, defined in the kit (`needs.schema.json`). |
-| N3 | One **kit component** draws it: `.ui-need` / `.ui-needs` CSS plus `renderNeed(item)` in `needs.js` (ES module) and `needs.lite.js` (plain script). Both apps render every Needs you item with it. |
-| N4 | One **phrase table** in the kit for action labels and "can't reach" wording. |
-| N5 | **Urgent** = pushed now, past quiet hours: Obico `failure`; HMS severity 1 or 2, or the printer's error state; the PC off while the printer is printing. Everything else is list-only. `urgent` never changes how an item looks. |
-| N6 | One push per item **occurrence**: pushed when it appears, not when it clears, not again while it stays; the same id may push again only after it has cleared for 10 minutes. |
-| N7 | A lab item's action opens Print lab's verdict form for that run: `#printLab?e=<exp>&run=<run>&do=judge`. |
+| N1 | Printer-side signals are **Pi Hub records** (source Pi Hub, detail names Bambuddy). Lab signals come from **Local AI's new `GET /api/needs`**, not the display feed. Nothing is copied. |
+| N2 | One **item shape** for every Needs you item, defined in the kit (`needs.schema.json`). |
+| N3 | One **kit renderer** for Home-style Needs you lists in both apps: `.ui-need`/`.ui-needs` CSS and one classic `needs.js` (sets `window.ApplianceNeeds`, `module.exports` for Node tests). No lite build. |
+| N4 | One **phrase table** in the kit for action labels and "isn't answering". |
+| N5 | **Urgent** (pushed now, past quiet hours, priority high): Obico `failure`; printer record `failed`; HMS severity 1 or 2; PC (Local AI record) down ≥ 2 min while the printer record is `printing` or `paused`. Everything else is list-only. `urgent` never changes how an item looks. |
+| N6 | **Pi Hub is the only sender** for printing pushes. One push per occurrence of an item id: on appearing, never on clearing, again only after it has been clear for 10 min; kept in the hub DB (survives restarts). Reports of one failure within 2 min (printer `failed` + Obico `failure`) are one push. Existing rules on `print_failed`/`pc_down` keep their non-push actions; their push is skipped while an N6 occurrence for the same cause is open. Bambuddy's own notifiers stay off for print and Obico events (the owner keeps "Household ntfy (Pi)" disabled). |
+| N7 | A lab item opens `#printLab?p=<project>&e=<exp>&do=judge` (judge) or `#printLab?p=<project>&e=<exp>` (others). `do=judge` opens the verdict sheet on the experiment's current run when a verdict is due, else just the experiment. |
+| N8 | Lab items appear **once**: Pi Hub replaces the display feed's `judge-*` card with `/api/needs`; Local AI's Home shows its own lab items and drops Pi Hub's copies (source "Print lab"). |
 
 ## The item shape (N2)
 
 | Field | Rule |
 |---|---|
-| `id` | stable per cause: `pi:printer`, `pi:obico:1`, `pi:hms:1:<code>`, `pi:pc-off-printing`, `lab:<exp>:<action-key>` |
-| `source` | `Pi Hub` · `Local AI` · `Print lab` · `Bambuddy` (the owner of the fact, not the app showing it) |
+| `id` | Pi Hub records: the existing rule (`"pi:" + key` / `"pi:" + what`), HMS per code `pi:source:hms:<code>`; lab: `lab:<project>:<exp>` |
+| `source` | owner of the fact: `Pi Hub` · `Print lab` |
 | `tone` | `bad` · `attention` · `warn` |
-| `title` | what's wrong, ≤ 80 characters |
+| `title` | ≤ 80 characters |
 | `detail` | one sentence, ≤ 200 characters |
-| `action` | `{label, link}` or null; at most one; `label` from the phrase table |
+| `action` | `{label, link}` or null; at most one; `label` from the phrase table; `link` is a same-origin path, `#…`, or `tool:<name>[/path]` |
 | `urgent` | bool |
-| `opens_elsewhere` | computed by the renderer: the link's origin differs from the page's (never sent) |
+| `as_of` | ISO time the fact was read (lab: the index's `generated_at`) |
 
-## The kit component (N3, N4)
+## The kit renderer (N3, N4)
 
-- Layout: a 4 px tone stripe; title (one line on wide layouts, wraps on phone; never ellipsis-cut mid-word on the wall);
-  detail below in `--ui-fs-2` muted; source in `--ui-fs-1`; one action button at the right that wraps under the text
-  below 600 px. 44 px minimum targets. "↗" after the label when `opens_elsewhere`.
-- Tones use the kit's `--ui-bad`, `--ui-warn` (attention), and a neutral warn; light and dark pass the kit's
-  existing contrast gate, extended to `.ui-need`.
-- `renderNeed(item, {here})` returns one element; text set with `textContent`, links only `https:`, `http:` on the LAN
-  addresses in `suite.json`, or same-origin `#…`; anything else renders without an action. `.ui-needs` lays out a list
-  with an empty state ("Nothing needs you.").
-- Phrase table: `judge` "Judge the print", `approve` "Approve or drop", `send` "Send it to the printer",
-  `fix_plan` "Fix the plan", `look` "Look at the printer", `open_bambuddy` "Open Bambuddy", `power_pc` "Check the PC",
-  and `not_answering(name)` "<name> isn't answering".
+- `ApplianceNeeds.render(item, {resolve})` → one element; `renderList(items, {resolve, empty})`. Text via
+  `textContent`. `resolve(link)` is the app's own resolver (Pi Hub `resolveLink`/`toolUrl`, Local AI's equivalent);
+  the renderer accepts the resolved link only if it is same-origin, `#…`, or the origin the resolver produced for a
+  `tool:` link; otherwise the item renders without an action. "↗" when the resolved origin differs from the page's.
+- Look: 4 px tone stripe; title, then detail (muted, `--ui-fs-2`), source and "as of" when older than 24 h
+  (`--ui-fs-1`); one action button, right on wide layouts, below the text under 600 px; 44 px targets; titles wrap,
+  never cut mid-word.
+- Tokens: `bad` `--ui-bad`, `attention` `--ui-warn`, `warn` `--ui-text-2`. Contrast gate gains pairs: each stripe vs
+  `--ui-surface` ≥ 3:1, title and detail vs `--ui-surface` ≥ 4.5:1, light and dark.
+- `build.mjs` learns to emit `needs.js`, `needs.schema.json` and `phrases.json`; tests cover them.
+- Phrase table: `judge` "Judge the print", `approve` "Approve or drop", `send` "Send it to the printer", `fix_plan`
+  "Fix the plan", `look` "Look at the printer", `open_bambuddy` "Open Bambuddy", `check_pc` "Check the PC",
+  `not_answering` "{name} isn't answering".
+- Kit 1.3.0 includes 1.2.1; it syncs into Pi Hub and Local AI only (Materials and Workshop OS stay on their version).
 
 ## Pi Hub: printer-side signals (N1, N5, N6)
 
-New hub records, read by the existing record loop and turned into Needs you items like the others:
-- **`obico`** from `bambuddy.obico_status()` (`/api/v1/obico/printer-status`, hub key, 30 s):
-  `failure` → bad, urgent, "Failure detected on the X2D", action `look` → Bambuddy; `warning` → attention, list,
-  "Possible print problem"; `error` while printing → attention, list, "Failure detection can't see the printer"
-  (detail names Bambuddy's `error`); `safe`/`unknown`/not printing → no item.
-- **`hms`** from the printer status `hms_errors`: severity 1–2 → bad, urgent, title from Bambuddy's message or "Printer
-  needs attention (<code>)", action `open_bambuddy`; severity 3 → warn, list. One item per code.
-- **PC off while printing**, derived: printer record printing and Local AI's record down for 2 minutes → bad, urgent,
-  "The PC is off during a print", detail "Failure detection has stopped until it's back.", action `power_pc` → none
-  (no link).
-- One row per printer cause: the existing `_one_row` rule keeps the printer record first; Obico and HMS items keep
-  their own ids because they name different causes, but a single push covers a failure reported by several of them
-  within 2 minutes (the printer's error state plus Obico `failure` is one event).
-- Push: `events.push(title, detail, urgent=True)` with ntfy's `Click` set to the action link (the gate address), so
-  tapping the notification opens the right page. N6's occurrence rule is kept in the hub's database (id, first seen,
-  cleared at), so a restart doesn't re-push.
-- Bambuddy silent: one item "Bambuddy isn't answering" (attention, list) replaces stale printer-side items; never
-  pushes.
+- **Records**, added to `KINDS`/`SOURCE`/`STALE_AFTER`:
+  - `obico` from `bambuddy.obico_status()` (hub key, 30 s): `failure` → bad, urgent, "Failure detected on the X2D",
+    action `look` → `/workshop`; `warning` → attention, "Possible print problem"; `error` while printing → attention,
+    "Failure detection can't see the printer" (detail: Bambuddy's error); otherwise no problem.
+  - `hms` from the printer status `hms_errors`: the record holds the list; `needs.py` emits one item per code
+    (severity 1–2 → bad, urgent, action `open_bambuddy`; 3 → warn).
+  - `pc_printing`: derived from the printer and Local AI records as N5 says; bad, urgent, "The PC is off during a
+    print", detail "Failure detection has stopped until it's back.", action none.
+  - The existing printer record's `failed` state becomes urgent.
+- These are hub records, so `_one_row` leaves them alone (it folds only non-hub items).
+- **Push:** `events.push` gains `click=` (the resolved gate address; home.arpa names work away from home per D3) and
+  `priority="high"` for urgent. N6's occurrence table: `push_occurrences(id, first_seen, pushed_at, cleared_at)`.
+- Bambuddy silent: the existing "Bambuddy isn't answering" problem replaces printer-side items; never pushes.
 
-## Local AI: lab signals (N1, N7)
+## Local AI: lab signals (N1, N7, N8)
 
-- `/api/display/feed` gains a card per entry of the stored lab index's `needs`, in the item shape:
-  `id` `lab:<exp>:<action-key>`, `source` "Print lab", tone by urgency (0 judge → attention, 1 send → warn,
-  2 approve → attention, fix the plan → warn), `title` "<exp>: <action>", `detail` = the need's `why`, `action` from the
-  phrase table linking to `#printLab?e=<exp>&run=<last run>&do=judge` (judge) or `#printLab?e=<exp>` (others),
-  `urgent` false. The lab's index being older than a day adds nothing new; its `generated_at` is kept as the item's
-  time.
-- Print lab honours `&do=judge`: opens that run's verdict form if it's open for a verdict, else just the experiment.
-- Existing cards gain `action` where they have one; cards without it still render (action null).
-- Pi Hub maps feed cards straight through (they're already in the item shape); its link resolution
-  (`resolveLink`/`toolUrl`) turns `#…` links into the assistant tool's address.
+- New `GET /api/needs` (same auth as the feed): items in the shape for every project's stored lab index:
+  - from each index's `needs`, keeping the page's rule (urgency < 3, or "Fix the plan"); Run the check/build excluded;
+  - tone: judge → attention, approve → attention, send → warn, fix the plan → warn;
+  - "Judge the print" only once due (the page's `needView` rule: `due_at` passed or the printer reports finished);
+  - `title` "<exp>: <phrase>", `detail` the need's `why`, `as_of` the index's `generated_at`, `urgent` false.
+- Print lab reads `p=` (project) and `do=judge` (N7).
+- The display feed and its `judge-*` card are unchanged (the Workshop display keeps them).
+- Local AI's Home renders its own `/api/needs` items and drops Pi Hub items whose source is "Print lab"; its
+  `needs-you.js` routing uses each item's `action.link` instead of id patterns.
+
+## Pi Hub: showing lab items (N8)
+
+- `needs.py` reads `/api/needs` (cached 30 s, alongside the feed), passes items through in the shape (ids and links
+  kept; links as `tool:assistant/#printLab?...`), and drops the feed's `judge-*` cards.
+- `sections.js` `resolveLink` keeps the path and hash after `tool:<name>/`.
+- Local AI down: lab items are absent and "Local AI isn't answering" shows (with `pc_printing` urgent if a print is
+  running). This is expected: lab needs come from the Mac via the PC.
 
 ## Rendering (N3)
 
-- Pi Hub: Home's Needs you, the iPad wall and desk layouts render with `renderNeed`; the old per-page markup goes.
-- Local AI: Home's Needs you (which already lists Pi Hub's items) and Print lab's own needs card render with
-  `renderNeed` (lite build).
-- Both apps load `ui/components.css` for `.ui-need` (Local AI's first use of a kit component).
+- Pi Hub: Home's Needs you, the iPad wall and desk layouts render with `ApplianceNeeds`.
+- Local AI: Home's Needs you renders with `ApplianceNeeds`. It loads `ui/tokens.css` and `ui/components.css` **before**
+  `/app.css`, so Local AI's own `:root` settings still win; a browser check confirms no visual change outside Needs you.
+- Print lab's own needs card keeps its multi-action layout (not in scope).
 
 ## Errors
 
-- A source that doesn't answer shows one "<name> isn't answering" item; its last items are not kept.
-- An item whose link fails validation renders without an action, never as a broken link.
-- Push failures are logged and retried by the next occurrence only; never a loop.
+- A silent source shows one "<name> isn't answering" item; its last items are not kept.
+- An item whose link fails the renderer's check shows without an action.
+- A failed push is logged; the next occurrence tries again; never a retry loop.
+- Lab items older than 24 h show "as of <date>" so an unsynced Mac is visible.
 
 ## Testing
 
-- Kit: `renderNeed` markup per tone; "↗" only for another origin; escaping (`<script>` in title); link allow-list;
-  empty state; contrast gate covers `.ui-need` light and dark; schema validates sample items from both apps.
-- Pi Hub: Obico classes → items and urgency; HMS severities; PC-off-while-printing after 2 minutes only; one push per
-  occurrence across restarts; several reports of one failure → one push; quiet hours bypass for urgent only; ntfy
-  `Click` header; Bambuddy silent → one item, no push.
-- Local AI: lab needs → feed cards in the item shape; `&do=judge` opens the verdict form (browser test); an old
-  feed card without `action` still renders.
-- Cross-app: the same sample item renders identical markup in both apps (shared fixture).
+- Kit: render per tone; "↗" only for another origin; escaping; link check (same-origin, `#`, resolver origin; others
+  dropped); empty state; contrast pairs; schema validates sample items from both apps; build emits the new files.
+- Pi Hub: Obico classes; HMS per code and severity; `pc_printing` after 2 min only, while printing or paused;
+  printer `failed` urgent; one push per occurrence across restarts; one push for printer `failed` + Obico `failure`
+  within 2 min; rule pushes skipped while an occurrence is open; `click` and priority high; lab items passed through
+  once; `judge-*` feed card dropped; `resolveLink` keeps `/#printLab?...`.
+- Local AI: `/api/needs` from two projects; judge not before due; Run the check/build excluded; `p=`/`do=judge`
+  opens the verdict sheet (browser); Home shows lab items once; kit CSS loaded before `app.css` with no visual change
+  elsewhere (browser).
 
-## Rollout (one plan, four parts, each usable alone)
+## Rollout: three plans, in this order
 
-1. Kit 1.3.0: schema, component, render helper, phrases; synced into both apps (no visible change yet).
-2. Pi Hub: Obico, HMS and PC-off records with push. Useful alone; depends on the external camera for Obico.
-3. Local AI: lab needs as feed cards and `&do=judge`. Pi Hub shows them through the existing feed.
-4. Both apps render Needs you with the kit component.
+- **Plan A, Pi Hub urgent push:** the `obico`, `hms` and `pc_printing` records; printer `failed` urgent; `events.push`
+  `click`/priority; the occurrence table; rule-push suppression. Independent and highest value. Obico items wait on
+  the external camera.
+- **Plan B, kit 1.3.0 and rendering:** schema, renderer, phrases, contrast pairs, build; sync into Pi Hub and Local
+  AI; both Homes (and Pi Hub's wall and desk) render with it.
+- **Plan C, Local AI lab needs:** `/api/needs`, `p=`/`do=judge`, Pi Hub reading `/api/needs` and dropping `judge-*`,
+  Local AI's Home de-duplication and link routing.
