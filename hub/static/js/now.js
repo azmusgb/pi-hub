@@ -307,12 +307,8 @@ function renderWallNeeds(state, needs) {
     h("div", { class: "wall-needs-head" },
       h("h2", { id: "wall-needs-title" }, "Needs you"),
       h("span", { class: "wall-needs-status" }, m.status)),
-    m.clear ? h("p", { class: "wall-clear" }, h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
-      "Nothing needs you right now.") : null,
-    m.items.length ? h("ul", { class: "wall-needs-list" }, m.items.map((i) =>
-      h("li", { dataset: { tone: i.tone } }, h("a", { class: "wall-need", ...go(i.link) },
-        h("strong", {}, i.title), i.detail ? h("span", { class: "meta" }, i.detail) : null)))) : null,
-    m.more ? h("a", { class: "wall-needs-more", href: "/", "data-link": true }, `${m.more} more on Home`) : null,
+    // Full list in, the kit trims it to 5 and adds the "more" link; "Checking…" and "Couldn't check" show no list at all.
+    m.clear || m.items.length ? needsList(needs.items, { max: 5, dense: true, more: m.more && needs.items.length > 5 ? { href: "/", label: `${m.more} more on Home` } : null }) : null,
     m.note ? h("p", { class: "meta" }, m.note) : null].filter(Boolean));
 }
 
@@ -331,6 +327,11 @@ function renderWallExtra(state, out) {
       h("ul", {}, events.map((e) => h("li", {},
         h("span", { class: "wall-when" }, e.all_day ? "All day" : clockTime(e.start)), h("span", {}, e.title))))) : null,
   ].filter(Boolean));
+  // On a short screen this column can scroll, so a keyboard needs to reach it; an empty one is no stop.
+  const any = state.wallExtra.childElementCount > 0;
+  state.wallExtra.toggleAttribute("tabindex", any);
+  if (any) { state.wallExtra.tabIndex = 0; state.wallExtra.setAttribute("role", "region"); state.wallExtra.setAttribute("aria-label", "Next hours and coming up"); }
+  else { state.wallExtra.removeAttribute("role"); state.wallExtra.removeAttribute("aria-label"); }
 }
 
 function outsideLine(o) {
@@ -350,6 +351,14 @@ function outsideLine(o) {
 const outward = (href) => /^https?:/.test(href);
 const go = (link) => { const href = resolveLink(link); return outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true }; };
 
+// The kit draws every Needs you list (Home card, wall and desk tile). It hands back absolute same-origin hrefs; the
+// SPA router takes those (main.js reads a[data-link] and compares origins), so mark the internal ones for it.
+function needsList(items, { max, more = null, dense = false }) {
+  const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub", max, more, dense });
+  for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
+  return list;
+}
+
 // A printer action on a card (Clear the plate): the same flow as the Workshop page's buttons.
 function cardButton(action, onDone) {
   const b = h("button", { type: "button", class: "btn home-card-action", disabled: printerBusy() }, action.label || PRINTER_ACTIONS[action.do]?.label);
@@ -364,8 +373,7 @@ function homeCard(c, cam, onDone) {
       h("h2", { id: `card-${c.key}`, class: "home-card-title" }, c.title),
       h("span", { class: "dot", dataset: { tone: c.tone }, "aria-hidden": "true" })),
     h("p", { class: "home-card-status" }, c.status),
-    c.items ? h("ul", { class: "home-card-items" }, c.items.slice(0, 4).map((i) =>
-      h("li", { dataset: { tone: i.tone } }, h("a", go(i.link), h("strong", {}, i.title), i.detail ? h("span", { class: "meta" }, i.detail) : null)))) : null,
+    c.items?.length ? needsList(c.items, { max: 4 }) : null,
     c.note ? h("p", { class: "meta" }, c.note) : null,
     showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
     c.action?.do ? cardButton(c.action, onDone)
