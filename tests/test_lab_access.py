@@ -182,3 +182,10 @@ def test_a_hub_gate_cookie_gives_no_lab_access(client):
     for method, path in PHONE_ROUTES[:3] + MAC_ROUTES[:3]:
         r = call(client, method, path, headers=SAME)
         assert r.status_code == 401, (method, path, r.status_code)
+
+
+def test_the_mac_can_list_photos_with_its_key(client):
+    # print-lab asks which photos the hub has before every push; that is the Mac's read too.
+    assert client.get("/api/lab/hex-tile/photos", headers={"X-Hub-Mac-Key": KEY}).json() == {"have": []}
+    for h in ({}, {"X-Hub-Mac-Key": "wrong"}, {"X-Hub-Mac-Key": LOCALAI_KEY}, {"X-LocalAI-Mac-Key": KEY}):
+        assert client.get("/api/lab/hex-tile/photos", headers={**SAME, **h}).status_code == 401, h

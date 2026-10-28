@@ -289,7 +289,9 @@ async def sync_project(project: str, request: Request):
 
 @router.get("/{project}/photos")
 def list_photos(project: str, request: Request):
-    need(request, "household")
+    # People see which photos are here; the Mac, with its key, asks the same before every push.
+    if not mac_key_ok(request):
+        need(request, "household")
     check_project(project)
     pdir = photo_dir(project)
     if not pdir.exists():
