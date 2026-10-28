@@ -30,6 +30,13 @@ home.home.arpa {
 		header Content-Type application/x-x509-ca-cert
 		file_server
 	}
+	# Lab uploads are at most 8 MiB; Caddy refuses a bigger body before it reaches the hub.
+	handle /api/lab/* {
+		request_body {
+			max_size 9MB
+		}
+		reverse_proxy 127.0.0.1:8100
+	}
 	handle {
 		reverse_proxy 127.0.0.1:8100
 	}
@@ -145,6 +152,13 @@ http:// {
 		rewrite * /root.crt
 		header Content-Type application/x-x509-ca-cert
 		file_server
+	}
+	# Same 8 MiB lab cap on the old addresses.
+	handle /api/lab/* {
+		request_body {
+			max_size 9MB
+		}
+		reverse_proxy 127.0.0.1:8100
 	}
 	handle {
 		reverse_proxy 127.0.0.1:8100

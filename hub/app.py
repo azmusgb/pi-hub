@@ -14,12 +14,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
+app.include_router(lab.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
@@ -46,7 +47,15 @@ async def guard(request: Request, call_next):
     # Server-to-server webhooks (/api/webhook/) are machine endpoints.
     shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
     webhook = request.url.path.startswith("/api/webhook/")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook:
+    unsafe = request.method not in ("GET", "HEAD", "OPTIONS")
+    # The Mac's lab calls are exempt only when they carry the hub's lab key and that key verifies, never for the path alone.
+    # A key that is sent but wrong is refused as such; with no key header the normal same-origin check applies.
+    mac = False
+    if unsafe and request.url.path.startswith("/api/lab/") and "x-hub-mac-key" in request.headers:
+        if not lab_guard.mac_key_ok(request):
+            return JSONResponse({"detail": "The Mac's lab key is missing or wrong."}, status_code=401)
+        mac = True
+    if unsafe and not shortcut and not webhook and not mac:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -559,18 +568,8 @@ def api_alerts():
 
 # ---- Sign-in ----
 
-def who(request: Request):
-    s = auth.session(request.cookies.get(auth.COOKIE))
-    return (s["role"], s["device"]) if s else ("none", "")
-
-
-def need(request: Request, role):
-    have, device = who(request)
-    if not auth.allowed(have, role):
-        if have == "kid":
-            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
-        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
-    return have, device
+# who and need live in auth so routers (the print lab) can use them without importing the app.
+who, need = auth.who, auth.need
 
 
 def _device(request: Request):

@@ -8,6 +8,8 @@ import secrets
 import threading
 import time
 
+from fastapi import HTTPException, Request
+
 from . import db
 
 COOKIE = "hub_session"
@@ -269,6 +271,20 @@ def sign_out(token):
 
 def allowed(role, need):
     return RANK.get(role or "none", 0) >= RANK[need]
+
+
+def who(request: Request):
+    s = session(request.cookies.get(COOKIE))
+    return (s["role"], s["device"]) if s else ("none", "")
+
+
+def need(request: Request, role):
+    have, device = who(request)
+    if not allowed(have, role):
+        if have == "kid":
+            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
+        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
+    return have, device
 
 
 def log(role, device, action, result):
