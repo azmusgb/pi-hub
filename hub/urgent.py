@@ -3,7 +3,7 @@
 An occurrence opens when a cause's record first shows the problem and stays open while it does. It is
 cleared when every fresh record says otherwise; a problem back within 600 s of a clear is the same
 occurrence. The push_occurrences table, not memory, decides, so a restart doesn't push again."""
-import time
+import os
 
 from . import db, events
 
@@ -11,14 +11,21 @@ CAUSES = {"print": [("printer", "failed"), ("obico", "failure")], "hms": [("hms"
           "pc": [("pc_printing", "off_while_printing")]}
 CLICK = {"print": "https://home.home.arpa/workshop",
          "hms": "https://home.home.arpa/workshop", "pc": "https://home.home.arpa/"}
+TITLE = {"print": "Printer needs you", "hms": "Printer needs you", "pc": "The PC needs you"}
 REOPEN_AFTER = 600  # seconds clear before the same cause is a new occurrence
 
 SCHEMA = ("CREATE TABLE IF NOT EXISTS push_occurrences "
           "(cause TEXT PRIMARY KEY, first_seen INTEGER, pushed_at INTEGER, cleared_at INTEGER)")
 
 
+_ready = set()  # the DB paths this process has created the table in
+
+
 def ready():
-    db.run(SCHEMA)
+    path = os.environ.get("HUB_DB", "")
+    if path not in _ready:
+        db.run(SCHEMA)
+        _ready.add(path)
 
 
 def _look(recs, pairs):
@@ -51,9 +58,10 @@ def check(recs, now, send=None):
             if row and row["pushed_at"] is not None and not cleared:
                 db.run("UPDATE push_occurrences SET cleared_at = NULL WHERE cause = ?", cause)
                 continue
-            ok = send(hit.get("headline") or cause, hit.get("cause") or "", tags="rotating_light",
+            ok = send(hit.get("headline") or TITLE[cause], hit.get("cause") or "", tags="rotating_light",
                       priority="high", urgent=True, click=CLICK[cause]) == "Sent."
-            first = row["first_seen"] if row and row["pushed_at"] is None and row["first_seen"] else now
+            pending = row and row["pushed_at"] is None and row["cleared_at"] is None and row["first_seen"]
+            first = row["first_seen"] if pending else now
             db.run("INSERT INTO push_occurrences (cause, first_seen, pushed_at, cleared_at) VALUES (?, ?, ?, NULL) "
                    "ON CONFLICT(cause) DO UPDATE SET first_seen = excluded.first_seen, "
                    "pushed_at = excluded.pushed_at, cleared_at = NULL",

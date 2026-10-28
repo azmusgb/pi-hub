@@ -132,21 +132,39 @@ def _rule(kind, action="notify", target=None):
     return {"id": 1, "trigger": kind, "action": action, "target": target, "enabled": 1}
 
 
+SENT_BY_HUB = {"status": "skipped", "message": "Sent as an urgent alert by the hub."}
+
+
 def test_print_failed_rule_skips_its_push_after_urgent(monkeypatch):
     sent = []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
     urgent.check(FAILED, T, send=Send())
-    monkeypatch.setattr(urgent.time, "time", lambda: T + 30)
-    assert events.execute(_rule("print_failed"), "print_failed", "at 40%") == {
-        "status": "skipped", "message": "Already sent as an urgent alert."}
+    monkeypatch.setattr(events.time, "time", lambda: T + 30)
+    assert events.execute(_rule("print_failed"), "print_failed", "at 40%") == SENT_BY_HUB
     assert sent == []
 
 
-def test_print_failed_rule_still_pushes_without_an_urgent_alert(monkeypatch):
+def test_print_failed_rule_never_pushes_even_without_an_urgent_alert(monkeypatch):
     sent = []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
-    assert events.execute(_rule("print_failed"), "print_failed", "at 40%")["status"] == "succeeded"
+    assert events.execute(_rule("print_failed"), "print_failed", "at 40%") == SENT_BY_HUB
+    assert sent == []
+
+
+def test_pc_down_rule_still_pushes_without_an_urgent_alert(monkeypatch):
+    sent = []
+    monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
+    assert events.execute(_rule("pc_down"), "pc_down")["status"] == "succeeded"
     assert len(sent) == 1
+
+
+def test_print_failed_rule_still_runs_non_notify_actions(monkeypatch):
+    from hub import homecontrol
+    set_to = []
+    monkeypatch.setattr(homecontrol, "accessories", lambda: [{"id": "lamp", "name": "Lamp", "control": "On"}])
+    monkeypatch.setattr(homecontrol, "set_value", lambda id, c, v: set_to.append((id, v)))
+    assert events.execute(_rule("print_failed", "turn_on", "lamp"), "print_failed")["status"] == "succeeded"
+    assert set_to == [("lamp", True)]
 
 
 def test_quiet_hours_do_not_hold_urgent(monkeypatch, tmp_path):
@@ -165,16 +183,16 @@ def test_quiet_hours_do_not_hold_urgent(monkeypatch, tmp_path):
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: out.append(req) or Resp())
     assert urgent.check(FAILED, T) == ["print"]  # the real events.push
     assert len(out) == 1 and out[0].get_header("Priority") == "high"
-    monkeypatch.setattr(urgent.time, "time", lambda: T + 30)
-    assert events.execute(_rule("print_failed"), "print_failed", "at 40%") == {
-        "status": "skipped", "message": "Already sent as an urgent alert."}
+    monkeypatch.setattr(events.time, "time", lambda: T + 30)
+    assert events.execute(_rule("print_failed"), "print_failed", "at 40%") == SENT_BY_HUB
+    assert events.execute(_rule("pc_down"), "pc_down")["message"] == "Phone alert held back for quiet hours."
     assert len(out) == 1
 
 
 def test_pc_down_rule_still_runs_non_notify_actions(monkeypatch):
     from hub import homecontrol
     urgent.check({"pc_printing": rec("off_while_printing")}, T, send=Send())
-    monkeypatch.setattr(urgent.time, "time", lambda: T + 30)
+    monkeypatch.setattr(events.time, "time", lambda: T + 30)
     sent, set_to = [], []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append(a) or "Sent.")
     monkeypatch.setattr(homecontrol, "accessories", lambda: [{"id": "lamp", "name": "Lamp", "control": "On"}])
@@ -188,7 +206,7 @@ def test_a_failure_seen_by_the_loop_is_one_phone_alert(monkeypatch):
     """Through the loop's own pass: the record turns failed and the print_failed rule fires in the same pass."""
     sent = []
     monkeypatch.setattr(events, "push", lambda *a, **k: sent.append((a, k)) or "Sent.")
-    monkeypatch.setattr(urgent.time, "time", lambda: T + 60)
+    monkeypatch.setattr(events.time, "time", lambda: T + 60)
     events.loop_pass(True, T, PRINTING)
     events.loop_pass(False, T + 30, PRINTING)
     events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 40, awaiting=True)))
@@ -196,3 +214,64 @@ def test_a_failure_seen_by_the_loop_is_one_phone_alert(monkeypatch):
     assert records.get("printer")["state"] == "failed"
     assert [e["kind"] for e in events.recent(10)] == ["print_failed"]
     assert len(sent) == 1 and sent[0][1].get("urgent") is True
+
+
+def test_webhook_failure_then_loop_is_one_phone_alert(monkeypatch):
+    """Bambuddy's webhook fires print_failed before any records pass; the next pass sends the one push."""
+    sent = []
+    monkeypatch.setattr(events, "push", lambda *a, **k: sent.append((a, k)) or "Sent.")
+    monkeypatch.setattr(events.time, "time", lambda: T + 45)
+    events.loop_pass(True, T, PRINTING)
+    events.loop_pass(False, T + 30, PRINTING)
+    events.fire("print_failed", detail="Print failed", dedupe=events.PRINT_DEDUPE)  # as hub/app.py does
+    assert sent == []
+    events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 40, awaiting=True)))
+    events.loop_pass(False, T + 90, inputs(bambuddy=bud("FAILED", 40, awaiting=True)))
+    assert len(sent) == 1
+    assert sent[0][1] == {"tags": "rotating_light", "priority": "high", "urgent": True,
+                          "click": "https://home.home.arpa/workshop"}
+
+
+@pytest.mark.xfail(strict=True, reason="things/printer.py _state reads FAILED without awaiting_plate_clear as idle "
+                   "(test_things_printer.py:90), so this cancel gets no urgent push and its rule push is skipped")
+def test_a_cancel_while_printing_is_one_urgent_push(monkeypatch):
+    """A Bambu cancel reports FAILED; without awaiting_plate_clear it should still be one urgent push."""
+    sent = []
+    monkeypatch.setattr(events, "push", lambda *a, **k: sent.append((a, k)) or "Sent.")
+    monkeypatch.setattr(events.time, "time", lambda: T + 60)
+    events.loop_pass(True, T, PRINTING)
+    events.loop_pass(False, T + 30, inputs(bambuddy=bud("RUNNING", 30)))
+    events.loop_pass(False, T + 60, inputs(bambuddy=bud("FAILED", 30)))
+    assert records.get("printer")["state"] == "failed"
+    assert len(sent) == 1 and sent[0][1]["urgent"] is True
+
+
+def test_restart_with_every_record_stale_and_fine_changes_nothing():
+    send = Send()
+    events.loop_pass(True, T, PRINTING)  # the hub before the restart: records stored, all fine
+    urgent.check(FAILED, T + 30, send=send)  # an open occurrence from before the restart
+    send.calls.clear()
+    records._reset_memory()
+    records.load()  # every remembered record comes back stale
+    recs = records.all()
+    assert recs and all(r.get("stale") for r in recs.values())
+    assert urgent.check(recs, T + 600, send=send) == []
+    assert send.calls == []
+    assert db.one("SELECT cleared_at FROM push_occurrences WHERE cause = 'print'")["cleared_at"] is None
+
+
+def test_fallback_titles():
+    send = Send()
+    urgent.check({"printer": {"state": "failed"}, "hms": {"state": "stopped"},
+                  "pc_printing": {"state": "off_while_printing"}}, T, send=send)
+    assert sorted(c[0][0] for c in send.calls) == ["Printer needs you", "Printer needs you", "The PC needs you"]
+
+
+def test_first_seen_is_kept_only_while_the_failing_push_stays_open():
+    send = Send("The phone message didn't go out.")
+    urgent.check(FAILED, T, send=send)
+    urgent.check(FAILED, T + 30, send=send)
+    assert db.one("SELECT first_seen FROM push_occurrences")["first_seen"] == T
+    urgent.check(FINE, T + 60, send=send)
+    urgent.check(FAILED, T + 2000, send=send)  # a new occurrence after a clear
+    assert db.one("SELECT first_seen FROM push_occurrences")["first_seen"] == T + 2000

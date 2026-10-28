@@ -234,9 +234,11 @@ URGENT_CAUSE = {"print_failed": "print", "pc_down": "pc"}
 
 def execute(rule, kind, detail=""):
     from . import actions, homecontrol, urgent
-    if (rule.get("enabled", 1) and rule["action"] == "notify" and kind in URGENT_CAUSE
-            and urgent.recently_pushed(URGENT_CAUSE[kind], time.time())):
-        return {"status": "skipped", "message": "Already sent as an urgent alert."}
+    if rule.get("enabled", 1) and rule["action"] == "notify":
+        if kind == "print_failed":  # urgent.check is the one sender for a print failure (a cancel too)
+            return {"status": "skipped", "message": "Sent as an urgent alert by the hub."}
+        if kind in URGENT_CAUSE and urgent.recently_pushed(URGENT_CAUSE[kind], time.time()):
+            return {"status": "skipped", "message": "Already sent as an urgent alert."}
     decision = policy(rule, kind)
     if decision["status"] != "would_run":
         return decision
