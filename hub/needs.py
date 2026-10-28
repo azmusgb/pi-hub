@@ -10,6 +10,7 @@ from .now import issue_items
 
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
+NOT_X2D = re.compile(r"\b(document|brother|toner|paper|deskjet|laserjet|inkjet)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
@@ -75,10 +76,14 @@ def _whats_using_it(item):
     item["link"] = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's using the space?", safe="")
 
 
+def _matches(about, text):
+    return about(text) if callable(about) else bool(about.search(text))
+
+
 def _one_row(items, about, ours):
     """One row for a thing several sources name: the hub's own record (`ours`) if it has one, else the most urgent.
     The hub's other records are never folded in (the printer camera and the document printer also say "printer")."""
-    named = [i for i in items if ours(i) or (i["source"] != HUB and about.search(f'{i["title"]} {i["detail"]}'))]
+    named = [i for i in items if ours(i) or (i["source"] != HUB and _matches(about, f'{i["title"]} {i["detail"]}'))]
     if len(named) <= 1:
         return items
     keep = next((i for i in named if ours(i)), named[0])
@@ -133,9 +138,9 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
         if n > 1:
             i["id"] = f'{i["id"]}#{n}'
     items.sort(key=lambda i: (ORDER[i["tone"]], -i["ts"]))
-    # One row for the printer: the printer record first, else the most urgent of the others that name it
-    # (Local AI's "Heads up" says the same thing).
-    items = _one_row(items, ABOUT_PRINTER, lambda i: i.get("thing") == "printer")
+    # One row for the X2D: the printer record first, else the most urgent of the others that name the X2D or Bambu
+    # (or echo "the printer"). Generic "printer" items (e.g. document printers) stay separate.
+    items = _one_row(items, lambda t: bool(ABOUT_PRINTER.search(t) and not NOT_X2D.search(t)), lambda i: i.get("thing") == "printer")
     # Local AI and the hub can both report the Workshop touchscreen outage; the hub's record is the direct source.
     items = _one_row(items, ABOUT_WORKSHOP_DISPLAY, lambda i: i.get("thing") == "workshop_display")
     for i in items:

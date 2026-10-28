@@ -337,3 +337,14 @@ def test_a_local_ai_item_about_another_printer_is_not_about_the_x2d():  # review
     assert _about(needs.build([], card("watch-toner", "Brother printer", "Toner low"), NOW, [])["items"]) == set()
     assert _about(needs.build([], card("watch-bambu", "Heads up", "Bambu printer offline"), NOW, [])["items"]) == \
         {"localai:watch-bambu"}
+
+
+def test_another_printer_item_does_not_fold_with_x2d():
+    feed = {"cards": [
+        {"kind": "watch", "id": "watch-doc", "title": "Document printer", "text": "Paper jam", "tone": "bad"},
+        {"kind": "watch", "id": "watch-bambu", "title": "Bambu printer", "text": "Filament low", "tone": "warning"},
+    ]}
+    res = needs.build([], feed, NOW, [])["items"]
+    ids = {i["id"] for i in res}
+    assert "localai:watch-doc" in ids
+    assert "localai:watch-bambu" in ids
