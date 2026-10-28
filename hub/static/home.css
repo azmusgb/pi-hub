@@ -97,17 +97,12 @@ body.wall.night { filter: brightness(0.55); }
 .wall-needs[data-tone="bad"] .wall-needs-status { color: var(--danger); }
 .wall-needs[data-tone="attention"] .wall-needs-status, .wall-needs[data-tone="warn"] .wall-needs-status { color: var(--warn); }
 .wall-needs[data-tone="ok"] .wall-needs-status { color: var(--ok); }
-.wall-clear { margin: 0; display: flex; align-items: center; gap: .6em; font-size: 1.15em; color: var(--text-2); }
-.wall-clear .dot { width: .6em; height: .6em; border-radius: 999px; background: var(--ok); flex: none; }
-.wall-needs-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .4em; }
-.wall-need { display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: .3em .7em;
-  border-left: 4px solid var(--warn); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); text-decoration: none; }
-.wall-needs-list li[data-tone="bad"] .wall-need { border-left-color: var(--danger); }
-.wall-need strong { font-weight: 700; overflow-wrap: anywhere; }
-.wall-need { min-width: 0; overflow: hidden; }
-.wall-needs-list .meta { color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.wall-need:focus-visible, .wall-needs-more:focus-visible { outline: none; box-shadow: var(--ring); }
-.wall-needs-more { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-strong); font-weight: 600; white-space: nowrap; }
+/* On the wall the kit's items are tightened so five of them leave room for the tiles under Needs you. */
+.wall-needs .ui-needs { gap: .4em; }
+.wall-needs .ui-need__link { padding: .3em .7em; gap: 0; }
+.wall-needs .ui-need__detail, .wall-needs .ui-need__meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wall-needs .ui-needs__more a { min-height: 44px; }
+.ui-need__link:focus-visible, .ui-needs__more a:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* The house: the workshop light, the network and any other favourites. */
 .wall-house { display: grid; gap: var(--wall-gap); grid-template-columns: repeat(auto-fit, minmax(min(100%, 21em), 1fr)); align-content: start; align-items: start; }
@@ -312,8 +307,8 @@ body.wall.night { filter: brightness(0.55); }
   }
   .wall-board[data-printing="1"] { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
   .wall-board > * { min-height: 0; }
-  .wall-needs, .wall-house, .wall-extra { overflow: auto; }
-  .wall-needs-list .meta { display: block; white-space: nowrap; text-overflow: ellipsis; }
+  .wall-needs, .wall-house { overflow: auto; }
+  .wall-extra { overflow: hidden; }  /* spare-room filler: when Needs you takes the height it is clipped, never a scroll box */
   .wall-tools { align-self: end; }
   /* The camera takes the printer tile's spare height and shows the whole picture. */
   .kiosk-cam-container { flex: 1 1 0; min-height: 7em; aspect-ratio: auto; }
@@ -1002,9 +997,7 @@ body:not(.wall) .page-now { display: block; }
 .home-card .dot[data-tone="ok"] { background: var(--ok); }
 .home-card .dot[data-tone="warn"], .home-card .dot[data-tone="attention"] { background: var(--warn); }
 .home-card .dot[data-tone="bad"] { background: var(--danger); }
-.home-card-items { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
-.home-card-items a { display: grid; gap: .1rem; padding: .5rem .65rem; border-radius: var(--r-sm); background: var(--surface); color: var(--text); text-decoration: none; min-height: 44px; }
-.home-card-items a:focus-visible, .home-card-action:focus-visible, .home-card-link:focus-visible { outline: none; box-shadow: var(--ring); }
+.home-card-action:focus-visible, .home-card-link:focus-visible { outline: none; box-shadow: var(--ring); }
 .home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-md); }
 .home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; }
 .home-card-link { align-self: flex-start; padding-block: .35rem; }
