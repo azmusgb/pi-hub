@@ -32,13 +32,12 @@ function needsCard(needs) {
   };
 }
 
-// Home's summary line, counted from Needs you once it has answered, so the line and the list never disagree (on 27 Oct
-// the line counted only house problems: "2 things need a look" over a list of 3). `fallback` is the hub's own line.
+// Home's summary line. Needs you's count is said once on the card and once on the nav badge, so the line never repeats it
+// (IMG_1047, 28 Oct: "2" three times). With something listed it has nothing to add: "" and the page hides the line. With
+// nothing listed, or no answer, `fallback` (the hub's own line, "Everything's running") stands.
 export function needsSummary(needs, fallback) {
-  const items = needs?.items || [], n = Number.isInteger(needs?.count) ? needs.count : items.length;
-  if (!needs || !n) return fallback;
-  if (n === 1 && items[0]) return items[0].title === "Worth a look" ? "1 small thing to check" : `${items[0].title} needs a look`;
-  return items.some((i) => i.tone === "bad") ? `${n} things need a look` : `${n} small things to check`;
+  const n = Number.isInteger(needs?.count) ? needs.count : (needs?.items || []).length;
+  return needs && n ? "" : fallback;
 }
 
 // The hub's /lab page for the experiment printing now (the hub reads it from Local AI's lab list), or null.

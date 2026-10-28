@@ -129,15 +129,16 @@ test('while a lab experiment prints, the printer card links the hub\'s /lab page
   assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }), { label: 'Print lab: E-7', href: '/lab?e=E-7' });
 });
 
-test("Home's summary line counts what Needs you lists, so the two never disagree (iPad, 27 Oct)", () => {
+test("Home's summary line never repeats the Needs you count: the badge and the card say it (IMG_1047, 28 Oct)", () => {
   const item = (title, tone) => ({ title, tone, detail: '' });
-  // the 27 Oct screenshot: the summary said 2 while Needs you listed 3
-  assert.equal(needsSummary({ count: 3, items: [item('Bambu X2D', 'bad'), item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, '2 things need a look'), '3 things need a look');
-  assert.equal(needsSummary({ count: 2, items: [item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, 'Ad blocking needs a look'), '2 small things to check');
-  assert.equal(needsSummary({ count: 1, items: [item('Ad blocking', 'warn')] }, 'x'), 'Ad blocking needs a look');
-  assert.equal(needsSummary({ count: 1, items: [item('Worth a look', 'warn')] }, 'x'), '1 small thing to check');
+  // the 28 Oct photo: "2" on the badge, "2 small things to check" over the card, "2 things" on the card
+  assert.equal(needsSummary({ count: 2, items: [item('Failure detection', 'warn'), item('Worth a look', 'warn')] }, '1 small thing to check'), '');
+  assert.equal(needsSummary({ count: 3, items: [item('Bambu X2D', 'bad'), item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, '2 things need a look'), '');
+  assert.equal(needsSummary({ count: 1, items: [item('Ad blocking', 'warn')] }, 'Ad blocking needs a look'), '');
+  // nothing on the card: the hub's own line still says so
   assert.equal(needsSummary({ count: 0, items: [] }, "Everything's running"), "Everything's running");
   assert.equal(needsSummary(null, 'Home status is unavailable'), 'Home status is unavailable');  // Needs you didn't answer
+  assert.equal(needsSummary(undefined, "Everything's running"), "Everything's running");
 });
 
 test("the printer card's dot follows Needs you: amber for a printer item, red for a bad one (IMG_1047, 28 Oct)", () => {

@@ -471,8 +471,14 @@ export async function load(state) {
 
   if (isWallMode()) return loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
 
-  state.summary.hidden = false;
-  if (state.hero) state.hero.hidden = false;
+  // The line holds the hub's own words until Needs you answers; while the hub counts problems, it waits for Needs you
+  // (the card and the badge carry the count), so no count flashes up and goes.
+  const line = (text) => {
+    state.summary.textContent = text;
+    state.summary.hidden = !text;
+    if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
+  };
+  line(state.extra ? needsSummary(state.extra.needs, d.summary) : d.issues.length ? "" : d.summary);  // a refresh: the last answer
   // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
   // the page never waits on them.
   const draw = (extra) => state.cards.replaceChildren(
@@ -484,7 +490,7 @@ export async function load(state) {
     settle(api("/api/movies/latest"), 4000, null),
   ]).then(([needs, backups, latest]) => {
     if (needs) setNeeds(needs);
-    if (needs && state.summary.isConnected) state.summary.textContent = needsSummary(needs, d.summary);
+    if (state.summary.isConnected) line(needsSummary(needs, d.summary));
     state.extra = { needs, backups, latest };
     if (state.cards.isConnected) draw(state.extra);
   });
@@ -493,7 +499,8 @@ export async function load(state) {
 export function failed(state) {
   state.summary.textContent = "Can't reach the Pi Hub right now. It will keep trying.";
   state.summary.dataset.tone = "bad";
-  if (state.wallBoard) state.summary.hidden = false;
+  state.summary.hidden = false;  // Home may have hidden an empty line
+  if (state.hero) state.hero.hidden = false;
 }
 
 // The wall: Needs you is fetched with the rest (it decides the first tile), then each tile is drawn in place.
