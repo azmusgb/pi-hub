@@ -43,7 +43,8 @@ const HOME = { connected: true, favourites: ['light-1'], accessories: [
   { id: 'lamp-1', name: 'Govee Lamp', kind: 'light', room: 'Bedroom', on: false },
   { id: 'light-1', name: 'Workshop Light', kind: 'light', room: 'Workshop', on: true, brightness: 100 }] };
 const NEEDS = { count: 0, unread: [], items: [
-  { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at the first layer.', link: 'tool:bambuddy' },
+  // A long detail (the print lab's judging steps, 28 Oct) must cut off, not widen the page.
+  { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at: fronts under one low side light, ruler on the face: count the ridges and note their heights from the bed; then twist each pair apart by hand. Photos help.', link: 'tool:bambuddy' },
   ...[1, 2, 3].map((n) => ({ source: 'Printer', tone: 'warn', title: `Extra thing ${n}`, detail: 'Filler to pass the five-item cap.', link: '/workshop' })),
   { source: 'Printer', tone: 'attention', title: 'Clear the plate', detail: 'Finished hex-tile E-021 · 1 h 4 min', link: '/workshop' },
   { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' },

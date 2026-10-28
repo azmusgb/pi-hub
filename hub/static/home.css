@@ -95,6 +95,9 @@ body.wall.night { filter: brightness(0.55); }
 
 /* Needs you: first, its top items in order, each a link; "All clear" when nothing needs you. */
 .wall-needs { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5em; align-content: start; }
+/* The kit's list is a grid with an auto column; held to the tile's width, a long detail cuts off with "…" instead
+   of widening the page (the print lab's judging steps, 28 Oct). */
+.wall-needs .ui-needs { grid-template-columns: minmax(0, 1fr); }
 .wall-needs-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75em; }
 .wall-needs-status { font-weight: 700; white-space: nowrap; color: var(--text); }
 .wall-needs[data-tone="bad"] { border-color: var(--danger); }
