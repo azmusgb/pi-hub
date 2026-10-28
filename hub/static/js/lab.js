@@ -2,7 +2,8 @@
 // colours and the prints outside the lab that lab sync adds), rendered as Local AI's Print lab renders it
 // (app/public/print-lab.js and print-lab-evidence.js). Every value from the Mac is escaped; a colour is used only if it
 // is #rrggbb and a photo URL only from a 64-hex sha256. The renderers are exported so node can test them.
-import { api, card, empty, h, toast } from "./core.js";
+import { card, empty, h, toast } from "./core.js";
+import { labFetch, watchRequests } from "./lab-net.js";
 import { toolUrl } from "./sections.js";
 
 export const every = 15;
@@ -108,13 +109,35 @@ async function prepareJpeg(file) {
   return { blob, sha };
 }
 
-function renderRequestsList(items) {
+const STALE_MS = 120000;
+export function requestsHtml(items, now = Date.now()) {
   if (!items || !items.length) return "";
   return items.slice(0, 5).map((r) => {
     const tone = r.status === "applied" ? "ok" : r.status === "refused" ? "danger" : "warn";
     const title = r.kind ? r.kind[0].toUpperCase() + r.kind.slice(1) : "Request";
-    return `<div class="lab-request"><span class="badge badge--${tone}">${esc(title)} · ${esc(r.status)}</span>${r.message ? ` <span class="meta">${esc(r.message)}</span>` : ""}</div>`;
+    const age = r.at ? now - Date.parse(r.at) : 0;
+    const note = r.message || (r.status === "pending" && age > STALE_MS ? "The Mac hasn't picked this up yet" : "");
+    return `<div class="lab-request"><span class="badge badge--${tone}">${esc(title)} · ${esc(r.status)}</span>${note ? ` <span class="meta">${esc(note)}</span>` : ""}</div>`;
   }).join("");
+}
+const renderRequestsList = requestsHtml;
+
+// Local AI's verdict form: every criterion has a "–" (not judged) chip, sent as null; the light is never assumed.
+export const NOT_JUDGED = "–";
+export const verdictChoices = (c) => [...list(c && c.choices), NOT_JUDGED];
+export function verdictPayload(draft, isReplace = false) {
+  const d = draft || {};
+  const grades = {};
+  for (const [tab, crits] of Object.entries(d.grades || {})) {
+    grades[tab] = Object.fromEntries(Object.entries(crits || {}).map(([k, v]) => [k, v === NOT_JUDGED ? null : v]));
+  }
+  return {
+    grades,
+    lighting: d.lighting || null,
+    note: d.note || null,
+    inconclusive: d.inconclusive ? (d.inconclusiveReason || "unspecified") : null,
+    replace: Boolean(isReplace),
+  };
 }
 
 // Only a real sha256 makes a photo URL.
@@ -337,7 +360,8 @@ function sheetsHtml() {
       <div class="lab-sheet__field">
         <label for="labVerdictLighting">Light used</label>
         <select id="labVerdictLighting">
-          <option value="diagnostic" selected>Diagnostic (raking light from one side)</option>
+          <option value="" selected disabled>Choose the light…</option>
+          <option value="diagnostic">Diagnostic (raking light from one side)</option>
           <option value="room">Room light</option>
           <option value="installed">Installed (where the tile will live)</option>
         </select>
@@ -378,7 +402,10 @@ export function mount(state) {
   state.currentRequests = [];
   state.currentExp = null;
   state.currentReqId = null;
-  state.pollTimer = null;
+  state.stopWatch = null;
+  state.watching = new Set();
+  state.sentAt = {};
+  state.loadedOnce = false;
   state.selectedPhotoFiles = [];
   state.selectedPhotoTabs = [];
   state.currentPhotosExp = null;
@@ -419,7 +446,7 @@ export function mount(state) {
     rows.forEach((row) => {
       let rowComplete = true;
       for (const crit of state.currentExp?.criteria || []) {
-        const checked = row.querySelector(`button[data-criterion="${crit.key}"][aria-checked="true"]`);
+        const checked = row.querySelector(`button[data-criterion="${CSS.escape(String(crit.key))}"][aria-checked="true"]`);
         if (!checked) { rowComplete = false; break; }
       }
       if (!rowComplete) {
@@ -429,7 +456,9 @@ export function mount(state) {
         row.classList.remove("lab-row--missing");
       }
     });
-    sendBtn.disabled = !allComplete;
+    // The light is never assumed: only the diagnostic light can support or refute a prediction, so it is asked for.
+    const light = state.sheetsContainer.querySelector("#labVerdictLighting")?.value;
+    sendBtn.disabled = !allComplete || !light;
   }
 
   function saveVerdictDraft() {
@@ -438,7 +467,7 @@ export function mount(state) {
       grades: {},
       inconclusive: Boolean(state.sheetsContainer.querySelector("#labVerdictInconclusiveToggle")?.checked),
       inconclusiveReason: state.sheetsContainer.querySelector("#labVerdictInconclusiveReason")?.value || "",
-      lighting: state.sheetsContainer.querySelector("#labVerdictLighting")?.value || "diagnostic",
+      lighting: state.sheetsContainer.querySelector("#labVerdictLighting")?.value || "",
       note: state.sheetsContainer.querySelector("#labVerdictNote")?.value || "",
     };
     state.sheetsContainer.querySelectorAll("#labVerdictBody .lab-verdict-row").forEach((row) => {
@@ -467,14 +496,14 @@ export function mount(state) {
         <div class="lab-verdict-criterion" role="radiogroup" aria-label="${esc(c.label)} for ${esc(tab)}">
           <span class="lab-verdict-criterion__label">${esc(c.label)}</span>
           <div class="lab-chips">
-            ${(c.choices || []).map((ch) => `<button type="button" class="btn-outline lab-chip" role="radio" aria-checked="false" data-tab="${esc(tab)}" data-criterion="${esc(c.key)}" data-choice="${esc(ch)}">${esc(ch)}</button>`).join("")}
+            ${verdictChoices(c).map((ch) => `<button type="button" class="btn-outline lab-chip" role="radio" aria-checked="false" data-tab="${esc(tab)}" data-criterion="${esc(c.key)}" data-choice="${esc(ch)}"${ch === NOT_JUDGED ? ' aria-label="not judged"' : ""}>${esc(ch)}</button>`).join("")}
           </div>
         </div>
       `).join("");
       return `<div class="lab-verdict-row" data-tab="${esc(tab)}"><div class="lab-verdict-row__title">Strip ${esc(tab)}</div>${critRows}</div>`;
     }).join("");
 
-    let draft = { grades: {}, inconclusive: false, inconclusiveReason: "", lighting: "diagnostic", note: "" };
+    let draft = { grades: {}, inconclusive: false, inconclusiveReason: "", lighting: "", note: "" };
     try {
       const saved = localStorage.getItem("printLab:draft:" + exp.id);
       if (saved) draft = Object.assign(draft, JSON.parse(saved));
@@ -482,7 +511,7 @@ export function mount(state) {
 
     for (const [tab, crits] of Object.entries(draft.grades || {})) {
       for (const [critKey, choice] of Object.entries(crits || {})) {
-        const btn = body.querySelector(`button[data-tab="${tab}"][data-criterion="${critKey}"][data-choice="${choice}"]`);
+        const btn = body.querySelector(`button[data-tab="${CSS.escape(tab)}"][data-criterion="${CSS.escape(critKey)}"][data-choice="${CSS.escape(String(choice))}"]`);
         if (btn) btn.setAttribute("aria-checked", "true");
       }
     }
@@ -495,7 +524,7 @@ export function mount(state) {
     if (incReason) incReason.value = draft.inconclusiveReason || "";
 
     const lightingSelect = state.sheetsContainer.querySelector("#labVerdictLighting");
-    if (lightingSelect) lightingSelect.value = draft.lighting || "diagnostic";
+    if (lightingSelect) lightingSelect.value = draft.lighting || "";
     const noteInput = state.sheetsContainer.querySelector("#labVerdictNote");
     if (noteInput) noteInput.value = draft.note || "";
 
@@ -515,61 +544,44 @@ export function mount(state) {
     const idx = state.currentRequests.findIndex((r) => r.id === item.id);
     if (idx >= 0) state.currentRequests[idx] = Object.assign({}, state.currentRequests[idx], item);
     else state.currentRequests.unshift(item);
-    const el = state.box.querySelector("#lab-requests-" + item.experiment);
+    const el = state.box.querySelector("#lab-requests-" + CSS.escape(String(item.experiment)));
     if (el) {
       const expReqs = state.currentRequests.filter((r) => r.experiment === item.experiment);
       el.innerHTML = renderRequestsList(expReqs);
     }
   }
 
-  function pollVerdictResult(project, reqId, expId) {
-    if (state.pollTimer) clearInterval(state.pollTimer);
+  // One poller for every pending request on the page (verdicts and photos); it is stopped in leave().
+  function track(reqId) {
+    state.sentAt[reqId] = Date.now();
+    state.watching.add(reqId);
+    if (state.stopWatch) state.stopWatch();
+    state.stopWatch = watchRequests(state.currentProject, [...state.watching], onRequestUpdate);
+  }
+
+  function onRequestUpdate(item) {
+    addOrUpdateCardRequest(item);
+    if (item.status === "applied" || item.status === "refused") state.watching.delete(item.id);
+    if (item.id !== state.currentReqId) return;
     const statusEl = state.sheetsContainer.querySelector("#labVerdictStatus");
     const errorEl = state.sheetsContainer.querySelector("#labVerdictError");
     const replaceBtn = state.sheetsContainer.querySelector("#labVerdictReplace");
-    const startedAt = Date.now();
-
-    const check = async () => {
-      try {
-        const res = await fetch(`/api/lab/${encodeURIComponent(project)}/requests`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const item = (data.items || []).find((i) => i.id === reqId);
-        if (!item) return;
-
-        addOrUpdateCardRequest(item);
-
-        if (item.status === "applied") {
-          clearInterval(state.pollTimer);
-          state.pollTimer = null;
-          if (statusEl) { statusEl.hidden = false; statusEl.textContent = "Recorded"; }
-          if (errorEl) errorEl.hidden = true;
-          try { localStorage.removeItem("printLab:draft:" + expId); } catch {}
-          return;
-        }
-
-        if (item.status === "refused") {
-          clearInterval(state.pollTimer);
-          state.pollTimer = null;
-          if (statusEl) statusEl.hidden = true;
-          if (errorEl) {
-            errorEl.hidden = false;
-            errorEl.textContent = item.message || "Verdict refused by the Mac";
-          }
-          if (item.message && item.message.includes("already has a verdict")) {
-            if (replaceBtn) replaceBtn.hidden = false;
-          }
-          return;
-        }
-
-        if (Date.now() - startedAt > 120000) {
-          if (statusEl) statusEl.textContent = "The Mac hasn't picked this up. It runs when the Mac is awake.";
-        }
-      } catch {}
-    };
-
-    state.pollTimer = setInterval(check, 500);
-    check();
+    if (item.status === "applied") {
+      if (statusEl) { statusEl.hidden = false; statusEl.textContent = "Recorded"; }
+      if (errorEl) errorEl.hidden = true;
+      try { localStorage.removeItem("printLab:draft:" + (state.currentExp && state.currentExp.id)); } catch {}
+    } else if (item.status === "refused") {
+      if (statusEl) statusEl.hidden = true;
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = item.message || "Verdict refused by the Mac";
+      }
+      if (item.message && item.message.includes("already has a verdict") && replaceBtn) replaceBtn.hidden = false;
+      const sendBtn = state.sheetsContainer.querySelector("#labVerdictSend");
+      if (sendBtn) sendBtn.disabled = false;
+    } else if (statusEl && Date.now() - (state.sentAt[item.id] || Date.now()) > STALE_MS) {
+      statusEl.textContent = "The Mac hasn't picked this up yet. It runs when the Mac is awake.";
+    }
   }
 
   async function sendVerdict(isReplace = false) {
@@ -590,16 +602,10 @@ export function mount(state) {
     if (replaceBtn) replaceBtn.hidden = true;
     if (sendBtn) sendBtn.disabled = true;
 
-    const payload = {
-      grades: draft.grades || {},
-      lighting: draft.lighting || "diagnostic",
-      note: draft.note || null,
-      inconclusive: draft.inconclusive ? (draft.inconclusiveReason || "unspecified") : null,
-      replace: Boolean(isReplace),
-    };
+    const payload = verdictPayload(draft, isReplace);
 
     try {
-      const res = await fetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
+      await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -611,16 +617,8 @@ export function mount(state) {
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (statusEl) statusEl.hidden = true;
-        if (errorEl) { errorEl.hidden = false; errorEl.textContent = data.detail || data.error || "Failed to send request"; }
-        if (sendBtn) sendBtn.disabled = false;
-        return;
-      }
-
       addOrUpdateCardRequest({ id: reqId, kind: "verdict", experiment: state.currentExp.id, status: "pending" });
-      pollVerdictResult(state.currentProject, reqId, state.currentExp.id);
+      track(reqId);
     } catch (err) {
       if (statusEl) statusEl.hidden = true;
       if (errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || "Network error"; }
@@ -670,20 +668,16 @@ export function mount(state) {
         const file = state.selectedPhotoFiles[i];
         const tab = state.selectedPhotoTabs[i] || null;
         const { blob, sha } = await prepareJpeg(file);
-        const putRes = await fetch(`/api/lab/${encodeURIComponent(state.currentProject)}/incoming/${sha}.jpg`, {
+        await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/incoming/${sha}.jpg`, {
           method: "PUT",
           headers: { "Content-Type": "image/jpeg" },
           body: blob,
         });
-        if (!putRes.ok) {
-          const d = await putRes.json().catch(() => ({}));
-          throw new Error(d.detail || d.error || "Failed to upload photo");
-        }
         uploaded.push({ sha256: sha, tab });
       }
 
       const reqId = makeRequestId();
-      const postRes = await fetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
+      await labFetch(`/api/lab/${encodeURIComponent(state.currentProject)}/requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -698,9 +692,8 @@ export function mount(state) {
         }),
       });
 
-      if (!postRes.ok) throw new Error("Failed to create photos request");
-
       addOrUpdateCardRequest({ id: reqId, kind: "photos", experiment: state.currentPhotosExp.id, status: "pending" });
+      track(reqId);
       if (photosSheet.open) photosSheet.close();
       toast("Photos uploaded. The Mac will verify them.");
     } catch (err) {
@@ -773,7 +766,6 @@ export function mount(state) {
       }
       if (e.target.closest("#labVerdictCancel")) {
         verdictSheet.close();
-        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
         return;
       }
       if (e.target.closest("#labVerdictSend")) {
@@ -803,7 +795,7 @@ export function mount(state) {
       });
     }
     const lightingSelect = state.sheetsContainer.querySelector("#labVerdictLighting");
-    if (lightingSelect) lightingSelect.addEventListener("change", saveVerdictDraft);
+    if (lightingSelect) lightingSelect.addEventListener("change", () => { saveVerdictDraft(); validateVerdict(); });
     const noteInput = state.sheetsContainer.querySelector("#labVerdictNote");
     if (noteInput) noteInput.addEventListener("input", saveVerdictDraft);
   }
@@ -831,8 +823,11 @@ export function mount(state) {
 }
 
 export async function load(state) {
-  const { projects } = await api("/api/lab/projects");
+  // The 15 s refresh never opens a PIN sheet; only the first load after opening the page, and taps, may.
+  const quiet = { prompt: !state.loadedOnce };
+  const projects = ((await labFetch("/api/lab/projects", {}, quiet)) || {}).projects;
   if (!projects || !projects.length) {
+    state.loadedOnce = true;
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
     return;
   }
@@ -841,9 +836,14 @@ export async function load(state) {
   state.currentProject = pName;
 
   const [labData, reqData] = await Promise.all([
-    api(`/api/lab/${encodeURIComponent(pName)}`),
-    fetch(`/api/lab/${encodeURIComponent(pName)}/requests`).then((r) => (r.ok ? r.json() : { items: [] })).catch(() => ({ items: [] })),
+    labFetch(`/api/lab/${encodeURIComponent(pName)}`, {}, quiet),
+    labFetch(`/api/lab/${encodeURIComponent(pName)}/requests`, {}, { prompt: false }).catch(() => ({ items: [] })),
   ]);
+  state.loadedOnce = true;
+  if (!labData) {
+    state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
+    return;
+  }
 
   state.currentRequests = (reqData && reqData.items) || [];
   state.currentData = labData;
@@ -861,10 +861,11 @@ export async function load(state) {
 }
 
 export function leave(state) {
-  if (state.pollTimer) {
-    clearInterval(state.pollTimer);
-    state.pollTimer = null;
+  if (state.stopWatch) {
+    state.stopWatch();
+    state.stopWatch = null;
   }
+  if (state.watching) state.watching.clear();
   const vs = state.sheetsContainer?.querySelector("#labVerdictSheet");
   if (vs && vs.open) vs.close();
   const ps = state.sheetsContainer?.querySelector("#labPhotosSheet");

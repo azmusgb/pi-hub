@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook,
+  esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook, verdictPayload, verdictChoices, requestsHtml,
 } from '../hub/static/js/lab.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
@@ -200,4 +200,27 @@ test('an index from an older print-lab (no outside, colours, plans or run prints
   assert.doesNotMatch(html, /undefined|NaN/);
   assert.doesNotMatch(html, /lab-outside|lab-print/);
   assert.match(html, /style="--spine:#8698b1"/);
+});
+
+test('verdict payload: "–" is sent as null, lighting has no default', () => {
+  const p = verdictPayload({ grades: { A: { seam: 'clean', face: '–' } }, note: '', inconclusive: false }, false);
+  assert.deepEqual(p.grades, { A: { seam: 'clean', face: null } });
+  assert.equal(p.lighting, null);
+  assert.equal(p.note, null);
+  assert.equal(p.inconclusive, null);
+  assert.equal(p.replace, false);
+  assert.equal(verdictPayload({ lighting: 'diagnostic', inconclusive: true, inconclusiveReason: 'bed lifted' }, true).inconclusive, 'bed lifted');
+});
+
+test('every criterion offers a "–" (not judged) chip after its own choices', () => {
+  assert.deepEqual(verdictChoices({ choices: ['clean', 'rough'] }), ['clean', 'rough', '–']);
+  assert.deepEqual(verdictChoices({}), ['–']);
+});
+
+test('a request pending for over 120 s says the Mac has not picked it up; a fresh one does not', () => {
+  const old = { id: 'rq-1', kind: 'verdict', status: 'pending', at: '2026-10-28T11:55:00Z' };
+  const young = { id: 'rq-2', kind: 'photos', status: 'pending', at: '2026-10-28T11:59:30Z' };
+  assert.match(requestsHtml([old], NOW), /The Mac hasn&#39;t picked this up yet/);
+  assert.doesNotMatch(requestsHtml([young], NOW), /picked this up/);
+  assert.doesNotMatch(requestsHtml([{ ...old, status: 'applied' }], NOW), /picked this up/);
 });
