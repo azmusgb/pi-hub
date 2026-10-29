@@ -1,6 +1,7 @@
 """Focused contract tests for Print Lab v2 qualification requests."""
 import pytest
 
+from hub import lab
 from hub.lab_qualification import _problem, _stored_payload
 
 
@@ -24,6 +25,7 @@ def body(**changes):
 
 def test_valid_qualification_contract():
     assert _problem(body()) is None
+    assert "qualification" in lab.ACT_KINDS
 
 
 def test_legacy_run_is_still_accepted_during_migration():
