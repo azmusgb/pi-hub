@@ -7,7 +7,6 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[c]));
 
-const DONE = new Set(["completed", "qualified"]);
 const RUN_TONE = {
   planned: "neutral",
   printing: "warn",
@@ -33,7 +32,7 @@ const when = (iso) => {
 
 function canonicalRuns(exp, ix) {
   const found = list(ix && ix.runs).filter((r) => r && r.experiment === exp.id);
-  if (found.length) return found;
+  if (found.length) return [...found].sort((a, b) => String(b.id).localeCompare(String(a.id)));
   // Migration fallback: existing experiment projection exposes PR-* runs.
   return list(exp && exp.runs).map((r, i) => {
     const p = r && r.print;
@@ -50,17 +49,23 @@ function canonicalRuns(exp, ix) {
       artifacts: null,
       legacy: true,
     };
-  });
+  }).sort((a, b) => String(b.id).localeCompare(String(a.id)));
 }
 
 export function productionState(ix) {
   const q = ix && ix.qualification || {};
   const p = ix && ix.production || {};
-  const current = p.current || null;
+  const rawPackage = q.current_package;
+  const packageId = typeof rawPackage === "string"
+    ? rawPackage
+    : rawPackage && typeof rawPackage === "object"
+      ? (rawPackage.id || rawPackage.path || null)
+      : null;
+  const current = p.current || (rawPackage && typeof rawPackage === "object" ? { ...rawPackage, sealed: true } : null);
   return {
     experiment: q.current_reference || (current && current.experiment) || null,
     run: q.current_run || (current && current.run) || null,
-    package: q.current_package || (current && current.id) || null,
+    package: packageId || (current && (current.id || current.path)) || null,
     current,
   };
 }
@@ -158,12 +163,11 @@ export function lifecycleHtml(exp, ix) {
 
 export function experimentV2Html(exp, ix) {
   const runs = canonicalRuns(exp, ix);
-  const latestFirst = [...runs].sort((a, b) => String(b.id).localeCompare(String(a.id)));
   const showRail = ["full_part", "scaled_part"].includes(exp.test_kind) || runs.length || exp.status === "printing";
   if (!showRail) return "";
   return `<div class="lab-v2-exp">
     ${lifecycleHtml(exp, ix)}
-    ${latestFirst.map((r) => runCardHtml(r, ix)).join("")}
+    ${runs.map((r) => runCardHtml(r, ix)).join("")}
   </div>`;
 }
 
