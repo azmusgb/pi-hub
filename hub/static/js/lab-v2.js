@@ -34,17 +34,26 @@ function canonicalRuns(exp, ix) {
   const found = list(ix && ix.runs).filter((r) => r && r.experiment === exp.id);
   if (found.length) return [...found].sort((a, b) => String(b.id).localeCompare(String(a.id)));
   // Migration fallback: existing experiment projection exposes PR-* runs.
-  return list(exp && exp.runs).map((r, i) => {
+  const legacy = list(exp && exp.runs);
+  return legacy.map((r, i) => {
     const p = r && r.print;
     const word = String(p && p.status_word || "").toLowerCase();
-    const status = word.includes("fail") ? "failed" : word.includes("print") ? "printing" : p ? "completed" : "planned";
+    const isLatest = i === legacy.length - 1;
+    const inherited = isLatest && exp.status === "printing" ? "printing"
+      : exp.status === "answered" ? "completed"
+      : exp.status === "abandoned" ? "aborted"
+      : "planned";
+    const status = word.includes("fail") ? "failed"
+      : word.includes("print") ? "printing"
+      : p ? "completed"
+      : inherited;
     return {
       id: r.id || `PR-${exp.id.replace(/^E-/, "")}-${String(i + 1).padStart(2, "0")}`,
       experiment: exp.id,
       status,
       started_at: r.started_at,
       printer: null,
-      estimate: i === list(exp.runs).length - 1 ? (exp.estimate || {}) : {},
+      estimate: isLatest ? (exp.estimate || {}) : {},
       actual: p ? { minutes: p.minutes, g: p.grams } : {},
       artifacts: null,
       legacy: true,
