@@ -6,6 +6,7 @@ import { card, empty, ensure, h, toast } from "./core.js";
 import { labFetch, recorded, watchRequests } from "./lab-net.js";
 import { mountPhotos } from "./lab-photos.js";
 import { mountObserve, observeButton, observeSheetHtml } from "./lab-observe.js";
+import { evidenceButton, mountEvidenceStudio } from "./lab-evidence.js";
 import { changedIds, dialogOpen, refreshPlan, restore, snapshot } from "./lab-refresh.js";
 import { toolUrl } from "./sections.js";
 
@@ -373,6 +374,7 @@ export function experimentHtml(x, ix, requests = []) {
     (x.finding ? `<p class="lab-verdict">Finding: ${esc(x.finding)}</p>` : "") +
     aiHtml(x) +
     actions +
+    (evidenceButton(x, ix) ? `<div class="lab-actions lab-evidence-action">${evidenceButton(x, ix)}</div>` : "") +
     (shots ? `<div class="lab-photos" data-lab-photos="${esc(x.id)}"><div class="lab-shots">${shots}</div></div>` : "") +
     (shots && list(x.reference_variants).length ? `<div class="lab-wipe-slot" data-lab-wipe="${esc(x.id)}"></div>` : "") +
     `<details class="lab-details" id="lab-d-${esc(x.id)}" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
@@ -1035,6 +1037,7 @@ export function mount(state) {
     send: (req) => sendAct(req), watch: (id) => track(id), makeId: makeRequestId, expById, requests: () => state.currentRequests,
     stale: (item) => Date.now() - (item.at ? new Date(item.at) : state.sentAt[item.id] || Date.now()) > STALE_MS,
   });
+  mountEvidenceStudio(state);
 
   // Sheet handlers
   const apprSheet = sheetEl("labApproveSheet"), dropSheet = sheetEl("labDropSheet");
@@ -1224,7 +1227,7 @@ export function leave(state) {
   if (vs && vs.open) vs.close();
   const ps = state.sheetsContainer?.querySelector("#labPhotosSheet");
   if (ps && ps.open) ps.close();
-  for (const id of ["labViewer", "labCompare"]) {
+  for (const id of ["labViewer", "labCompare", "labEvidenceStudio"]) {
     const d = document.getElementById(id);
     if (d && d.open) d.close();
   }
