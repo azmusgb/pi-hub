@@ -20,6 +20,13 @@ EXPERIMENT_RE = re.compile(r"^E-\d{3,}$")
 RUN_RE = re.compile(r"^(?:RUN|PR)-\d{3,}-\d{2,}$")
 BUILD_RE = re.compile(r"^BLD-\d{3,}-\d{2,}$")
 
+# lab.list_requests hides top-level run for experiment-level actions. Qualification
+# carries the exact immutable run snapshot in payload.run_seen, so keep the queue
+# compatible with the existing Mac pull guard while the canonical validator owns
+# the real RUN/PR check.
+if "qualification" not in lab.ACT_KINDS:
+    lab.ACT_KINDS = (*lab.ACT_KINDS, "qualification")
+
 
 def _full(rx: re.Pattern[str], value) -> bool:
     return isinstance(value, str) and rx.fullmatch(value) is not None
