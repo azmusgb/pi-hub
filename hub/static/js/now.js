@@ -70,10 +70,45 @@ export function networkPanel(net) {
       h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗")));
 }
 
+function telemetryAge(iso) {
+  const parsed = Date.parse(iso || "");
+  const ms = Date.now() - parsed;
+  if (!Number.isFinite(parsed) || !Number.isFinite(ms) || ms < 0) return "checked now";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 10) return "checked now";
+  if (sec < 60) return `checked ${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `checked ${min}m ago`;
+  return `checked ${Math.floor(min / 60)}h ago`;
+}
+
+function printerMetric(label, value) {
+  if (value === null || value === undefined || value === "") return null;
+  return h("div", { class: "printer-metric" },
+    h("span", { class: "printer-metric__label" }, label),
+    h("strong", { class: "printer-metric__value" }, String(value)));
+}
+
+function telemetryBadge(p) {
+  const telemetry = p.telemetry || {};
+  const state = telemetry.status || "offline";
+  const label = state === "live" ? "Live" : state === "degraded" ? "Fallback" : "Offline";
+  return h("span", {
+    class: "printer-source",
+    dataset: { state },
+    title: telemetry.source || "Printer telemetry"
+  },
+    h("span", { class: "printer-source__dot", "aria-hidden": "true" }),
+    label);
+}
+
 export function band(p, cam = null) {
-  const pct = p.progress || 0;
+  const pct = Number.isFinite(Number(p.progress))
+    ? Math.max(0, Math.min(100, Number(p.progress)))
+    : 0;
   const detail = p.state === "printing" && p.left
-    ? ["Done in about ", h("strong", {}, p.left), finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
+    ? ["Done in about ", h("strong", {}, p.left),
+       finishAt(p.minutes_left) ? `, around ${finishAt(p.minutes_left)}` : ""]
     : [p.detail || ""];
   const cls = p.state === "printing" ? "band is-printing" : "band";
   const lab = labLink(p);
@@ -94,26 +129,73 @@ export function band(p, cam = null) {
     h("span", { class: "band-cam-live" }, "● LIVE")
   ) : null;
 
-  const temps = (p.nozzle_temp !== undefined && p.nozzle_temp !== null) ? h("div", {
-    style: "display: flex; gap: .45rem; margin-top: .4rem; font-size: .75rem; color: var(--text-2); flex-wrap: wrap;"
-  },
-    h("span", { class: "meta", style: "background: color-mix(in srgb, var(--surface-3) 70%, transparent); padding: .15rem .45rem; border-radius: 4px; border: 1px solid var(--line);" }, `🌡️ Nozzle ${p.nozzle_temp}°C`),
-    h("span", { class: "meta", style: "background: color-mix(in srgb, var(--surface-3) 70%, transparent); padding: .15rem .45rem; border-radius: 4px; border: 1px solid var(--line);" }, `🛏️ Bed ${p.bed_temp}°C`),
-    p.ams_humidity != null ? h("span", { class: "meta", style: "background: color-mix(in srgb, var(--surface-3) 70%, transparent); padding: .15rem .45rem; border-radius: 4px; border: 1px solid var(--line);" }, `💧 AMS ${p.ams_humidity}%`) : null
-  ) : null;
+  const layerValue = p.layer_num != null
+    ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}`
+    : null;
 
-  return h("section", { class: cls, dataset: { state: p.state }, "aria-label": "Bambu 3D Printer" },
+  const metrics = [
+    printerMetric("Layer", layerValue),
+    printerMetric(
+      "Nozzle",
+      p.nozzle_temp != null
+        ? `${p.nozzle_temp}°C${p.nozzle_target != null ? ` / ${p.nozzle_target}°C` : ""}`
+        : null
+    ),
+    printerMetric(
+      "Bed",
+      p.bed_temp != null
+        ? `${p.bed_temp}°C${p.bed_target != null ? ` / ${p.bed_target}°C` : ""}`
+        : null
+    ),
+    printerMetric("ETA", p.minutes_left != null ? `${p.minutes_left} min` : null),
+    printerMetric("AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null),
+    printerMetric("Material", p.filament_type || null),
+  ].filter(Boolean);
+
+  const source = p.telemetry || {};
+
+  return h("section", {
+    class: cls,
+    dataset: { state: p.state },
+    "aria-label": "Bambu X2D printer"
+  },
     h("div", { class: "band-content" },
       h("div", { class: "band-info" },
-        h("p", { class: "band-name" }, "Bambu X2D"),
+        h("div", { class: "printer-title-row" },
+          h("p", { class: "band-name" }, "Bambu X2D"),
+          telemetryBadge(p)),
         h("h2", { class: "band-headline" }, p.headline),
-        h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+        p.job_name
+          ? h("p", { class: "printer-job", title: p.job_name }, p.job_name)
+          : null,
+        h("div", {
+          class: "line",
+          role: "progressbar",
+          "aria-label": "Print progress",
+          "aria-valuemin": 0,
+          "aria-valuemax": 100,
+          "aria-valuenow": pct
+        },
           h("div", { class: "line-track" }),
           h("div", { class: "line-bead", style: `width:${pct}%` }),
           h("div", { class: "line-nozzle", style: `left:${pct}%` })),
         h("p", { class: "band-detail" }, ...detail),
-        lab ? h("a", { class: "tool-link", ...go(lab.href) }, lab.label) : null,
-        temps
+        metrics.length
+          ? h("div", {
+              class: "printer-metrics",
+              "aria-label": "Live printer telemetry"
+            }, ...metrics)
+          : null,
+        h("p", { class: "printer-freshness" },
+          `${source.source || "Pi Hub"} · ${telemetryAge(source.observed_at)}`),
+        lab
+          ? h("a", {
+              class: "tool-link",
+              href: lab.href,
+              target: "_blank",
+              rel: "noopener"
+            }, lab.label)
+          : null
       ),
       camElement
     )

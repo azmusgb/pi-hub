@@ -6,6 +6,7 @@ read the records (build, printer_from); printer() and issues() read pi-status di
 for the morning digest, which does not read the records yet.
 """
 import time
+from .printer_telemetry import normalize_printer
 
 
 def _tone(ok, warn=False):
@@ -24,69 +25,9 @@ def printer_actions(b):
 
 
 def printer(s, b=None, lab=None):
-    if s is None and b is None:
-        return {"state": "none", "headline": "No status yet",
-                "detail": "The Pi's status service isn't answering."}
-    state = (s or {}).get("x2d_state")
-    pct = (s or {}).get("x2d_progress") or 0
-    left = (s or {}).get("x2d_left") or ""
+    # Build one conservative printer object for every Pi Hub surface.
+    res = normalize_printer(s, b)
 
-    # Fall back to Bambuddy when Local AI has no useful printer state.
-    # Bambuddy is already the source for live X2D telemetry and controls.
-    known_local_states = {"Printing", "Paused", "Error", "Stopped", "Idle"}
-    if state not in known_local_states and isinstance(b, dict) and b.get("connected"):
-        bambuddy_state = b.get("bambuddy_state") or b.get("state")
-        state = {
-            "RUNNING": "Printing",
-            "PAUSE": "Paused",
-            "FINISH": "Idle",
-            "FAILED": "Error",
-            "IDLE": "Idle",
-        }.get(bambuddy_state, state)
-
-        if b.get("progress") is not None:
-            pct = b.get("progress")
-    if state == "Printing":
-        res = {"state": "printing", "progress": pct, "headline": f"Printing, {pct}%",
-               "left": left, "minutes_left": (s or {}).get("x2d_minutes_left")}
-    elif state == "Paused":
-        res = {"state": "paused", "progress": pct, "headline": f"Paused at {pct}%",
-               "detail": "Resume it from the printer or Bambu Handy."}
-    elif state == "Error":
-        code = (s or {}).get("x2d_error")
-        res = {"state": "error", "progress": pct, "headline": "Needs attention",
-               "detail": f"The printer reports {code}. Check its screen." if code else "Check the printer's screen."}
-    elif state == "Stopped":
-        res = {"state": "stopped", "headline": "Last print stopped", "detail": "Ready for the next one."}
-    elif state == "Idle":
-        res = {"state": "idle", "headline": "Idle", "detail": "Ready for the next print."}
-    elif state == "Not set up":
-        res = {"state": "none", "headline": "Not connected", "detail": "Local AI isn't set up to read the printer."}
-    else:
-        res = {"state": "none", "headline": "No status right now",
-               "detail": "Local AI isn't reporting the printer. It may be off, or between prints."}
-
-    if b and isinstance(b, dict):
-        res["temperatures"] = {
-            "nozzle": b.get("nozzle_temp"),
-            "nozzle_target": b.get("nozzle_target"),
-            "bed": b.get("bed_temp"),
-            "bed_target": b.get("bed_target"),
-        }
-        res["nozzle_temp"] = b.get("nozzle_temp")
-        res["bed_temp"] = b.get("bed_temp")
-        res["nozzle_target"] = b.get("nozzle_target")
-        res["bed_target"] = b.get("bed_target")
-        res["ams_humidity"] = b.get("ams_humidity")
-        res["ams_temp"] = b.get("ams_temp")
-        res["layer_num"] = b.get("layer_num")
-        res["total_layers"] = b.get("total_layers")
-        res["job_name"] = b.get("job_name")
-        res["filament_type"] = b.get("filament_type")
-        res["filament_color"] = b.get("filament_color")
-        res["bambuddy_connected"] = b.get("connected")
-
-    # Local AI's Print lab, while one of its experiments is the print running now.
     if lab and res["state"] in ("printing", "paused"):
         res["lab"] = lab
 
@@ -94,10 +35,15 @@ def printer(s, b=None, lab=None):
     if "resume" in res["actions"]:
         res["detail"] = "Resume it here or on the printer."
     if "clear" in res["actions"] and res["state"] not in ("printing", "paused"):
-        failed = b.get("bambuddy_state") == "FAILED" or res["state"] == "error"
-        res["headline"] = "Print failed — clear the plate" if failed else "Print done — clear the plate"
+        failed = bool(b) and (
+            b.get("bambuddy_state") == "FAILED" or res["state"] == "error"
+        )
+        res["headline"] = (
+            "Print failed — clear the plate"
+            if failed
+            else "Print done — clear the plate"
+        )
     return res
-
 
 def issues(s):
     """Things that need a person, most urgent first."""
