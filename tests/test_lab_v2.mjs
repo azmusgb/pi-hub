@@ -56,16 +56,23 @@ const html = experimentV2Html(exp, ix);
 assert(html.includes("Experiment lifecycle"));
 assert(html.includes("RUN-025-01"));
 
+const packageId = "E-025-RUN-025-01-qualified-2026-10-30";
 const qualifiedIx = {
   ...ix,
   qualification: {
     current_reference: "E-025",
     current_run: "RUN-025-01",
-    current_package: "E-025-RUN-025-01-qualified-2026-10-30",
+    current_package: {
+      id: packageId,
+      path: `production/${packageId}`,
+      experiment: "E-025",
+      run: "RUN-025-01",
+      manifest_sha256: "f".repeat(64),
+    },
   },
   production: {
     current: {
-      id: "E-025-RUN-025-01-qualified-2026-10-30",
+      id: packageId,
       experiment: "E-025",
       run: "RUN-025-01",
       sealed: true,
@@ -78,9 +85,11 @@ const qualifiedIx = {
 };
 
 assert.equal(productionState(qualifiedIx).run, "RUN-025-01");
+assert.equal(productionState(qualifiedIx).package, packageId);
 const refHtml = referenceCardHtml(qualifiedIx);
 assert(refHtml.includes("Current production reference"));
 assert(refHtml.includes("RUN-025-01"));
+assert(refHtml.includes(packageId));
 assert(refHtml.includes("Sealed"));
 assert(refHtml.includes("replaced E-019"));
 
