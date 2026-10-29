@@ -1,5 +1,6 @@
 // Print Lab Evidence Studio
 // Decision support over the existing observation/verdict/photo/reference data.
+import { mountLabV2 } from "./lab-v2.js";
 
 const list = (v) => (Array.isArray(v) ? v : []);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -278,6 +279,7 @@ export function studioHtml(x, ix) {
 
 export function mountEvidenceStudio(state) {
   if (!state || !state.box || !state.sheetsContainer) return;
+  mountLabV2(state);
 
   let dialog = state.sheetsContainer.querySelector("#labEvidenceStudio");
   if (!dialog) {

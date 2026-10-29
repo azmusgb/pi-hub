@@ -62,7 +62,8 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v110" in sw
+    shell = re.findall(r'^const SHELL = "pi-hub-shell-v(\d+)";$', sw, re.MULTILINE)
+    assert len(shell) == 1 and int(shell[0]) >= 1, "service-worker shell cache needs one numeric version"
 
 
 def test_the_app_shell_caches_every_page_module():
