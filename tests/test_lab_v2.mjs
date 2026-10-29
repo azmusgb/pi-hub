@@ -65,7 +65,7 @@ const answeredExp = { ...exp, status: "answered", verdict: { kind: "acceptance",
 const answeredRun = { ...run, status: "completed" };
 const answeredIx = { ...ix, experiments: [answeredExp], runs: [answeredRun] };
 const qual = qualificationModel(answeredExp, answeredIx);
-assert.equal(qual.eligible, true);
+assert(qual.eligible);
 assert.equal(qual.firstClass, true);
 assert.equal(qual.artifactReady, true);
 assert.equal(qual.build, "BLD-025-01");
