@@ -935,6 +935,45 @@ function homeCard(c, cam, onDone) {
     c.lab ? h("a", { class: "home-card-link meta", ...go(c.lab.href) }, c.lab.label) : null);
 }
 
+function renderHardwareHUD(p, cam) {
+  if (!p || !["printing", "paused"].includes(p.state)) return null;
+
+  const doneTime = Number.isFinite(p.minutes_left)
+    ? new Date(Date.now() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "";
+
+  const camElem = cam?.ok ? h("div", { class: "hud-cam-wrap" },
+    h("img", {
+      class: "hud-cam-img",
+      src: `/api/camera.jpg?t=${Date.now()}`,
+      alt: "Bambu X2D Live Camera",
+      loading: "eager"
+    }),
+    h("div", { class: "hud-cam-overlay" },
+      h("span", { class: "hud-pill-tag" }, `Layer ${p.layer_num || 0} / ${p.total_layers || 0}`),
+      h("span", { class: "hud-pill-tag hud-pill-time" }, `${p.left || ""}${doneTime ? ` · done ${doneTime}` : ""}`)
+    )
+  ) : null;
+
+  return h("section", { class: "hardware-hud-band", "aria-label": "Live Machinery" },
+    h("div", { class: "hud-header" },
+      h("div", { class: "hud-title-wrap" },
+        h("span", { class: "dot", dataset: { tone: "warn" } }),
+        h("strong", { class: "hud-title" }, "Bambu X2D"),
+        h("span", { class: "hud-badge-state" }, `${p.progress}% · ${p.state}`)
+      ),
+      h("div", { class: "hud-temps" },
+        h("span", { class: "hud-temp-item" }, `Nozzle: ${p.nozzle_temp || 0}°C`),
+        h("span", { class: "hud-temp-item" }, `Bed: ${p.bed_temp || 0}°C`)
+      )
+    ),
+    camElem,
+    h("div", { class: "hud-progress-track" },
+      h("div", { class: "hud-progress-fill", style: `width: ${p.progress}%;` })
+    )
+  );
+}
+
 function renderQuickTray() {
   const host = globalThis.location?.hostname || "";
   const pills = [
@@ -975,9 +1014,10 @@ export function mount(state) {
     state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
+    state.hud = h("div", { class: "home-hud-mount" });
     state.tray = renderQuickTray();
     state.cards = h("div", { class: "home-cards" });
-    state.root.append(state.hero, state.tray, state.cards);
+    state.root.append(state.hero, state.hud, state.tray, state.cards);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -1041,6 +1081,10 @@ export async function load(state) {
   line(state.extra ? needsSummary(state.extra.needs, d.summary) : d.issues.length ? "" : d.summary);  // a refresh: the last answer
   // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
   // the page never waits on them.
+  if (state.hud) {
+    const hudElem = renderHardwareHUD(d.printer, cam);
+    state.hud.replaceChildren(...(hudElem ? [hudElem] : []));
+  }
   const draw = (extra) => state.cards.replaceChildren(
     ...homeCards({ now: d, home, ...extra }).map((c) => homeCard(c, cam, () => load(state))));
   draw(state.extra || {});
