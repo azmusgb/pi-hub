@@ -8,6 +8,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[c]));
 const qualificationStatus = new Map();
+export function setHtmlOnce(element, html) {
+  if (!element || element.__labV2Html === html) return false;
+  element.innerHTML = html;
+  element.__labV2Html = html;
+  return true;
+}
 
 const RUN_TONE = {
   planned: "neutral",
@@ -282,7 +288,7 @@ export function decorateLabV2(state) {
     if (layout) layout.before(overview); else box.prepend(overview);
   }
   const overviewHtml = referenceCardHtml(ix);
-  if (overview.innerHTML !== overviewHtml) overview.innerHTML = overviewHtml;
+  setHtmlOnce(overview, overviewHtml);
 
   const byId = Object.fromEntries(list(ix.experiments).filter(Boolean).map((x) => [x.id, x]));
   for (const article of box.querySelectorAll("article.lab-exp[id^='lab-']")) {
@@ -298,7 +304,7 @@ export function decorateLabV2(state) {
       if (title) title.insertAdjacentElement("afterend", block); else article.append(block);
     }
     const inner = html.replace(/^<div class="lab-v2-exp">|<\/div>$/g, "");
-    if (block.innerHTML !== inner) block.innerHTML = inner;
+    setHtmlOnce(block, inner);
   }
 }
 

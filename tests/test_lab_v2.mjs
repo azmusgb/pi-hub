@@ -7,7 +7,37 @@ import {
   qualificationPanelHtml,
   referenceCardHtml,
   runCardHtml,
+  setHtmlOnce,
 } from "../hub/static/js/lab-v2.js";
+
+let htmlWrites = 0;
+const normalizedNode = {
+  _html: "",
+  set innerHTML(value) {
+    htmlWrites += 1;
+    this._html = value.replace(" disabled>", ' disabled="">');
+  },
+  get innerHTML() {
+    return this._html;
+  },
+};
+const rawHtml = "<button disabled>Qualify production</button>";
+assert.equal(setHtmlOnce(normalizedNode, rawHtml), true);
+assert.notEqual(normalizedNode.innerHTML, rawHtml);
+assert.equal(setHtmlOnce(normalizedNode, rawHtml), false);
+assert.equal(htmlWrites, 1);
+
+const changedHtml = "<button disabled>Updated decision</button>";
+assert.equal(setHtmlOnce(normalizedNode, changedHtml), true);
+assert.equal(setHtmlOnce(normalizedNode, changedHtml), false);
+assert.equal(htmlWrites, 2);
+assert(normalizedNode.innerHTML.includes("Updated decision"));
+assert.equal(setHtmlOnce(null, rawHtml), false);
+assert.equal(setHtmlOnce(undefined, rawHtml), false);
+
+const replacementNode = { innerHTML: "" };
+assert.equal(setHtmlOnce(replacementNode, rawHtml), true);
+assert.equal(replacementNode.innerHTML, rawHtml);
 
 const run = {
   id: "RUN-025-01",
