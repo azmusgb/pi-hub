@@ -897,6 +897,23 @@ function homeCard(c, cam, onDone) {
     c.lab ? h("a", { class: "home-card-link meta", ...go(c.lab.href) }, c.lab.label) : null);
 }
 
+function renderQuickTray() {
+  const host = globalThis.location?.hostname || "";
+  const pills = [
+    { label: "🧪 Print Lab", href: "/lab", internal: true },
+    { label: "📦 Homebox", href: toolUrl("homebox", host), internal: false },
+    { label: "🛡️ System & Backups", href: "/system", internal: true },
+    { label: "📊 Network Monitor", href: toolUrl("network", host), internal: false },
+  ];
+  return h("nav", { class: "home-quick-tray", "aria-label": "Quick access" },
+    ...pills.map((p) => h("a", {
+      class: "quick-pill",
+      href: p.href,
+      ...(p.internal ? { "data-link": true } : { target: "_blank", rel: "noopener" })
+    }, p.label))
+  );
+}
+
 export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
   state.outside = h("div", { class: "outside-wrap" });
@@ -920,8 +937,9 @@ export function mount(state) {
     state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
+    state.tray = renderQuickTray();
     state.cards = h("div", { class: "home-cards" });
-    state.root.append(state.hero, state.cards);
+    state.root.append(state.hero, state.tray, state.cards);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);

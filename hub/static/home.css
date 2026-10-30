@@ -1143,6 +1143,44 @@ body:not(.wall) .page-now { display: block; }
   }
 }
 
+/* Home Quick-Access Tray */
+.home-quick-tray {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-block: .25rem;
+  margin-block: .25rem .75rem;
+  scrollbar-width: none;
+}
+.home-quick-tray::-webkit-scrollbar { display: none; }
+.quick-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem .85rem;
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background .15s ease, border-color .15s ease;
+}
+.quick-pill:hover, .quick-pill:active {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+  color: var(--text-1);
+}
+.quick-pill:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
 /* One home: Home's six cards, Needs you first and full width. */
 .home-cards { display: grid; gap: .875rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-block: 1rem; }
 .home-card {
