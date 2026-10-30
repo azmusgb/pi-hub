@@ -928,11 +928,205 @@ function homeCard(c, cam, onDone) {
     h("p", { class: "home-card-status" }, c.status),
     c.items?.length ? needsList(c.items, { max: 4 }) : null,
     c.note ? h("p", { class: "meta" }, c.note) : null,
-    showCam ? h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }) : null,
+    showCam ? h("div", { class: "home-card-cam-wrap", style: "position:relative; cursor:zoom-in;", onclick: () => openCameraModal(null) },
+      h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }),
+      h("button", {
+        type: "button",
+        class: "hud-cam-btn",
+        style: "position:absolute; top:6px; right:6px; z-index:5;",
+        title: "Full Screen & Zoom",
+        onclick: (e) => { e.stopPropagation(); openCameraModal(null); }
+      }, "⛶")
+    ) : null,
     c.action?.do ? cardButton(c.action, onDone)
       : c.action ? h("a", { class: "btn home-card-action", ...go(c.action.href) }, c.action.label) : null,
     c.link ? h("a", { class: "home-card-link meta", ...go(c.link.href) }, c.link.label) : null,
     c.lab ? h("a", { class: "home-card-link meta", ...go(c.lab.href) }, c.lab.label) : null);
+}
+
+// Global camera viewer modal state
+let activeCamModal = null;
+
+function openCameraModal(p) {
+  if (activeCamModal) {
+    try { activeCamModal.close(); } catch {}
+    activeCamModal.remove();
+    activeCamModal = null;
+  }
+
+  const modal = h("dialog", { class: "cam-modal", "aria-label": "Printer Camera Full View" });
+  let zoom = 1;
+  let posX = 0;
+  let posY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let pinchDist = 0;
+
+  const titleText = p ? `Bambu X2D · Layer ${p.layer_num || 0}/${p.total_layers || 0} (${p.progress || 0}%)` : "Bambu X2D Live Camera";
+  
+  const zoomDisplay = h("span", { class: "cam-modal-zoom-text" }, "100%");
+  const img = h("img", {
+    class: "cam-modal-img",
+    src: `/api/camera.jpg?t=${Date.now()}`,
+    alt: "Bambu X2D Full Camera Stream"
+  });
+
+  function updateTransform(anim = false) {
+    img.style.transition = anim ? "transform 0.15s ease-out" : "none";
+    img.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
+    zoomDisplay.textContent = `${Math.round(zoom * 100)}%`;
+  }
+
+  function adjustZoom(factor, centerX = 0, centerY = 0) {
+    const oldZoom = zoom;
+    zoom = Math.min(5, Math.max(1, zoom * factor));
+    if (zoom === 1) {
+      posX = 0;
+      posY = 0;
+    } else {
+      posX = posX * (zoom / oldZoom);
+      posY = posY * (zoom / oldZoom);
+    }
+    updateTransform(true);
+  }
+
+  function resetZoom() {
+    zoom = 1;
+    posX = 0;
+    posY = 0;
+    updateTransform(true);
+  }
+
+  const btnZoomIn = h("button", { type: "button", class: "hud-cam-btn", title: "Zoom In" }, "+");
+  btnZoomIn.onclick = () => adjustZoom(1.3);
+
+  const btnZoomOut = h("button", { type: "button", class: "hud-cam-btn", title: "Zoom Out" }, "-");
+  btnZoomOut.onclick = () => adjustZoom(0.77);
+
+  const btnReset = h("button", { type: "button", class: "hud-cam-btn", title: "Reset Zoom" }, "1:1");
+  btnReset.onclick = () => resetZoom();
+
+  const btnClose = h("button", { type: "button", class: "hud-cam-btn", title: "Close" }, "✕");
+  btnClose.onclick = () => modal.close();
+
+  // HTML5 fullscreen toggle
+  const btnFs = h("button", { type: "button", class: "hud-cam-btn", title: "Native Fullscreen" }, "⛶");
+  btnFs.onclick = () => {
+    if (!document.fullscreenElement) {
+      modal.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const stage = h("div", { class: "cam-modal-stage" }, img);
+
+  // Mouse wheel zoom
+  stage.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    adjustZoom(e.deltaY < 0 ? 1.15 : 0.85);
+  }, { passive: false });
+
+  // Double click / tap to toggle zoom
+  let lastTap = 0;
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target !== img && e.target !== stage) return;
+    isDragging = true;
+    startX = e.clientX - posX;
+    startY = e.clientY - posY;
+    stage.setPointerCapture?.(e.pointerId);
+
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      if (zoom > 1) resetZoom();
+      else adjustZoom(2.5);
+      lastTap = 0;
+    } else {
+      lastTap = now;
+    }
+  });
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!isDragging || zoom <= 1) return;
+    posX = e.clientX - startX;
+    posY = e.clientY - startY;
+    updateTransform(false);
+  });
+
+  const stopDrag = (e) => {
+    isDragging = false;
+    try { stage.releasePointerCapture?.(e.pointerId); } catch {}
+  };
+  stage.addEventListener("pointerup", stopDrag);
+  stage.addEventListener("pointercancel", stopDrag);
+
+  // Pinch to zoom for touch devices (iPad / iPhone)
+  stage.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: true });
+
+  stage.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && pinchDist > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      adjustZoom(dist / pinchDist);
+      pinchDist = dist;
+    }
+  }, { passive: true });
+
+  stage.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) pinchDist = 0;
+  }, { passive: true });
+
+  // Header & Footer
+  const header = h("div", { class: "cam-modal-header" },
+    h("div", { class: "cam-modal-title" },
+      h("span", { class: "dot", dataset: { tone: "warn" } }),
+      titleText
+    ),
+    h("div", { class: "cam-modal-actions" },
+      zoomDisplay,
+      btnZoomOut,
+      btnZoomIn,
+      btnReset,
+      btnFs,
+      btnClose
+    )
+  );
+
+  const footer = h("div", { class: "cam-modal-footer" },
+    h("span", {}, "Live feed: updates every 1.5s"),
+    h("span", {}, "Pinch, scroll, or double-tap to zoom · Drag to pan")
+  );
+
+  modal.append(header, stage, footer);
+  document.body.append(modal);
+
+  // Auto-refresh interval while open
+  const timer = setInterval(() => {
+    if (!modal.open) return;
+    img.src = `/api/camera.jpg?t=${Date.now()}`;
+  }, 1500);
+
+  modal.addEventListener("close", () => {
+    clearInterval(timer);
+    modal.remove();
+    activeCamModal = null;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  });
+
+  activeCamModal = modal;
+  modal.showModal();
 }
 
 function renderHardwareHUD(p, cam) {
@@ -942,13 +1136,57 @@ function renderHardwareHUD(p, cam) {
     ? new Date(Date.now() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : "";
 
-  const camElem = cam?.ok ? h("div", { class: "hud-cam-wrap" },
-    h("img", {
-      class: "hud-cam-img",
-      src: `/api/camera.jpg?t=${Date.now()}`,
-      alt: "Bambu X2D Live Camera",
-      loading: "eager"
-    }),
+  let inlineZoom = 1;
+  const inlineImg = h("img", {
+    class: "hud-cam-img",
+    src: `/api/camera.jpg?t=${Date.now()}`,
+    alt: "Bambu X2D Live Camera",
+    loading: "eager"
+  });
+
+  const btnInlineZoomIn = h("button", {
+    type: "button",
+    class: "hud-cam-btn",
+    title: "Zoom In",
+    onclick: (e) => {
+      e.stopPropagation();
+      inlineZoom = Math.min(3, inlineZoom * 1.3);
+      inlineImg.style.transform = `scale(${inlineZoom})`;
+    }
+  }, "+");
+
+  const btnInlineZoomOut = h("button", {
+    type: "button",
+    class: "hud-cam-btn",
+    title: "Zoom Out",
+    onclick: (e) => {
+      e.stopPropagation();
+      inlineZoom = Math.max(1, inlineZoom * 0.77);
+      inlineImg.style.transform = inlineZoom === 1 ? "none" : `scale(${inlineZoom})`;
+    }
+  }, "-");
+
+  const btnInlineExpand = h("button", {
+    type: "button",
+    class: "hud-cam-btn",
+    title: "Full Screen Inspection",
+    onclick: (e) => {
+      e.stopPropagation();
+      openCameraModal(p);
+    }
+  }, "⛶");
+
+  const camElem = cam?.ok ? h("div", {
+    class: "hud-cam-wrap",
+    style: "cursor: zoom-in;",
+    onclick: () => openCameraModal(p)
+  },
+    inlineImg,
+    h("div", { class: "hud-cam-controls" },
+      btnInlineZoomOut,
+      btnInlineZoomIn,
+      btnInlineExpand
+    ),
     h("div", { class: "hud-cam-overlay" },
       h("span", { class: "hud-pill-tag" }, `Layer ${p.layer_num || 0} / ${p.total_layers || 0}`),
       h("span", { class: "hud-pill-tag hud-pill-time" }, `${p.left || ""}${doneTime ? ` · done ${doneTime}` : ""}`)
@@ -1222,6 +1460,11 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
 }
 
 export function leave(state) {
+  if (activeCamModal) {
+    try { activeCamModal.close(); } catch {}
+    activeCamModal.remove();
+    activeCamModal = null;
+  }
   clearInterval(state._eyebrowTimer);
   clearInterval(state._camTimer);
   if (state._clockTimer) clearInterval(state._clockTimer);
