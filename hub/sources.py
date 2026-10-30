@@ -44,7 +44,7 @@ def cached(key, ttl, fn):
     return value
 
 
-def _get_json(url, headers=None, timeout=4):
+def _get_json(url, headers=None, timeout=6):
     req = urllib.request.Request(url, headers={"Accept": "application/json", **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
