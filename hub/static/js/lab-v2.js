@@ -1,7 +1,8 @@
-// Print Lab v2 — additive run / qualification / production presentation.
-// The existing notebook stays authoritative; this module decorates it with the
-// engineering state that became first-class after Run records and qualification.
+// Print Lab v3 — Run-centered control-room presentation.
+// The existing notebook remains authoritative during migration, but this module
+// renders from the shared Lab store instead of observing and rewriting DOM changes.
 import { labFetch, watchRequests } from "./lab-net.js";
+import { attachLabStore } from "./lab-store.js";
 
 const list = (v) => (Array.isArray(v) ? v : []);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -18,6 +19,7 @@ export function setHtmlOnce(element, html) {
 const RUN_TONE = {
   planned: "neutral",
   printing: "warn",
+  paused: "warn",
   completed: "ok",
   qualified: "ok",
   failed: "danger",
@@ -152,6 +154,65 @@ export function runCardHtml(run, ix) {
   </section>`;
 }
 
+function newestRun(ix) {
+  const all = list(ix && ix.runs).filter(Boolean);
+  const ordered = [...all].sort((a, b) => {
+    const at = Date.parse(a.started_at || a.finished_at || "") || 0;
+    const bt = Date.parse(b.started_at || b.finished_at || "") || 0;
+    return bt - at || String(b.id || "").localeCompare(String(a.id || ""));
+  });
+  return ordered.find((r) => ["printing", "paused"].includes(String(r.status || "").toLowerCase())) || ordered[0] || null;
+}
+
+export function controlRoomModel(ix) {
+  const run = newestRun(ix);
+  const exp = run ? list(ix && ix.experiments).find((x) => x && x.id === run.experiment) || null : null;
+  const needs = list(ix && ix.needs).filter(Boolean);
+  return {
+    run,
+    experiment: exp,
+    reference: productionState(ix),
+    lifecycle: exp ? lifecycleModel(exp, ix) : [],
+    needs,
+    next: needs[0] || null,
+  };
+}
+
+export function controlRoomHtml(ix) {
+  const model = controlRoomModel(ix);
+  const { run, experiment, reference, needs, next } = model;
+  const running = run && ["printing", "paused"].includes(String(run.status || "").toLowerCase());
+  const sealed = Boolean(reference.current && reference.current.sealed);
+  const packageId = reference.package;
+  return `<section class="card lab-v3-control" aria-label="Print Lab control room">
+    <div class="lab-v3-control__head">
+      <div><div class="lab-v2-kicker">Print Lab v3</div><h2>Control room</h2></div>
+      <span class="badge badge--${running ? "warn" : "neutral"}">${running ? "LIVE" : "READY"}</span>
+    </div>
+    <div class="lab-v3-control__grid">
+      <section class="lab-v3-control__pane" aria-label="Current run">
+        <div class="lab-v2-kicker">Current run</div>
+        ${run ? `<h3>${esc(run.id)}</h3>
+          <p class="lab-v3-control__status">${esc(String(run.status || "run").replace(/_/g, " "))}${experiment ? ` · ${esc(experiment.id)}` : ""}${run.build ? ` · ${esc(run.build)}` : ""}</p>
+          ${runMetrics(run).length ? `<p class="lab-v2-run__metrics">${runMetrics(run).map(esc).join(" · ")}</p>` : ""}
+          <p class="lab-v2-run__identity">${artifactLine(run, run.id === reference.run || run.status === "qualified")}</p>`
+        : `<h3>No canonical Run yet</h3><p class="meta">The next physical execution will appear here.</p>`}
+      </section>
+      <section class="lab-v3-control__pane" aria-label="Production reference">
+        <div class="lab-v2-kicker">Production reference</div>
+        ${reference.experiment || packageId ? `<div class="lab-v3-control__title-row"><h3>${esc(reference.experiment || "Qualified package")}${reference.run ? ` · ${esc(reference.run)}` : ""}</h3><span class="badge badge--${sealed ? "ok" : "neutral"}">${sealed ? "Sealed" : "Qualified"}</span></div>
+          ${packageId ? `<p class="lab-v2-package">${esc(packageId)}</p>` : ""}`
+        : `<h3>Not set</h3><p class="meta">Qualification has not established a production reference yet.</p>`}
+      </section>
+    </div>
+    ${experiment ? `<div class="lab-v3-control__life"><div class="lab-v2-kicker">Lifecycle · ${esc(experiment.id)}</div>${lifecycleHtml(experiment, ix)}</div>` : ""}
+    <div class="lab-v3-control__footer">
+      <div><span class="lab-v2-kicker">Needs attention</span><strong>${needs.length ? esc(needs.length) : "None"}</strong></div>
+      <div class="lab-v3-control__next"><span class="lab-v2-kicker">Next decision</span>${next ? `<strong>${esc(next.action || "Review")} · ${esc(next.id || "")}</strong>${next.why ? `<span class="meta">${esc(next.why)}</span>` : ""}` : `<strong>Nothing queued</strong>`}</div>
+    </div>
+  </section>`;
+}
+
 function referenceIds(exp) {
   const ids = list(exp && exp.reference_variants).map((x) => {
     const m = String(x || "").match(/^(E-\d{3,})/);
@@ -258,8 +319,8 @@ function styles() {
   style.id = "lab-v2-styles";
   style.textContent = `
     .lab-v2-overview{display:grid;gap:12px;margin:0 0 16px}.lab-v2-reference{border-left:4px solid var(--ui-ok,#3ecf8e)}
-    .lab-v2-reference--empty{border-left-color:var(--ui-muted,#93a1b3)}.lab-v2-reference__head,.lab-v2-run__head,.lab-v2-qual__head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-    .lab-v2-reference h2{margin:3px 0 0}.lab-v2-kicker{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--ui-muted,#93a1b3);font-weight:700}
+    .lab-v2-reference--empty{border-left-color:var(--ui-muted,#93a1b3)}.lab-v2-reference__head,.lab-v2-run__head,.lab-v2-qual__head,.lab-v3-control__head,.lab-v3-control__title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .lab-v2-reference h2,.lab-v3-control h2,.lab-v3-control h3{margin:3px 0 0}.lab-v2-kicker{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--ui-muted,#93a1b3);font-weight:700}
     .lab-v2-package{font:12px/1.45 var(--ui-mono);overflow-wrap:anywhere;margin:10px 0 6px}.lab-v2-reference__facts,.lab-v2-run__facts{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--ui-muted,#93a1b3);font-size:12px}
     .lab-v2-exp{margin:10px 0 12px;padding:10px 0;border-top:1px solid var(--ui-line,#1f2a38);border-bottom:1px solid var(--ui-line,#1f2a38)}
     .lab-v2-run,.lab-v2-qual{margin-top:10px;padding:10px 12px;border:1px solid var(--ui-line,#1f2a38);border-radius:9px;background:color-mix(in srgb,var(--ui-surface-2,#1a2431) 75%,transparent)}
@@ -269,7 +330,11 @@ function styles() {
     .lab-v2-life__step i{width:9px;height:9px;border:1px solid currentColor;border-radius:50%;display:inline-block}.lab-v2-life__step--done{color:var(--ui-ok,#3ecf8e)}.lab-v2-life__step--done i{background:currentColor}.lab-v2-life__step--active{color:var(--ui-warn,#f5b03d);font-weight:700}.lab-v2-life__step--active i{background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 20%,transparent)}
     .lab-v2-life__line{height:1px;min-width:16px;flex:1;background:var(--ui-line,#1f2a38);margin:0 6px}.lab-v2-qual{border-left:3px solid var(--ui-accent,#6ca8ff)}.lab-v2-qual__warning{color:var(--ui-warn,#f5b03d)}
     .lab-v2-qual__field{display:grid;gap:5px;margin-top:9px;font-size:12px;font-weight:650}.lab-v2-qual__field select,.lab-v2-qual__field textarea{width:100%;box-sizing:border-box}.lab-v2-qual__review{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:12px}.lab-v2-qual__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.lab-v2-qual__status{margin:8px 0 0;font-size:12px}.lab-v2-qual__status[data-tone="bad"]{color:var(--ui-bad,#ff736c)}.lab-v2-qual__status[data-tone="ok"]{color:var(--ui-ok,#3ecf8e)}
-    @media(max-width:640px){.lab-v2-reference__head,.lab-v2-run__head,.lab-v2-qual__head{align-items:center}.lab-v2-run__facts{display:block}.lab-v2-run__facts span{display:block;margin-top:2px}.lab-v2-life__line{min-width:10px}.lab-v2-qual__actions button{flex:1 1 100%}}
+    .lab-v3-control{border:1px solid color-mix(in srgb,var(--ui-accent,#6ca8ff) 38%,var(--ui-line,#1f2a38));box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ui-accent,#6ca8ff) 18%,transparent)}
+    .lab-v3-control__grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:12px;margin-top:12px}.lab-v3-control__pane{padding:12px;border:1px solid var(--ui-line,#1f2a38);border-radius:10px;background:color-mix(in srgb,var(--ui-surface-2,#1a2431) 70%,transparent)}
+    .lab-v3-control__status{margin:5px 0;color:var(--ui-muted,#93a1b3);text-transform:capitalize}.lab-v3-control__life{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-line,#1f2a38)}
+    .lab-v3-control__footer{display:grid;grid-template-columns:minmax(120px,.35fr) minmax(0,1fr);gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--ui-line,#1f2a38)}.lab-v3-control__footer>div{display:grid;gap:3px}.lab-v3-control__next .meta{display:block}
+    @media(max-width:640px){.lab-v2-reference__head,.lab-v2-run__head,.lab-v2-qual__head,.lab-v3-control__head,.lab-v3-control__title-row{align-items:center}.lab-v2-run__facts{display:block}.lab-v2-run__facts span{display:block;margin-top:2px}.lab-v2-life__line{min-width:10px}.lab-v2-qual__actions button{flex:1 1 100%}.lab-v3-control__grid,.lab-v3-control__footer{grid-template-columns:1fr}}
   `;
   document.head.append(style);
 }
@@ -279,6 +344,7 @@ export function decorateLabV2(state) {
   const box = state && state.box;
   if (!ix || !box) return;
   styles();
+  if (state.labStore) box.dataset.labPhase = state.labStore.snapshot().phase;
 
   let overview = box.querySelector(".lab-v2-overview");
   if (!overview) {
@@ -287,8 +353,7 @@ export function decorateLabV2(state) {
     const layout = box.querySelector(".lab-layout");
     if (layout) layout.before(overview); else box.prepend(overview);
   }
-  const overviewHtml = referenceCardHtml(ix);
-  setHtmlOnce(overview, overviewHtml);
+  setHtmlOnce(overview, controlRoomHtml(ix));
 
   const byId = Object.fromEntries(list(ix.experiments).filter(Boolean).map((x) => [x.id, x]));
   for (const article of box.querySelectorAll("article.lab-exp[id^='lab-']")) {
@@ -360,12 +425,14 @@ async function sendQualification(state, button) {
 export function mountLabV2(state) {
   if (!state || !state.box || state.labV2Mounted) return;
   state.labV2Mounted = true;
+  const store = attachLabStore(state);
   let queued = false, decorating = false;
   const schedule = () => {
-    if (queued || decorating) return;
+    if (queued || decorating || state.left) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
+      if (state.left) return;
       decorating = true;
       try { decorateLabV2(state); } finally { decorating = false; }
     });
@@ -375,8 +442,7 @@ export function mountLabV2(state) {
     if (button && state.box.contains(button)) sendQualification(state, button);
   };
   state.box.addEventListener("click", onClick);
-  const observer = new MutationObserver(schedule);
-  observer.observe(state.box, { childList: true, subtree: true });
-  state.stopLabV2 = () => { observer.disconnect(); state.box.removeEventListener("click", onClick); };
+  const unsubscribe = store ? store.subscribe(() => schedule()) : () => {};
+  state.stopLabV2 = () => { unsubscribe(); state.box.removeEventListener("click", onClick); };
   schedule();
 }
