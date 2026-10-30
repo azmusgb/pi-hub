@@ -998,6 +998,14 @@ function openCameraModal(p) {
     updateTransform(true);
   }
 
+  let fitMode = "cover"; // "cover" to fill screen, "contain" to see entire sensor
+  const btnFit = h("button", { type: "button", class: "hud-cam-btn", title: "Toggle Fill Screen / Fit Entire Sensor" }, "Fill");
+  btnFit.onclick = () => {
+    fitMode = fitMode === "cover" ? "contain" : "cover";
+    img.style.objectFit = fitMode;
+    btnFit.textContent = fitMode === "cover" ? "Fill" : "Fit";
+  };
+
   const btnZoomIn = h("button", { type: "button", class: "hud-cam-btn", title: "Zoom In" }, "+");
   btnZoomIn.onclick = () => adjustZoom(1.3);
 
@@ -1094,6 +1102,7 @@ function openCameraModal(p) {
     ),
     h("div", { class: "cam-modal-actions" },
       zoomDisplay,
+      btnFit,
       btnZoomOut,
       btnZoomIn,
       btnReset,
