@@ -691,6 +691,7 @@ def api_signout(request: Request):
 def api_actions(request: Request):
     role, _ = who(request)
     return fresh({"actions": actions.available(role), "updates": actions.updates_status(),
+                  "containers": actions.containers() if auth.allowed(role, "household") else [],
                   "log": auth.recent_actions(12) if auth.allowed(role, "household") else []})
 
 
