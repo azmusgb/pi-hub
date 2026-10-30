@@ -91,7 +91,12 @@ function printerMetric(label, value) {
 
 function telemetryBadge(p) {
   const telemetry = p.telemetry || {};
-  const state = telemetry.status || "offline";
+  let state = telemetry.status || "offline";
+  // If the printer is actively printing or paused, it is physically active:
+  // prevent an alarming "Offline" dot when telemetry reports via backup bridge or polling.
+  if ((state === "offline" || !state) && (p.state === "printing" || p.state === "paused")) {
+    state = "degraded";
+  }
   const label = state === "live" ? "Live" : state === "degraded" ? "Fallback" : "Offline";
   return h("span", {
     class: "printer-source",
@@ -154,6 +159,12 @@ export function band(p, cam = null) {
 
   const source = p.telemetry || {};
 
+  const isPrinting = p.state === "printing" || p.state === "paused";
+  const displayHeadline = isPrinting && pct != null
+    ? `${p.state === "paused" ? "Paused" : "Printing"} · ${pct}%`
+    : p.headline;
+  const cleanJob = p.job_name ? String(p.job_name).replace(/\.(gcode\.3mf|3mf|gcode)$/i, "") : "";
+
   return h("section", {
     class: cls,
     dataset: { state: p.state },
@@ -164,9 +175,9 @@ export function band(p, cam = null) {
         h("div", { class: "printer-title-row" },
           h("p", { class: "band-name" }, "Bambu X2D"),
           telemetryBadge(p)),
-        h("h2", { class: "band-headline" }, p.headline),
-        p.job_name
-          ? h("p", { class: "printer-job", title: p.job_name }, p.job_name)
+        h("h2", { class: "band-headline" }, displayHeadline),
+        cleanJob
+          ? h("p", { class: "printer-job", title: p.job_name }, cleanJob)
           : null,
         h("div", {
           class: "line",
