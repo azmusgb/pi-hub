@@ -189,6 +189,13 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
 | `pi.home.arpa` | Cockpit (Pi :9090) |
 | `scan.home.arpa` | scanservjs (Pi 127.0.0.1:8095) |
 
+- **Break-glass access if Pi Hub is down:**
+  If Pi Hub (`127.0.0.1:8100`) or Caddy fails, or if locked down to loopback under step 6, access Cockpit or Backrest directly via an SSH local port-forward:
+  ```sh
+  ssh -L 9090:127.0.0.1:9090 -L 9898:127.0.0.1:9898 pi
+  ```
+  Then open `https://localhost:9090` (Cockpit) or `http://localhost:9898` (Backrest) in your browser.
+
 - **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.30`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
 - **The gate:** Caddy on the Pi (`/etc/caddy/Caddyfile`, installed by each release from `deploy/caddy/Caddyfile`) holds ports 80 and 443. Pi Hub now listens on `127.0.0.1:8100`. Each name except `home.` asks the hub's `GET /api/gate` first: the owner goes through, anyone else goes to the hub's sign-in and comes back after it.
 - **Sign-in:** signing in as the owner at `https://home.home.arpa` lets each tool get its own `hub_gate` cookie on first visit through a one-time code (30 s, single use, that tool only), because `home.arpa` is a public suffix and browsers refuse a cookie shared across it. The cookie is a gate-only token (it ends with the sign-in that made it; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes the sign-in and every gate token it made. If a tool keeps sending you back, the hub renews the gate token once, then says the browser is refusing the cookie. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
