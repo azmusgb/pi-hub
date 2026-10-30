@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
+  controlRoomHtml,
+  controlRoomModel,
   experimentV2Html,
   lifecycleModel,
   productionState,
@@ -67,6 +70,7 @@ const ix = {
   project: "hex-tile",
   experiments: [exp],
   runs: [run],
+  needs: [{ id: "E-025", action: "Judge the print", why: "Inspect the face under raking light." }],
   qualification: {},
   production: { current: null, packages: [] },
 };
@@ -80,6 +84,20 @@ assert(runHtml.includes("12h 41m est."));
 assert(runHtml.includes("363.7 g est."));
 assert(runHtml.includes("660 layers"));
 assert(runHtml.includes("4/4 artifacts bound"));
+
+const control = controlRoomModel(ix);
+assert.equal(control.run.id, "RUN-025-01");
+assert.equal(control.experiment.id, "E-025");
+assert.equal(control.next.action, "Judge the print");
+const controlHtml = controlRoomHtml(ix);
+assert(controlHtml.includes("Print Lab v3"));
+assert(controlHtml.includes("Control room"));
+assert(controlHtml.includes("Current run"));
+assert(controlHtml.includes("RUN-025-01"));
+assert(controlHtml.includes("LIVE"));
+assert(controlHtml.includes("Needs attention"));
+assert(controlHtml.includes("Judge the print · E-025"));
+assert(controlHtml.includes("Production reference"));
 
 const life = lifecycleModel(exp, ix);
 assert.deepEqual(life.map((x) => x[0]), ["Plan", "Build", "Run", "Evidence", "Verdict", "Qualify", "Production"]);
@@ -159,9 +177,17 @@ assert(refHtml.includes("RUN-025-01"));
 assert(refHtml.includes(packageId));
 assert(refHtml.includes("Sealed"));
 assert(refHtml.includes("replaced E-019"));
+const qualifiedControl = controlRoomHtml(qualifiedIx);
+assert(qualifiedControl.includes("Production reference"));
+assert(qualifiedControl.includes(packageId));
+assert(qualifiedControl.includes("Sealed"));
 
 const qualifiedRunHtml = runCardHtml({ ...answeredRun, status: "qualified" }, qualifiedIx);
 assert(qualifiedRunHtml.includes("Sealed artifact identity"));
 assert(qualifiedRunHtml.includes("Qualified"));
+
+const v3Source = readFileSync(new URL("../hub/static/js/lab-v2.js", import.meta.url), "utf8");
+assert(!v3Source.includes("MutationObserver"), "Print Lab v3 must not observe and rewrite its own DOM");
+assert(v3Source.includes("attachLabStore"), "Print Lab v3 rendering must be driven by the state boundary");
 
 console.log("lab-v2: ok");
