@@ -1182,23 +1182,51 @@ body:not(.wall) .page-now { display: block; }
 }
 
 /* One home: Home's six cards, Needs you first and full width. */
-.home-cards { display: grid; gap: .875rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-block: 1rem; }
+.home-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-block: 1rem; }
 .home-card {
-  display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; border-radius: var(--r-lg);
-  background: var(--surface); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: .6rem; padding: 1.15rem 1.25rem; border-radius: var(--r-lg);
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  transition: transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
 }
-.home-card--needs { grid-column: 1 / -1; border-color: var(--accent); background: var(--accent-soft); }
-.home-card--needs[data-tone="bad"] { border-color: var(--danger); }
+.home-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.08);
+}
+.home-card--needs {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--glass-surface) 92%, var(--accent-soft));
+}
+.home-card--needs[data-tone="bad"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--glass-surface) 90%, color-mix(in srgb, var(--danger) 10%, transparent));
+}
 .home-card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.home-card-title { margin: 0; font-size: 1.05rem; font-weight: 700; }
-.home-card-status { margin: 0; color: var(--text-2); }
-.home-card .dot { width: .6rem; height: .6rem; border-radius: var(--r-full); background: var(--line-strong); }
-.home-card .dot[data-tone="ok"] { background: var(--ok); }
-.home-card .dot[data-tone="warn"], .home-card .dot[data-tone="attention"] { background: var(--warn); }
-.home-card .dot[data-tone="bad"] { background: var(--danger); }
+.home-card-title { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.home-card-status { margin: 0; color: var(--text-2); font-feature-settings: var(--tabular-numbers); }
+.home-card .dot {
+  width: .65rem; height: .65rem; border-radius: var(--r-full); background: var(--line-strong);
+  box-shadow: 0 0 0 2px var(--glass-surface);
+}
+.home-card .dot[data-tone="ok"] {
+  background: var(--ok);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 60%, transparent);
+}
+.home-card .dot[data-tone="warn"], .home-card .dot[data-tone="attention"] {
+  background: var(--warn);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--warn) 60%, transparent);
+}
+.home-card .dot[data-tone="bad"] {
+  background: var(--danger);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 70%, transparent);
+}
 .home-card-action:focus-visible, .home-card-link:focus-visible { outline: none; box-shadow: var(--ring); }
-.home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-md); }
-.home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; }
+.home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--glass-border); }
+.home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; border-radius: var(--r-sm); }
 .home-card-link { align-self: flex-start; padding-block: .35rem; }
 /* "Open <tool> ↗": the small product line under a task (one home, Words). */
 .home-card-link, .tool-link { color: var(--accent-strong); font-weight: 600; font-size: .9rem; }
