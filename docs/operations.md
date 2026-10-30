@@ -138,7 +138,7 @@ The hub's Documents section searches Paperless as the user `hub`. That user can 
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
 
-A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs. While migrating, `/etc/pi-status/ntfy_servers` contains both `http://127.0.0.1:8093` and `https://ntfy.sh`. Once the phone subscription is verified on the local server, `https://ntfy.sh` can be removed for 100% private notifications.
+A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.30:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
 
 ## Homebox (home inventory)
 
