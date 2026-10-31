@@ -37,10 +37,12 @@ CAD/slicing MCP; LocalAI's INTEGRATIONS.md plans an opt-in Penpot MCP bridge. Ne
 
 1. **Read-only Pi Hub tools.** `hub_now`, `printer_status`, `pi_health`, `source_freshness`, `recent_alerts` over
    the hub's open read endpoints. (`/api/lab/*` needs a household session; deferred to Phase 4's key.)
-2. **Deploy state and logs.** `deploy_state("pi-hub" | "localai")` compares the intended commit, the target's
-   main/release and the live release, and reports the PC checkout's local changes. PC commands are read-only
-   (`git rev-parse`, `git status --porcelain`, never `fetch`). `logs(service, lines)` from an allowlist; cmd.exe
-   chaining with `&&`; process checks filtered so a search can't match itself.
+2. **Deploy state and logs.** `deploy_state("pi-hub" | "localai")` wraps each target's authoritative records:
+   for the Pi Hub, `/opt/pi-hub/current`, `/var/lib/pi-hub-releases/releases.json` and the `pi` remote; for
+   Local AI, `deploy/Get-LocalAI-DeployStatus.ps1` on the PC plus GitHub's heads. It reports target, revisions,
+   blockers, warnings and observation time, and never fetches, pushes or writes. `service_logs(service, minutes,
+   lines, contains)` reads a fixed list of Pi units and PC containers, bounded (24 h, 500 lines, 20 KB), filtered
+   locally and redacted.
 3. **Local AI tools.** `localai_health`, `localai_runs` at `https://10.0.0.21` with the Mac key and CA print-lab
    already uses. Routes read from `~/dev/ai-harness/LocalAI`.
 4. **Gated writes.** `printer_action`, `hub_action` over `/api/printer/{action}` and `/api/actions/{name}` (the

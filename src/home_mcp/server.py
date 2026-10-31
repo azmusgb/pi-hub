@@ -1,4 +1,4 @@
-"""The home-mcp tools: read-only views of the Pi Hub, trimmed to what an assistant needs."""
+"""The home-mcp tools: read-only views of the home systems, trimmed to what an assistant needs."""
 import time
 from collections.abc import Callable
 from typing import Any
@@ -7,14 +7,15 @@ import httpx
 from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 
-from . import hub
+from . import deploy, hub, logs, shell
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
 INSTRUCTIONS = (
     "Read-only views of the home systems. The Pi Hub (Raspberry Pi, 10.0.0.30) runs the household dashboard, "
     "printer telemetry for the Bambu X2D, and the Pi's services. Start with hub_now for what needs attention, then "
-    "printer_status, pi_health, source_freshness or recent_alerts for detail. A result with ok false names the "
-    "source that failed and why; report it rather than guessing."
+    "printer_status, pi_health, source_freshness or recent_alerts for detail. Before any Pi Hub or Local AI deploy, "
+    "call deploy_state and stop if it lists blockers. logs reads bounded, redacted logs from a fixed list of "
+    "services. A result with ok false names the source that failed and why; report it rather than guessing."
 )
 
 PRINTER_KEYS = ("state", "headline", "progress", "left", "minutes_left", "detail", "stale", "job_name",
@@ -42,7 +43,8 @@ def _result(source: str, errors: list[dict], **fields) -> dict[str, Any]:
     return out
 
 
-def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_client) -> MCPServer:
+def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_client,
+                 runner: deploy.Runner = shell.run) -> MCPServer:
     mcp = MCPServer("home", instructions=INSTRUCTIONS)
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
@@ -158,5 +160,23 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         return _result("pi-hub /api/alerts", errors, total=len(alerts),
                        alerts=[{"at": hub.iso(a.get("ts")), **_pick(a, ("tag", "title", "body"))}
                                for a in alerts[:limit]])
+
+    @mcp.tool(annotations=READ_ONLY, structured_output=True)
+    async def deploy_state(target: str, intended: str | None = None) -> dict[str, Any]:
+        """Deploy preflight for target pi-hub or localai, from each target's own records: the intended commit
+        (pi-hub: a ref in the local checkout, default main; localai: an optional SHA), GitHub's heads, what the
+        target's repository holds, the running release and its health, and for localai the PC checkout and the
+        LocalAI Safe Deploy task. ready is false when blockers is non-empty: another session advanced the target,
+        a release is pending or failed, a checkout is dirty, or a source couldn't be read. Never changes anything."""
+        return await deploy.deploy_state(runner, target, intended)
+
+    @mcp.tool(annotations=READ_ONLY, structured_output=True)
+    async def service_logs(service: str, minutes: int = 60, lines: int = 100, contains: str | None = None) -> dict[str, Any]:
+        """Recent log lines, newest last, for one allowlisted service: Pi units (pi-hub, pi-hub-helper,
+        pi-hub-selfcheck, pi-hub-backup, pi-hub-rollback, pi-status, caddy, x2d-camera-bridge, x2d-camera-failover)
+        or Local AI on the PC (localai, localai-https, localai-sandbox, localai-ollama-proxy, localai-deploy).
+        minutes 1-1440 (ignored for localai-deploy, a file), lines 1-500, contains filters case-insensitively.
+        Secrets are redacted and output is capped at 20 KB."""
+        return await logs.logs(runner, service, minutes, lines, contains)
 
     return mcp
