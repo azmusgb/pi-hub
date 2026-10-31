@@ -29,6 +29,25 @@ ACTIONS = {
     "updates:install": (["sh", "-c", "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get -y -qq "
                                      "-o Dpkg::Options::=--force-confold full-upgrade"], 1800),
 }
+
+
+def _restart_container(name):
+    # Restart, then report failure unless Docker says the container is running again.
+    return (["sh", "-c", f"docker restart {name} >/dev/null && "
+                         f"[ \"$(docker inspect -f '{{{{.State.Running}}}}' {name})\" = true ] || "
+                         f"{{ echo '{name} is not running after the restart.' >&2; exit 1; }}"], 120)
+
+
+# The hub's restart buttons for the Docker apps; the names are the containers on the Pi.
+CONTAINERS = {
+    "restart:ntfy": "ntfy-ntfy-1",
+    "restart:bambuddy": "bambuddy",
+    "restart:homebox": "homebox-homebox-1",
+    "restart:backrest": "backrest-backrest-1",
+    "restart:adguard": "adguard-adguard-1",
+    "restart:scanserv": "scanservjs-scanservjs-1",
+}
+ACTIONS.update({action: _restart_container(name) for action, name in CONTAINERS.items()})
 LONG = {"updates:install"}
 _jobs = {}
 

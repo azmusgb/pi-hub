@@ -47,3 +47,16 @@ def test_the_api_says_when_adguard_is_unavailable(monkeypatch):
     monkeypatch.setattr(actions, "helper", lambda name, timeout=0: {"ok": False, "message": "refused"})
     hub_app.sources._cache.pop("helper-adguard", None)
     assert TestClient(hub_app.app).get("/api/network/adguard").json() == {"available": False}
+
+
+def test_every_hub_action_has_a_command_in_the_helper():
+    # rescan:plex is the only action the hub runs itself (it talks to Plex, not to the system).
+    hub_side = {"rescan:plex"}
+    assert set(actions.ACTIONS) - hub_side <= set(helper.ACTIONS)
+
+
+def test_container_restarts_check_the_container_is_running_again():
+    for action, name in helper.CONTAINERS.items():
+        cmd, timeout = helper.ACTIONS[action]
+        assert cmd[:2] == ["sh", "-c"] and f"docker restart {name}" in cmd[2] and f"docker inspect" in cmd[2]
+        assert timeout
