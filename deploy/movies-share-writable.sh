@@ -19,13 +19,15 @@ case "${1:-status}" in
     sed -i -E "/[[:space:]]${MNT//\//\\/}[[:space:]]/ s/gid=[0-9]+/gid=$gid,file_mode=0664,dir_mode=0775/" "$FSTAB"
     want || { echo "fstab edit did not take; restoring"; cp -p "$BACKUP" "$FSTAB"; exit 1; }
     systemctl daemon-reload
-    umount "$MNT" && mount "$MNT"
+    umount "$MNT" 2>/dev/null || umount -l "$MNT"  # busy (Plex has files open): detach; open files finish on the old mount
+    mount "$MNT"
     "$0" status ;;
   undo)
     [ -f "$BACKUP" ] || { echo "no backup at $BACKUP"; exit 1; }
     cp -p "$BACKUP" "$FSTAB" && rm -f "$BACKUP"
     systemctl daemon-reload
-    umount "$MNT" && mount "$MNT"
+    umount "$MNT" 2>/dev/null || umount -l "$MNT"  # busy (Plex has files open): detach; open files finish on the old mount
+    mount "$MNT"
     "$0" status ;;
   *) echo "usage: $0 status|apply|undo" >&2; exit 2 ;;
 esac
