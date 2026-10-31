@@ -630,3 +630,11 @@
   text-transform: uppercase;
 }
 
+
+/* Playing now: rows have no status dot, so the shared three-column log grid put the title in the dot's 0.7rem column
+   (one word per line). Title and progress; on a phone, progress goes under the title. */
+.log-row.np-row { grid-template-columns: minmax(0, 1fr) 120px; }
+@media (max-width: 560px) {
+  .log-row.np-row { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+  .log-row.np-row .progress { width: 100% !important; }
+}

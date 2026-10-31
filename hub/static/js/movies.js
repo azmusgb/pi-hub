@@ -1504,7 +1504,7 @@ function playingNowCard(
           return h(
             "li",
             {
-              class: "log-row",
+              class: "log-row np-row",  // no status dot: two columns (title, progress)
             },
 
             h(

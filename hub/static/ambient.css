@@ -69,9 +69,13 @@ body[data-house="cinema"] .ambient-layer::after {
   background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, .35) 100%);
   transition: opacity .8s ease;
 }
-body[data-house="cinema"] .rail {
-  opacity: 0.65;
-  transition: opacity .8s ease;
+/* Dim the side rail while a movie plays; the phone's bottom bar sits over the page and must stay opaque, or the
+   page shows through its labels (31 Oct 2026 report). */
+@media (min-width: 861px) {
+  body[data-house="cinema"] .rail {
+    opacity: 0.65;
+    transition: opacity .8s ease;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
