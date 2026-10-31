@@ -24,6 +24,8 @@ services:
       - '--path.sysfs=/host/sys'
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containerd/.+)($$|/)'
+      # Every NETMON port listens on the Pi only; Caddy and Prometheus reach them locally. pi-lock.py checks the same lines.
+      - '--web.listen-address=127.0.0.1:9100'
 
   blackbox-exporter:
     image: prom/blackbox-exporter:v0.25.0
@@ -39,6 +41,7 @@ services:
       - /opt/netmon/blackbox/config.yml:/etc/blackbox_exporter/config.yml:ro
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
+      - '--web.listen-address=127.0.0.1:9115'
 
   prometheus:
     image: prom/prometheus:v2.54.1
@@ -84,6 +87,7 @@ services:
       - GF_AUTH_PROXY_HEADER_PROPERTY=username
       - GF_AUTH_PROXY_AUTO_SIGN_UP=false
       - GF_AUTH_PROXY_WHITELIST=127.0.0.1
+      - GF_SERVER_HTTP_ADDR=127.0.0.1
     env_file:
       - /etc/pi-hub/secrets/grafana_gate.env
     volumes:
@@ -102,5 +106,6 @@ services:
     logging: *default-logging
     environment:
       - PORT=3001
+      - UPTIME_KUMA_HOST=127.0.0.1
     volumes:
       - /mnt/usb1/netmon/uptime-kuma:/app/data
