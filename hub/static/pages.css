@@ -205,7 +205,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cam-img { display: block; width: 100%; max-width: 760px; aspect-ratio: 16 / 9; height: auto; border-radius: 14px; background: #000; object-fit: cover; }
 
 /* Filament shelf and print log */
-.spools { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.spools { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); }
 .spool { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "sw main btn" "sw left left"; gap: 0.35rem 0.75rem;
   align-items: center; padding: 0.7rem 0.8rem; border-radius: 14px; background: var(--well); }
 .spool[data-low="true"] { background: rgb(var(--bad-rgb) / 0.1); }

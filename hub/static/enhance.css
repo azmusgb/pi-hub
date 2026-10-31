@@ -791,3 +791,17 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 .movie-upload-form .row-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .movie-upload-form .btn { min-height: 44px; }
 .movie-upload [hidden] { display: none !important; }
+
+/* Responsive pass (31 Oct 2026 sweep at 320/390/768/1024/1440 px). */
+/* Wi-Fi card: the QR code and the name wrap instead of pushing a 320 px phone sideways. */
+.wifi-content { flex-wrap: wrap; }
+.wifi-content > * { min-width: 0; }
+.wifi-qr { max-width: 100%; height: auto; aspect-ratio: 1; }
+/* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
+   changing how it reads. Desktop with a mouse keeps the compact sizes. */
+@media (max-width: 860px), (pointer: coarse) {
+  #theme-btn, #wall-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+  a.action { display: inline-flex; align-items: center; }
+  .hud-cam-btn, .tile-fav { min-width: 44px; }
+  kbd { font-size: .75rem; }
+}
