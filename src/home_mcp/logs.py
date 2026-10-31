@@ -49,19 +49,29 @@ REDACTIONS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',;]+"), r"\1 [redacted]"),
     # URL query parameters: the value ends at the next &, so the other parameters stay readable.
     (re.compile(rf"(?i)([?&][A-Za-z0-9_-]*?(?<![A-Za-z0-9]){QUERY_WORD}=)[^&\s]+"), r"\1[redacted]"),
-    # Anywhere else the value runs to whitespace, a quote, a comma or a semicolon, so a password with & is hidden
-    # whole. A value the query rule already replaced is left alone.
-    (re.compile(rf"(?i)(?<![A-Za-z0-9])({SECRET_WORD})(\"?\s*[:=]\s*\"?|\s+)(?!\[redacted\])([^\s\"',;]+)"),
-     r"\1\2[redacted]"),
+    # Anywhere else: the key (bare, or quoted as in JSON and Python reprs, where its closing quote comes before the
+    # separator), then ":" or "=" or a space, then the value. A quoted value is hidden whole, spaces and all
+    # (password="two words", {'password': 'x'}); a bare one runs to whitespace, a quote, a comma, a semicolon or a
+    # closing bracket, so a password with & is hidden whole. A value the query rule already replaced is left alone.
+    (re.compile(rf"(?i)(?<![A-Za-z0-9])({SECRET_WORD})([\"']?\s*[:=]\s*|\s+)(?!\[redacted\])"
+                r"(\"[^\"]*\"?|'[^']*'?|[^\s\"',;}\]]+)"),
+     lambda m: m.group(1) + m.group(2) + (m.group(3)[0] + "[redacted]" + m.group(3)[0] if m.group(3)[0] in "\"'"
+                                          else "[redacted]")),
     # Long opaque tokens, judged whole by _opaque. Path segments and dotted names are not runs on their own.
     (re.compile(r"(?<![/\w.-])[A-Za-z0-9+_-]{40,}={0,2}"), _opaque),
 ]
 
 
-def redact(line: str) -> str:
-    """One log line with secret values replaced, then cut to MAX_LINE: redacting the whole line first means a cut
-    can never leave part of a secret behind."""
+CUT_MARK = " [cut]"
+
+
+def redact_line(line: str) -> tuple[str, bool]:
+    """One log line with secret values replaced, then cut to MAX_LINE characters: redacting the whole line first
+    means a cut can never leave part of a secret behind. Returns the line and whether any of it was cut; a cut line
+    ends with " [cut]"."""
+    cut = False
     if len(line) > MAX_SCAN:
+        cut = True
         # Redacting a long secret shortens the line and can pull text near the cut into what is returned, so drop
         # the token the cut split rather than risk returning part of it.
         head = line[:MAX_SCAN]
@@ -69,7 +79,13 @@ def redact(line: str) -> str:
         line = (head[:cut] if cut > 0 else "") + " [truncated]"
     for pattern, repl in REDACTIONS:
         line = pattern.sub(repl, line)
-    return line[:MAX_LINE]
+    if len(line) > MAX_LINE:
+        line, cut = line[:MAX_LINE - len(CUT_MARK)] + CUT_MARK, True
+    return line, cut
+
+
+def redact(line: str) -> str:
+    return redact_line(line)[0]
 
 
 def command(service: str, minutes: int, lines: int) -> tuple[str, str]:
@@ -100,15 +116,21 @@ async def logs(run: Runner, service: str, minutes: int = 60, lines: int = 100, c
         out["lines"] = []
         return out
     # Redact before filtering, so contains can't be used to confirm a hidden value one guess at a time.
-    text = [redact(line) for line in r.out.splitlines() if line.strip() and line.strip() != "-- No entries --"]
+    done = [redact_line(line) for line in r.out.splitlines() if line.strip() and line.strip() != "-- No entries --"]
     if contains:
-        text = [line for line in text if contains.lower() in line.lower()]
-    kept, size, truncated = [], 0, False
-    for line in reversed(text):  # keep the newest lines when the byte cap bites
-        if size + len(line) > MAX_BYTES:
-            truncated = True
+        done = [(line, cut) for line, cut in done if contains.lower() in line.lower()]
+    # The budget is UTF-8 bytes as sent (each line plus its newline), not characters.
+    kept, size, dropped = [], 0, 0
+    for i, (line, cut) in enumerate(reversed(done)):  # keep the newest lines when the byte cap bites
+        n = len(line.encode("utf-8")) + 1
+        if size + n > MAX_BYTES:
+            dropped = len(done) - i
             break
-        kept.append(line)
-        size += len(line) + 1
-    out.update(lines=list(reversed(kept)), count=len(kept), truncated=truncated)
+        kept.append((line, cut))
+        size += n
+    kept.reverse()
+    shortened = sum(1 for _, cut in kept if cut)
+    # Every way the answer is less than the log: older lines dropped for the byte cap, and long lines cut.
+    out.update(lines=[line for line, _ in kept], count=len(kept), truncated=bool(dropped or shortened),
+               lines_dropped=dropped, lines_shortened=shortened, bytes=size)
     return out

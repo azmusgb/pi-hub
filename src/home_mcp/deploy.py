@@ -13,6 +13,11 @@ Runner = Callable[..., Awaitable[shell.Run]]
 
 REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$")
 SHA = re.compile(r"^[0-9a-f]{7,40}$")
+FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+# What a Pi release attempt can end as (deploy/pi-hub-release's record()): only "live" means it is running and healthy.
+PI_OK = "live"
+# Get-LocalAI-DeployStatus.ps1 fields without which readiness cannot be judged.
+PC_REQUIRED = ("currentCommit", "health", "deploymentStatus")
 PI_LIVE = "readlink -f /opt/pi-hub/current; cat /var/lib/pi-hub-releases/releases.json"
 PC_STATUS = r"powershell -NoProfile -ExecutionPolicy Bypass -File C:\LocalAI\repo\deploy\Get-LocalAI-DeployStatus.ps1 -AsJson"
 PC_DIRTY = r"git -C C:\LocalAI\repo status --porcelain"
@@ -85,14 +90,26 @@ async def pi_hub(run: Runner, intended: str | None) -> dict:
         try:
             history = json.loads(rest)
         except ValueError:
+            history = None
+        if not isinstance(history, list):
+            # Unreadable history is not "no attempts": readiness can't be judged without it.
+            errors.append({"source": "the Pi's release history (releases.json)", "error": "bad_history",
+                           "detail": rest.strip()[:200] or "empty"})
             history = []
-        entries = [e for e in history if isinstance(e, dict)] if isinstance(history, list) else []
-        newest = max(entries, key=lambda e: e.get("ts") or 0, default=None)
-        mine = next((e for e in sorted(entries, key=lambda e: e.get("ts") or 0, reverse=True)
-                     if _same(e.get("sha"), live["sha"])), None)
+        entries = [e for e in history if isinstance(e, dict)]
+        by_time = sorted(entries, key=lambda e: e.get("ts") if isinstance(e.get("ts"), (int, float)) else 0)
+        newest = by_time[-1] if by_time else None
+        mine = next((e for e in reversed(by_time) if _same(e.get("sha"), live["sha"])), None)
         if mine:
             live.update(status=mine.get("status"), message=mine.get("message"), at=iso(mine.get("ts")))
-        if newest and not _same(newest.get("sha"), live["sha"]):
+        bad_history = any(e.get("error") == "bad_history" for e in errors)
+        if not mine and not bad_history:
+            blockers.append(f"there is no release record for the running release ({live['sha']})")
+        elif mine and mine.get("status") != PI_OK:
+            blockers.append(f"the running release ({live['sha']}) is recorded as {mine.get('status')}: {mine.get('message')}")
+        # The newest attempt is judged by its outcome as well as its commit: a failed re-release of the running
+        # commit is still a failed release.
+        if newest and newest is not mine:
             blockers.append(f"the newest release attempt ({newest.get('sha')}, {newest.get('status')}) is not the "
                             f"running release: {newest.get('message')}")
     else:
@@ -137,8 +154,12 @@ async def localai(run: Runner, intended: str | None) -> dict:
     if gh_r.code == 0:
         for line in gh_r.out.splitlines():
             parts = line.split()
-            if len(parts) == 2:
+            if len(parts) == 2 and FULL_SHA.fullmatch(parts[0]):
                 heads[parts[1].rsplit("/", 1)[-1]] = parts[0]
+        missing = [b for b in ("release", "main") if b not in heads]
+        if missing:
+            errors.append({"source": "GitHub release and main (git ls-remote origin)", "error": "missing",
+                           "detail": f"no {' or '.join(missing)} branch in the answer"})
     else:
         errors.append(_failed("GitHub release and main (git ls-remote origin)", gh_r))
     github_release, github_main = heads.get("release"), heads.get("main")
@@ -151,6 +172,17 @@ async def localai(run: Runner, intended: str | None) -> dict:
             errors.append({"source": "Get-LocalAI-DeployStatus.ps1", "error": "bad_json", "detail": status_r.out[:200]})
     else:
         errors.append(_failed("Get-LocalAI-DeployStatus.ps1 on the PC (ssh)", status_r))
+    if status_r.code == 0 and not any(e.get("source") == "Get-LocalAI-DeployStatus.ps1" for e in errors):
+        problems = []
+        if not isinstance(st, dict):
+            problems.append(f"expected an object, got {type(st).__name__}")
+        else:
+            problems += [f"no {k}" for k in PC_REQUIRED if not st.get(k)]
+            if st.get("currentCommit") and not FULL_SHA.fullmatch(str(st["currentCommit"])):
+                problems.append(f"currentCommit {str(st['currentCommit'])[:20]!r} is not a commit")
+        if problems:
+            errors.append({"source": "Get-LocalAI-DeployStatus.ps1", "error": "bad_status", "detail": "; ".join(problems)})
+            st = {}
     st = st if isinstance(st, dict) else {}
     live_sha = st.get("currentCommit")
     live = {"sha": live_sha, "health": st.get("health"), "status": st.get("deploymentStatus"),
@@ -188,6 +220,10 @@ async def localai(run: Runner, intended: str | None) -> dict:
             warnings.append("the intended commit is already live")
         elif _same(intended, github_release):
             warnings.append("the intended commit is on release, waiting for Safe Deploy")
+        else:
+            # Readiness is about this candidate: one that is neither running nor on release isn't what would deploy.
+            blockers.append(f"the intended commit {intended[:12]} is neither the running release nor release "
+                            f"({(github_release or '?')[:12]}); ship it to release first")
     if errors:
         blockers.append("some sources couldn't be read; see errors")
     return _shape("localai", intended, None, errors, blockers, warnings,

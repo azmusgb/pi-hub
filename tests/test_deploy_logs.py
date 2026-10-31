@@ -297,3 +297,87 @@ def test_ssh_env_recovers_agent_socket(monkeypatch):
     assert shell.ssh_env()["SSH_AUTH_SOCK"] == "/tmp/agent"
     monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/mine")
     assert shell.ssh_env()["SSH_AUTH_SOCK"] == "/tmp/mine"
+
+
+# --- Review of 31 Oct 2026: reproductions that must not pass as "ready" or "redacted" ------------------------------
+
+@pytest.mark.parametrize("status", ["{}", "[]", '{"health": "HEALTHY"}', '{"currentCommit": "not-a-sha", "health": "HEALTHY", "deploymentStatus": "HEALTHY"}'])
+async def test_localai_status_without_valid_evidence_is_not_ready(status):
+    d = await deploy.deploy_state(FakeHosts(pc_out=ok(status)), "localai")
+    assert not d["ok"] and not d["ready"]
+    assert any(e["source"].startswith("Get-LocalAI-DeployStatus") for e in d["errors"])
+
+
+async def test_localai_missing_remote_branches_is_an_error():
+    hosts = FakeHosts()
+    async def no_release(argv, timeout=30):
+        if argv[3:5] == ["ls-remote", "origin"]:
+            return ok(f"{LIVE}\trefs/heads/main\n")
+        return await FakeHosts.__call__(hosts, argv, timeout)
+    d = await deploy.deploy_state(no_release, "localai")
+    assert not d["ready"] and any("release" in e["source"] for e in d["errors"])
+
+
+async def test_localai_unrelated_intended_sha_blocks():
+    d = await deploy.deploy_state(FakeHosts(), "localai", intended="d" * 40)
+    assert not d["ready"]
+    assert any("is neither the running release nor release" in b for b in d["blockers"])
+
+
+async def test_localai_intended_on_release_or_live_is_allowed():
+    assert (await deploy.deploy_state(FakeHosts(), "localai", intended=LIVE))["ready"]
+
+
+async def test_pi_hub_unreadable_history_is_an_error_not_an_empty_list():
+    d = await deploy.deploy_state(FakeHosts(pi_ssh=ok(f"/opt/pi-hub/releases/{LIVE[:10]}\nnot json")), "pi-hub")
+    assert not d["ready"] and any(e["error"] == "bad_history" for e in d["errors"])
+
+
+@pytest.mark.parametrize("status", ["failed", "rolled-back"])
+async def test_pi_hub_failed_attempt_with_the_running_sha_still_blocks(status):
+    releases = [{"sha": LIVE[:10], "status": "live", "message": "ok", "ts": 1},
+                {"sha": LIVE[:10], "status": status, "message": "re-release failed", "ts": 2}]
+    d = await deploy.deploy_state(FakeHosts(releases=releases), "pi-hub")
+    assert not d["ready"] and any("re-release failed" in b for b in d["blockers"])
+
+
+async def test_pi_hub_running_release_recorded_as_failed_blocks():
+    releases = [{"sha": LIVE[:10], "status": "failed", "message": "recovery needs attention", "ts": 3}]
+    d = await deploy.deploy_state(FakeHosts(releases=releases), "pi-hub")
+    assert d["live"]["status"] == "failed" and not d["ready"]
+
+
+async def test_pi_hub_running_release_missing_from_history_blocks():
+    d = await deploy.deploy_state(FakeHosts(releases=[]), "pi-hub")
+    assert not d["ready"] and any("no release record" in b for b in d["blockers"])
+
+
+@pytest.mark.parametrize("line", [
+    "{'password': 'SYNTHETIC_SECRET'}",
+    '{"password": "SYNTHETIC_SECRET"}',
+    'password="SYNTHETIC SECRET"',
+    "password='SYNTHETIC SECRET' next",
+    "access_token=shortsynthetic",
+    "client_secret: shortsynthetic",
+    "X-Api-Key: shortsynthetic",
+    "db_password = SYNTHETIC",
+    "{'auth': {'token': 'SYNTHETIC_SECRET'}}",
+])
+def test_redaction_covers_quoted_compound_and_structured_forms(line):
+    out = logs.redact(line)
+    assert "SYNTHETIC" not in out and "SECRET" not in out.replace("[redacted]", "") and "shortsynthetic" not in out, out
+
+
+def test_redaction_keeps_ordinary_words():
+    assert logs.redact("monkey business, key_count=3 tokens=5") == "monkey business, key_count=3 tokens=5"
+
+
+async def test_logs_byte_budget_counts_utf8_bytes():
+    out = "\n".join("é€" * 400 for _ in range(200))
+    d = await logs.logs(FakeHosts(log_out=ok(out)), "pi-hub", lines=500)
+    assert len("\n".join(d["lines"]).encode()) <= logs.MAX_BYTES and d["truncated"]
+
+
+async def test_logs_a_shortened_line_is_disclosed():
+    d = await logs.logs(FakeHosts(log_out=ok("x " * 1000)), "pi-hub")
+    assert d["truncated"] and d["lines_shortened"] == 1 and d["lines"][0].endswith("[cut]")
