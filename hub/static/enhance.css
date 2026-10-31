@@ -781,3 +781,12 @@ body.wall .source-freshness { display: none; }
 .cr-since-summary { cursor: pointer; padding: .25rem 0; }
 .cr-since-summary:focus-visible { outline: 2px solid var(--ui-accent, currentColor); outline-offset: 2px; border-radius: 4px; }
 .cr-since-details[open] > .cr-since-summary { margin-bottom: var(--space-2, .5rem); }
+
+/* Media › Add a movie (movie-upload.js) */
+.movie-upload-row { display: flex; justify-content: flex-end; margin-block: var(--space-2, .5rem); }
+dialog.movie-upload { width: min(32rem, calc(100vw - 2rem)); padding: var(--space-4, 1rem); border: 1px solid var(--ui-line, #1f2a38); border-radius: 12px; background: var(--ui-surface, #fff); color: inherit; }
+dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
+.movie-upload-form label { font-weight: 600; }
+.movie-upload-form input { width: 100%; min-height: 44px; box-sizing: border-box; }
+.movie-upload-form .row-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.movie-upload-form .btn { min-height: 44px; }

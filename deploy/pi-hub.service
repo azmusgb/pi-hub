@@ -13,6 +13,9 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 ReadWritePaths=/var/lib/pi-hub
+# Media › Add a movie writes into the PC's Movies share (hub/uploads.py); the share is mounted gid=pi-hub, group-writable
+# (deploy/movies-share-writable.sh).
+ReadWritePaths=-/mnt/windows-movies
 StateDirectory=pi-hub
 Restart=on-failure
 TimeoutStopSec=15

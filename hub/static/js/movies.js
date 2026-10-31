@@ -1,5 +1,6 @@
 // Movies: what's playing, continue watching, recently added, search, requests, and drive health.
 import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
+import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
 import { rememberOpen } from "./section-links.js";
 
@@ -396,6 +397,7 @@ export function mount(state) {
   });
 
   state.root.append(
+    addMovieButton(() => load(state).catch(() => {})),
     h(
       "form",
       {

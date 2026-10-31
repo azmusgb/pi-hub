@@ -14,13 +14,14 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(lab.router)
+app.include_router(uploads.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
