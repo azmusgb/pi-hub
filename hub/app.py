@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -22,6 +22,7 @@ LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(lab.router)
 app.include_router(uploads.router)
+app.include_router(display_routes.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
@@ -56,7 +57,17 @@ async def guard(request: Request, call_next):
         if not lab_guard.mac_key_ok(request):
             return JSONResponse({"detail": "The Mac's lab key is missing or wrong."}, status_code=401)
         mac = True
-    if unsafe and not shortcut and not webhook and not mac:
+    # The display's calls likewise: exempt only with a verified display key (a wrong one is 401). Redeeming a pairing
+    # code is open to the display, which has no hub page to come from; the six-digit code is its credential.
+    display = False
+    if unsafe and request.url.path.startswith("/api/display/"):
+        if "x-hub-display-key" in request.headers:
+            if not display_pairing.key_ok(request):
+                return JSONResponse({"detail": "Pair the display first."}, status_code=401)
+            display = True
+        elif request.url.path == "/api/display/pair":
+            display = True
+    if unsafe and not shortcut and not webhook and not mac and not display:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
