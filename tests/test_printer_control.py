@@ -27,6 +27,14 @@ def key_file(monkeypatch):
     monkeypatch.setattr(printer_control, "KEY_FILE", KEY_FILE)
 
 
+@pytest.fixture(autouse=True)
+def printer_state(monkeypatch):
+    """The printer as Bambuddy reports it; finished and waiting by default, so every action's fit is set per test."""
+    state = {"connected": True, "bambuddy_state": "FINISH", "awaiting_plate_clear": True}
+    monkeypatch.setattr(sources, "bambuddy_printer", lambda timeout=1: dict(state) if state else None)
+    return state
+
+
 @pytest.fixture
 def tmp_key():
     with open(KEY_FILE, "w") as f:
@@ -109,7 +117,8 @@ def test_endpoint_unknown_action_is_404(owner, monkeypatch):
     assert owner.post("/api/printer/stop", headers=ORIGIN).status_code == 404
 
 
-def test_endpoint_shows_bambuddy_errors(owner, monkeypatch):
+def test_endpoint_shows_bambuddy_errors(owner, monkeypatch, printer_state):
+    printer_state["bambuddy_state"] = "RUNNING"
     monkeypatch.setattr(printer_control, "run", lambda a: {"ok": False, "say": REFUSED, "steps": {"print/pause": "refused"}})
     r = owner.post("/api/printer/pause", headers=ORIGIN)
     assert r.status_code == 502 and r.json()["detail"] == REFUSED
@@ -120,7 +129,8 @@ def test_endpoint_no_key_is_503(owner, no_key):
     assert r.status_code == 503 and r.json()["detail"] == NO_KEY
 
 
-def test_endpoint_ok_drops_the_status_cache(owner, monkeypatch):
+def test_endpoint_ok_drops_the_status_cache(owner, monkeypatch, printer_state):
+    printer_state["bambuddy_state"] = "PAUSE"
     sources._cache["bambuddy_printer"] = (time.time(), {"state": "RUNNING"})
     monkeypatch.setattr(printer_control, "run", lambda a: {"ok": True, "say": "Resumed.", "steps": {"print/resume": "ok"}})
     r = owner.post("/api/printer/resume", headers=ORIGIN)
@@ -168,8 +178,40 @@ def test_plate_cleared_but_error_list_not_counts_as_done_and_says_so(tmp_key):
     assert r["say"] == "Plate cleared. The printer's error list didn't clear; check its screen."
 
 
-def test_a_failed_action_that_reached_bambuddy_still_drops_the_status_cache(owner, monkeypatch):
+def test_a_failed_action_that_reached_bambuddy_still_drops_the_status_cache(owner, monkeypatch, printer_state):
+    printer_state["bambuddy_state"] = "RUNNING"
     sources._cache["bambuddy_printer"] = (time.time(), {"state": "RUNNING"})
     monkeypatch.setattr(printer_control, "run", lambda a: {"ok": False, "say": "x", "steps": {"print/pause": "HTTP 500"}})
     assert owner.post("/api/printer/pause", headers=ORIGIN).status_code == 502
     assert "bambuddy_printer" not in sources._cache
+
+
+@pytest.mark.parametrize("action,state", [("pause", "RUNNING"), ("resume", "PAUSE"), ("clear", "FINISH")])
+def test_endpoint_sends_an_action_that_fits_the_printer_now(owner, monkeypatch, printer_state, action, state):
+    printer_state["bambuddy_state"] = state
+    monkeypatch.setattr(printer_control, "run", lambda a: {"ok": True, "say": "ok", "steps": {}})
+    assert owner.post(f"/api/printer/{action}", headers=ORIGIN).status_code == 200
+
+
+@pytest.mark.parametrize("action,state", [("pause", "FINISH"), ("resume", "RUNNING"), ("clear", "RUNNING")])
+def test_endpoint_refuses_an_action_the_printer_has_moved_past(owner, monkeypatch, printer_state, action, state):
+    printer_state["bambuddy_state"] = state
+    monkeypatch.setattr(printer_control, "run", lambda a: pytest.fail("sent to Bambuddy"))
+    r = owner.post(f"/api/printer/{action}", headers=ORIGIN)
+    assert r.status_code == 409 and "Nothing was sent" in r.json()["detail"]
+
+
+def test_endpoint_sends_nothing_when_bambuddy_cant_see_the_printer(owner, monkeypatch, printer_state):
+    printer_state.clear()
+    monkeypatch.setattr(printer_control, "run", lambda a: pytest.fail("sent to Bambuddy"))
+    assert owner.post("/api/printer/clear", headers=ORIGIN).status_code == 503
+
+
+def test_endpoint_refuses_a_second_command_while_one_is_in_flight(owner, monkeypatch):
+    monkeypatch.setattr(printer_control, "run", lambda a: pytest.fail("sent to Bambuddy"))
+    assert hub_app._printer_busy.acquire(blocking=False)
+    try:
+        r = owner.post("/api/printer/clear", headers=ORIGIN)
+        assert r.status_code == 409 and "already sending" in r.json()["detail"]
+    finally:
+        hub_app._printer_busy.release()

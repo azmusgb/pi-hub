@@ -1,5 +1,5 @@
 // System: backups first ("Restore a file"), then alerts, automations, help and settings.
-import { api, h } from "./core.js";
+import { api, fix, h } from "./core.js";
 import { toolUrl } from "./sections.js";
 import { agoText } from "./wording.js";
 import { linkGroup } from "./section-links.js";
@@ -47,7 +47,7 @@ function renderContainers(state, act) {
     state.containers.replaceChildren(h("p", { class: "meta" }, "Sign in with household PIN to manage services."));
     return;
   }
-  const restartActions = act.actions.filter((a) => a.name.startsWith("restart:"));
+  const restartActions = act.actions.filter((a) => a.name.startsWith("restart:") && a.name !== "restart:pi");
   state.containers.replaceChildren(
     h("div", { class: "admin-actions-grid" },
       restartActions.map((a) => {
@@ -57,14 +57,13 @@ function renderContainers(state, act) {
           onclick: async () => {
             btn.disabled = true;
             btn.textContent = "Restarting…";
-            try {
-              const res = await api(`/api/actions/${a.name}`, { method: "POST" });
-              btn.textContent = "✓ Done";
-              setTimeout(() => { btn.disabled = false; btn.textContent = a.label; }, 2000);
-            } catch (err) {
-              btn.textContent = "Failed";
-              setTimeout(() => { btn.disabled = false; btn.textContent = a.label; }, 2500);
-            }
+            // fix() asks first, shows the outcome (or the reason it failed) and returns false on cancel or failure.
+            const done = await fix(a.name, a.label, {
+              confirmText: `${a.label}? Anyone using it is cut off for a moment.`,
+              isCurrent: () => btn.isConnected,
+            });
+            btn.textContent = done ? "Restarted" : a.label;
+            setTimeout(() => { btn.disabled = false; btn.textContent = a.label; }, done ? 2000 : 0);
           }
         }, a.label);
         return btn;

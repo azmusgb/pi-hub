@@ -226,3 +226,17 @@ def test_requests_lifecycle(client):
     assert hist.status_code == 200
     assert hist.json()["items"][0]["status"] == "applied"
     assert hist.json()["items"][0]["message"] == "Verdict recorded in E-005.json"
+
+
+def test_sync_refuses_a_push_that_would_wipe_the_records(client):
+    base = {"schema": "print-lab-index/1", "project": "hex-tile", "experiments": []}
+    first = {**base, "generated_at": "2026-10-28T09:00:00Z", "fingerprint": "fp-one",
+             "records": {"E-001": {"type": "experiment", "file": "e.yaml", "sha256": "a" * 64, "payload": {"x": 1}}}}
+    assert client.post("/api/lab/hex-tile/sync", json=first, headers=MAC_HEADER).status_code == 200
+
+    for records in ({}, None, [], "E-001"):
+        later = {**base, "generated_at": "2026-10-28T10:00:00Z", "fingerprint": "fp-two", "records": records}
+        r = client.post("/api/lab/hex-tile/sync", json=later, headers=MAC_HEADER)
+        assert r.status_code in (409, 422), records
+        assert "nothing changed" in r.json()["detail"]
+    assert client.get("/api/lab/hex-tile/record/E-001").status_code == 200

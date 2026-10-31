@@ -333,7 +333,7 @@ async def sync_project(project: str, request: Request):
 
     records = ix.get("records")
     if not isinstance(records, dict):
-        records = {}
+        raise HTTPException(422, "records must be an object; nothing changed.")
     ids = list(records.keys())
     if len(ids) > MAX_RECORDS or any(not _full(ID_RE, i) for i in ids):
         raise HTTPException(422, "Record ids must look like E-001 or Q-001.")
@@ -364,6 +364,9 @@ async def sync_project(project: str, request: Request):
 
     with db.transaction():
         existing_records = {r["id"]: r["sha256"] for r in db.rows("SELECT id, sha256 FROM lab_records WHERE project = ?", project)}
+        # A push with no records would delete every stored one; that is a broken index on the Mac, not a real change.
+        if existing_records and not records:
+            raise HTTPException(409, f"The push has no records but the hub has {len(existing_records)}; nothing changed.")
         for rec_id, r in records.items():
             sha = r.get("sha256")
             if existing_records.get(rec_id) == sha:
