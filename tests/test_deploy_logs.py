@@ -217,6 +217,17 @@ def test_redaction():
     assert logs.redact("GET /cb?code=123&sig=abc&state=ok") == "GET /cb?code=[redacted]&sig=[redacted]&state=ok"
     assert logs.redact("GET /x?access_token=abc&page=2") == "GET /x?access_token=[redacted]&page=2"
     assert logs.redact("exited with code 1") == "exited with code 1"
+    assert logs.redact("run --password x --token y") == "run --password [redacted] --token [redacted]"
+    assert logs.redact("A_B_C_D_E_F_SECRET=abc") == "A_B_C_D_E_F_SECRET=[redacted]"
+    assert logs.redact("monkey business, keyboard input, spin") == "monkey business, keyboard input, spin"
+
+
+def test_truncation_never_leaves_part_of_a_secret():
+    token = "Ab1" * 20
+    out = logs.redact("x " * 490 + token)
+    assert len(out) <= logs.MAX_LINE and "Ab1" not in out
+    out = logs.redact("y" * 995 + " password=hunter2")
+    assert "hunt" not in out
 
 
 def test_redaction_is_bounded_on_hostile_lines():

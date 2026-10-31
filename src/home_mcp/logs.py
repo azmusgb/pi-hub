@@ -28,31 +28,43 @@ SERVICES = {
 }
 
 MAX_LINE = 1000
-# A secret-like key name, alone or as the last part of a compound one (access_token, FOO_API_KEY, x-hub-mac-key).
-# The prefix is bounded so matching stays linear in the line's length.
-SECRET_NAME = (r"(?:[A-Za-z0-9]{1,32}[_-]){0,4}(?:authorization|bearer|api[_-]?key|key|token|secret|password|passwd|"
-               r"pin)")
+MAX_SCAN = 65_536  # a backstop on regex work; far beyond MAX_LINE, so nothing near the cut is ever returned
+# Secret-like names, matched as the word itself at any non-alphanumeric boundary, so the last part of a compound
+# name counts too (access_token, client_secret, FOO_API_KEY, x-hub-mac-key, --password).
+SECRET_WORD = r"(?:authorization|bearer|api[_-]?key|key|token|secret|password|passwd|pin)"
 # In a URL query, signatures and one-time codes are secrets too; elsewhere "code" is usually an exit or HTTP code.
-QUERY_NAME = rf"(?:{SECRET_NAME}|sig|signature|code)"
+QUERY_WORD = rf"(?:{SECRET_WORD}|sig|signature|code)"
 
+
+def _opaque(m: re.Match) -> str:
+    """A long run of token characters is a secret when it mixes letters and digits; a 40-hex commit SHA is kept."""
+    run = m.group(0)
+    if re.fullmatch(r"[0-9a-f]{40}", run) or not (re.search(r"\d", run) and re.search(r"[A-Za-z]", run)):
+        return run
+    return "[redacted]"
+
+
+# Every pattern starts a match only at a boundary and scans forward once, so the work is linear in the line.
 REDACTIONS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',;]+"), r"\1 [redacted]"),
     # URL query parameters: the value ends at the next &, so the other parameters stay readable.
-    (re.compile(rf"(?i)([?&]{QUERY_NAME}=)[^&\s]+"), r"\1[redacted]"),
-    # Anywhere else the value runs to whitespace, a quote, a comma or a semicolon, so a password with & is hidden whole.
-    (re.compile(rf"(?i)(?<![A-Za-z0-9?&_-])({SECRET_NAME})(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;]+)"), r"\1\2[redacted]"),
-    # Long opaque tokens: letters and digits mixed, no path separators. A 40-hex commit SHA is kept.
-    (re.compile(r"(?<![/\w.-])(?=[A-Za-z0-9+_=-]*\d)(?=[A-Za-z0-9+_=-]*[A-Za-z])[A-Za-z0-9+_-]{40,}={0,2}"),
-     lambda m: m.group(0) if re.fullmatch(r"[0-9a-f]{40}", m.group(0)) else "[redacted]"),
+    (re.compile(rf"(?i)([?&][A-Za-z0-9_-]*?(?<![A-Za-z0-9]){QUERY_WORD}=)[^&\s]+"), r"\1[redacted]"),
+    # Anywhere else the value runs to whitespace, a quote, a comma or a semicolon, so a password with & is hidden
+    # whole. A value the query rule already replaced is left alone.
+    (re.compile(rf"(?i)(?<![A-Za-z0-9])({SECRET_WORD})(\"?\s*[:=]\s*\"?|\s+)(?!\[redacted\])([^\s\"',;]+)"),
+     r"\1\2[redacted]"),
+    # Long opaque tokens, judged whole by _opaque. Path segments and dotted names are not runs on their own.
+    (re.compile(r"(?<![/\w.-])[A-Za-z0-9+_-]{40,}={0,2}"), _opaque),
 ]
 
 
 def redact(line: str) -> str:
-    """One log line, capped at MAX_LINE characters before any pattern runs, with secret values replaced."""
-    line = line[:MAX_LINE]
+    """One log line with secret values replaced, then cut to MAX_LINE: redacting the whole line first means a cut
+    can never leave part of a secret behind."""
+    line = line[:MAX_SCAN]
     for pattern, repl in REDACTIONS:
         line = pattern.sub(repl, line)
-    return line
+    return line[:MAX_LINE]
 
 
 def command(service: str, minutes: int, lines: int) -> tuple[str, str]:
