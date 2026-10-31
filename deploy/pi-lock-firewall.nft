@@ -9,17 +9,19 @@
 #   10.0.0.21                   the PC: Local AI's Materials and printer control, with Bambuddy API keys
 #   10.0.0.16                   the Mac: print-lab (needs a DHCP reservation on the Orbi)
 #   10.0.0.124                  the Workshop display: clears the plate itself when the PC is off
+#   100.78.96.97, 100.109.178.34  the PC and the Mac by their Tailscale addresses: the Pi advertises 10.0.0.30/32,
+#                               so both reach it through Tailscale even at home (found at lock time, 31 Oct)
 table inet pi_lock
 delete table inet pi_lock
 table inet pi_lock {
 	chain forward {
 		type filter hook forward priority filter - 1; policy accept;
-		meta l4proto tcp ct status dnat ct original proto-dst 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124 } drop
+		meta l4proto tcp ct status dnat ct original proto-dst 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124, 100.78.96.97, 100.109.178.34 } drop
 		meta nfproto ipv6 meta l4proto tcp ct status dnat ct original proto-dst 8000 drop
 	}
 	chain input {
 		type filter hook input priority filter - 1; policy accept;
-		tcp dport 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124 } drop
+		tcp dport 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124, 100.78.96.97, 100.109.178.34 } drop
 		tcp dport 8000 ip6 saddr != ::1 drop
 	}
 }
