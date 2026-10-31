@@ -22,6 +22,15 @@ FIXTURES = {
     },
     "/api/needs": {"count": 1, "items": [{"id": "n1", "source": "lab", "tone": "warn", "title": "Dry filament",
                                           "detail": "AMS humid", "link": "/lab", "as_of": "2026-10-31T10:00"}]},
+    "/api/records": {"as_of": NOW, "events": [], "records": [
+        {"id": "printer", "state": "printing", "severity": "ok", "source": "bambuddy", "stale": False,
+         "as_of": NOW - 5, "headline": "Printing", "detail": {"big": "x"},
+         "disagree": "pi-status reports No status; Bambuddy reports printing"},
+        {"id": "plex", "state": "idle", "severity": "ok", "source": "pi_status", "stale": True, "as_of": NOW - 900,
+         "headline": "Idle", "disagree": ""},
+        {"id": "hub", "state": "disagreement", "severity": "attention", "source": "hub", "stale": False,
+         "as_of": NOW, "disagree": "", "detail": {"disagree_since": {"printer": NOW - 3000}}},
+    ]},
     "/api/workshop": {
         "printer": {"state": "printing", "headline": "Printing TILE", "progress": 40, "job_name": "TILE",
                     "temperatures": {"huge": "dict"}, "actions": ["pause"]},
@@ -105,12 +114,24 @@ async def test_hub_now_combines_now_and_needs_and_trims():
     assert d["printer"] == {"state": "printing", "headline": "Printing TILE, 40%", "left": "1 h", "stale": False}
     assert d["network"] == "ok"
     assert d["needs"][0]["title"] == "Dry filament" and "link" not in d["needs"][0]
-    assert "movies" not in json.dumps(d)
+    assert "movies" not in json.dumps(d) and "detail" not in json.dumps(d["records"])
+
+
+async def test_hub_now_keeps_staleness_and_disagreements_explicit():
+    d = await data(build_server(serve()), "hub_now")
+    by_id = {r["id"]: r for r in d["records"]}
+    assert by_id["plex"]["stale"] is True and by_id["printer"]["stale"] is False
+    assert by_id["plex"]["source"] == "pi_status" and by_id["plex"]["as_of"].startswith("20")
+    [dis] = d["disagreements"]
+    assert dis["id"] == "printer" and dis["source"] == "bambuddy"
+    assert dis["disagree"] == "pi-status reports No status; Bambuddy reports printing"
+    assert dis["since"] < dis["as_of"]
 
 
 async def test_hub_now_partial_failure_keeps_what_worked():
     d = await data(build_server(serve(status={"/api/needs": 500})), "hub_now")
     assert d["ok"] is False and d["summary"] == "2 small things to check" and d["needs"] == []
+    assert d["records"]
     assert d["errors"] == [{"source": "pi-hub /api/needs", "error": "http", "detail": "HTTP 500"}]
 
 

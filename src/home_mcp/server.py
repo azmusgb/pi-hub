@@ -48,10 +48,13 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
     async def hub_now() -> dict[str, Any]:
         """What needs attention in the house right now: the hub's summary and issues, the printer's headline,
-        network status, and the open needs list."""
+        network status, the open needs list, every record with its source, time and staleness, and any lasting
+        disagreement between sources with what each source reports and since when."""
         async with client_factory() as c:
-            data, errors = await hub.gather(c, "/api/now", "/api/needs")
+            data, errors = await hub.gather(c, "/api/now", "/api/needs", "/api/records")
         now, needs = _obj(data.get("/api/now")), _obj(data.get("/api/needs"))
+        recs = _list(_obj(data.get("/api/records")), "records")
+        since = _obj(_obj(next((r for r in recs if r.get("id") == "hub"), {}).get("detail")).get("disagree_since"))
         return _result(
             "pi-hub", errors,
             summary=now.get("summary"),
@@ -59,6 +62,11 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
             printer=_pick(now.get("printer"), ("state", "headline", "left", "stale")),
             network=_obj(now.get("network")).get("status"),
             needs=[_pick(n, ("source", "tone", "title", "detail", "as_of")) for n in _list(needs, "items")],
+            records=[{**_pick(r, ("id", "state", "severity", "source", "stale")), "as_of": hub.iso(r.get("as_of"))}
+                     for r in recs],
+            disagreements=[{**_pick(r, ("id", "source", "state", "disagree")), "as_of": hub.iso(r.get("as_of")),
+                            "since": hub.iso(since.get(r.get("id")))}
+                           for r in recs if r.get("disagree")],
         )
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
