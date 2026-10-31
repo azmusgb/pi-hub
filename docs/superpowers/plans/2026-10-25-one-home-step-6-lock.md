@@ -239,7 +239,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   (in Kuma's UI, or its DB with Kuma stopped and a copy kept).
 - [ ] **Step 2:** Ask the owner for the go (a network change on the Pi and the PC). Then release the hub
   (`git push pi main`) and run `ssh -t pi sudo python3 /opt/pi-hub/current/deploy/pi-lock.py apply`, then
-  `ssh -t pi sudo bash /opt/pi-hub/current/deploy/install.sh` (Caddy drop-in), then the Paperless script with
+  `bash deploy/install.sh` **from the Mac** (Caddy drop-in; install.sh is not run on the Pi), then the Paperless script with
   `-Apply`.
 - [ ] **Step 3:** `bash deploy/lock-check.sh locked` (Expected: all ok), `ssh pi 'sudo bash
   /opt/pi-hub/current/deploy/gate-check.sh'` (Expected: all ok), `node tests/browser/structure.mjs

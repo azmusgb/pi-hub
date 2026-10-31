@@ -1,5 +1,11 @@
 # Pi Hub status — 24 October 2026
 
+## One home, step 6: lock — 31 October 2026
+
+Live release `82fa0bd` (step 6 merged as `759bde2`, plus the allow-list fix). The Pi's tools answer only through the gate; plain `http://10.0.0.30` keeps only the machine paths; Bambuddy's `:8000` takes an allow-list; Paperless on the PC answers only the Pi. See [operations](operations.md) for what stays open, why, and the undo commands.
+
+Checked on 31 October: `lock-check.sh locked` all ok except Paperless from the Mac (answered over Tailscale; known gap, see operations); `gate-check.sh` all ok; the browser structure check passed all 28 views; the Mac and Local AI's container reach Bambuddy (200); `pi-lock.py status` all locked, and the boot-time firewall file matches the release. Found at lock time and fixed: the Mac and the PC reach the Pi through Tailscale, so the allow-list first refused them (Local AI's Materials card and print-lab lost Bambuddy for about 20 minutes). Uptime Kuma's three monitors on closing ports were moved to `127.0.0.1` (database copy kept as `kuma.db.pre-step6-*`). Not done: the iPhone was checked on Tailscale only; devices without Tailscale no longer reach the house tools (by decision, see the spec's open items).
+
 ## Step 6 readiness audit — 26 October 2026
 
 The `step6-lock` branch now includes current `main` (live release `65a60fcf7b`), preserving the wall display and Needs you changes. Two Print lab test expectations were updated to the gateway address. Local verification: 246 Python tests passed, 8 skipped; 65 JavaScript tests passed. On the Pi, all 26 Caddy/lockdown tests passed in an isolated `/tmp/one-home-review-20261026` copy, and `nft -c` accepted the proposed firewall. No lockdown was applied or release deployed.

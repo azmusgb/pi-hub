@@ -198,7 +198,7 @@ display's touchscreen layout (it adopts the names and the shared printer actions
 
 ## Open items for the owner
 
-- Install the gate's root certificate on the iPhone and the Mac (step 1).
-- Turn on Tailscale split DNS for `home.arpa` (step 1).
-- Set the Orbi's DNS to the Pi (from the AdGuard setup), so the names work for every device at home without manual
-  DNS.
+- ~~Install the gate's root certificate on the iPhone and the Mac (step 1).~~ Done by 31 Oct 2026.
+- ~~Turn on Tailscale split DNS for `home.arpa` (step 1).~~ Done by 31 Oct 2026, with the Pi's `10.0.0.30/32` route approved.
+- ~~Set the Orbi's DNS to the Pi.~~ Decided against on 31 Oct 2026: it would put every household device's DNS (and
+  ad blocking) on the Pi for no benefit to them. The owner's devices get the names through Tailscale.

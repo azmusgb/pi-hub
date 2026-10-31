@@ -20,8 +20,9 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
     const page = await ctx.newPage();
     for (const [path, key] of Object.entries(PAGES)) {
       const where = `${path} ${width} ${colorScheme}`;
-      await page.goto(BASE + path, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(500);
+      // 'load', not 'networkidle': the shell keeps an EventSource on /api/records/stream open, so the network is never idle.
+      await page.goto(BASE + path, { waitUntil: 'load' });
+      await page.waitForTimeout(2500);
       const current = await page.$$eval('.rail [data-page][aria-current="page"]', (a) => a.map((x) => x.dataset.page));
       if (path !== WALL && !current.includes(key)) problems.push(`${where}: active tab ${current} (want ${key})`);
       const axe = await new AxeBuilder({ page }).exclude('.house-cam-img').analyze();
