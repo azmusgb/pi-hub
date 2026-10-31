@@ -47,5 +47,11 @@ def test_copy_now_runs_through_the_helper(monkeypatch):
 def test_drives_api_includes_the_copy_state(monkeypatch):
     monkeypatch.setattr(actions, "helper", lambda a, timeout=1900: {"ok": True, "drives": []})
     monkeypatch.setattr(hub_app.sources, "pi_status", lambda: {"mirror": {"state": "ok", "last_ok": 1, "count": 149}})
+    monkeypatch.setattr(hub_app, "need", lambda request, role: ("household", None))
     d = TestClient(hub_app.app).get("/api/drives").json()
     assert d["mirror"]["count"] == 149 and d["drives"] == []
+
+
+def test_drives_api_needs_a_household_sign_in(monkeypatch):
+    monkeypatch.setattr(actions, "helper", lambda a, timeout=1900: pytest.fail("ran smartctl for a signed-out caller"))
+    assert TestClient(hub_app.app).get("/api/drives").status_code == 401

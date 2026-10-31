@@ -1,5 +1,5 @@
 // Home & network: the devices, the internet, ad blocking and guest Wi-Fi.
-import { api, h } from "./core.js";
+import { api, ensure, h } from "./core.js";
 import * as devices from "./control.js";
 import { networkPanel } from "./now.js";
 import { toolUrl } from "./sections.js";
@@ -35,7 +35,13 @@ export async function load(state) {
       h("a", { class: "tool-link", href: toolUrl("adguard"), target: "_blank", rel: "noopener" }, "Open AdGuard ↗")),
     wifi.set ? h("section", { class: "more-group wifi-panel" }, h("h2", {}, "Guest Wi-Fi"),
       h("div", { class: "wifi-content" },
-        h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 96, height: 96 }),
-        h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid), h("p", { class: "meta" }, "Scan to join")))) : null,
+        // The code holds the password: only a signed-in household member gets it (the password is null otherwise).
+        wifi.password != null
+          ? h("img", { src: `/api/wifi/qr.svg?v=${encodeURIComponent(wifi.ssid)}`, alt: `QR code to join ${wifi.ssid}`, class: "wifi-qr", width: 96, height: 96 })
+          : null,
+        h("div", {}, h("p", { class: "wifi-name" }, wifi.ssid),
+          wifi.password != null
+            ? h("p", { class: "meta" }, "Scan to join")
+            : h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("household")) load(state); } }, "Sign in to show the join code")))) : null,
   ].filter(Boolean));
 }
