@@ -151,7 +151,7 @@ updates.home.arpa {
 
 # The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) are retired (one home, step 6):
 # a browser goes to the same page on the gate. Only the machine callers' paths still reach the hub over plain http, on
-# any host name: Local AI's /api/now (and its poster images), Bambuddy's webhook, Siri Shortcuts (each with its own key or token), the
+# any host name: Local AI's /api/now (and its poster images), /api/needs and /api/records (its printer reading), Bambuddy's webhook, Siri Shortcuts (each with its own key or token), the
 # health check, and the CA root. The PC's backup pull is ssh and never came through here.
 http:// {
 	# A home.arpa name without its own site (home.arpa itself, a mistyped name) goes to the hub over https, so the
@@ -165,7 +165,7 @@ http:// {
 		header Content-Type application/x-x509-ca-cert
 		file_server
 	}
-	@machine path /api/now /api/now/* /api/needs /api/webhook/bambuddy /api/shortcut/* /healthz
+	@machine path /api/now /api/now/* /api/needs /api/records /api/webhook/bambuddy /api/shortcut/* /healthz
 	handle @machine {
 		reverse_proxy 127.0.0.1:8100
 	}
