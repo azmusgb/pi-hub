@@ -29,8 +29,10 @@ SERVICES = {
 
 REDACTIONS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',;]+"), r"\1 [redacted]"),
-    (re.compile(r"(?i)\b(authorization|bearer|api[_-]?key|x-[a-z-]*key|token|secret|password|passwd|pin)"
-                r"(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;]+)"), r"\1\2[redacted]"),
+    # A secret-like key name, alone or as the last part of a compound one (access_token, FOO_API_KEY, x-hub-mac-key).
+    (re.compile(r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:authorization|bearer|api[_-]?key|key|token|secret|"
+                r"password|passwd|pin))"
+                r"(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;&]+)"), r"\1\2[redacted]"),
     (re.compile(r"(?i)([?&](?:key|token|sig|signature|code)=)[^&\s]+"), r"\1[redacted]"),
     # Long opaque tokens: letters and digits mixed, no path separators. A 40-hex commit SHA is kept.
     (re.compile(r"(?<![/\w.-])(?=[A-Za-z0-9+_=-]*\d)(?=[A-Za-z0-9+_=-]*[A-Za-z])[A-Za-z0-9+_-]{40,}={0,2}"),
@@ -71,12 +73,13 @@ async def logs(run: Runner, service: str, minutes: int = 60, lines: int = 100, c
                           "detail": redact((r.err or r.out.strip() or f"exit {r.code}")[:300])}]
         out["lines"] = []
         return out
-    text = [line for line in r.out.splitlines() if line.strip() and line.strip() != "-- No entries --"]
+    # Redact before filtering, so contains can't be used to confirm a hidden value one guess at a time.
+    text = [redact(line) for line in r.out.splitlines() if line.strip() and line.strip() != "-- No entries --"]
     if contains:
         text = [line for line in text if contains.lower() in line.lower()]
     kept, size, truncated = [], 0, False
     for line in reversed(text):  # keep the newest lines when the byte cap bites
-        line = redact(line)[:1000]
+        line = line[:1000]
         if size + len(line) > MAX_BYTES:
             truncated = True
             break

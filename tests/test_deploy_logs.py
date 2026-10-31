@@ -208,12 +208,23 @@ def test_redaction():
     path = "/opt/pi-hub/releases/22cf1f6a76/hub/static/js/some-long-module-name-for-the-wall.mjs"
     assert logs.redact(f"GET {path} 200") == f"GET {path} 200"
     assert logs.redact("x" * 60) == "x" * 60
+    assert logs.redact("access_token=abc") == "access_token=[redacted]"
+    assert logs.redact("client_secret: abc") == "client_secret: [redacted]"
+    assert logs.redact("FOO_API_KEY=abc") == "FOO_API_KEY=[redacted]"
+    assert logs.redact("X-Hub-Mac-Key: abc") == "X-Hub-Mac-Key: [redacted]"
+    assert logs.redact("spin up the pinned spool") == "spin up the pinned spool"
 
 
 async def test_logs_filters_redacts_and_drops_no_entries():
     out = "-- No entries --\nINFO started\nERROR token=abc failed\nerror again\n"
     d = await logs.logs(FakeHosts(log_out=ok(out)), "pi-hub", contains="error")
     assert d["ok"] and d["lines"] == ["ERROR token=[redacted] failed", "error again"] and d["count"] == 2
+
+
+async def test_logs_filter_cannot_probe_redacted_values():
+    hosts = FakeHosts(log_out=ok("login password=hunter2\n"))
+    assert (await logs.logs(hosts, "pi-hub", contains="hunter2"))["lines"] == []
+    assert (await logs.logs(hosts, "pi-hub", contains="password=h"))["lines"] == []
 
 
 async def test_logs_byte_cap_keeps_newest():
