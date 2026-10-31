@@ -7,7 +7,7 @@ Wants=network-online.target
 User=pi-hub
 Group=pi-hub
 WorkingDirectory=/opt/pi-hub/current
-ExecStart=/usr/bin/python3 -m uvicorn hub.app:app --host 127.0.0.1 --port 8100 --no-access-log --proxy-headers
+ExecStart=/usr/bin/python3 -m uvicorn hub.app:app --host 127.0.0.1 --port 8100 --no-access-log --proxy-headers --timeout-graceful-shutdown 5
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -15,6 +15,7 @@ PrivateTmp=yes
 ReadWritePaths=/var/lib/pi-hub
 StateDirectory=pi-hub
 Restart=on-failure
+TimeoutStopSec=15
 Nice=5
 MemoryMax=200M
 
