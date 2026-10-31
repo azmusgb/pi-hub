@@ -357,13 +357,30 @@ def api_workshop():
     })
 
 
+_printer_busy = threading.Lock()
+PRINTER_WORDS = {"clear": "clear the plate", "pause": "pause", "resume": "resume"}
+
+
 @app.post("/api/printer/{action}")
 def api_printer_action(action: str, request: Request):
     """Clear the plate, pause or resume, through Bambuddy with the hub's control key (owner only)."""
     need(request, "owner")
     if action not in printer_control.STEPS:
         raise HTTPException(404, "The printer can clear, pause or resume.")
-    r = printer_control.run(action)
+    if not _printer_busy.acquire(blocking=False):
+        raise HTTPException(409, "The hub is already sending the printer a command. Wait a moment.")
+    try:
+        # Check the printer's state now, not the page's: a stale tab must not pause or clear the wrong print.
+        sources._cache.pop("bambuddy_printer", None)
+        b = sources.bambuddy_printer(timeout=3)
+        if not b or not b.get("connected"):
+            raise HTTPException(503, "Bambuddy can't see the printer just now, so the hub didn't send anything.")
+        if action not in now.printer_actions(b):
+            raise HTTPException(409, f"The printer can't {PRINTER_WORDS[action]} right now; its state has changed. "
+                                     "Nothing was sent.")
+        r = printer_control.run(action)
+    finally:
+        _printer_busy.release()
     if "no key" not in r["steps"].values():  # Bambuddy was asked: the next refresh reads its state again
         sources._cache.pop("bambuddy_printer", None)
     if not r["ok"]:
