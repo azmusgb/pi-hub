@@ -103,7 +103,8 @@ def test_wifi_qr_and_password_visibility(c):
     assert c.get("/api/wifi").json()["password"] == "hunter2hunter2"
     anon = TestClient(hub_app.app)
     assert anon.get("/api/wifi").json() == {"set": True, "ssid": "Home;Net", "security": "WPA", "password": None}
-    svg = anon.get("/api/wifi/qr.svg")
+    assert anon.get("/api/wifi/qr.svg").status_code == 401  # the code holds the password
+    svg = c.get("/api/wifi/qr.svg")
     assert svg.status_code == 200 and svg.headers["content-type"].startswith("image/svg+xml")
     assert wifi._escape("Home;Net") == "Home\\;Net"
     assert c.post("/api/settings/wifi", json={"ssid": "x", "password": "short", "security": "WPA"}, headers=SAME).status_code == 400

@@ -1,5 +1,5 @@
 // Drives: each USB drive's health, and the nightly copy of the PC's movies onto the Pi's drive.
-import { api, card, empty, ensure, h, post, toast, when } from "./core.js";
+import { api, card, empty, ensure, h, post, toast, when, whoami } from "./core.js";
 
 export const every = 10;
 export const loadDeadline = 160_000;  // the drives report can take 150 s while disks spin up
@@ -51,6 +51,12 @@ export function mount(state) {
 export async function load(state) {
   if (!state.force && state.root.contains(document.activeElement) && ["INPUT", "SELECT"].includes(document.activeElement.tagName)) return;
   state.force = false;
+  if (!["household", "owner"].includes((await whoami())?.role)) {
+    state.body.replaceChildren(card("Movie storage", {},
+      h("p", { class: "meta" }, "Drive health is for the household. Sign in with the household PIN to see it."),
+      h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("household")) { state.force = true; load(state); } } }, "Sign in")));
+    return;
+  }
   const d = await api("/api/drives");
   state.body.replaceChildren(
     ...(d.drives.length ? d.drives.map((x) => {

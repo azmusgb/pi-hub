@@ -3,6 +3,8 @@ import time
 
 from . import auth, bambuddy, db, events, filament, now, outside, sources
 
+BACKUP_RECORD = "/var/lib/pi-hub/last_backup.json"  # written by NETMON's netmon-backup.sh, success or failure
+
 
 def build(hours=16):
     since = int(time.time()) - hours * 3600
@@ -41,10 +43,14 @@ def build(hours=16):
         lines.append(f"The movies drive dropped out {drops} time{'s' if drops > 1 else ''}.")
     try:
         import json
-        with open("/var/lib/pi-hub/last_backup.json") as f:
+        with open(BACKUP_RECORD) as f:
             b = json.load(f)
             if b.get("timestamp") and b["timestamp"] >= since and b.get("status") == "success":
                 lines.append(f"Backups: Nightly backup verified and synced to Windows PC ({b.get('size', '590K')}).")
+            elif b.get("timestamp") and b["timestamp"] >= since and b.get("status") == "failed":
+                good = b.get("last_success")
+                lines.append("Backups: last night's backup failed. " + (b.get("message") or "")
+                             + (f" The last good one is from {time.strftime('%a %-I:%M %p', time.localtime(good))}." if good else ""))
     except Exception:
         pass
     issues = now.issues(s)
