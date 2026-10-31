@@ -221,3 +221,27 @@ def test_make_client_uses_env(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME_MCP_HUB_CA", str(tmp_path / "missing.crt"))
     client = hub.make_client()
     assert str(client.base_url) == "https://example.test" and client.timeout.read == 10.0
+
+
+# --- Review of 31 Oct 2026: a malformed answer is an error, never "nothing needs attention" --------------------
+
+async def test_hub_now_arrays_where_objects_belong_are_schema_errors():
+    bad = {**FIXTURES, "/api/now": [], "/api/needs": [], "/api/records": []}
+    d = await data(build_server(serve(fixtures=bad)), "hub_now")
+    assert d["ok"] is False
+    assert sorted(e["source"] for e in d["errors"] if e["error"] == "bad_shape") == [
+        "pi-hub /api/needs", "pi-hub /api/now", "pi-hub /api/records"]
+
+
+async def test_hub_now_keeps_good_sources_beside_a_schema_error():
+    bad = {**FIXTURES, "/api/needs": {"items": "not a list"}}
+    d = await data(build_server(serve(fixtures=bad)), "hub_now")
+    assert d["ok"] is False and d["summary"] == "2 small things to check" and d["records"]
+    assert [e["source"] for e in d["errors"]] == ["pi-hub /api/needs"]
+
+
+@pytest.mark.parametrize("tool,path", [("printer_status", "/api/workshop"), ("pi_health", "/api/pi"),
+                                       ("source_freshness", "/api/freshness"), ("recent_alerts", "/api/alerts")])
+async def test_every_tool_reports_a_wrong_shape(tool, path):
+    d = await data(build_server(serve(fixtures={**FIXTURES, path: ["unexpected"]})), tool)
+    assert d["ok"] is False and any(e["source"] == f"pi-hub {path}" and e["error"] == "bad_shape" for e in d["errors"])
