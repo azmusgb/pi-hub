@@ -27,13 +27,20 @@ SERVICES = {
     "localai-deploy": ("pc", "file", r"C:\LocalAI\.deploy\auto-deploy.log"),
 }
 
+MAX_LINE = 1000
+# A secret-like key name, alone or as the last part of a compound one (access_token, FOO_API_KEY, x-hub-mac-key).
+# The prefix is bounded so matching stays linear in the line's length.
+SECRET_NAME = (r"(?:[A-Za-z0-9]{1,32}[_-]){0,4}(?:authorization|bearer|api[_-]?key|key|token|secret|password|passwd|"
+               r"pin)")
+# In a URL query, signatures and one-time codes are secrets too; elsewhere "code" is usually an exit or HTTP code.
+QUERY_NAME = rf"(?:{SECRET_NAME}|sig|signature|code)"
+
 REDACTIONS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',;]+"), r"\1 [redacted]"),
-    # A secret-like key name, alone or as the last part of a compound one (access_token, FOO_API_KEY, x-hub-mac-key).
-    (re.compile(r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:authorization|bearer|api[_-]?key|key|token|secret|"
-                r"password|passwd|pin))"
-                r"(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;&]+)"), r"\1\2[redacted]"),
-    (re.compile(r"(?i)([?&](?:key|token|sig|signature|code)=)[^&\s]+"), r"\1[redacted]"),
+    # URL query parameters: the value ends at the next &, so the other parameters stay readable.
+    (re.compile(rf"(?i)([?&]{QUERY_NAME}=)[^&\s]+"), r"\1[redacted]"),
+    # Anywhere else the value runs to whitespace, a quote, a comma or a semicolon, so a password with & is hidden whole.
+    (re.compile(rf"(?i)(?<![A-Za-z0-9?&_-])({SECRET_NAME})(\"?\s*[:=]\s*\"?|\s+)([^\s\"',;]+)"), r"\1\2[redacted]"),
     # Long opaque tokens: letters and digits mixed, no path separators. A 40-hex commit SHA is kept.
     (re.compile(r"(?<![/\w.-])(?=[A-Za-z0-9+_=-]*\d)(?=[A-Za-z0-9+_=-]*[A-Za-z])[A-Za-z0-9+_-]{40,}={0,2}"),
      lambda m: m.group(0) if re.fullmatch(r"[0-9a-f]{40}", m.group(0)) else "[redacted]"),
@@ -41,6 +48,8 @@ REDACTIONS = [
 
 
 def redact(line: str) -> str:
+    """One log line, capped at MAX_LINE characters before any pattern runs, with secret values replaced."""
+    line = line[:MAX_LINE]
     for pattern, repl in REDACTIONS:
         line = pattern.sub(repl, line)
     return line
@@ -79,7 +88,6 @@ async def logs(run: Runner, service: str, minutes: int = 60, lines: int = 100, c
         text = [line for line in text if contains.lower() in line.lower()]
     kept, size, truncated = [], 0, False
     for line in reversed(text):  # keep the newest lines when the byte cap bites
-        line = line[:1000]
         if size + len(line) > MAX_BYTES:
             truncated = True
             break

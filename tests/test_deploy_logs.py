@@ -213,6 +213,18 @@ def test_redaction():
     assert logs.redact("FOO_API_KEY=abc") == "FOO_API_KEY=[redacted]"
     assert logs.redact("X-Hub-Mac-Key: abc") == "X-Hub-Mac-Key: [redacted]"
     assert logs.redact("spin up the pinned spool") == "spin up the pinned spool"
+    assert logs.redact("password=a&b rest") == "password=[redacted] rest"
+    assert logs.redact("GET /cb?code=123&sig=abc&state=ok") == "GET /cb?code=[redacted]&sig=[redacted]&state=ok"
+    assert logs.redact("GET /x?access_token=abc&page=2") == "GET /x?access_token=[redacted]&page=2"
+    assert logs.redact("exited with code 1") == "exited with code 1"
+
+
+def test_redaction_is_bounded_on_hostile_lines():
+    import time
+    hostile = "a_" * 50_000 + "!"
+    started = time.perf_counter()
+    out = logs.redact(hostile)
+    assert time.perf_counter() - started < 0.5 and len(out) <= logs.MAX_LINE
 
 
 async def test_logs_filters_redacts_and_drops_no_entries():
