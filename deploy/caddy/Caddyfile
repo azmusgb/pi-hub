@@ -139,6 +139,16 @@ scan.home.arpa {
 	}
 }
 
+# Workshop OS update files for the WS350 display: a static, read-only copy of releases/ and firmware/*.bin that the
+# post-receive hook in /srv/bambuhelper-smart-display.git publishes from main. Not gated: the display has no hub
+# session, and every file it installs is checked against the manifest's size and SHA-256. The display pins this name
+# to the Pi and trusts only this CA, so it needs no DNS.
+updates.home.arpa {
+	root * /srv/bambuhelper-updates/current
+	file_server
+	header /releases/device-update.json Cache-Control no-store
+}
+
 # The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) are retired (one home, step 6):
 # a browser goes to the same page on the gate. Only the machine callers' paths still reach the hub over plain http, on
 # any host name: Local AI's /api/now (and its poster images), Bambuddy's webhook, Siri Shortcuts (each with its own key or token), the
