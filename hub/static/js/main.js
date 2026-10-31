@@ -69,11 +69,6 @@ const PAGES = {
   "/system": { key: "system", title: "System", mod: systemPage },
 };
 
-// The solution link opens Local AI itself; Assistant retains its contextual handoff.
-for (const link of document.querySelectorAll("[data-solution-home]")) {
-  link.href = toolUrl("assistant");
-}
-
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
@@ -249,7 +244,7 @@ async function show(path, { focus = false } = {}) {
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
-  document.title = `${wallMode ? "Wall" : page.title} · Pi Hub · Local AI`;
+  document.title = `${wallMode ? "Wall" : page.title} · Pi Hub`;
   document.getElementById("page-title").textContent = page.title;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
@@ -331,6 +326,5 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) upda
 stayAwake();
 gateSignIn();
 nextPage.initCommandPalette();
-
 
 
