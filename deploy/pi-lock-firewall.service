@@ -1,0 +1,15 @@
+[Unit]
+Description=One home lock: Bambuddy :8000 only for its machine callers (pi-lock.py)
+# Loaded before Docker and independent of it: stopping or restarting Docker never removes the rule; only
+# `pi-lock.py undo` (systemctl disable --now) does.
+Before=docker.service
+After=nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft
+ExecStop=/usr/sbin/nft delete table inet pi_lock
+
+[Install]
+WantedBy=multi-user.target

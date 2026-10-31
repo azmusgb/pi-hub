@@ -39,7 +39,8 @@ the PC; bash + curl for the check.
 | 22 | ssh (PC backup pull, admin) | open |
 | 53 | AdGuard DNS | open (the names depend on it) |
 | 80, 443 | Caddy, the gate | open |
-| 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
+| 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab), the Workshop display 10.0.0.124 (clears the plate itself when the PC is off). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
+| 8091 | X2D camera frames | open: the Workshop display (10.0.0.124) reads `http://10.0.0.30:8091/x2d/frame.jpg` (found during Task 3) |
 | 32400 | Plex | open (players on the TV and phones need it; not a gated tool) |
 | 51125, 45665 | Homebridge's HomeKit bridges | open (HomeKit needs them); only the UI, 8581, closes |
 | 60000 | ipp-usb (AirPrint) | open |
@@ -47,7 +48,7 @@ the PC; bash + curl for the check.
 | PC 443 | Local AI (`https://10.0.0.21`) | open: it has its own Caddy; the Mac's board reports, the hub and the Workshop display call it; its lock is its own sign-in (Local AI #331) |
 
 Everything else listening on the LAN today closes: 3000 Grafana, 3001 Uptime Kuma, 3002 AdGuard web, 7745 Homebox,
-8091 camera failover, 8099 pi-status, 8581 Homebridge UI, 9090 Cockpit, 9100 node_exporter, 9115 blackbox, 9120 Orbi
+8099 pi-status, 8581 Homebridge UI, 9090 Cockpit, 9100 node_exporter, 9115 blackbox, 9120 Orbi
 exporter, 9898 Backrest; and Paperless 8010 on the PC except from the Pi. (Every one of these is already read by its
 users at 127.0.0.1: the hub, Prometheus and Caddy.)
 
@@ -61,7 +62,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 3. **HomeKit and DNS keep working:** only Homebridge's UI host and AdGuard's web address change. Pinned in Task 3
    (`test_homebridge_bridge_port_untouched`, `test_adguard_dns_untouched`).
 4. **Docker restarts or the Pi reboots:** the Bambuddy rule must come back after Docker rebuilds its chains. Pinned
-   in Task 4 (the unit runs `After=docker.service` with `PartOf=docker.service`; `test_rule_survives_docker_restart`
+   in Task 4 (the unit loads `Before=docker.service`, independent of it, with no `PartOf`; checked live in Task 6 Step 3
    is the live step in Task 6).
 5. **A browser on the old address with a path** (`http://10.0.0.30/workshop`): it lands on the same page on the
    gate, not on Home. Pinned in Task 2 (`test_browsers_keep_their_path`).
@@ -83,7 +84,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   - `ready` and `locked`: `dig +short home.home.arpa` is `10.0.0.30`; `https://home.home.arpa/healthz` → 200 with
     a trusted certificate; `http://10.0.0.30/api/now` is not a redirect (any of 200/401/403);
     `http://10.0.0.30/home-ca.crt` → 200.
-  - `locked` only: each of `10.0.0.30:` 3000 3001 3002 7745 8091 8099 8581 9090 9100 9115 9120 9898 refuses or
+  - `locked` only: each of `10.0.0.30:` 3000 3001 3002 7745 8099 8581 9090 9100 9115 9120 9898 refuses or
     times out (curl code `000`); `10.0.0.21:8010` → `000`; `http://10.0.0.30/workshop` → 308 with
     `Location: https://home.home.arpa/workshop`; `http://10.0.0.30/api/shortcut/x` and
     `/api/webhook/bambuddy` (GET) → not 308; `10.0.0.30:8000` from the Mac → 200 only if this Mac's address is in
@@ -99,7 +100,7 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 - Test: `tests/test_caddy_lock.py`
 
 **Interfaces:**
-- Produces: `MACHINE_PATHS = ["/api/now", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]`
+- Produces: `MACHINE_PATHS = ["/api/now", "/api/now/*", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]`
   as the one list, in a comment at the top of the `http://` site and in the test.
 
 - [ ] **Step 1: Write the failing tests.** They run `caddy adapt --config deploy/caddy/Caddyfile` (skip when `caddy`
@@ -181,15 +182,16 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   `tests/test_pi_lock.py`
 
 **Interfaces:**
-- The rule file adds `table ip pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
+- The rule file adds `table inet pi_lock` with a chain hooked at `forward` priority `filter - 1` (runs before
   Docker's own) that drops `ct original proto-dst 8000` unless `ip saddr` is in
-  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.21, 10.0.0.16 }`. A separate table is used so Docker rebuilding
+  `{ 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124 }` (10.0.0.124: the Workshop display's PC-off plate clear; 10.0.0.30: Uptime Kuma, on host networking, checks `http://10.0.0.30:8000`). A separate table is used so Docker rebuilding
   `ip filter` never removes it. The unit is `Type=oneshot`, `RemainAfterExit=yes`,
-  `After=docker.service`, `PartOf=docker.service`, `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
-  `ExecStop=/usr/sbin/nft delete table ip pi_lock`.
+  `Before=docker.service` (no `PartOf`: a Docker stop must not drop it), `ExecStart=/usr/sbin/nft -f /etc/pi-lock/firewall.nft`,
+  `ExecStop=/usr/sbin/nft delete table inet pi_lock`. The table is `inet`, with a forward chain (Docker's NAT) and an
+  input chain (docker-proxy's own sockets), IPv6 only from ::1 (security review).
 
 - [ ] **Step 1: Failing tests:** `test_bambuddy_allow_list` (the file names exactly those four sources and
-  `ct original proto-dst 8000`, and the table is `ip pi_lock`, not `ip filter`);
+  `ct original proto-dst 8000`, and the table is `inet pi_lock`, not `ip filter`);
   `test_apply_installs_the_firewall_unit` (with `--root`, the unit and the rule land under
   `etc/systemd/system/` and `etc/pi-lock/`); `test_undo_removes_it`.
 - [ ] **Step 2: Run** them. Expected: FAIL.
@@ -232,6 +234,9 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
 
 - [ ] **Step 1:** `bash deploy/lock-check.sh ready` on the Mac. Expected: all ok. If not, stop: the owner's DNS/CA
   steps are not done.
+- [ ] **Step 1b:** Repoint Uptime Kuma's two monitors that use closing ports: "Pi Hub Web App" `http://10.0.0.30` →
+  `http://127.0.0.1/healthz`, "Grafana Dashboards" `http://10.0.0.30:3000` → `http://127.0.0.1:3000/api/health`
+  (in Kuma's UI, or its DB with Kuma stopped and a copy kept).
 - [ ] **Step 2:** Ask the owner for the go (a network change on the Pi and the PC). Then release the hub
   (`git push pi main`) and run `ssh -t pi sudo python3 /opt/pi-hub/current/deploy/pi-lock.py apply`, then
   `ssh -t pi sudo bash /opt/pi-hub/current/deploy/install.sh` (Caddy drop-in), then the Paperless script with
@@ -240,8 +245,8 @@ users at 127.0.0.1: the hub, Prometheus and Caddy.)
   /opt/pi-hub/current/deploy/gate-check.sh'` (Expected: all ok), `node tests/browser/structure.mjs
   https://home.home.arpa` (Expected: All 28 views pass), Local AI's Materials and Documents cards still show data
   (`curl -s https://10.0.0.21/healthz` plus its Paperless/Bambuddy status), `ssh pi 'sudo systemctl restart docker
-  && sleep 20 && sudo nft list table ip pi_lock'` (Expected: the table is there:
-  `test_rule_survives_docker_restart`).
+  && sleep 20 && sudo nft list table inet pi_lock'` (Expected: the table is there).
 - [ ] **Step 4:** If any check fails and the cause is not a one-line fix: `pi-lock.py undo`, Paperless `-Undo`, and
   `git revert` the Caddy change, release; record what failed.
-- [ ] **Step 5:** Docs, commit, release; update memory (`one-home-gate.md`).
+- [ ] **Step 5:** Docs, commit, release; update memory (`one-home-gate.md`). In `docs/operations.md`: a netmon deploy
+  re-applies the lock (netmon branch `step6-lock`, merge it at lock time); merge appliance-ui `step6-lock` and sync it.

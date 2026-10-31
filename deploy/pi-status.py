@@ -15,6 +15,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8099
+# One home, step 6: pi-lock.py sets 127.0.0.1 (a systemd drop-in); only the hub reads this.
+BIND = os.environ.get("PI_STATUS_BIND", "0.0.0.0")
 WORLD_URL = "https://10.0.0.21/api/world"
 MOVIES = "/mnt/usb1"
 WINDOWS_MOVIES = "/mnt/windows-movies"
@@ -357,4 +359,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     threading.Thread(target=watch, daemon=True).start()
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()

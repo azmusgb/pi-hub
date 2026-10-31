@@ -43,7 +43,7 @@ fi
 sudo install -d -m 755 /etc/systemd/system/caddy.service.d
 # Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
 # write the secret to the journal).
-printf '[Service]\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
 
 # One-time setup code for the hub's Settings page.

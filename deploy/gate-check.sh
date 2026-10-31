@@ -1,7 +1,7 @@
 #!/bin/bash
 # Checks the front gate on the Pi (run as root): every name refuses a signed-out visit and lets the owner in, a forged
-# identity header sent to Grafana from the LAN gets nothing, and the old address still reaches the hub. A tool's first
-# visit trades a one-time code for its own host-only cookie.
+# identity header sent to Grafana from the LAN gets nothing, and the old address keeps only the machine paths (step 6).
+# A tool's first visit trades a one-time code for its own host-only cookie.
 # Usage: sudo bash gate-check.sh
 set -uo pipefail
 CA=/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
@@ -88,6 +88,8 @@ r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{content_type}' http://1
 case "$r" in "200 application/x-x509-ca-cert"*) say "old address → CA root" ok ;; *) say "old address → CA root" "got $r" ;; esac
 r=$(curl -s --max-time 10 -o /dev/null -w '%{http_code} %{content_type}' http://127.0.0.1/api/now)
 case "$r" in "200 application/json"*) say "old address → hub /api/now" ok ;; *) say "old address → hub /api/now" "got $r" ;; esac
+r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' http://127.0.0.1/workshop)
+case "$r" in "308 https://home.home.arpa/workshop") say "old address page → the gate" ok ;; *) say "old address page → the gate" "got $r" ;; esac
 # The printer actions are the owner's: signed out, the hub refuses before Bambuddy is asked.
 r=$(curl -s --max-time 10 --cacert "$CA" --resolve home.home.arpa:443:127.0.0.1 -o /dev/null -w '%{http_code}' -X POST \
   -H 'Origin: https://home.home.arpa' https://home.home.arpa/api/printer/pause)

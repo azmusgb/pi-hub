@@ -151,3 +151,12 @@ def test_meter_fill_starts_at_3_to_1_on_the_well():
     for tone, var in (("ok", "ok"), ("warn", "warn"), ("danger", "danger")):
         rule = re.search(r"\.meter--%s \.meter-bar::after\s*\{([^}]*)\}" % tone, css).group(1)
         assert f"color-mix(in srgb, var(--{var}) 85%, white)" in rule, tone
+
+
+def test_the_pi_page_links_grafana_and_kuma_through_the_gate():
+    # One home, step 6 closes :3000 and :3001 on the LAN.
+    for f in (os.path.join(ROOT, "hub", "sources.py"), os.path.join(STATIC, "js", "pi.js")):
+        text = open(f).read()
+        assert "10.0.0.30:3000" not in text and "10.0.0.30:3001" not in text, f
+    src = open(os.path.join(ROOT, "hub", "sources.py")).read()
+    assert '"https://network.home.arpa/"' in src and '"https://status.home.arpa/status/home"' in src

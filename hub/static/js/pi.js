@@ -1318,7 +1318,7 @@ function networkCard(network) {
         "a",
         {
           class: "button secondary",
-          href: m.grafana_url || "http://10.0.0.30:3000",
+          href: m.grafana_url || "https://network.home.arpa/",
           target: "_blank",
           rel: "noopener",
           style: "font-size: .875rem; text-decoration: none;",
@@ -1329,7 +1329,7 @@ function networkCard(network) {
         "a",
         {
           class: "button secondary",
-          href: m.uptime_kuma_url || "http://10.0.0.30:3001",
+          href: m.uptime_kuma_url || "https://status.home.arpa/status/home",
           target: "_blank",
           rel: "noopener",
           style: "font-size: .875rem; text-decoration: none;",

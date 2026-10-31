@@ -17,7 +17,7 @@ Data lives in SQLite tables `movie_shortlist`, `movie_votes` and `movie_night_ch
 
 ## Workshop projects and filament (Bambuddy since 24 October 2026)
 
-Spools and projects live in **Bambuddy** (Docker on the Pi, `http://pi.local:8000`), not in the hub. Bambuddy is connected to the X2D, so it takes each print's filament off its spool by itself; it also has the project parts lists, the print queue and the 3MF archive. One list replaces the hub's own filament shelf and project board, which were empty when they were retired.
+Spools and projects live in **Bambuddy** (Docker on the Pi, `https://bambuddy.home.arpa` through the gate), not in the hub. Bambuddy is connected to the X2D, so it takes each print's filament off its spool by itself; it also has the project parts lists, the print queue and the 3MF archive. One list replaces the hub's own filament shelf and project board, which were empty when they were retired.
 
 The Workshop page reads both from Bambuddy and links there to change anything:
 

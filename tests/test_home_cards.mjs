@@ -79,8 +79,8 @@ test('the Home badge equals the Needs you count', () => {
   assert.equal(by(all()).needs.count, Number(homeBadge(NEEDS)));
 });
 
-test('links use the old addresses when the hub is opened by IP', () => {
-  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'http://10.0.0.30:8000/');
+test('links use the gate names even when the hub is opened by IP (step 6)', () => {
+  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'https://bambuddy.home.arpa/');
 });
 
 test('Needs you says when it could not check, even with nothing else to show', () => {
@@ -161,14 +161,14 @@ test("the blind failure-detection item's link opens Bambuddy's Failure detection
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const link = 'tool:bambuddy/settings?tab=failure-detection';
   assert.equal(resolveLink(link, 'home.home.arpa'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');
-  assert.equal(resolveLink(link, '10.0.0.30'), 'http://10.0.0.30:8000/settings?tab=failure-detection');
+  assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');  // step 6: links name the gate only
 });
 
 test("the Mac disk item's link opens the Assistant with the question (its #ask?context= hand-off)", async () => {
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
   const url = new URL(resolveLink(link, '10.0.0.30'));
-  assert.equal(url.origin, 'https://10.0.0.21');
+  assert.equal(url.origin, 'https://assistant.home.arpa');  // step 6: links name the gate only
   assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
   assert.ok(resolveLink(link, 'home.home.arpa').startsWith('https://assistant.home.arpa/#ask?context='));
 });
