@@ -1,0 +1,45 @@
+/* Local AI solution shell, v1. The appliance kit supplies shared Figtree,
+   blue accent, semantic status colours and light/dark palettes.
+   Keep this after page styles; hardware controls and wall mode stay owned by Pi Hub. */
+:root { --rail-w: 252px; }
+.rail-brand .brand-sub { font-size: .6875rem; line-height: 1.4; margin-top: 5px; }
+.rail-brand .brand-name { letter-spacing: -.035em; font-size: 1.125rem; }
+.rail .rail-label { letter-spacing: .08em; font-size: .6875rem; margin-bottom: .6rem; }
+.solution-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .65rem;
+  min-height: 56px; padding: .5rem clamp(1.25rem, 4vw, 3.5rem);
+  border-bottom: 1px solid var(--line); background: var(--ui-bar);
+  color: var(--text-2); font-size: .8125rem;
+}
+.solution-home { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px;
+  color: var(--accent-strong); text-decoration: none; border-radius: 8px; }
+.solution-home svg { width: 18px; height: 18px; flex: none; }
+.solution-home:hover { text-decoration: underline; text-underline-offset: 4px; }
+.solution-home:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 4px; }
+.solution-current { color: var(--text); font-weight: 650; }
+.solution-purpose { margin-left: auto; }
+.stage .top { padding-top: 1.5rem; padding-bottom: 1.25rem; }
+.brand#page-title { font-size: clamp(1.75rem, 1.4rem + 1vw, 2.5rem); font-weight: 700; }
+.top-cmd-btn { display: inline-flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; min-height: 44px; padding: .5rem .75rem;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface);
+  color: var(--text-2); font-size: .8125rem; }
+.top-cmd-btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
+.top .clock { font-size: .875rem; background: transparent; box-shadow: none; }
+@media (max-width: 1180px) and (min-width: 861px) {
+  .rail-brand .brand-sub { max-width: 140px; }
+}
+@media (max-width: 860px) {
+  .solution-bar { padding: .25rem 1.25rem; gap: .5rem; }
+  .solution-purpose { display: none; }
+  .stage .top { padding-top: 1rem; }
+  .top-cmd-btn .command-label { display: none; }
+}
+@media (max-width: 380px) {
+  .solution-bar { font-size: .75rem; padding-inline: 1rem; }
+}
+[data-wall] .solution-bar, body.wall .solution-bar { display: none; }
+@media print { .solution-bar { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .solution-home, .top-cmd-btn { transition: none; }
+}
