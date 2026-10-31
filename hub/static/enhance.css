@@ -790,3 +790,4 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 .movie-upload-form input { width: 100%; min-height: 44px; box-sizing: border-box; }
 .movie-upload-form .row-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .movie-upload-form .btn { min-height: 44px; }
+.movie-upload [hidden] { display: none !important; }
