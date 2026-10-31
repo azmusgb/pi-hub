@@ -49,7 +49,6 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
-  "/next": { key: "next", title: "Control room", mod: nextPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
@@ -78,7 +77,6 @@ for (const link of document.querySelectorAll("[data-solution-home]")) {
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
-  "/next": "Now, problems and what changed since you last looked",
   "/wall": "Glanceable ambient display",
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",

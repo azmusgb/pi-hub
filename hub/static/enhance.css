@@ -775,3 +775,9 @@ body.wall .source-freshness { display: none; }
   border-radius: var(--r-xs);
   padding-inline: .5rem;
 }
+
+/* Home's control room (Problems, Now, Since you last looked): the same rhythm as the cards below it. */
+.home-control { display: grid; gap: var(--space-3, .75rem); margin-block: var(--space-3, .75rem); }
+.cr-since-summary { cursor: pointer; padding: .25rem 0; }
+.cr-since-summary:focus-visible { outline: 2px solid var(--ui-accent, currentColor); outline-offset: 2px; border-radius: 4px; }
+.cr-since-details[open] > .cr-since-summary { margin-bottom: var(--space-2, .5rem); }

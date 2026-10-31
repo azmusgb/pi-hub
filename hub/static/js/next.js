@@ -1,5 +1,5 @@
-// Control Room (/next) and Command Bar (⌘K): Now / Problems / Since you last looked,
-// backed by /api/records + /api/records/stream (live SSE) and /api/needs.
+// Control room (Problems / Now / Since you last looked, shown on Home since 31 Oct 2026; /next redirects to /) and
+// the Command Bar (⌘K), backed by /api/records + /api/records/stream (live SSE) and /api/needs.
 import { api, card, duration, empty, fix, h, settle, when } from "./core.js";
 import { printerButtons, runPrinterAction } from "./printer-actions.js";
 import { assistantHref, printLabUrl, resolveLink, toolUrl } from "./sections.js";
@@ -66,11 +66,13 @@ export function recordTone(severity) {
 }
 
 // Which records belong in NOW (active or unusual) vs the collapsed "All else OK" line.
-export function splitNowRecords(records = []) {
+// On Home ({ skipPrinter }) the printer band above already shows the printer, so Now leaves it out.
+export function splitNowRecords(records = [], { skipPrinter = false } = {}) {
   const active = [];
   const calm = [];
   for (const r of records) {
     if (!r || typeof r !== "object") continue;
+    if (skipPrinter && r.id === "printer") continue;
     const isPrinting = r.id === "printer" && ["printing", "paused", "finished", "failed"].includes(r.state);
     const isPlaying = r.id === "plex" && r.state === "playing";
     const isPaperBusy = r.id === "paper_printer" && r.state === "busy";
@@ -127,6 +129,13 @@ export function mergeProblems(records = [], needs = null) {
     });
   }
   return out;
+}
+
+// What the Home tab's badge counts: the whole Problems list. `undefined` while Needs you hasn't been asked, so the badge
+// waits instead of flashing a count that then changes.
+export function problemsBadge(needs, probs = []) {
+  if (needs === undefined) return undefined;
+  return { ...(needs || { items: [], unread: [] }), count: probs.length };
 }
 
 // Build the unified ⌘K command bar items for a query, given current records and needs.
@@ -377,17 +386,18 @@ function renderControlRoom(state) {
   const records = state.records || [];
   const needs = state.needs;
   const events = state.events || [];
-  const reload = () => load(state);
+  const reload = () => loadControlRoom(state, state.needs);
 
   // 1. NOW
-  const { active, calm } = splitNowRecords(records);
+  const home = !!state.homeMode;
+  const { active, calm } = splitNowRecords(records, { skipPrinter: home });
   const calmLine = calmSummaryText(calm);
   const streamPill = state.streamLive ? "Live stream" : "Checked";
   state.nowSec.replaceChildren(
     card("Now", { cls: "wide", pill: streamPill, tone: "ok" },
       active.length
         ? h("ul", { class: "log cr-list" }, active.map((r) => renderActiveItem(r, state, reload)))
-        : h("p", { class: "cr-quiet-lead" }, "Nothing is actively printing or playing right now."),
+        : h("p", { class: "cr-quiet-lead" }, home ? "Nothing else is running right now." : "Nothing is actively printing or playing right now."),
       calm.length
         ? h("details", { class: "cr-calm-details" },
           h("summary", { class: "cr-calm-summary" },
@@ -421,8 +431,7 @@ function renderControlRoom(state) {
     ? `${unseen.length} new since ${when(state.lastSeen)}`
     : events.length ? "Up to date" : "Quiet";
 
-  state.sinceSec.replaceChildren(
-    card("Since you last looked", { cls: "wide", pill: pillText, tone: "ok" },
+  const sinceCard = card("Since you last looked", { cls: "wide", pill: pillText, tone: "ok" },
       shownEvents.length
         ? h("ul", { class: "log cr-list" },
           shownEvents.slice(0, 20).map((ev) => {
@@ -461,8 +470,19 @@ function renderControlRoom(state) {
             },
           }, state.showAllEvents ? "Show fewer" : `Show all (${Math.min(events.length, 20)})`)
           : null,
-        h("a", { class: "action ghost", href: "/alerts", "data-link": true }, "Full alert history")))
-  );
+        h("a", { class: "action ghost", href: "/alerts", "data-link": true }, "Full alert history")));
+  // On Home it starts collapsed to one line with its count; it keeps whatever the owner last chose until they leave.
+  if (home) {
+    const box = h("details", { class: "cr-since-details" },
+      h("summary", { class: "cr-since-summary" }, h("strong", {}, "Since you last looked"), h("span", { class: "meta" }, ` · ${pillText}`)),
+      sinceCard);
+    box.open = !!state.sinceOpen;
+    box.addEventListener("toggle", () => { state.sinceOpen = box.open; });
+    state.sinceSec.replaceChildren(box);
+  } else {
+    state.sinceSec.replaceChildren(sinceCard);
+  }
+  if (typeof state.onProblems === "function") state.onProblems(probs);
 
   state.facts = probs.length
     ? `${probs.length} problem${probs.length === 1 ? "" : "s"}: ${probs.map((p) => p.title).slice(0, 3).join("; ")}`
@@ -471,7 +491,8 @@ function renderControlRoom(state) {
       : "All systems OK";
 }
 
-export function mount(state) {
+// The control room's sections inside `parent`, with a live record stream. Home and the /next page both use it.
+export function mountControlRoom(state, parent, { search = true } = {}) {
   state.records = [];
   state.needs = null;
   state.events = [];
@@ -494,7 +515,7 @@ export function mount(state) {
   state.probSec = h("div");
   state.sinceSec = h("div");
 
-  state.root.append(searchTrigger, state.probSec, state.nowSec, state.sinceSec);
+  parent.append(...(search ? [searchTrigger] : []), state.probSec, state.nowSec, state.sinceSec);
 
   // Open SSE stream to /api/records/stream for real-time updates without waiting for poll
   if (typeof EventSource !== "undefined") {
@@ -540,7 +561,11 @@ export function mount(state) {
   }
 }
 
-export function leave(state) {
+export function mount(state) {
+  mountControlRoom(state, state.root);
+}
+
+export function leaveControlRoom(state) {
   if (state.es) {
     try { state.es.close(); } catch {}
     state.es = null;
@@ -548,15 +573,30 @@ export function leave(state) {
   writeLastSeen(Math.floor(Date.now() / 1000));
 }
 
-export async function load(state) {
+export function leave(state) {
+  leaveControlRoom(state);
+}
+
+// `needs` given (Home already asked for it): only the records are fetched here.
+export async function loadControlRoom(state, needs) {
   const [recData, needsData] = await Promise.all([
     api("/api/records"),
-    settle(api("/api/needs"), 6000, null),
+    needs === undefined ? settle(api("/api/needs"), 6000, null) : Promise.resolve(needs),
   ]);
   if (Array.isArray(recData?.records)) state.records = recData.records;
   if (Array.isArray(recData?.events)) state.events = recData.events;
-  if (needsData) state.needs = needsData;
+  state.needs = needsData;
   renderControlRoom(state);
+}
+
+// Home hands over Needs you when it answers, without fetching the records again.
+export function setControlNeeds(state, needs) {
+  state.needs = needs;
+  if (state.probSec) renderControlRoom(state);
+}
+
+export async function load(state) {
+  await loadControlRoom(state);
 }
 
 // Global ⌘K Command Palette controller (upgrades #palette in index.html)

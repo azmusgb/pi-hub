@@ -4,7 +4,7 @@
 export const ASSISTANT_URL = "https://assistant.home.arpa/";
 
 export const SECTIONS = [
-  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather", "/next"] },
+  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
@@ -16,6 +16,7 @@ export const SECTIONS = [
 const PHONE = ["home", "workshop", "documents", "media", "more"];
 
 const REDIRECTS = {
+  "/next": "/",  // the control room is on Home since 31 Oct 2026
   "/movies": "/media",
   "/control": "/network",
   "/apps": "/",

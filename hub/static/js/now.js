@@ -6,6 +6,7 @@ import { homeCards, labLink, needsSummary } from "./home-cards.js";
 import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
+import { mountControlRoom, loadControlRoom, leaveControlRoom, setControlNeeds, problemsBadge } from "./next.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
@@ -1264,7 +1265,14 @@ export function mount(state) {
     state.hud = h("div", { class: "home-hud-mount" });
     state.tray = renderQuickTray();
     state.cards = h("div", { class: "home-cards" });
-    state.root.append(state.hero, state.hud, state.tray, state.cards);
+    // The control room (Problems, Now, Since you last looked) sits under the printer band; its Problems list holds
+    // every Needs you item, and the Home tab's badge counts that list once Needs you has answered.
+    state.homeMode = true;
+    state.control = h("div", { class: "home-control" });
+    mountControlRoom(state, state.control, { search: false });
+    state.homeNeedsAnswered = false;
+    state.onProblems = (probs) => { if (state.homeNeedsAnswered) setNeeds(problemsBadge(state.needs, probs)); };
+    state.root.append(state.hero, state.hud, state.control, state.tray, state.cards);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -1333,14 +1341,16 @@ export async function load(state) {
     state.hud.replaceChildren(...(hudElem ? [hudElem] : []));
   }
   const draw = (extra) => state.cards.replaceChildren(
-    ...homeCards({ now: d, home, ...extra }).map((c) => homeCard(c, cam, () => load(state))));
+    ...homeCards({ now: d, home, ...extra, problems: true }).map((c) => homeCard(c, cam, () => load(state))));
   draw(state.extra || {});
+  loadControlRoom(state, state.extra ? state.extra.needs : null).catch(() => {});
   Promise.all([
     settle(api("/api/needs"), 4000, null),
     settle(api("/api/system/backups"), 4000, null),
     settle(api("/api/movies/latest"), 4000, null),
   ]).then(([needs, backups, latest]) => {
-    if (needs) setNeeds(needs);
+    state.homeNeedsAnswered = true;
+    setControlNeeds(state, needs);  // renders Problems, which sets the badge
     if (state.summary.isConnected) line(needsSummary(needs, d.summary));
     state.extra = { needs, backups, latest };
     if (state.cards.isConnected) draw(state.extra);
@@ -1474,6 +1484,7 @@ export function leave(state) {
     activeCamModal.remove();
     activeCamModal = null;
   }
+  if (state.homeMode) leaveControlRoom(state);
   clearInterval(state._eyebrowTimer);
   clearInterval(state._camTimer);
   if (state._clockTimer) clearInterval(state._clockTimer);

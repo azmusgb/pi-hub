@@ -103,9 +103,10 @@ function systemCard(backups, pi) {
 
 // `undefined` for needs, backups or latest means "not answered yet": Home shows its cards at once and fills these in.
 // Every card but Needs you has one main action; Needs you's items are its actions.
-export function homeCards({ now, needs, backups, home, latest, at = new Date(), host = globalThis.location?.hostname || "" }) {
+// `problems`: Home shows the control room's Problems list, which already holds every Needs you item, so no Needs you card.
+export function homeCards({ now, needs, backups, home, latest, at = new Date(), host = globalThis.location?.hostname || "", problems = false }) {
   return [
-    needsCard(needs),
+    problems ? null : needsCard(needs),
     workshopCard(now?.printer, at, host, needs),
     { key: "documents", title: "Documents", status: "Search Paperless or scan a page", tone: "ok",
       action: { label: "Find a document", href: "/documents" }, link: { label: "Scan ↗", href: toolUrl("scan", host) } },
