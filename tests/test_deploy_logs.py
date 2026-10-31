@@ -362,6 +362,9 @@ async def test_pi_hub_running_release_missing_from_history_blocks():
     "X-Api-Key: shortsynthetic",
     "db_password = SYNTHETIC",
     "{'auth': {'token': 'SYNTHETIC_SECRET'}}",
+    "password=SYNTHETIC}SECRET",
+    "token=SYNTHETIC]SECRET",
+    "{token: SYNTHETIC}",
 ])
 def test_redaction_covers_quoted_compound_and_structured_forms(line):
     out = logs.redact(line)
@@ -381,3 +384,8 @@ async def test_logs_byte_budget_counts_utf8_bytes():
 async def test_logs_a_shortened_line_is_disclosed():
     d = await logs.logs(FakeHosts(log_out=ok("x " * 1000)), "pi-hub")
     assert d["truncated"] and d["lines_shortened"] == 1 and d["lines"][0].endswith("[cut]")
+
+
+def test_redaction_puts_back_only_trailing_brackets():
+    assert logs.redact("{token: abc}") == "{token: [redacted]}"
+    assert logs.redact("password=ab}cd done") == "password=[redacted] done"

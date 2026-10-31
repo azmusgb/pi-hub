@@ -44,6 +44,16 @@ def _opaque(m: re.Match) -> str:
     return "[redacted]"
 
 
+def _hidden(value: str) -> str:
+    """A secret value replaced: a quoted one keeps its quotes; a bare one is hidden up to whitespace, a quote, a
+    comma or a semicolon, and only closing brackets at its very end are put back ({'token': x}), so a value such as
+    ab}cd is hidden whole."""
+    if value[0] in "\"'":
+        return value[0] + "[redacted]" + value[0]
+    tail = re.search(r"[}\])]*$", value).group(0)
+    return "[redacted]" + tail
+
+
 # Every pattern starts a match only at a boundary and scans forward once, so the work is linear in the line.
 REDACTIONS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',;]+"), r"\1 [redacted]"),
@@ -52,11 +62,10 @@ REDACTIONS = [
     # Anywhere else: the key (bare, or quoted as in JSON and Python reprs, where its closing quote comes before the
     # separator), then ":" or "=" or a space, then the value. A quoted value is hidden whole, spaces and all
     # (password="two words", {'password': 'x'}); a bare one runs to whitespace, a quote, a comma, a semicolon or a
-    # closing bracket, so a password with & is hidden whole. A value the query rule already replaced is left alone.
+    # closing bracket at its end, so a password with & or } inside is hidden whole. A value the query rule already replaced is left alone.
     (re.compile(rf"(?i)(?<![A-Za-z0-9])({SECRET_WORD})([\"']?\s*[:=]\s*|\s+)(?!\[redacted\])"
-                r"(\"[^\"]*\"?|'[^']*'?|[^\s\"',;}\]]+)"),
-     lambda m: m.group(1) + m.group(2) + (m.group(3)[0] + "[redacted]" + m.group(3)[0] if m.group(3)[0] in "\"'"
-                                          else "[redacted]")),
+                r"(\"[^\"]*\"?|'[^']*'?|[^\s\"',;]+)"),
+     lambda m: m.group(1) + m.group(2) + _hidden(m.group(3))),
     # Long opaque tokens, judged whole by _opaque. Path segments and dotted names are not runs on their own.
     (re.compile(r"(?<![/\w.-])[A-Za-z0-9+_-]{40,}={0,2}"), _opaque),
 ]
