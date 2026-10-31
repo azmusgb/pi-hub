@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { homeCards, homeBadge, labLink } from '../hub/static/js/home-cards.js';
+import { homeCards, homeBadge, labLink, needsSummary } from '../hub/static/js/home-cards.js';
 
 const AT = new Date(2026, 9, 25, 13, 50);
 const NOW = {
@@ -119,12 +119,62 @@ test('Workshop card stays red when the printer reports an error and the plate wa
   assert.equal(c.action.do, 'clear');
 });
 
-test('while a lab experiment prints, the printer card links Local AI\'s Print lab; otherwise it does not', () => {
+test('while a lab experiment prints, the printer card links the hub\'s /lab page; otherwise it does not', () => {
   const lab = { ...NOW, printer: { ...NOW.printer, lab: { experiment: 'E-020' } } };
-  assert.deepEqual(by(all({ now: lab, host: '10.0.0.30' })).workshop.lab, { label: 'Print lab: E-020 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-020' });
-  assert.deepEqual(by(all({ now: lab })).workshop.lab, { label: 'Print lab: E-020 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-020' });
+  assert.deepEqual(by(all({ now: lab, host: '10.0.0.30' })).workshop.lab, { label: 'Print lab: E-020', href: '/lab?e=E-020' });
+  assert.deepEqual(by(all({ now: lab })).workshop.lab, { label: 'Print lab: E-020', href: '/lab?e=E-020' });
   assert.equal(by(all()).workshop.lab, null);
   const odd = { ...NOW, printer: { ...NOW.printer, lab: { experiment: '"><img src=x>' } } };
   assert.equal(by(all({ now: odd })).workshop.lab, null);
-  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }, '10.0.0.30'), { label: 'Print lab: E-7 ↗', href: 'https://assistant.home.arpa/#printLab?e=E-7' });
+  assert.deepEqual(labLink({ lab: { experiment: 'E-7' } }), { label: 'Print lab: E-7', href: '/lab?e=E-7' });
+});
+
+test("Home's summary line never repeats the Needs you count: the badge and the card say it (IMG_1047, 28 Oct)", () => {
+  const item = (title, tone) => ({ title, tone, detail: '' });
+  // the 28 Oct photo: "2" on the badge, "2 small things to check" over the card, "2 things" on the card
+  assert.equal(needsSummary({ count: 2, items: [item('Failure detection', 'warn'), item('Worth a look', 'warn')] }, '1 small thing to check'), '');
+  assert.equal(needsSummary({ count: 3, items: [item('Bambu X2D', 'bad'), item('Ad blocking', 'warn'), item('Worth a look', 'warn')] }, '2 things need a look'), '');
+  assert.equal(needsSummary({ count: 1, items: [item('Ad blocking', 'warn')] }, 'Ad blocking needs a look'), '');
+  // nothing on the card: the hub's own line still says so
+  assert.equal(needsSummary({ count: 0, items: [] }, "Everything's running"), "Everything's running");
+  assert.equal(needsSummary(null, 'Home status is unavailable'), 'Home status is unavailable');  // Needs you didn't answer
+  assert.equal(needsSummary(undefined, "Everything's running"), "Everything's running");
+});
+
+test("the printer card's dot follows Needs you: amber for a printer item, red for a bad one (IMG_1047, 28 Oct)", () => {
+  const blind = { id: 'pi:Failure detection', source: 'Pi Hub', tone: 'attention', title: 'Failure detection is blind', detail: '', about: 'printer' };
+  const disk = { id: 'localai:watch-mac-disk', source: 'Local AI', tone: 'warn', title: 'Worth a look', detail: 'Mac disk is 95% full' };
+  const needs = (...items) => ({ count: items.length, items, unread: [] });
+  assert.equal(by(all({ needs: needs(disk) })).workshop.tone, 'ok');  // nothing about the printer: printing stays green
+  assert.equal(by(all({ needs: needs(blind, disk) })).workshop.tone, 'warn');
+  assert.equal(by(all({ needs: needs({ ...blind, tone: 'warn' }) })).workshop.tone, 'warn');
+  assert.equal(by(all({ needs: needs(disk, { ...blind, tone: 'bad' }) })).workshop.tone, 'bad');
+  assert.equal(by(all({ needs: undefined })).workshop.tone, 'ok');  // Needs you hasn't answered yet
+  assert.equal(by(all({ needs: null })).workshop.tone, 'ok');
+  const error = { ...NOW, printer: { state: 'error' } };
+  assert.equal(by(all({ now: error, needs: needs(blind) })).workshop.tone, 'bad');  // never softened
+  const done = { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } };
+  assert.equal(by(all({ now: done, needs: needs({ ...blind, tone: 'bad' }) })).workshop.tone, 'bad');
+});
+
+test("the blind failure-detection item's link opens Bambuddy's Failure detection settings", async () => {
+  const { resolveLink } = await import('../hub/static/js/sections.js');
+  const link = 'tool:bambuddy/settings?tab=failure-detection';
+  assert.equal(resolveLink(link, 'home.home.arpa'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');
+  assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');  // step 6: links name the gate only
+});
+
+test("the Mac disk item's link opens the Assistant with the question (its #ask?context= hand-off)", async () => {
+  const { resolveLink } = await import('../hub/static/js/sections.js');
+  const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
+  const url = new URL(resolveLink(link, '10.0.0.30'));
+  assert.equal(url.origin, 'https://assistant.home.arpa');  // step 6: links name the gate only
+  assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
+  assert.ok(resolveLink(link, 'home.home.arpa').startsWith('https://assistant.home.arpa/#ask?context='));
+});
+
+test("a Local AI item about another printer leaves the X2D card green (review, 28 Oct)", () => {
+  // needs.py tags only X2D/Bambu items; an untagged "Document printer offline" must not touch the card
+  const doc = { id: 'localai:watch-doc', source: 'Local AI', tone: 'warn', title: 'Heads up', detail: 'Document printer offline' };
+  assert.equal(by(all({ needs: { count: 1, items: [doc], unread: [] } })).workshop.tone, 'ok');
 });

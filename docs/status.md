@@ -20,6 +20,17 @@ Home, Movies, Devices, Lists, Print, Workshop, Weather, symptom guides, alerts, 
 
 Commit `bfd3468` adds contextual help links and breadcrumbs, favourites on Devices and Home, device-local alert badges, compact issue summaries, and expandable movie/print details. Fix actions ask for confirmation and show a persistent outcome on Help. Expanded movie details remain open across refreshes.
 
+## Control room piece 1: records — 27 October
+
+Release `b69c678` (spec `superpowers/specs/2026-10-27-control-room-design.md`, plan `superpowers/plans/2026-10-27-control-room-1-records.md`):
+
+- **One record per thing.** 16 records (printer, camera, workshop display, PC, Local AI, Pi, movies drive, movie copy, internet, AdGuard, backups, Plex, devices, document printer, weather, and the hub itself), each from one designated source, kept in memory and in the `records` table. `GET /api/records` lists them; `GET /api/records/stream` sends changes as server-sent events (nothing uses the stream yet).
+- **Home, the wall, Needs you, Help › Source responses and the Workshop printer card read records**, so they can no longer disagree. The printer's state comes from Bambuddy only; pi-status can only add a "two sources disagree" note.
+- **Alerts come from record changes.** The PC is down only when it is off the network for 5 minutes (not when Local AI is down); the Pi-hot alert fires; a silent source is one "isn't answering" item; a stop and restart of the same job within 15 minutes is attempt 2; INIT without a job (power-on) is idle.
+- Not yet: the morning digest and the Assistant still read pi-status; the pages do not grey out a stale record; Home can say "Everything's running" for under a minute after a restart.
+
+Checked live on 27 October at 11:09–11:11: the Pi's gate passed 390 tests; `/api/records` listed 16 records 30 s after the restart, none stale at 11:11 (oldest 9 s); Home and Needs you both listed AdGuard (down) and the printer camera (no picture), and both said the printer was idle, as its record did; Help listed the same readings, all current except the unconfigured calendar; the wall browser check passed all 7 views. Not checked live: a print starting, failing or restarting (covered by replaying the night of 26–27 October in tests).
+
 ## Freshness and recovery follow-up — 22 October
 
 - Source-response panels on Home, Movies, Devices, Workshop, Print, Weather and Help show successful response ages, unavailable checks, expired readings and missing setup separately.
@@ -107,7 +118,7 @@ These were reviewed from two nOvaxtech "self-hosted app spotlight" carousels (AI
 | 3 | **Immich** (photo library) | Waiting on you | High | PC (its machine learning is too heavy for the Pi) | The best replacement for iCloud/Google Photos. Needs a second drive in the PC and a UPS first: C: is the PC's only disk, and its power keeps getting cut by a problem outside the PC. |
 | 4 | **Audiobookshelf** (audiobooks, podcasts) | Waiting on you | High if you have audiobooks, otherwise None | Pi, next to Plex | Good iPhone app that remembers your place. Plex handles audiobooks badly. Worth it only if there's a collection of audiobook files. |
 | 5 | **Actual Budget** (household budget) | Waiting on you | Medium–High if you'll budget | Pi | Private, light and imports bank CSVs. Separate from the business's QuickBooks. Only worth it if someone will keep it up. |
-| 6 | **Self-hosted ntfy** (alerts) | Proposed | Medium | Pi | Pi Hub, pi-status and Bambuddy alerts go through the public ntfy.sh with a secret topic name. Hosting it removes that dependency and makes the alerts private. The phone needs Tailscale for alerts away from home. |
+| 6 | **Self-hosted ntfy** (alerts) | Done 30 Oct | Medium | Pi, `http://10.0.0.30:8093` / `https://ntfy.home.arpa` | Service running on port 8093 with APNs wake relay. Phone subscribed, iOS lock screen banners verified, public ntfy.sh dropped. All household alerts are 100% private. |
 | 7 | **Sign-in for the scan page** | Proposed | Medium | Pi | The scan page has no login; anyone on the LAN or tailnet can scan into Paperless. A small proxy with the household PIN would close this. Bambuddy's open UI on :8000 has the same problem (see 24 October follow-up). |
 | 8 | **Home Assistant** (smart home) | Proposed | Medium | Pi | Could replace Homebridge and much of Pi Hub's rules and controls. A migration rather than a gap, so it isn't urgent. |
 | 9 | **Homebox** (home inventory) | Done 24 Oct | Low–Medium | Pi | Tools, parts, warranties and serial numbers. Overlaps a little with the filament shelf. |
@@ -202,3 +213,19 @@ Plan `docs/superpowers/plans/2026-10-25-one-home-step-5-look.md`. Kit appliance-
   backdrop use the kit's ink; the kiosk light uses `--warn`; Scan reads `hub-theme` via `/static/js/saved-theme.js`.
   Found on the way: the hub's `--*-rgb` triples were comma-separated but used as `rgb(var(--x-rgb) / a)`, which is
   invalid, so 30 tints, borders and shadows never rendered; they are now `r g b` and a test keeps them so.
+
+
+## Shared facts and LocalAI attention — source changes, 28 October
+
+The Assistant now reads the same household records as Home, including source and reading age. Missing readings stay
+unknown; stale telemetry is historical. Removed the hard-coded movie count, disk capacity/free space, connected-drive
+and backup-success assertions. A failed Plex playback read is distinct from a confirmed empty playback list.
+
+LocalAI attention now comes from `/api/attention`, containing LocalAI's own cards without a Pi Hub fetch. The hub owns
+the aggregate `/api/needs`; the display consumes that list through LocalAI. Deploy the LocalAI endpoint before this
+consumer. If that endpoint is unavailable, the hub reports LocalAI as unread. These are local source changes, not a
+record of a Pi deployment or live equipment acceptance.
+
+Local verification for these source changes: 654 Python tests passed, 8 skipped; 164 JavaScript tests passed;
+installer/release shell syntax and whitespace checks passed. The skips remain unverified, and these results are not
+live household acceptance.

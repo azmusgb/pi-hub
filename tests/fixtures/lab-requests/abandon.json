@@ -1,0 +1,6 @@
+{
+  "id": "rq-0000000000000003",
+  "kind": "abandon",
+  "experiment": "E-102",
+  "payload": { "reason": "Wrong filament" }
+}

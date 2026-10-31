@@ -138,7 +138,7 @@ The hub's Documents section searches Paperless as the user `hub`. That user can 
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
 
-A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) but **stopped**. On 24 October 2026 the iPhone received its messages inside the app, but no banner appeared, although the server passed the wake-up to ntfy.sh. So alerts use ntfy.sh only, and Bambuddy's "Household ntfy (Pi)" channel is turned off. To try again, start it (`cd /opt/ntfy && sudo docker compose up -d`) and add `http://127.0.0.1:8093` to the servers file.
+A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.30:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
 
 ## Homebox (home inventory)
 
@@ -189,9 +189,16 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
 | `pi.home.arpa` | Cockpit (Pi :9090) |
 | `scan.home.arpa` | scanservjs (Pi 127.0.0.1:8095) |
 
+- **Break-glass access if Pi Hub is down:**
+  If Pi Hub (`127.0.0.1:8100`) or Caddy fails, or if locked down to loopback under step 6, access Cockpit or Backrest directly via an SSH local port-forward:
+  ```sh
+  ssh -L 9090:127.0.0.1:9090 -L 9898:127.0.0.1:9898 pi
+  ```
+  Then open `https://localhost:9090` (Cockpit) or `http://localhost:9898` (Backrest) in your browser.
+
 - **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.30`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
 - **The gate:** Caddy on the Pi (`/etc/caddy/Caddyfile`, installed by each release from `deploy/caddy/Caddyfile`) holds ports 80 and 443. Pi Hub now listens on `127.0.0.1:8100`. Each name except `home.` asks the hub's `GET /api/gate` first: the owner goes through, anyone else goes to the hub's sign-in and comes back after it.
-- **Sign-in:** signing in as the owner at `https://home.home.arpa` also sets `hub_gate`, a gate-only token for every `*.home.arpa` name (it ends with the sign-in that made it; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes the sign-in and every gate token it made. If a tool keeps sending you back, the hub renews the gate token once, then says the browser is refusing the cookie. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
+- **Sign-in:** signing in as the owner at `https://home.home.arpa` lets each tool get its own `hub_gate` cookie on first visit through a one-time code (30 s, single use, that tool only), because `home.arpa` is a public suffix and browsers refuse a cookie shared across it. The cookie is a gate-only token (it ends with the sign-in that made it; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes the sign-in and every gate token it made. If a tool keeps sending you back, the hub renews the gate token once, then says the browser is refusing the cookie. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
 - **Grafana:** signs in whoever the gate names, but only from 127.0.0.1 and only under a secret header name shared by Caddy and Grafana (`/etc/pi-hub/secrets/grafana_gate.env`, made by `install.sh`; netmon reads it with `env_file`; Caddy refuses to start without it, and its admin API is a private socket, `/run/caddy/admin.sock`, so the name can't be read from it). Other services on the Pi, such as Uptime Kuma, can send any header from 127.0.0.1, so the name is what proves the gate sent it. The gate also removes any client-sent `X-Remote-User`, `X-Webauth-User` or secret-named header. User `bill` is an org Admin (not a server admin) with an unknown password; the `admin` login still works with `/etc/pi-hub/secrets/grafana_admin`. To change the secret, delete the file, run `deploy/install.sh`, then `cd /opt/netmon && sudo docker compose up -d grafana`.
 - **Certificates:** Caddy's own CA. Its root is at `https://home.home.arpa/home-ca.crt`; trust it once on each device (iPhone: download, then Settings › General › VPN & Device Management, then Settings › General › About › Certificate Trust Settings; Mac: open it in Keychain Access, set to Always Trust). The CA lives in `/var/lib/caddy`; **never delete it**, or every device must trust a new one.
 - **Check it:** `ssh pi 'sudo bash /opt/pi-hub/current/deploy/gate-check.sh'` prints one line per check. The nightly self-check includes "The front gate answers".

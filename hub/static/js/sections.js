@@ -4,8 +4,8 @@
 export const ASSISTANT_URL = "https://assistant.home.arpa/";
 
 export const SECTIONS = [
-  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
-  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop"] },
+  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather", "/next"] },
+  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
@@ -44,6 +44,11 @@ export const phoneTabs = () => [...PHONE];
 // opened on no longer matters; `host` stays for resolveLink's callers.
 export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
   return `https://${name}.home.arpa/`;
+}
+
+// The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).
+export function printLabUrl(exp) {
+  return `/lab?e=${exp}`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).

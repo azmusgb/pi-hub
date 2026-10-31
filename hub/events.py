@@ -1,13 +1,18 @@
 """Notices what changes in the house and runs the household's rules on it.
 
-Every 30 seconds it compares the current state with the last one. A change has to last two
-checks (a minute) before it counts, so blips don't fire rules. The Windows PC has to be
-down for 5 minutes, since Local AI restarts quickly and the room's breaker trips don't.
+Every 30 seconds the records are refreshed (hub/records.py) and their changes become today's
+triggers: a print starting or ending, the PC, the movies drive, Plex, Homebridge, the Pi's heat.
+The records keep the existing debounce (a change has to last two checks) and the PC has to be
+off the network for 5 minutes. The Watcher still checks the movie copy, the Paperless backup,
+spools, the network alerts and the weather.
 """
+import base64
+import sys
 import time
+import traceback
 import urllib.request
 
-from . import auth, db, sources
+from . import auth, db, records, sources
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (ts INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT);
@@ -62,7 +67,7 @@ MESSAGES = {
     "print_started": ("X2D print started", ""),
     "drive_dropped": ("Movies drive dropped out", "Unplug it, wait 10 seconds and plug it back in."),
     "drive_back": ("Movies drive is back", "Plex can play movies again."),
-    "pc_down": ("Windows PC is down", "Local AI has been unreachable for 5 minutes. Check the PC or the room's breaker."),
+    "pc_down": ("Windows PC is down", "It hasn't answered on the network for 5 minutes. Check the PC or the room's breaker."),
     "pc_back": ("Windows PC is back", ""),
     "plex_stopped": ("Plex stopped", "Restart it from the hub's Pi page."),
     "homebridge_stopped": ("Homebridge stopped", "Restart it from the hub's Pi page."),
@@ -77,6 +82,11 @@ MESSAGES = {
     "freeze_tonight": ("Freezing tonight", "Cover plants and bring in anything that mustn't freeze."),
 }
 
+# A print failure reaches the phone only through hub/urgent.py; the seeded print_failed notify rule stays, labelled so
+PRINT_FAILED_TEXT = "Print failures are sent by the hub's urgent alerts"
+PRINT_FAILED_OLD_TEXT = "Send a phone alert when a 3D print fails or stops early"
+PRINT_FAILED_SKIP = {"status": "skipped", "message": "Print failures reach your phone as the hub's urgent alerts."}
+
 DEFAULT_RULES = [
     ("drive_back", "rescan_plex", None, "Find new movies when the drive comes back", 1),
     ("filament_low", "notify", None, "Tell me when a spool runs low", 1),
@@ -85,7 +95,7 @@ DEFAULT_RULES = [
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
     ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
-    ("print_failed", "notify", None, "Send a phone alert when a 3D print fails or stops early", 1),
+    ("print_failed", "notify", None, PRINT_FAILED_TEXT, 1),
     ("mirror_stale", "notify", None, "Tell me when the movies haven't been copied from the PC for two days", 1),
     ("paperless_stale", "notify", None, "Tell me when Paperless hasn't been backed up to the Pi for two days", 1),
 ]
@@ -104,6 +114,9 @@ def ntfy_servers():
     return servers or ["https://ntfy.sh"]
 
 
+_relabelled = set()  # DB files this process has relabelled the old print_failed rule in
+
+
 def ready():
     db.conn().executescript(SCHEMA)
     seeded = auth.get("rules_seeded")
@@ -111,6 +124,11 @@ def ready():
         seeded = 1
     for trig, act, target, label, on in DEFAULT_RULES[seeded or 0:]:
         db.run("INSERT INTO rules (trigger, action, target, label, enabled) VALUES (?, ?, ?, ?, ?)", trig, act, target, label, on)
+    path = db.conn().execute("PRAGMA database_list").fetchone()[2]
+    if path not in _relabelled:  # an existing install: the seeded rule, if its words are still the old default
+        db.run("UPDATE rules SET label = ? WHERE trigger = 'print_failed' AND action = 'notify' AND label = ?",
+               PRINT_FAILED_TEXT, PRINT_FAILED_OLD_TEXT)
+        _relabelled.add(path)
     if (seeded or 0) < len(DEFAULT_RULES):
         auth.put("rules_seeded", len(DEFAULT_RULES))
 
@@ -127,8 +145,9 @@ def quiet_now(now=None):
     return start <= minutes < end if start < end else minutes >= start or minutes < end
 
 
-def push(title, body="", tags="", priority="default", urgent=False):
-    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent."""
+def push(title, body="", tags="", priority="default", urgent=False, click=None):
+    """Sends a phone message through ntfy. Quiet hours hold back anything that isn't urgent.
+    click is the link a tap opens."""
     if quiet_now() and not urgent:
         return "Held back for quiet hours."
     try:
@@ -136,14 +155,22 @@ def push(title, body="", tags="", priority="default", urgent=False):
             topic = f.read().strip()
     except OSError:
         return "No alert topic is set up."
+    title = " ".join(str(title).replace("\r", "").split("\n")).strip()
+    try:
+        title.encode("latin-1")
+    except UnicodeEncodeError:  # ntfy reads RFC 2047 UTF-8 titles
+        title = "=?UTF-8?B?" + base64.b64encode(title.encode()).decode() + "?="
+    headers = {"Title": title, "Tags": tags, "Priority": priority}
+    if click:
+        headers["Click"] = click.replace("\r", "").replace("\n", "")
     sent = False
     for server in ntfy_servers():
         req = urllib.request.Request(f"{server}/{topic}", data=(body or title).encode(), method="POST",
-                                     headers={"Title": title, "Tags": tags, "Priority": priority})
+                                     headers=headers)
         try:
             urllib.request.urlopen(req, timeout=10).close()
             sent = True
-        except OSError:
+        except (OSError, ValueError):
             pass
     return "Sent." if sent else "The phone message didn't go out."
 
@@ -156,6 +183,8 @@ def rules():
 
 
 def describe(rule, names=None):
+    if rule["trigger"] == "print_failed" and rule["action"] == "notify":
+        return PRINT_FAILED_TEXT + "."
     when = TRIGGERS.get(rule["trigger"], rule["trigger"])
     what, needs = ACTIONS.get(rule["action"], (rule["action"], False))
     target = ((names or {}).get(rule["target"]) or "an accessory") if needs else ""
@@ -175,6 +204,8 @@ def policy(rule, kind, stamp=None, names=None, alerts_ready=None):
     if not rule.get("enabled", 1):
         return {"status": "skipped", "message": "Automation is turned off."}
     if rule["action"] == "notify":
+        if kind == "print_failed":  # urgent.check is the one sender for a print failure
+            return dict(PRINT_FAILED_SKIP)
         if kind != "weather_alert" and quiet_now(stamp):
             return {"status": "skipped", "message": "Phone alert held back for quiet hours."}
         if alerts_ready is False:
@@ -215,7 +246,13 @@ def validate_rule(trigger, action, target=None):
 
 
 def execute(rule, kind, detail=""):
-    from . import actions, homecontrol
+    from . import actions, homecontrol, urgent
+    if rule.get("enabled", 1) and rule["action"] == "notify" and kind == "pc_down":
+        try:
+            if urgent.recently_pushed("pc", time.time()):
+                return {"status": "skipped", "message": "Already sent as an urgent alert."}
+        except Exception:  # can't tell: send the rule's own alert rather than leave the run stuck
+            traceback.print_exc(file=sys.stderr)
     decision = policy(rule, kind)
     if decision["status"] != "would_run":
         return decision
@@ -297,6 +334,113 @@ def recent(limit=40):
     return db.rows("SELECT ts, kind, detail FROM events ORDER BY ts DESC, rowid DESC LIMIT ?", limit)
 
 
+# ---- Record changes become triggers ----
+
+# states that say nothing about the thing (it isn't answering, or answered something odd); a trigger
+# compares with the last state that did say something, so a source dropping out and coming back
+# doesn't report the same print or dropout twice
+UNSURE = {"unknown", "offline"}
+LIVE = {"printing", "paused"}
+FINISHED_AT = 97  # percent; a print that ended below this was stopped early
+_last = {}  # thing -> its last state outside UNSURE, as on_changes saw it (only events.run's thread)
+_last_progress = {}  # "printer" -> the progress last seen while printing or paused; survives an offline gap
+_hot = {}  # "pi" -> whether the Pi's last temperature reading was at or above house.HOT_AT
+
+
+def _forget():
+    _last.clear()
+    _last_progress.clear()
+    _hot.clear()
+
+
+# thing -> [(new states, states it mustn't come from, trigger)]; the printer has its own rules below
+ON = {
+    "pc": [({"off"}, {"off"}, "pc_down"), ({"on"}, {"on"}, "pc_back")],
+    "movies_drive": [({"missing", "not_mounted"}, {"missing", "not_mounted"}, "drive_dropped"),
+                     ({"connected"}, {"connected"}, "drive_back")],
+    "plex": [({"stopped"}, {"stopped"}, "plex_stopped")],
+    "devices": [({"stopped"}, {"stopped"}, "homebridge_stopped")],
+}  # pi_hot follows the Pi's temperature, whatever its state: see _note_heat
+
+
+def _printer(before, new, rec):
+    """The print trigger for a printer change, as (kind, detail), or None. A print that was live and is
+    now idle, finished or failed ended one way or the other: Bambuddy's FINISH is a finish, its FAILED
+    (or a failed record) is a failure, otherwise the last progress seen while printing decides."""
+    d = rec.get("detail") or {}
+    if new == "printing" and before not in LIVE:
+        attempt = d.get("attempt") or 1
+        return "print_started", f"attempt {attempt}" if attempt > 1 else ""
+    pct = _last_progress.get("printer")
+    if before in LIVE and new in ("idle", "finished", "failed"):
+        failed = ("print_failed", f"at {pct if pct is not None else d.get('last_progress') or 0}%")
+        if new == "finished" or d.get("bambuddy_state") == "FINISH":
+            return "print_finished", ""
+        if new == "failed" or d.get("bambuddy_state") == "FAILED" or (pct is not None and pct < FINISHED_AT):
+            return failed
+        return "print_finished", ""
+    if new == "finished":
+        return "print_finished", ""
+    if new == "failed":  # no live print seen before it: the record's own progress
+        return "print_failed", f"at {d.get('last_progress') or 0}%"
+    return None
+
+
+def _note_progress():
+    rec = records.get("printer")
+    if rec and rec["state"] in LIVE:
+        p = (rec.get("detail") or {}).get("last_progress")
+        _last_progress["printer"] = p if isinstance(p, (int, float)) else 0
+
+
+def _fire(kind, detail, dedupe=0):
+    try:
+        fire(kind, detail, dedupe=dedupe)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+
+
+def on_changes(changes, first):
+    """Fires today's triggers for the records that changed. The first refresh after a start fires
+    nothing: a print already under way, or a PC already off, isn't news."""
+    for ch in changes:
+        new = ch["new"]
+        if (ch["id"] not in ON and ch["id"] != "printer") or new in UNSURE:
+            continue
+        before = _last.get(ch["id"]) or (ch["old"] if ch["old"] not in UNSURE else None)
+        _last[ch["id"]] = new
+        if first or before is None or before == new:
+            continue
+        if ch["id"] == "printer":
+            hit = _printer(before, new, ch["record"])
+            if before in LIVE and new not in LIVE:  # the print ended: its progress is spent
+                _last_progress.pop("printer", None)
+            if hit:
+                _fire(*hit, dedupe=PRINT_DEDUPE)
+            continue
+        for states, not_from, kind in ON[ch["id"]]:
+            if new in states and before not in not_from:
+                _fire(kind, "")
+    # remembered after this cycle's changes, so the next cycle's end of a print sees the last live progress
+    _note_progress()
+    _note_heat(first)
+
+
+def _note_heat(first):
+    """pi_hot when the Pi's temperature crosses HOT_AT upwards. The temperature is read from the record,
+    whose state is debounced (it keeps the old reading until a change has held two checks), and works
+    whatever the state, since pi-status may report a power problem while the Pi is hot."""
+    from .things.house import HOT_AT
+    rec = records.get("pi")
+    temp = ((rec or {}).get("detail") or {}).get("temp")
+    if not isinstance(temp, (int, float)) or rec.get("stale"):
+        return
+    was, hot = _hot.get("pi"), temp >= HOT_AT
+    _hot["pi"] = hot
+    if hot and was is False and not first:
+        _fire("pi_hot", f"{temp} °C")
+
+
 # ---- Watching for changes ----
 
 class Watcher:
@@ -306,10 +450,6 @@ class Watcher:
         self.paperless_stale = False
         self.low_spools = None  # Bambuddy spool ids seen low; None until the first answer
         self.pending = {}
-        self.pc_down_since = None
-        self.pc_reported = None
-        self.last_print = None
-        self.last_progress = 0
         self.alerts_seen = None
         self.rain_day = None
         self.freeze_day = None
@@ -343,10 +483,10 @@ class Watcher:
         self.low_spools = set(low)
 
     def check(self, s, now=None):
+        """The movie copy, the Paperless backup and the spools (the rest comes from the records)."""
         now = now or time.time()
         if s is None:
             return
-        svc = s.get("services") or {}
         mirror = s.get("mirror") or {}
         if mirror.get("last_ok"):
             stale = now - mirror["last_ok"] > MIRROR_STALE
@@ -360,50 +500,6 @@ class Watcher:
             if stale and not self.paperless_stale:
                 fire("paperless_stale")
             self.paperless_stale = stale
-        if s.get("drive_state") in ("Connected", "Missing", "Not mounted"):
-            if self._steady("drive", s["drive_state"] == "Connected"):
-                fire("drive_back" if self.seen["drive"] else "drive_dropped")
-        else:
-            self.pending.pop("drive", None)
-        for key in ("plex", "homebridge"):
-            if isinstance(svc.get(key), bool):
-                if self._steady(key, svc[key]) and not self.seen[key]:
-                    fire(f"{key}_stopped")
-            else:
-                self.pending.pop(key, None)
-        if s.get("pi_temp") is not None:
-            if self._steady("hot", s["pi_temp"] > 75) and self.seen["hot"]:
-                fire("pi_hot", f"{s['pi_temp']} °C")
-        else:
-            self.pending.pop("hot", None)
-
-        pc_up = s.get("ai_state") in ("Ready", "Busy")
-        if s.get("ai_state") not in ("Ready", "Busy", "Down"):
-            self.pc_down_since = None
-        elif pc_up:
-            self.pc_down_since = None
-            if self.pc_reported is False:
-                fire("pc_back")
-            self.pc_reported = True
-        else:
-            self.pc_down_since = self.pc_down_since or now
-            if now - self.pc_down_since >= 300 and self.pc_reported is not False:
-                fire("pc_down")
-                self.pc_reported = False
-
-        state = s.get("x2d_state")
-        if state == "Printing":
-            # The first reading after the hub starts only learns the state: a print already under way isn't new.
-            if self.last_print is not None and self.last_print not in ("Printing", "Paused"):
-                fire("print_started", dedupe=PRINT_DEDUPE)
-            self.last_progress = s.get("x2d_progress") or 0
-        elif self.last_print in ("Printing", "Paused") and state in ("Idle", "Stopped", "Error"):
-            if state == "Error" or (state in ("Stopped", "Idle", "No status") and self.last_progress < 97):
-                fire("print_failed", f"at {self.last_progress}%", dedupe=PRINT_DEDUPE)
-            else:
-                fire("print_finished", dedupe=PRINT_DEDUPE)
-        if state in ("Printing", "Paused", "Idle", "Stopped", "Error"):
-            self.last_print = state
 
     def check_network(self, alerts, now=None):
         if alerts is None:
@@ -436,10 +532,36 @@ class Watcher:
             fire("freeze_tonight", f"Down to {w.get('tonight_low')}°.")
 
 
+def loop_pass(first, now=None, inputs=None):
+    """One records pass: refresh, the urgent pushes (every pass, the first too), then the rule triggers.
+    The urgent check comes before the triggers so a print_failed or pc_down rule fired by this same
+    refresh finds the urgent alert already sent and skips its own. Returns False when the refresh failed,
+    so the hub's first pass is still to come."""
+    from . import urgent
+    try:
+        changes = records.refresh() if now is None and inputs is None else records.refresh(now, inputs=inputs)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        return False
+    now = time.time() if now is None else now
+    try:
+        urgent.check(records.all(), now)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    try:
+        on_changes(changes, first)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    return True
+
+
 def run(every=30):
     w = Watcher()
     time.sleep(20)
+    first = True  # the first refresh after the hub starts only learns the state
     while True:
+        if loop_pass(first):
+            first = False
         try:
             w.check(sources.pi_status())
         except Exception:

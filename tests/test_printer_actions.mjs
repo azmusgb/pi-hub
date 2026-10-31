@@ -82,6 +82,8 @@ test('kioskBadge names each printer state', async () => {
   assert.deepEqual(kioskBadge({ state: 'stopped', actions: ['clear'] }), { label: 'CLEAR THE PLATE', tone: 'warn' });
   assert.deepEqual(kioskBadge({ state: 'stopped' }), { label: 'STOPPED', tone: 'text-3' });
   assert.deepEqual(kioskBadge({ state: 'idle' }), { label: 'IDLE', tone: 'text-3' });
+  assert.deepEqual(kioskBadge({ state: 'finished', actions: ['clear'] }), { label: 'CLEAR THE PLATE', tone: 'warn' });
+  assert.deepEqual(kioskBadge({ state: 'finished' }), { label: 'FINISHED', tone: 'ok' });
   assert.deepEqual(kioskBadge({}), { label: 'NO STATUS', tone: 'text-3' });
 });
 

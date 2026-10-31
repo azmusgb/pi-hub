@@ -55,14 +55,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/x2d/health.json":
             self._send(200, json.dumps({"ok": state["source"] is not None, **state}).encode(), "application/json")
             return
-        if path != "/x2d/frame.jpg":
+        if path not in ("/x2d/frame.jpg", "/x2d/detect.jpg"):
             self._send(404, b"not found", "text/plain")
             return
         order = [state["source"]] + [n for n, _ in SOURCES if n != state["source"]] if state["source"] else [n for n, _ in SOURCES]
         for name in order:
             base = dict(SOURCES)[name]
             try:
-                with urllib.request.urlopen(f"{base}/x2d/frame.jpg", timeout=2) as r:
+                with urllib.request.urlopen(f"{base}{path}", timeout=2) as r:
                     if r.status == 200:
                         self._send(200, r.read(384 * 1024), "image/jpeg")
                         return

@@ -77,18 +77,12 @@ def test_projects_api_lists_bambuddy_projects(monkeypatch):
     assert r["available"] and [p["name"] for p in r["projects"]] == ["Ballerina studio"] and r["projects"][0]["prints"] == 2
 
 
-def test_failed_print_keeps_the_error_code():
-    recorder.record_print("Printing", 20, 1000)
-    recorder.record_print("Error", 20, 2000, "0300_0100_0001_0007")
-    assert db.one("SELECT outcome, error FROM prints") == {"outcome": "failed", "error": "0300_0100_0001_0007"}
-
-
 def test_print_photo_endpoint():
     from fastapi.testclient import TestClient
     from hub import app as hub_app
     c = TestClient(hub_app.app)
     assert c.get("/api/prints/999/photo.jpg").status_code == 404
-    prints_dir = os.path.join(os.path.dirname(os.environ["HUB_DB"]), "prints")
+    prints_dir = recorder.photos_dir()
     os.makedirs(prints_dir, exist_ok=True)
     with open(os.path.join(prints_dir, "999.jpg"), "wb") as f:
         f.write(b"\xff\xd8\xff\xe0testjpeg")
@@ -116,12 +110,13 @@ def test_bambuddy_webhook_triggers_completion_and_rules(monkeypatch):
     })
     assert r.status_code == 200
     assert r.json()["handled"] == "print_finished"
-    assert db.one("SELECT outcome, grams FROM prints") == {"outcome": "finished", "grams": 15.2}
 
 
 def test_bambuddy_webhook_refuses_strangers(monkeypatch):
     from fastapi.testclient import TestClient
     from hub import app as hub_app
+    fired = []
+    monkeypatch.setattr(hub_app.events, "fire", lambda *a, **k: fired.append(a))
     monkeypatch.delenv("HUB_WEBHOOK_TOKEN", raising=False)
     c = TestClient(hub_app.app)
     event = {"event": "print_complete", "variables": {"filament_used": 99}}
@@ -129,8 +124,9 @@ def test_bambuddy_webhook_refuses_strangers(monkeypatch):
     monkeypatch.setenv("HUB_WEBHOOK_TOKEN", "s3cret")
     assert c.post("/api/webhook/bambuddy", json=event, headers={"Authorization": "Bearer wrong"}).status_code == 401
     assert c.post("/api/webhook/bambuddy?token=wrong", json=event).status_code == 401
-    assert db.one("SELECT COUNT(*) AS n FROM prints")["n"] == 0
+    assert fired == []  # none of the refused posts reached the rules
     assert c.post("/api/webhook/bambuddy", json=event, headers={"X-Hub-Token": "s3cret"}).status_code == 200
+    assert len(fired) == 1
     assert c.post("/api/webhook/bambuddy?token=s3cret", content=b"[1]").status_code == 400
     big = b'{"image": "' + b"A" * (9 * 1024 * 1024) + b'"}'
     assert c.post("/api/webhook/bambuddy?token=s3cret", content=big).status_code == 413

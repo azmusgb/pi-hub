@@ -18,6 +18,12 @@ ACTIONS = {
     "restart:pi": ("Restart the Pi", "The Pi is restarting. The hub is back in about a minute.", "household"),
     "selfcheck:run": ("Run a self-check", "Self-check finished. The result is on this page.", "household"),
     "mirror:movies": ("Copy new movies from the PC", "Copying new movies from the PC. Movies shows when it's finished.", "household"),
+    "restart:ntfy": ("Restart ntfy", "ntfy alert service restarted.", "household"),
+    "restart:bambuddy": ("Restart Bambuddy", "Bambuddy restarted.", "household"),
+    "restart:homebox": ("Restart Homebox", "Homebox restarted.", "household"),
+    "restart:backrest": ("Restart Backrest", "Backrest restarted.", "household"),
+    "restart:adguard": ("Restart AdGuard", "AdGuard restarted.", "household"),
+    "restart:scanserv": ("Restart Scanner", "Scanner service restarted.", "household"),
 }
 
 
@@ -67,6 +73,11 @@ def run(name):
 
 def updates_status():
     return helper("status:updates:install", timeout=5)
+
+
+def containers():
+    """List containers running on the Pi with their status."""
+    return helper("docker:ps", timeout=8).get("containers", [])
 
 
 def available(role):

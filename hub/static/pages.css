@@ -283,9 +283,11 @@ body.wall .link-btn { display: none; }
   .band-headline { font-size: clamp(1.8rem, min(7vw, 8vh), 3.2rem); }
 }
 
-/* Installed as an app (Add to Home Screen): no browser bar, so keep clear of the notch and the clock. */
+/* Installed as an app (Add to Home Screen): the page runs under a see-through status bar, and iPadOS blurs what sits
+   beneath it. The header and the rail keep their usual spacing and add the status bar's height on top. */
 @media (display-mode: standalone) {
-  .top { padding-top: max(18px, env(safe-area-inset-top)); }
+  .top { padding-top: calc(clamp(1.5rem, 4vw, 2.75rem) + env(safe-area-inset-top)); }
+  .rail { padding-top: calc(1.5rem + env(safe-area-inset-top)); }
 }
 
 /* People who ask for more contrast get solid surfaces and stronger lines. */

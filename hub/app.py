@@ -1,26 +1,34 @@
 """Pi Hub: the home hub web app."""
+import asyncio
+import json
 import os
+import queue
 import re
-import base64
 import hmac
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
+app.include_router(lab.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
+    try:
+        records.load()  # the last known state, marked stale, before the loop's first refresh
+    except Exception:
+        import traceback
+        traceback.print_exc()
     threading.Thread(target=sampler.run, daemon=True).start()
     threading.Thread(target=recorder.run, args=(sampler,), daemon=True).start()
     threading.Thread(target=events.run, daemon=True).start()
@@ -39,7 +47,15 @@ async def guard(request: Request, call_next):
     # Server-to-server webhooks (/api/webhook/) are machine endpoints.
     shortcut = request.url.path.startswith("/api/shortcut/") and request.headers.get("authorization", "").startswith("Bearer hub_")
     webhook = request.url.path.startswith("/api/webhook/")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and not shortcut and not webhook:
+    unsafe = request.method not in ("GET", "HEAD", "OPTIONS")
+    # The Mac's lab calls are exempt only when they carry the hub's lab key and that key verifies, never for the path alone.
+    # A key that is sent but wrong is refused as such; with no key header the normal same-origin check applies.
+    mac = False
+    if unsafe and request.url.path.startswith("/api/lab/") and "x-hub-mac-key" in request.headers:
+        if not lab_guard.mac_key_ok(request):
+            return JSONResponse({"detail": "The Mac's lab key is missing or wrong."}, status_code=401)
+        mac = True
+    if unsafe and not shortcut and not webhook and not mac:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -67,7 +83,7 @@ def _say(fn, *args):
 def api_freshness():
     return fresh(freshness.snapshot({"home": bool(auth.get("homebridge_login")),
                                      "weather": bool(auth.get("place")),
-                                     "calendar": bool(auth.get("calendar_url"))}))
+                                     "calendar": bool(auth.get("calendar_url"))}, records.all()))
 
 
 # ---- Now ----
@@ -78,17 +94,68 @@ def api_now():
         disk = sources.disk_free_gb("/")
     except OSError:
         disk = None
-    data = now.build(sources.pi_status(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics(), sources.bambuddy_printer(),
-                     sources.localai_lab())
+    data = now.build(records.all(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics())
     data["reminders"] = reminders.due_today()
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
         + (0 if auth.people() else 1) if not auth.setup_needed() else None
     return fresh(data)
 
 
+# ---- Records ----
+
+STREAM_PING = 15  # seconds of quiet before the stream sends a comment, so proxies keep it open
+STREAM_SLICE = 1  # how often the stream looks for a vanished client
+
+
+def records_body():
+    recs = records.all()
+    return {"as_of": time.time(), "records": [recs[k] for k in records.KINDS if k in recs]}
+
+
+@app.get("/api/records")
+def api_records(since: int = 0):
+    body = records_body()
+    body["events"] = records.recent_events(since=since, limit=40)
+    return fresh(body)
+
+
+async def records_stream(request, ping=None):
+    """The snapshot, then each change as it happens, a ping when quiet; unsubscribes when the client leaves."""
+    ping = STREAM_PING if ping is None else ping
+    q = records.subscribe()
+    try:
+        yield "event: snapshot\ndata: " + json.dumps(records_body()) + "\n\n"
+        quiet = 0.0
+        while True:
+            if await request.is_disconnected():
+                return
+            wait = min(STREAM_SLICE, max(ping - quiet, 0.01))
+            try:
+                change = await asyncio.to_thread(q.get, True, wait)
+            except queue.Empty:
+                quiet += wait
+                if quiet >= ping:
+                    quiet = 0.0
+                    yield ": ping\n\n"
+                continue
+            quiet = 0.0
+            yield "event: change\ndata: " + json.dumps(change) + "\n\n"
+    finally:
+        records.unsubscribe(q)
+
+
+@app.get("/api/records/stream")
+async def api_records_stream(request: Request):
+    return StreamingResponse(records_stream(request), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
 @app.get("/api/needs")
 def api_needs():
-    return fresh(needs.build(events.recent(40), sources.localai_feed(), int(time.time()), now.issues(sources.pi_status())))
+    recs = records.all()
+    printer = recs.get("printer") or {}
+    return fresh(needs.build((), sources.localai_feed(), int(time.time()), records.problems(recs),
+                             lab=lab.stored_needs(), printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed")))
 
 
 @app.get("/api/system/backups")
@@ -265,18 +332,23 @@ def api_workshop():
     s = sources.pi_status()
     w = sources.world() or {}
     models = (w.get("models") or {})
-    filament.ready()
-    prints = db.rows("SELECT * FROM prints ORDER BY id DESC LIMIT 20")
-    week = int(time.time()) - 7 * 86400
+    log = bambuddy.prints(20)  # None when Bambuddy doesn't answer
+    prints = [dict(p, has_photo=os.path.exists(os.path.join(recorder.photos_dir(), f"{p['id']}.jpg"))) for p in log or []]
+    this_week = [p for p in prints if (p["started"] or 0) >= int(time.time()) - 7 * 86400]
+    p_rec = records.get("printer")
     return fresh({
-        "printer": now.printer(s, sources.bambuddy_printer(), sources.localai_lab()),
+        "printer": now.printer_from(p_rec),  # the same card /api/now gives
         "prints": prints,
-        "week": {
-            "finished": sum(1 for p in prints if p["outcome"] == "finished" and (p["ended"] or 0) >= week),
-            "hours": round(sum(((p["ended"] or time.time()) - p["started"]) for p in prints if p["started"] >= week) / 3600, 1),
+        "prints_available": log is not None,
+        "week": None if log is None else {  # None, not zeros, when Bambuddy's log isn't there
+            "finished": sum(1 for p in this_week if p["status"] == "completed"),
+            "hours": round(sum((p["seconds"] if p["seconds"] is not None else (p["ended"] or time.time()) - p["started"])
+                               for p in this_week) / 3600, 1),
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
         "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer
+        "ams_trays": (p_rec.get("detail") or {}).get("ams_trays") or [] if p_rec else [],
+        "lab": lab.workshop_summary(),
         "filament_month": filament.summary(30),
         "ai": {"state": (s or {}).get("ai_state", "Unknown"),
                "models": [str(m.get("name") if isinstance(m, dict) else m)[:60] for m in models.get("loaded") or []],
@@ -300,9 +372,7 @@ def api_printer_action(action: str, request: Request):
 
 @app.get("/api/prints/{pid}/photo.jpg")
 def api_print_photo(pid: int):
-    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
-    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
-    path = os.path.join(prints_dir, f"{pid}.jpg")
+    path = os.path.join(recorder.photos_dir(), f"{pid}.jpg")
     if not os.path.exists(path):
         raise HTTPException(404, "No photo for this print.")
     with open(path, "rb") as f:
@@ -349,56 +419,19 @@ async def api_webhook_bambuddy(request: Request):
     event_type = (body.get("event") or body.get("event_type") or "").lower().strip()
     title = body.get("title") or "Bambu 3D Printer"
     msg = body.get("message") or ""
-    image_b64 = body.get("image")
-    variables = body.get("variables") if isinstance(body.get("variables"), dict) else {}
-
-    now_ts = int(time.time())
 
     # Handle completion
     if event_type in ("print_complete", "print_finished", "completed"):
-        recorder.record_print("Printing", 100, now_ts)
-        recorder.record_print("Idle", 0, now_ts)
-        open_print = db.one("SELECT id FROM prints WHERE ended IS NOT NULL ORDER BY id DESC LIMIT 1")
-        print_id = open_print["id"] if open_print else None
-
-        # If an image was attached in base64, save it directly
-        if image_b64 and print_id:
-            try:
-                img_data = base64.b64decode(image_b64)
-                if img_data.startswith(b"\xff\xd8"):
-                    default_dir = os.path.join(os.path.dirname(os.environ.get("HUB_DB", "/var/lib/pi-hub/hub.db")), "prints")
-                    prints_dir = os.environ.get("HUB_PRINTS_DIR", default_dir)
-                    os.makedirs(prints_dir, exist_ok=True)
-                    target = os.path.join(prints_dir, f"{print_id}.jpg")
-                    with open(target, "wb") as f:
-                        f.write(img_data)
-                    db.run("UPDATE prints SET has_photo = 1 WHERE id = ?", print_id)
-            except Exception:
-                pass
-
-        # If filament usage is provided by Bambuddy, record it
-        filament_used = variables.get("filament_used") or variables.get("filament_used_grams")
-        if filament_used and print_id:
-            try:
-                grams = float(filament_used)
-                db.run("UPDATE prints SET grams = ? WHERE id = ?", grams, print_id)
-            except Exception:
-                pass
-
         events.fire("print_finished", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_finished"})
 
     # Handle failures / cancelled
     elif event_type in ("print_failed", "print_stopped", "failed", "cancelled", "stopped"):
-        progress = variables.get("progress") or 0
-        error_code = variables.get("error_code") or variables.get("hms_code")
-        recorder.record_print("Error", progress, now_ts, error=error_code)
         events.fire("print_failed", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_failed"})
 
     # Handle print started
     elif event_type in ("print_start", "print_started", "started"):
-        recorder.record_print("Printing", 0, now_ts)
         events.fire("print_started", detail=msg or title, dedupe=events.PRINT_DEDUPE)
         return fresh({"ok": True, "event": event_type, "handled": "print_started"})
 
@@ -412,51 +445,19 @@ async def api_webhook_bambuddy(request: Request):
 
 # ---- Workshop camera (through the failover service) ----
 
-CAMERA = os.environ.get("HUB_CAMERA_URL", "http://127.0.0.1:8091")
-
-
 @app.get("/api/camera.jpg")
 def api_camera():
     import urllib.request
     try:
-        with urllib.request.urlopen(f"{CAMERA}/x2d/frame.jpg", timeout=4) as r:
+        with urllib.request.urlopen(f"{sources.CAMERA}/x2d/frame.jpg", timeout=4) as r:
             return Response(r.read(400 * 1024), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
     except OSError:
         raise HTTPException(503, "The camera isn't sending pictures right now.")
 
 
-PRINTER_IP = os.environ.get("HUB_PRINTER_IP", "10.0.0.136")
-
-
-def _printer_port_open(port):
-    import socket
-    try:
-        with socket.create_connection((PRINTER_IP, port), timeout=1):
-            return True
-    except OSError:
-        return False
-
-
-def _camera_reason():
-    """Why there's no picture, when the printer can say: its video port (322, "LAN Only Liveview") is closed while
-    its status port (8883) answers, or it doesn't answer at all."""
-    if _printer_port_open(322):
-        return None
-    return "liveview_off" if _printer_port_open(8883) else "printer_unreachable"
-
-
 @app.get("/api/camera")
 def api_camera_health():
-    import json as _json
-    import urllib.request
-    try:
-        with urllib.request.urlopen(f"{CAMERA}/x2d/health.json", timeout=3) as r:
-            h = _json.load(r)
-        ok = bool(h.get("ok"))
-        return fresh({"ok": ok, "source": h.get("source"), "since": h.get("since"), "reason": None if ok else _camera_reason(),
-                      "sources": {k: {"up": v.get("up"), "fresh": v.get("fresh")} for k, v in (h.get("sources") or {}).items()}})
-    except OSError:
-        return fresh({"ok": False, "source": None, "sources": {}, "reason": _camera_reason()})
+    return fresh(sources.camera_health())
 
 
 # ---- Print ----
@@ -575,18 +576,8 @@ def api_alerts():
 
 # ---- Sign-in ----
 
-def who(request: Request):
-    s = auth.session(request.cookies.get(auth.COOKIE))
-    return (s["role"], s["device"]) if s else ("none", "")
-
-
-def need(request: Request, role):
-    have, device = who(request)
-    if not auth.allowed(have, role):
-        if have == "kid":
-            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
-        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
-    return have, device
+# who and need live in auth so routers (the print lab) can use them without importing the app.
+who, need = auth.who, auth.need
 
 
 def _device(request: Request):
@@ -598,34 +589,50 @@ def _device(request: Request):
     return "A browser"
 
 
-def _signed_in(token, role, host=""):
+def _signed_in(token, role):
     resp = fresh({"role": role})
     resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
-    shared = gate.cookie_kwargs(host, auth.LIFETIME[role])
-    if shared and role == "owner":  # signed in through the front gate: a gate-only token for every *.home.arpa tool
-        resp.set_cookie(gate.COOKIE, auth.gate_session(token), **shared)
     return resp
 
 
 @app.post("/api/gate/renew")
-def api_gate_renew(request: Request):
-    """A signed-in owner on home.home.arpa whose gate cookie is missing or stale gets a new one, so the sign-in
-    hand-back never bounces between a tool and the hub."""
+async def api_gate_renew(request: Request):
+    """A signed-in owner on home.home.arpa asks to open a tool: hand back its address with a one-time code that the
+    gate spends on that tool's own host (a cookie can't span home.arpa names), so the sign-in hand-back never bounces."""
     need(request, "owner")
-    shared = gate.cookie_kwargs(request.headers.get("host", ""), auth.LIFETIME["owner"])
-    if not shared:
+    if not gate.on_home_arpa(request.headers.get("host", "")):
         raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
-    auth.sign_out(request.cookies.get(gate.COOKIE))  # the stale one, if any
-    resp = fresh({"ok": True})
-    resp.set_cookie(gate.COOKIE, auth.gate_session(request.cookies.get(auth.COOKIE)), **shared)
-    return resp
+    b = await request.json()
+    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None)
+    host = urlsplit(nxt).hostname
+    if nxt == gate.HOME or host == "home.home.arpa":
+        raise HTTPException(400, "That isn't one of the other tools.")
+    code = auth.gate_code(request.cookies.get(auth.COOKIE), host)
+    if not code:
+        raise HTTPException(401, "Sign in as the owner first.")
+    return fresh({"next": gate.with_code(nxt, code)})
 
 
 @app.get("/api/gate")
 def api_gate(request: Request):
-    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes."""
+    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes. A hand-off code in the address is
+    spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
+    url, code = gate.split_code(gate.original_url(request.headers))
     h = auth.session(request.cookies.get(auth.COOKIE))
-    if auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner"):
+    ok = auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
+    if code:
+        host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
+        loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
+        same = urlsplit(loc).hostname == host
+        token = auth.redeem_gate_code(code, host) if same else None
+        if token:
+            auth.sign_out(request.cookies.get(gate.COOKIE))  # this tool's previous token, if the browser sent one
+            resp = Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
+            resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.LIFETIME["owner"]))
+            return resp
+        if ok and same:  # a spent code on an already signed-in visit: drop it from the tool's address
+            return Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
+    if ok:
         return Response(status_code=200, headers={"X-Remote-User": "bill", "Cache-Control": "no-store"})
     return Response(status_code=302, headers={"Location": gate.signin_url(request.headers), "Cache-Control": "no-store"})
 
@@ -653,7 +660,7 @@ async def api_setup(request: Request):
         raise HTTPException(400, str(e))
     token, role = auth.sign_in(request.client.host, _device(request), password=b.get("owner_password"))
     auth.log(role, _device(request), "setup", "The hub was set up.")
-    return _signed_in(token, role, request.headers.get("host", ""))
+    return _signed_in(token, role)
 
 
 @app.post("/api/signin")
@@ -666,7 +673,7 @@ async def api_signin(request: Request):
             token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
     except PermissionError as e:
         raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
-    return _signed_in(token, role, request.headers.get("host", ""))
+    return _signed_in(token, role)
 
 
 @app.post("/api/signout")
@@ -675,7 +682,6 @@ def api_signout(request: Request):
     auth.sign_out(request.cookies.get(gate.COOKIE))
     resp = fresh({"role": "none"})
     resp.delete_cookie(auth.COOKIE, path="/")
-    resp.delete_cookie(gate.COOKIE, path="/", domain=gate.DOMAIN, secure=True, httponly=True, samesite="lax")
     return resp
 
 
@@ -685,6 +691,7 @@ def api_signout(request: Request):
 def api_actions(request: Request):
     role, _ = who(request)
     return fresh({"actions": actions.available(role), "updates": actions.updates_status(),
+                  "containers": actions.containers() if auth.allowed(role, "household") else [],
                   "log": auth.recent_actions(12) if auth.allowed(role, "household") else []})
 
 
@@ -798,7 +805,7 @@ def say(text):
 @app.get("/api/shortcut/status")
 def api_shortcut_status(request: Request):
     _shortcut(request)
-    d = now.build(sources.pi_status(), sources.plex_sessions(), {}, None)
+    d = now.build(records.all(), sources.plex_sessions(), {}, None)
     parts = [d["summary"] + "."]
     parts += [f"{i['what']}: {i['say']}" for i in d["issues"][:2]]
     p = d["printer"]

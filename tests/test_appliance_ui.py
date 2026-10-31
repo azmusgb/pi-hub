@@ -31,8 +31,21 @@ def test_an_edited_kit_copy_fails():
 
 def test_the_page_loads_the_kit_before_its_own_styles():
     html = open(os.path.join(STATIC, "index.html")).read()
-    tokens, comps, app = (html.find(x) for x in ("/static/ui/tokens.css", "/static/ui/components.css", "/static/app.css"))
-    assert 0 <= tokens < comps < app, (tokens, comps, app)
+    tokens, comps, needs, app = (html.find(x) for x in (
+        "/static/ui/tokens.css", "/static/ui/components.css", "/static/ui/needs.css", "/static/app.css"))
+    assert 0 <= tokens < comps < needs < app, (tokens, comps, needs, app)
+
+
+def test_needs_js_is_a_classic_script_before_the_modules():
+    html = open(os.path.join(STATIC, "index.html")).read()
+    m = re.search(r'<script\s+src="/static/ui/needs\.js"\s*>\s*</script>', html)
+    assert m, "needs.js should be a classic <script src>"
+    assert m.start() < html.find('type="module"')
+
+
+def test_the_app_shell_caches_the_needs_files():
+    sw = open(os.path.join(STATIC, "sw.js")).read()
+    assert "/static/ui/needs.css" in sw and "/static/ui/needs.js" in sw
 
 
 def test_amber_only_on_the_printer_band():
@@ -49,7 +62,15 @@ def test_amber_only_on_the_printer_band():
 def test_the_app_shell_caches_the_kit():
     sw = open(os.path.join(STATIC, "sw.js")).read()
     assert "/static/ui/tokens.css" in sw and "/static/ui/components.css" in sw
-    assert "pi-hub-shell-v99" in sw
+    shell = re.findall(r'^const SHELL = "pi-hub-shell-v(\d+)";$', sw, re.MULTILINE)
+    assert len(shell) == 1 and int(shell[0]) >= 1, "service-worker shell cache needs one numeric version"
+
+
+def test_the_app_shell_caches_every_page_module():
+    sw = open(os.path.join(STATIC, "sw.js")).read()
+    missing = [f"/static/js/{os.path.basename(p)}" for p in sorted(glob.glob(os.path.join(STATIC, "js", "*.js")))
+               if f"/static/js/{os.path.basename(p)}" not in sw]
+    assert missing == []
 
 
 def _kit():

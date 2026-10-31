@@ -1,5 +1,5 @@
 """The filament shelf. Since 24 Oct 2026 the spools live in Bambuddy (see bambuddy.py); this module keeps the
-old local tables and the print columns the recorder fills, and serves spools in the hub's shape."""
+old local tables (the unused prints table stays in the database) and serves spools in the hub's shape."""
 import time
 
 from . import auth, db
@@ -32,8 +32,10 @@ def spools():
 
 
 def summary(days=30):
-    ready()
+    """The last `days` of Bambuddy's print log: attempts, grams and cost. `available` is False when it doesn't answer."""
+    from . import bambuddy
+    items = bambuddy.prints(bambuddy.FETCH)
     since = int(time.time()) - days * 86400
-    r = db.one("SELECT COUNT(*) AS n, COALESCE(SUM(grams), 0) AS g, COALESCE(SUM(cost), 0) AS c FROM prints "
-               "WHERE started >= ? AND grams IS NOT NULL", since)
-    return {"prints_logged": r["n"], "grams": r["g"], "cost": round(r["c"], 2), "days": days}
+    mine = [p for p in items or [] if (p["started"] or 0) >= since]
+    return {"prints_logged": len(mine), "grams": round(sum(p["grams"] or 0 for p in mine), 1),
+            "cost": round(sum(p["cost"] or 0 for p in mine), 2), "days": days, "available": items is not None}

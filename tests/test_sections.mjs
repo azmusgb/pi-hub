@@ -93,3 +93,9 @@ test('the Assistant state is checked again when the page comes back into view', 
   const main = fs.readFileSync(new URL('../hub/static/js/main.js', import.meta.url), 'utf8');
   assert.match(main, /addEventListener\("visibilitychange", \(\) => \{ if \(!document\.hidden\) checkAssistant\(\); \}\)/);
 });
+
+test('a print row links the hub\'s own /lab page on the experiment', async () => {
+  const { printLabUrl } = await import('../hub/static/js/sections.js');
+  assert.equal(printLabUrl('E-022'), '/lab?e=E-022');
+  assert.equal(printLabUrl('E-023'), '/lab?e=E-023');
+});

@@ -38,10 +38,18 @@ const PRINTERS = {
 };
 const now = (printer) => ({ status_available: true, summary: 'All good at home', issues: [], printer, network: NETWORK,
   movies: { tone: 'ok' }, home: { tone: 'ok' }, workshop: { display: 'On' }, pi: { tone: 'ok' }, reminders: [], setup_left: null });
-const HOME = { connected: true, favourites: ['light-1'], accessories: [{ id: 'light-1', name: 'Workshop Light', kind: 'light', on: true, brightness: 100 }] };
-const NEEDS = { count: 2, unread: [], items: [
+// A bedroom lamp listed first: the Workshop card must still find the Workshop room's light, not "any light".
+const HOME = { connected: true, favourites: ['light-1'], accessories: [
+  { id: 'lamp-1', name: 'Govee Lamp', kind: 'light', room: 'Bedroom', on: false },
+  { id: 'light-1', name: 'Workshop Light', kind: 'light', room: 'Workshop', on: true, brightness: 100 }] };
+const NEEDS = { count: 0, unread: [], items: [
+  // A long detail (the print lab's judging steps, 28 Oct) must cut off, not widen the page.
+  { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at: fronts under one low side light, ruler on the face: count the ridges and note their heights from the bed; then twist each pair apart by hand. Photos help.', link: 'tool:bambuddy' },
+  ...[1, 2, 3].map((n) => ({ source: 'Printer', tone: 'warn', title: `Extra thing ${n}`, detail: 'Filler to pass the five-item cap.', link: '/workshop' })),
   { source: 'Printer', tone: 'attention', title: 'Clear the plate', detail: 'Finished hex-tile E-021 · 1 h 4 min', link: '/workshop' },
-  { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' }] };
+  { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' },
+  { source: 'Pi Hub', tone: 'warn', title: 'Sixth', detail: 'x', link: '/' }, { source: 'Pi Hub', tone: 'warn', title: 'Seventh', detail: 'x', link: '/' }] };
+NEEDS.count = NEEDS.items.length;
 const CAMERA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
   <stop offset="0" stop-color="#2b2f36"/><stop offset="1" stop-color="#101216"/></linearGradient></defs>
   <rect width="1280" height="720" fill="url(#g)"/><path d="M180 600 L1100 600 L980 420 L300 420 Z" fill="#3a3f47"/>
@@ -59,23 +67,26 @@ async function stub(page, printer, needs = NEEDS, camera = true) {
 }
 
 const problems = [];
-const browser = await chromium.launch();
+const browser = await chromium.launch().catch(() => chromium.launch({ channel: 'chrome' }));
 const runs = STUB
   ? [...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'idle', at: '2026-10-26T12:48:00', shot: `after-${n}` })),
      ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', shot: n === 'tv1080' ? 'after-tv1080-printing' : null })),
      { n: 'tv1080', w: 1920, h: 1080, printer: 'printing', at: '2026-10-26T22:48:00', shot: 'after-tv1080-night' },
      { n: 'laptop', w: 1280, h: 800, printer: 'idle', at: '2026-10-26T12:48:00', shot: 'after-laptop-all-clear', clear: true },
-     ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null }))]
+     ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null })),
+     // The desk layout (an iPad at the desk, 28 Oct): both orientations, printing and idle.
+     ...SIZES.filter(([n]) => n.startsWith('ipad')).flatMap(([n, w, h]) => ['printing', 'idle'].map((printer) =>
+       ({ n, w, h, printer, desk: true, at: '2026-10-26T12:48:00', shot: `after-desk-${n}-${printer}` })))]
   : SIZES.map(([n, w, h]) => ({ n, w, h, printer: null, shot: `live-${n}` }));
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
+  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
   if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS, !run.noCamera);
-  await page.goto(`${BASE}/wall`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/wall${run.desk ? '?layout=desk' : ''}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.wall-board[data-printing]', { timeout: 15000 }).catch(() => problems.push(`${where}: the wall never loaded`));
   await page.waitForTimeout(400);
 
@@ -91,8 +102,22 @@ for (const run of runs) {
     const area = (s) => { const b = r(s); return b ? b.width * b.height : 0; };
     return {
       sw: doc.scrollWidth, sh: doc.scrollHeight, iw: innerWidth, ih: innerHeight,
+      // The one-screen board hides its overflow, so a tile pushed off the bottom doesn't scroll: measure the tiles.
+      // Tiles that overlap (a long Needs you list running under the card below it).
+      overlaps: (() => { const t = [...document.querySelectorAll('.wall-board > *, .wall-house > *')].filter((e) => e.checkVisibility() && !e.classList.contains('wall-house'))
+        .map((e) => ({ c: e.className.split(' ')[0], b: e.getBoundingClientRect() }));
+        return t.flatMap((x, i) => t.slice(i + 1).filter((y) => x.b.left < y.b.right - 1 && y.b.left < x.b.right - 1 && x.b.top < y.b.bottom - 1 && y.b.top < x.b.bottom - 1)
+          .map((y) => `${x.c} ${Math.round(x.b.top)}–${Math.round(x.b.bottom)} / ${y.c} ${Math.round(y.b.top)}–${Math.round(y.b.bottom)}`)); })(),
+      // The picture's box (a printer tile that stopped stretching left the camera a sliver on the idle desk).
+      cam: (() => { const b = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container')?.getBoundingClientRect(); return b ? { w: b.width, h: b.height } : null; })(),
+      lowest: Math.max(...[...document.querySelectorAll('.wall-board > *')].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect().bottom)),
       clockH: time ? time.getBoundingClientRect().height : 0, clockFs: fs, clockText: time?.textContent,
       needs: !!document.querySelector('.wall-needs .wall-needs-head h2'),
+      needItems: document.querySelectorAll('.wall-needs .ui-need').length,
+      needMore: !!document.querySelector('.wall-needs .ui-needs__more a'),
+      needEmpty: !!document.querySelector('.wall-needs .ui-needs__empty'),
+      needTool: [...document.querySelectorAll('.wall-needs a.ui-need__link[target=_blank]')].map((a) => a.href),
+      needInternal: [...document.querySelectorAll('.wall-needs a.ui-need__link:not([target])')].every((a) => a.hasAttribute('data-link')),
       allClear: document.querySelector('.wall-needs-status')?.textContent === 'All clear',
       needsBottom: r('.wall-needs-head')?.bottom ?? Infinity, headBottom: r('.wall-head')?.bottom ?? Infinity,
       weather: !!document.querySelector('.wall-weather .wall-temp'),
@@ -100,15 +125,27 @@ for (const run of runs) {
       areas: { print: area('.wall-print'), needs: area('.wall-needs'), house: area('.wall-house') },
       tops: { needs: r('.wall-needs')?.top, print: r('.wall-print')?.top, house: r('.wall-house')?.top },
       camNone: document.querySelector('.kiosk-cam-none') ? r('.kiosk-cam-container')?.height : null,
+      light: document.querySelector('.kiosk-light-name strong')?.textContent ?? null,
       layer: (() => { const s = document.querySelector('.kiosk-sub .nowrap'); return s ? { text: s.textContent, lines: s.getClientRects().length } : null; })(),
     };
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
   if (fits(w, h) && m.sh > m.ih) problems.push(`${where}: scrolls down (${m.sh} > ${m.ih}) on a one-screen size`);
+  for (const o of m.overlaps) problems.push(`${where}: tiles overlap (${o})`);
+  if (STUB && !run.noCamera && m.cam && (m.cam.h < 140 || m.cam.w < 0.3 * w)) problems.push(`${where}: the camera is only ${Math.round(m.cam.w)}×${Math.round(m.cam.h)}`);
+  if (fits(w, h) && m.lowest > m.ih + 1) problems.push(`${where}: a tile runs off the bottom (${Math.round(m.lowest)} > ${m.ih})`);
   if (!m.clockText || m.clockH > m.clockFs * 1.3) problems.push(`${where}: the clock "${m.clockText}" wraps (${Math.round(m.clockH)} px at ${m.clockFs} px)`);
   if (!m.needs) problems.push(`${where}: no Needs you tile`);
   if (run.clear && !m.allClear) problems.push(`${where}: Needs you doesn't say All clear when nothing needs you`);
+  if (STUB && run.clear && !m.needEmpty) problems.push(`${where}: no kit empty state when nothing needs you`);
+  if (STUB && !run.clear) {
+    if (m.needItems !== 5) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
+    if (!m.needMore) problems.push(`${where}: no "more on Home" link`);
+    if (m.needTool.length !== 1 || new URL(m.needTool[0]).origin === new URL(BASE).origin) problems.push(`${where}: tool: link didn't resolve to the gate address (${m.needTool})`);
+    if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
+  }
   if (STUB && !m.weather) problems.push(`${where}: no weather`);
+  if (STUB && m.light !== 'Workshop Light') problems.push(`${where}: the Workshop card shows "${m.light}", not the Workshop Light`);
   if (m.needsBottom > m.ih || m.headBottom > m.ih) problems.push(`${where}: clock, weather or Needs you below the first screen`);
   for (const s of m.small) problems.push(`${where}: control "${s.text}" is ${Math.round(s.h)} px tall${s.wraps ? ' and its label wraps' : ''}`);
   if (run.printer === 'printing') {
@@ -125,6 +162,16 @@ for (const run of runs) {
     for (const v of axe.violations.filter((v) => ["serious", "critical"].includes(v.impact))) problems.push(`${where}: axe ${v.id} (${v.nodes.map((x) => x.target.join(" ")).join(", ")})`);
     await page.screenshot({ path: `${SHOTS}/${run.shot}.png` });
   }
+  await ctx.close();
+}
+if (STUB) {  // The Home card caps at 4 items.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  await stub(page, 'idle');
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.home-card--needs .ui-need', { timeout: 15000 }).catch(() => problems.push('home: no Needs you card'));
+  const n = await page.locator('.home-card--needs .ui-need').count();
+  if (n < 1 || n > 4) problems.push(`home: ${n} .ui-need items on the Home card (want 1 to 4)`);
   await ctx.close();
 }
 await browser.close();

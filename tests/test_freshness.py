@@ -112,8 +112,41 @@ def test_mount_verification_rejects_automount_and_accepts_real_filesystem(monkey
 
 def test_missing_telemetry_is_not_reported_as_a_stopped_service():
     from hub import now
-    data = now.build({}, None, {}, None)
+    from tests.helpers_records import records_from
+    data = now.build(records_from({}), None, {}, None)
     assert data['summary'] != "Everything's running"
     assert not any(issue.get('fix') for issue in data['issues'])
     assert data['workshop']['ai'] == 'Unknown'
-    assert 'does not confirm' in data['issues'][0]['say']
+    # an answer without the field reads "No reading": it doesn't say the thing is off or stopped
+    assert all(issue['say'].startswith('No reading') for issue in data['issues'])
+
+
+def test_source_responses_are_one_row_per_record():
+    from hub import records
+    from tests.helpers_records import PI, T, bud, records_from
+    recs = records_from(PI, bud('RUNNING', progress=42))
+    recs['printer'] = records.merge(recs['printer'], None, T + 200)  # Bambuddy quiet for 200 s
+    rows = freshness.snapshot({'calendar': True}, recs)['readings']
+    by = {r['key']: r for r in rows}
+    printer = by['printer']
+    assert printer['label'] == 'Bambu X2D' and printer['state'] == 'stale'
+    assert printer['confirmed_at'] == T and printer['max_age'] == records.STALE_AFTER['bambuddy']
+    assert printer['reading'] == 'Printing HEX_TILE_v72, 42%'
+    pi = by['pi']
+    assert pi['label'] == 'Raspberry Pi' and pi['state'] == 'current' and pi['reading'] == 'Pi 50 °C'
+    # the two sources that have no record keep today's rows
+    assert by['calendar']['label'] == 'Calendar' and by['calendar']['state'] == 'not_checked'
+    assert [r['key'] for r in rows][-1] == 'calendar'
+    assert 'home' not in by  # configured (no False): Smart-home controls is the devices record now
+    off = freshness.snapshot({'home': False, 'calendar': False}, recs)['readings']
+    assert [(r['key'], r['state']) for r in off[-2:]] == [('home', 'not_configured'), ('calendar', 'not_configured')]
+
+
+def test_api_freshness_reads_the_records(monkeypatch):
+    from hub import records
+    from tests.helpers_records import PI, records_from
+    held = records_from(PI)
+    monkeypatch.setattr(records, 'all', lambda: held)
+    monkeypatch.setattr(sources, 'pi_status', lambda: pytest.fail('Freshness must not poll'))
+    rows = TestClient(hub_app.app).get('/api/freshness').json()['readings']
+    assert {r['key'] for r in rows} >= {'pi', 'movies_drive', 'devices', 'calendar'}

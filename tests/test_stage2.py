@@ -8,7 +8,8 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from hub import app as hub_app  # noqa: E402
-from hub import ask, auth, db, digest, events, outside, sources  # noqa: E402
+from hub import ask, auth, db, digest, events, outside, records, sources  # noqa: E402
+from tests.helpers_records import GOOD, bud, inputs  # noqa: E402
 
 SAME = {"Origin": "http://testserver"}
 BASE = {"x2d_state": "Idle", "x2d_progress": 0, "drive_state": "Connected", "ai_state": "Ready",
@@ -19,6 +20,8 @@ BASE = {"x2d_state": "Idle", "x2d_progress": 0, "drive_state": "Connected", "ai_
 @pytest.fixture(autouse=True)
 def fresh_db(monkeypatch):
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
+    records._reset_memory()
+    events._forget()
     fired = []
     monkeypatch.setattr(events, "push", lambda *a, **k: fired.append(a) or "Sent.")
     yield fired
@@ -28,35 +31,43 @@ def kinds():
     return [e["kind"] for e in events.recent()][::-1]
 
 
-def feed(w, *states, start=1000, step=30):
-    for i, s in enumerate(states):
-        w.check(s, now=start + i * step)
+def feed(*readings, start=1000, step=30):
+    """Each reading is what the sources say on one 30 s refresh; the first refresh of a test is the hub starting."""
+    for i, r in enumerate(readings):
+        at = start + i * step
+        events.on_changes(records.refresh(at, inputs=r), first=not records.all())
+
+
+def printing(pct, job="Cube.3mf"):
+    return inputs(bambuddy=bud("RUNNING", pct, job=job))
+
+
+IDLE = inputs()
+FINISHED = inputs(bambuddy=bud("FINISH", 100, awaiting=True))
+PC_OFF = inputs(netmon=dict(GOOD["netmon"], win_ok=False))
 
 
 def test_a_change_must_hold_for_two_checks():
-    w = events.Watcher()
-    dropped = dict(BASE, drive_state="Missing")
-    feed(w, BASE, dropped, BASE, BASE)
+    dropped = inputs(pi={"drive_state": "Missing"})
+    feed(IDLE, dropped, IDLE, IDLE)
     assert kinds() == []
-    feed(w, dropped, dropped, BASE, BASE)
+    feed(dropped, dropped, IDLE, IDLE, start=2000)
     assert kinds() == ["drive_dropped", "drive_back"]
 
 
 def test_print_finish_and_early_stop_are_told_apart():
-    w = events.Watcher()
-    feed(w, BASE, dict(BASE, x2d_state="Printing", x2d_progress=40), dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
-    feed(w, dict(BASE, x2d_state="Printing", x2d_progress=12), dict(BASE, x2d_state="Stopped"))
+    # Bambuddy says FINISH (waiting for the plate to be cleared) for a finish; IDLE below 97% is an early stop
+    feed(IDLE, printing(40), printing(99), FINISHED, IDLE, start=1000)
+    feed(printing(12, job="Other.3mf"), inputs(bambuddy=bud("IDLE", 0, job="Other.3mf")), start=3000)
     assert kinds() == ["print_started", "print_finished", "print_started", "print_failed"]
 
 
 def test_pc_has_to_be_down_five_minutes():
-    w = events.Watcher()
-    down = dict(BASE, ai_state="Down")
-    feed(w, BASE, *[down] * 9)  # 4.5 minutes
+    feed(IDLE, *[PC_OFF] * 10)  # off the network for 4.5 minutes
     assert "pc_down" not in kinds()
-    feed(w, down, down, start=1000 + 10 * 30)
+    feed(PC_OFF, PC_OFF, start=1000 + 11 * 30)
     assert kinds().count("pc_down") == 1
-    feed(w, BASE, start=2000)
+    feed(IDLE, start=2000)
     assert kinds()[-1] == "pc_back"
 
 
@@ -122,9 +133,18 @@ def test_digest_reads_like_a_morning_message(monkeypatch):
 
 
 def test_ask_sends_the_hubs_facts(monkeypatch):
-    monkeypatch.setattr(sources, "pi_status", lambda: dict(BASE, x2d_state="Printing", x2d_progress=40, x2d_left="1 h 05 min"))
+    stamp = int(time.time())
+    monkeypatch.setattr(records, "all", lambda: {
+        "printer": {"id": "printer", "state": "printing", "headline": "Printing panel, 40%", "source": "bambuddy",
+                    "as_of": stamp, "since": stamp, "stale": False, "severity": "ok", "detail": {"progress": 40, "minutes_left": 65}},
+        "movies_drive": {"id": "movies_drive", "state": "connected", "headline": "The movies drive is connected", "source": "pi_status",
+                         "as_of": stamp, "since": stamp, "stale": False, "severity": "ok", "detail": {}},
+    })
+    monkeypatch.setattr(sources, "plex_sessions", lambda: None)
+    monkeypatch.setattr(ask.bambuddy, "prints", lambda n: None)
     text = ask.context()
-    assert "Printing, 40%, 1 h 05 min left" in text and "Movies drive: Connected" in text
+    assert "Printing panel, 40%" in text and "minutes_left=65" in text
+    assert "The movies drive is connected" in text and "source: Bambuddy" in text
     with pytest.raises(ValueError):
         ask.ask("?")
 
@@ -154,17 +174,14 @@ def test_wan_down_and_recovery_fire_once(fresh_db):
 def test_webhook_and_printer_status_report_a_print_once(fresh_db):
     events.ready()
     events.fire("print_started", "Cube", dedupe=events.PRINT_DEDUPE)  # Bambuddy's webhook arrives first
-    w = events.Watcher()
-    feed(w, BASE, dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
+    feed(IDLE, printing(99), FINISHED)
     events.fire("print_finished", "Cube finished", dedupe=events.PRINT_DEDUPE)  # ...or second
     assert kinds() == ["print_started", "print_finished"]
 
 
 def test_print_under_way_when_the_hub_starts_is_not_a_new_print(fresh_db):
     events.ready()
-    w = events.Watcher()
-    printing = dict(BASE, x2d_state="Printing", x2d_progress=30)
-    feed(w, printing, printing, dict(BASE, x2d_state="Printing", x2d_progress=99), BASE)
+    feed(printing(30), printing(30), printing(99), FINISHED)
     assert kinds() == ["print_finished"]
 
 

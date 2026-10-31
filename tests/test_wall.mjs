@@ -1,7 +1,8 @@
 // The wall display's words (wall fits any screen, 26 Oct): the clock's parts, the Needs you tile and the extra tiles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockParts, nextHours, printing, upcoming, wallNeeds } from '../hub/static/js/wall.js';
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
+  WALL_VIEWS, getWallView, getWallCustomConfig, resolveWallPanes } from '../hub/static/js/wall.js';
 
 test('the clock splits the time from a small AM/PM, and 24-hour clocks have none', () => {
   assert.deepEqual(clockParts(new Date(2026, 9, 26, 12, 38), 'en-US'), { hm: '12:38', ampm: 'PM' });
@@ -46,3 +47,78 @@ test('the printer counts as busy while printing or paused', () => {
   assert.equal(printing({ state: 'idle' }), false);
   assert.equal(printing(undefined), false);
 });
+
+test('the desk layout is chosen by ?layout=desk, remembered on the device, and ?layout=wall goes back', () => {
+  assert.deepEqual(wallLayout('?layout=desk', null), { layout: 'desk', remember: 'desk' });
+  assert.deepEqual(wallLayout('', 'desk'), { layout: 'desk', remember: null });
+  assert.deepEqual(wallLayout('?layout=wall', 'desk'), { layout: 'wall', remember: 'wall' });
+  assert.deepEqual(wallLayout('', null), { layout: 'wall', remember: null });  // a wall display is never moved
+  assert.deepEqual(wallLayout('?layout=sideways', null), { layout: 'wall', remember: null });
+});
+
+test('the desk links to the hub\'s /lab page, and asks to judge a finished print', () => {
+  assert.deepEqual(deskLab({ state: 'printing', lab: { experiment: 'E-024' } }),
+    { label: 'Print lab: E-024', href: '/lab?e=E-024', judge: false });
+  assert.deepEqual(deskLab({ state: 'finished', lab: { experiment: 'E-024' } }),
+    { label: 'Judge E-024 in the print lab', href: '/lab?e=E-024&do=judge', judge: true });
+  assert.deepEqual(deskLab({ state: 'finished' }), { label: 'Judge it in the print lab', href: '/lab', judge: true });
+  assert.deepEqual(deskLab({ state: 'idle', lab: { experiment: '../x' } }), { label: 'Print lab', href: '/lab', judge: false });
+  assert.deepEqual(deskLab(null), { label: 'Print lab', href: '/lab', judge: false });
+});
+
+test('the workshop light is the one with its id, else a light in the Workshop room, never another room\'s lamp', () => {
+  const shop = { id: '27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6', kind: 'light', name: 'Workshop Light', room: 'Workshop' };
+  const bedroom = { id: 'b1', kind: 'light', name: 'Govee Lamp', room: 'Bedroom' };
+  const bench = { id: 'w2', kind: 'light', name: 'Bench', room: 'Workshop' };
+  assert.equal(shopLight([bedroom, shop]), shop);
+  assert.equal(shopLight([bedroom, bench]), bench);  // the id changed: the light in the Workshop room
+  assert.equal(shopLight([bedroom]), null);           // no workshop light: no card, not the bedroom lamp
+  assert.equal(shopLight([{ id: 's', kind: 'switch', room: 'Workshop' }]), null);
+  assert.equal(shopLight(undefined), null);
+});
+
+test('wall views: recognizes presets, falls back to workshop on unknown view', () => {
+  assert.equal(getWallView('workshop'), 'workshop');
+  assert.equal(getWallView('ambient'), 'ambient');
+  assert.equal(getWallView('media'), 'media');
+  assert.equal(getWallView('agenda'), 'agenda');
+  assert.equal(getWallView('ops'), 'ops');
+  assert.equal(getWallView('custom'), 'custom');
+  assert.equal(getWallView(null), 'workshop');
+  assert.equal(getWallView('unknown_view'), 'workshop');
+});
+
+test('wall custom config: parses valid JSON, sanitizes choices, handles null/junk', () => {
+  const good = JSON.stringify({ hero: 'media', side: ['needs', 'network'] });
+  assert.deepEqual(getWallCustomConfig(good), { hero: 'media', side: ['needs', 'network'] });
+
+  // Invalid hero and unknown side keys sanitized
+  const bad = JSON.stringify({ hero: 'alien', side: ['needs', 'fake_tile', 'extra'] });
+  assert.deepEqual(getWallCustomConfig(bad), { hero: 'printer', side: ['needs', 'extra'] });
+
+  // Empty side falls back to default
+  assert.deepEqual(getWallCustomConfig(JSON.stringify({ hero: 'calendar', side: [] })).side.length > 0, true);
+  assert.deepEqual(getWallCustomConfig(null).hero, 'printer');
+  assert.deepEqual(getWallCustomConfig('not json at all').hero, 'printer');
+});
+
+test('resolveWallPanes: correctly maps presets and custom config to pane layout', () => {
+  const workshop = resolveWallPanes('workshop');
+  assert.equal(workshop.hero, 'printer');
+  assert.equal(workshop.side.includes('needs'), true);
+  assert.equal(workshop.side.includes('controls'), true);
+
+  const media = resolveWallPanes('media');
+  assert.equal(media.hero, 'media');
+
+  const agenda = resolveWallPanes('agenda');
+  assert.equal(agenda.hero, 'calendar');
+
+  const ops = resolveWallPanes('ops');
+  assert.equal(ops.hero, 'ops');
+
+  const custom = resolveWallPanes('custom', { hero: 'weather', side: ['needs', 'media'] });
+  assert.equal(custom.hero, 'weather');
+  assert.deepEqual(custom.side, ['needs', 'media']);
+});
+

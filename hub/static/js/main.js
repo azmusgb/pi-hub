@@ -3,8 +3,10 @@ import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.j
 import { updateNavigation } from "./navigation.js";
 import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
+import * as nextPage from "./next.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
+import * as labPage from "./lab.js";
 import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
 import * as piPage from "./pi.js";
@@ -47,9 +49,11 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
+  "/next": { key: "next", title: "Control room", mod: nextPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
+  "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Help & system", mod: piPage },
@@ -69,11 +73,13 @@ const PAGES = {
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
+  "/next": "Now, problems and what changed since you last looked",
   "/wall": "Glanceable ambient display",
   "/movies": "Plex library and playback",
   "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
+  "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
   "/pi": "Fix common problems and check the hub",
@@ -297,16 +303,18 @@ async function gateSignIn() {
   const q = new URLSearchParams(location.search);
   if (q.get("signin") !== "owner") return;
   const next = safeNext(q.get("next") || "");
+  const hash = location.hash;  // the gate's redirect carried the tool's #fragment; replaceState would drop it
   history.replaceState({}, "", location.pathname);
   if (!(await ensure("owner")) || !next) return;
-  // Already signed in here, but the tool sent us back: the gate cookie is missing or stale. Renew it once; if the
+  // Already signed in here, but the tool sent us back: the tool's gate cookie is missing or stale. Ask for a fresh hand-off once; if the
   // tool still sends us back within a minute, say so instead of bouncing.
   let tries = [];
   try { tries = JSON.parse(sessionStorage.getItem("gateTries") || "[]").filter((t) => Date.now() - t < 60000); } catch { /* private mode */ }
   if (tries.length >= 2) { toast("This browser isn't keeping the sign-in for the other tools. Check that it allows cookies for home.arpa.", "bad"); return; }
   try { sessionStorage.setItem("gateTries", JSON.stringify([...tries, Date.now()])); } catch { /* private mode */ }
-  const r = await fetch("/api/gate/renew", { method: "POST" }).catch(() => null);
-  if (r && r.ok) location.replace(next);
+  const r = await fetch("/api/gate/renew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next }) }).catch(() => null);
+  const to = r && r.ok ? safeNext((await r.json().catch(() => ({}))).next) : null;
+  if (to) location.replace(new URL(to).hash ? to : to + hash);
   else toast("Couldn't sign in to the other tools. Open https://home.home.arpa and try again.", "bad");
 }
 
@@ -319,5 +327,6 @@ setInterval(updateNavigation, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
 gateSignIn();
+nextPage.initCommandPalette();
 
 

@@ -66,20 +66,24 @@ def test_plex_thumb_proxy_only_serves_library_pictures(c):
     assert c.get("/api/plex/thumb", params={"path": "http://evil/x"}).status_code == 404
 
 
-def test_print_history_records_a_finished_print():
-    db.run("DELETE FROM prints")
+def test_a_print_ending_takes_the_finish_photo_once(monkeypatch):
+    shots = []
+    monkeypatch.setattr(recorder, "capture_print_photo", lambda: shots.append(1))
+    monkeypatch.setattr(recorder, "_printing", False)
     recorder.record_print("Printing", 10, 1000)
     recorder.record_print("Printing", 98, 4000)
     recorder.record_print("Idle", 0, 4100)
-    p = db.one("SELECT * FROM prints")
-    assert p["started"] == 1000 and p["ended"] == 4100 and p["outcome"] == "finished" and p["progress"] == 98
+    recorder.record_print("Idle", 0, 4160)
+    assert shots == [1]
 
 
-def test_print_history_marks_an_early_stop():
-    db.run("DELETE FROM prints")
+def test_an_early_stop_also_takes_the_photo(monkeypatch):
+    shots = []
+    monkeypatch.setattr(recorder, "capture_print_photo", lambda: shots.append(1))
+    monkeypatch.setattr(recorder, "_printing", False)
     recorder.record_print("Printing", 30, 1000)
     recorder.record_print("Stopped", 30, 2000)
-    assert db.one("SELECT outcome FROM prints")["outcome"] == "stopped"
+    assert shots == [1]
 
 
 def test_drive_events_only_on_change():

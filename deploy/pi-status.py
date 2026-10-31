@@ -174,7 +174,7 @@ def world():
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    with urllib.request.urlopen(WORLD_URL, timeout=4, context=ctx) as r:
+    with urllib.request.urlopen(WORLD_URL, timeout=1.5, context=ctx) as r:
         return json.load(r)
 
 

@@ -1,10 +1,9 @@
 import { api, h } from "./core.js";
 
 // Checking detail, not something to act on: it lives on Help & system only (25 Oct critique). Other pages say
-// "<App> isn't answering" in the card that needs it.
-const SOURCES = {
-  pi: ["pi", "plex", "home", "printer", "world", "weather", "calendar"],
-};
+// "<App> isn't answering" in the card that needs it. The rows are the hub's records (one per thing), then the
+// calendar and any source not set up: all of them show.
+const SOURCES = { pi: true };
 export function ageLabel(seconds) {
   const age = Math.max(0, Math.floor(seconds));
   if (age < 60) return `${age} second${age === 1 ? "" : "s"} ago`;
@@ -29,7 +28,7 @@ export function mountFreshness(key) {
 export function renderFreshness(page) {
   if (!page.freshness || !page.sourceData) return;
   const now = page.sourceData.as_of + (Date.now() - page.sourceReceived) / 1000;
-  const rows = page.sourceData.readings.filter(row => SOURCES[page.key].includes(row.key));
+  const rows = page.sourceData.readings;
   page.freshness.querySelector("dl").replaceChildren(...rows.map(row =>
     h("div", { dataset: { stale: String(page.sourceError || row.state !== "current" || now - row.confirmed_at > row.max_age) } },
       h("dt", {}, row.label), h("dd", {}, readingText(row, now, page.sourceError)))));
