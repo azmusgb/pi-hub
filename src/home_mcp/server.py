@@ -35,6 +35,26 @@ def _list(d, key) -> list:
     return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
 
 
+def _shaped(data: dict, errors: list[dict], path: str, lists: tuple[str, ...] = ()) -> dict:
+    """The answer at path when it is an object (with each of lists a list, when present); otherwise {} and a
+    bad_shape error naming the source, so a malformed answer never reads as "nothing to report". An answer that
+    failed to arrive already has its own error."""
+    if path not in data:
+        return {}
+    v, problem = data[path], None
+    if not isinstance(v, dict):
+        problem = f"expected an object, got {type(v).__name__}"
+    else:
+        wrong = [k for k in lists if k in v and not isinstance(v[k], list)]
+        missing = [k for k in lists if k not in v]
+        if wrong or missing:
+            problem = "; ".join([f"{k} is not a list" for k in wrong] + [f"no {k}" for k in missing])
+    if problem:
+        errors.append({"source": f"pi-hub {path}", "error": "bad_shape", "detail": problem})
+        return {}
+    return v
+
+
 def _result(source: str, errors: list[dict], **fields) -> dict[str, Any]:
     out = {"ok": not errors, "source": source, "as_of": hub.now_iso(), **fields}
     if errors:
@@ -52,8 +72,9 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         disagreement between sources with what each source reports and since when."""
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/now", "/api/needs", "/api/records")
-        now, needs = _obj(data.get("/api/now")), _obj(data.get("/api/needs"))
-        recs = _list(_obj(data.get("/api/records")), "records")
+        now = _shaped(data, errors, "/api/now", ("issues",))
+        needs = _shaped(data, errors, "/api/needs", ("items",))
+        recs = _list(_shaped(data, errors, "/api/records", ("records",)), "records")
         since = _obj(_obj(next((r for r in recs if r.get("id") == "hub"), {}).get("detail")).get("disagree_since"))
         return _result(
             "pi-hub", errors,
@@ -77,7 +98,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
             raise ValueError("recent must be between 0 and 20")
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/workshop")
-        w = _obj(data.get("/api/workshop"))
+        w = _shaped(data, errors, "/api/workshop")
         prints = [
             {**_pick(p, ("id", "name", "word", "seconds", "error")),
              "started": hub.iso(p.get("started")), "ended": hub.iso(p.get("ended"))}
@@ -99,7 +120,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         pending updates, the latest self-check with any failing checks, open outages, and backup ages."""
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/pi", "/api/system/backups")
-        pi, backups = _obj(data.get("/api/pi")), _obj(data.get("/api/system/backups"))
+        pi, backups = _shaped(data, errors, "/api/pi"), _shaped(data, errors, "/api/system/backups")
         live = _obj(pi.get("live"))
         check = _obj(pi.get("selfcheck"))
         return _result(
@@ -123,7 +144,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         reading, and whether it is older than its allowed age. only_problems keeps stale or failing sources."""
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/freshness")
-        f = _obj(data.get("/api/freshness"))
+        f = _shaped(data, errors, "/api/freshness", ("readings",))
         as_of = f.get("as_of")
         readings = []
         for r in _list(f, "readings"):
@@ -148,7 +169,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
             raise ValueError("since_hours must be positive")
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/alerts")
-        alerts = sorted(_list(_obj(data.get("/api/alerts")), "alerts"),
+        alerts = sorted(_list(_shaped(data, errors, "/api/alerts", ("alerts",)), "alerts"),
                         key=lambda a: a.get("ts") if isinstance(a.get("ts"), (int, float)) else 0, reverse=True)
         if since_hours is not None:
             cutoff = time.time() - since_hours * 3600
