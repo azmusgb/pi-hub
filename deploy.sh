@@ -40,7 +40,17 @@ sudo rm -f /etc/cron.daily/netmon-backup
 
 echo "Starting Docker Compose stack..."
 cd /opt/netmon
-sudo docker-compose up -d --remove-orphans
+# Grafana's first-start admin password comes from the Pi's secret, never the placeholder in docker-compose.yml.
+# It is read inside a root shell, so it never appears on a command line (ps shows sudo's arguments).
+sudo bash -c '
+  GF_ADMIN_PASSWORD="$(cat /etc/pi-hub/secrets/grafana_admin 2>/dev/null || true)"
+  if [ -z "$GF_ADMIN_PASSWORD" ] && [ ! -e /mnt/usb1/netmon/grafana/grafana.db ]; then
+    echo "Refusing to create Grafana with the placeholder password: save it in /etc/pi-hub/secrets/grafana_admin first." >&2
+    exit 1
+  fi
+  export GF_ADMIN_PASSWORD
+  docker-compose up -d --remove-orphans
+'
 
 # The lock again, last: pi-lock brings Grafana, Kuma, the exporters and the Orbi exporter up on 127.0.0.1.
 relock
