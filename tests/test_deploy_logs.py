@@ -230,6 +230,17 @@ def test_truncation_never_leaves_part_of_a_secret():
     assert "hunt" not in out
 
 
+def test_scan_cut_drops_the_split_token():
+    # A long secret first shrinks to [redacted], which would pull the text at the scan cut into the output.
+    long_secret = "Ab1" * 21_833  # 65,499 characters
+    split = "Zz9" * 20  # 60 characters, cut down to fewer than 40 by MAX_SCAN
+    line = long_secret + " " + split
+    assert len(long_secret) + 1 < logs.MAX_SCAN < len(line) - 20
+    out = logs.redact(line)
+    assert "Zz9" not in out and out.endswith("[truncated]")
+    assert logs.redact("x" * 70_000) == " [truncated]"
+
+
 def test_redaction_is_bounded_on_hostile_lines():
     import time
     hostile = "a_" * 50_000 + "!"

@@ -61,7 +61,12 @@ REDACTIONS = [
 def redact(line: str) -> str:
     """One log line with secret values replaced, then cut to MAX_LINE: redacting the whole line first means a cut
     can never leave part of a secret behind."""
-    line = line[:MAX_SCAN]
+    if len(line) > MAX_SCAN:
+        # Redacting a long secret shortens the line and can pull text near the cut into what is returned, so drop
+        # the token the cut split rather than risk returning part of it.
+        head = line[:MAX_SCAN]
+        cut = max(head.rfind(" "), head.rfind("\t"))
+        line = (head[:cut] if cut > 0 else "") + " [truncated]"
     for pattern, repl in REDACTIONS:
         line = pattern.sub(repl, line)
     return line[:MAX_LINE]
