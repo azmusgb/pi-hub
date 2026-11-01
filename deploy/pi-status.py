@@ -3,7 +3,7 @@
 
 Serves GET /status on port 8099: Pi health, the movie drive, service states,
 and the X2D / workshop display / Local AI state relayed from Local AI's
-/api/world. No secrets in, none out.
+/api/world, read with Pi Hub's key over verified HTTPS. No secrets out.
 """
 import json
 import os
@@ -18,6 +18,9 @@ PORT = 8099
 # One home, step 6: pi-lock.py sets 127.0.0.1 (a systemd drop-in); only the hub reads this.
 BIND = os.environ.get("PI_STATUS_BIND", "0.0.0.0")
 WORLD_URL = "https://10.0.0.21/api/world"
+# Local AI requires sign-in: send Pi Hub's key, and only to Local AI verified by its CA (as hub/display_ai.py does).
+LOCALAI_KEY_FILE = os.environ.get("HUB_LOCALAI_KEY_FILE", "/etc/pi-hub/secrets/localai_hub_key")
+LOCALAI_CA_FILE = os.environ.get("HUB_LOCALAI_CA_FILE", "/etc/pi-hub/secrets/localai-ca.crt")
 MOVIES = "/mnt/usb1"
 WINDOWS_MOVIES = "/mnt/windows-movies"
 SERVICES = {"plex": "plexmediaserver", "homebridge": "homebridge",
@@ -170,12 +173,23 @@ def services():
     return {k: run("systemctl", "is-active", unit).strip() == "active" for k, unit in SERVICES.items()}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A 3xx comes back as an error: following it would send the key wherever it points."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
 def world():
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    with urllib.request.urlopen(WORLD_URL, timeout=1.5, context=ctx) as r:
-        return json.load(r)
+    """Local AI's /api/world, or an exception (no key, no CA, refused, down): the caller caches None."""
+    with open(LOCALAI_KEY_FILE) as f:
+        key = f.read().strip()
+    if not key or not os.path.exists(LOCALAI_CA_FILE):
+        raise RuntimeError("Local AI hub key or CA isn't set up")
+    opener = urllib.request.build_opener(_NoRedirect(), urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=LOCALAI_CA_FILE)))
+    req = urllib.request.Request(WORLD_URL, headers={"X-LocalAI-Hub-Key": key, "Accept": "application/json"})
+    with opener.open(req, timeout=1.5) as r:
+        return json.loads(r.read(512 * 1024))
 
 
 def status():
