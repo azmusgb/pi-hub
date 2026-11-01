@@ -100,3 +100,11 @@
  .page-rules .rule .feature-actions { grid-column:2; margin-left:0; }
 }
 .poster-nominate { width:100%; min-height:44px; margin-top:.5rem; white-space:normal; }
+
+/* Sentence case, as the labels are written (iPad, 1 Nov: "BAMBU X2D", "LAYER", "PICK UP WHERE YOU LEFT OFF" shouted
+   beside sentence-case headings). The wall display keeps its capitals: it is read from across a room. */
+:root:not([data-wall]) :is(.band-name, .printer-metric__label, .movie-hero-kicker, .eyebrow-section > h3,
+  .eyebrow-section > h2, .hud-badge-state, .movie-libraries-label, .stat-label, .meter-label, .hero-eyebrow) {
+  text-transform: none;
+  letter-spacing: .01em;
+}

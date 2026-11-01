@@ -1221,7 +1221,7 @@ function renderHardwareHUD(p, cam) {
       h("div", { class: "hud-title-wrap" },
         h("span", { class: "dot", dataset: { tone: "warn" } }),
         h("strong", { class: "hud-title" }, "Bambu X2D"),
-        h("span", { class: "hud-badge-state" }, `${p.progress}% · ${p.state}`)
+        h("span", { class: "hud-badge-state" }, `${p.progress}% · ${String(p.state || "").replace(/^./, (c) => c.toUpperCase())}`)
       ),
       h("div", { class: "hud-temps" },
         h("span", { class: "hud-temp-item" }, `Nozzle: ${p.nozzle_temp || 0}°C`),
@@ -1285,7 +1285,8 @@ export function mount(state) {
     mountControlRoom(state, state.control, { search: false });
     state.homeNeedsAnswered = false;
     state.onProblems = (probs) => { if (state.homeNeedsAnswered) setNeeds(problemsBadge(state.needs, probs)); };
-    state.root.append(state.hero, state.hud, state.control, state.tray, state.cards);
+    // Problems first, above the printer's camera: what needs you shouldn't sit below the fold (iPad, 1 Nov).
+    state.root.append(state.hero, state.probSec, state.hud, state.control, state.tray, state.cards);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);

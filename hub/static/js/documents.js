@@ -19,7 +19,13 @@ function results(state, d, q) {
       h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("owner")) search(state, q); } }, "Sign in")];
   }
   if (!d.available) return [h("p", { class: "meta" }, "Paperless isn't answering. The PC may be off.")];
-  if (!d.results.length) return [h("p", { class: "meta" }, q ? `Nothing matches “${q}”.` : "No documents yet.")];
+  if (!d.results.length && q) return [h("p", { class: "meta" }, `Nothing matches “${q}”.`)];
+  // Zero from Paperless can mean an empty library or papers the hub's view-only login can't see: say both, and the
+  // next step (iPad, 1 Nov: a flat "No documents yet").
+  if (!d.results.length) {
+    return [h("p", { class: "meta" }, "Paperless shows the hub no documents. Scan a paper to add one, or, if Paperless " +
+      "already has some, give the hub's view-only user permission to see them.")];
+  }
   return [h("h3", { class: "section-title" }, q ? `Matches for “${q}”` : "Recent documents"),
     h("ul", { class: "more" }, d.results.map((r) => h("li", {},
       h("a", { href: resolveLink(r.link), target: "_blank", rel: "noopener" }, h("strong", {}, r.title), h("span", { class: "meta" }, r.created)))))];

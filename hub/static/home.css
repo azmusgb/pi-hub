@@ -1601,3 +1601,10 @@ body:not(.wall) .page-now { display: block; }
   }
   .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; min-height: auto; }
 }
+
+/* Home (not the wall): the camera is at most half the screen's height, so Home's other cards are reachable without
+   scrolling past a full-width picture (iPad, 1 Nov). The width follows the picture's own shape. */
+:root:not([data-wall]) .home-hud-mount .kiosk-cam-container {
+  width: min(100%, calc(50vh * var(--cam-w, 16) / var(--cam-h, 9)));
+  margin-inline: auto;
+}

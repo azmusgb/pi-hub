@@ -171,7 +171,7 @@ function labWorkshopCard(labData) {
             n.question_text ? h("span", { class: "meta clamp-2", title: n.question_text }, n.question_text) : null,
             n.judge_on ? h("span", { class: "meta clamp-2", title: n.judge_on }, `Look at: ${n.judge_on}`) : null,
             h("a", { class: "btn btn--primary lab-need-act", href: n.href || `/lab?e=${n.id}`, "data-link": true },
-              n.action === "Judge the print" ? `Judge ${n.id}` : "Open"))))))
+              n.action === "Judge the print" ? `Judge ${n.id}` : "Open")))))
       : active.length
         ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
           active.slice(0, 2).map((e) => h("li", { class: "log-row" },

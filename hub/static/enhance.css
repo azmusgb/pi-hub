@@ -811,3 +811,15 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
   input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }  /* WCAG 2.2 minimum; the label is the big target */
   input[type=range] { min-height: 44px; }
 }
+
+/* ---- Header (iPad review, 1 Nov) ---- */
+/* Focus moves to the page on every navigation so screen readers announce it; that programmatic focus draws no ring
+   (Safari showed a blue curved line under the header on every page reached from the menu). */
+#view:focus, #view:focus-visible { outline: none; }
+/* Search sits at the right, beside the Assistant button, the same place on every page; it is a button, not a link. */
+.top-cmd-btn { margin-left: auto; text-decoration: none; min-height: 36px; padding-inline: .75rem; }
+.top-cmd-btn .command-label { text-decoration: none; }
+/* No keyboard shortcut to show on a touch screen. */
+@media (hover: none) { .top-cmd-btn kbd { display: none; } }
+/* The device already shows the time; the clock stays on the wall display, where it is the point. */
+:root:not([data-wall]) .top .clock { display: none; }
