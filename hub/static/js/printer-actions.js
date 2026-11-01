@@ -50,11 +50,16 @@ export function kioskBadge(p) {
   return { label: "NO STATUS", tone: "text-3" };
 }
 
+// The first action is the primary button, except Pause: it interrupts a print, so it is never the page's brightest
+// button (iPad, 1 Nov). Clear and Resume carry things on.
+export function printerButtonClass(action, index) {
+  return index || action === "pause" ? "btn ghost" : "btn btn--primary";
+}
+
 export function printerButtons(p, onDone) {
   const list = printerActionList(p);
   if (!list.length) return null;
-  // Pause interrupts a print, so it is never the page's brightest button (iPad, 1 Nov); Clear and Resume carry on.
-  const buttons = list.map((a, i) => h("button", { type: "button", class: i || a.action === "pause" ? "btn ghost" : "btn btn--primary", disabled: busy }, a.label));
+  const buttons = list.map((a, i) => h("button", { type: "button", class: printerButtonClass(a.action, i), disabled: busy }, a.label));
   list.forEach((a, i) => buttons[i].addEventListener("click", () => runPrinterAction(a.action, buttons, onDone)));
   return h("div", { class: "printer-actions" }, ...buttons);
 }

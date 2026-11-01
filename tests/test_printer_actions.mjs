@@ -95,8 +95,10 @@ test('the wall camera falls back to words when there is no picture', async () =>
   assert.match(now, /No picture from the printer right now/);
 });
 
-test('the first printer action is the primary button', async () => {
-  const fs = await import('node:fs');
-  const src = fs.readFileSync(new URL('../hub/static/js/printer-actions.js', import.meta.url), 'utf8');
-  assert.match(src, /i \? "btn ghost" : "btn btn--primary"/);
+test('the first printer action is the primary button, but never Pause', async () => {
+  const { printerButtonClass } = await import('../hub/static/js/printer-actions.js');
+  assert.equal(printerButtonClass('clear', 0), 'btn btn--primary');
+  assert.equal(printerButtonClass('resume', 0), 'btn btn--primary');
+  assert.equal(printerButtonClass('pause', 0), 'btn ghost');
+  assert.equal(printerButtonClass('clear', 1), 'btn ghost');
 });
