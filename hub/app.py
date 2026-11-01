@@ -369,7 +369,7 @@ def api_workshop():
     })
 
 
-_printer_busy = threading.Lock()
+_printer_busy = printer_control.BUSY  # shared with the workshop display's Clear plate
 PRINTER_WORDS = {"clear": "clear the plate", "pause": "pause", "resume": "resume"}
 
 

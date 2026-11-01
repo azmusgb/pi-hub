@@ -1,4 +1,5 @@
-"""What the workshop display calls: pairing, the feed and its long poll; actions join it later."""
+"""What the workshop display calls: pairing, the feed and its long poll, banners, the heartbeat, and its two actions,
+Clear plate and Judge it, which need no PC."""
 import asyncio
 import json
 import queue
@@ -7,8 +8,8 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from . import (auth, bambuddy, display_ai, display_feed, display_messages, display_pairing, lab_guard, needs, records,
-               sources)
+from . import (auth, bambuddy, db, display_ai, display_feed, display_messages, display_pairing, lab, lab_guard, needs,
+               now as now_, printer_control, records, sources)
 
 router = APIRouter(prefix="/api/display")
 TLS_NAME = "home.home.arpa"
@@ -49,12 +50,17 @@ def feed_now():
     """The feed as it stands: Pi Hub's records and Needs you, Plex, Bambuddy's spools, Local AI's cached AI cards."""
     now = time.time()
     recs = records.all()
-    needs_list = needs.current(recs, fetch=False)  # the feed never waits on the PC
+    needs_list, lab_items = _needs_now(recs)
     ai = display_ai.cards(now)
-    lab = [i for i in needs_list["items"] if i.get("source") == needs.LAB]
     messages = sorted([*ai["messages"], *display_messages.pending(now)], key=lambda m: m.get("at") or 0)
-    return display_feed.build(now, ai, recs, needs_list, lab, messages,
+    return display_feed.build(now, ai, recs, needs_list, lab_items, messages,
                               sessions=sources.plex_sessions(), spools=bambuddy.spools())
+
+
+def _needs_now(recs):
+    """Needs you and its Print lab items, as the feed shows them (it never waits on the PC)."""
+    needs_list = needs.current(recs, fetch=False)
+    return needs_list, [i for i in needs_list["items"] if i.get("source") == needs.LAB]
 
 
 async def _json(request):
@@ -160,3 +166,207 @@ async def events(request: Request, since: str = ""):
                 pass
     finally:
         records.unsubscribe(q)
+
+
+# ---- Clear plate ----
+
+CLEAR_RUNNING = "Clear plate is already running."
+# Local AI's banners for the same button (app/bambuddy-control.js clearPlateMessage), so the display reads the same.
+CLEAR_BANNERS = {
+    "confirmed": ("Plate confirmed", "Bambuddy accepted the plate confirmation.", "ok"),
+    "errors": ("Check printer errors", "Plate confirmed. The printer error list did not clear; check its screen.",
+               "warning"),
+    "failed": ("Plate not confirmed", "The confirmation did not go through. Check the printer before trying again.",
+               "warning"),
+}
+
+
+def _clear_outcome(r):
+    if not r["ok"]:
+        return "failed"
+    return "confirmed" if all(v == "ok" for v in r["steps"].values()) else "errors"
+
+
+@router.post("/printer/clear")
+def printer_clear(request: Request):
+    """Pi Hub's own Clear plate (printer_control.run, its control key and steps), for the display: one command at a
+    time across the hub (printer_control.BUSY; a second tap is refused, never queued), only while the printer is
+    finished or failed and waiting for it, and never sent again after a timeout. One banner says how it went."""
+    display_pairing.require(request)
+    if not printer_control.BUSY.acquire(blocking=False):
+        auth.log("display", DEVICE, "display:clear-plate", "refused: running")
+        raise HTTPException(409, CLEAR_RUNNING)
+    try:
+        # The printer's state now, not the display's last feed: a stale screen must not clear a running print.
+        sources._cache.pop("bambuddy_printer", None)
+        b = sources.bambuddy_printer(timeout=3)
+        if not b or not b.get("connected"):
+            auth.log("display", DEVICE, "display:clear-plate", "refused: offline")
+            raise HTTPException(503, "Bambuddy can't see the printer just now, so the hub didn't send anything.")
+        if "clear" not in now_.printer_actions(b):
+            auth.log("display", DEVICE, "display:clear-plate", "refused: not waiting")
+            raise HTTPException(409, "The printer can't clear the plate right now; its state has changed. "
+                                     "Nothing was sent.")
+        r = printer_control.run("clear")
+    finally:
+        printer_control.BUSY.release()
+    if "no key" not in r["steps"].values():  # Bambuddy was asked: the next read sees its state again
+        sources._cache.pop("bambuddy_printer", None)
+    outcome = _clear_outcome(r)
+    title, text, tone = CLEAR_BANNERS[outcome]
+    try:
+        display_messages.post(title, text, tone, False, {"type": "show", "page": "printer"})
+    except (display_messages.Refused, ValueError):
+        pass  # the banner is feedback: it must never retry or undo a command Bambuddy took
+    first = next(iter(r["steps"].values()), "")
+    auth.log("display", DEVICE, "display:clear-plate",
+             {"confirmed": "ok", "errors": "errors not cleared"}.get(outcome) or f"failed: {first}")
+    status = 200 if r["ok"] else 503 if "no key" in r["steps"].values() else 502
+    return JSONResponse(r, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+# ---- Judge it ----
+# Local AI's /api/display/lab/verdict (app/display-lab.js), with Pi Hub's judge card: its `run` is the experiment id
+# (E-021); the verdict is queued for that experiment's print run, the one the lab page's Judge it sends (the index's
+# experiments[].run). The grades are checked against the experiment's stored record, as Local AI's sheetOf does.
+
+MOVED = "This print has changed. Open it again."
+PHONE_ONLY = "Judge it on your phone: this test compares A and B"
+VERDICT_MAX = 4 * 1024
+MAX_REASON = 500
+VERDICT_RETRY_S = 24 * 3600  # Local AI's JUDGE_FOR_MS: a retry after the card has gone still gets its answer
+
+
+def _text(v):
+    return isinstance(v, str) and len(v) > 0
+
+
+def sheet_of(record):
+    """{tabs, criteria} from an experiment's record: the Mac grades only role "variant" strips, by tab (else id)."""
+    record = record if isinstance(record, dict) else {}
+    tabs = []
+    for v in record.get("variants") if isinstance(record.get("variants"), list) else []:
+        if not isinstance(v, dict) or ("role" in v and v["role"] != "variant"):
+            continue
+        tab = v.get("tab") if _text(v.get("tab")) else v.get("id")
+        if _text(tab) and tab not in tabs:
+            tabs.append(tab)
+    criteria = [{"key": c["key"], "label": c["label"], "choices": list(c["choices"])}
+                for c in (record.get("criteria") if isinstance(record.get("criteria"), list) else [])
+                if isinstance(c, dict) and _text(c.get("key")) and _text(c.get("label"))
+                and isinstance(c.get("choices"), list) and c["choices"] and all(_text(x) for x in c["choices"])]
+    return {"tabs": tabs, "criteria": criteria}
+
+
+def grades_problem(grades, sheet, inconclusive):
+    """What is wrong with the grades, or None. Every strip and criterion must be the record's and every value one of
+    the criterion's choices or null ("–", not judged). Without an inconclusive reason every strip is graded on every
+    criterion, as the phone's Send requires."""
+    shape = "grades must be {strip: {criterion: choice}}."
+    if not isinstance(grades, dict):
+        return shape
+    by_key = {c["key"]: c for c in sheet["criteria"]}
+    for tab, g in grades.items():
+        if tab not in sheet["tabs"]:
+            return f"{tab} isn't a strip of this test."
+        if not isinstance(g, dict):
+            return shape
+        for k, choice in g.items():
+            c = by_key.get(k)
+            if not c:
+                return f"{k} isn't a criterion of this test."
+            if choice is not None and (not isinstance(choice, str) or choice not in c["choices"]):
+                return f"{choice if isinstance(choice, str) else json.dumps(choice)} isn't a choice for {c['label']}."
+    if inconclusive is None:
+        for tab in sheet["tabs"]:
+            for c in sheet["criteria"]:
+                if tab not in grades or c["key"] not in grades[tab]:
+                    return f"Judge strip {tab} on {c['label']}, or mark it inconclusive."
+    return None
+
+
+def judge_target(run):
+    """{project, experiment, run, record} for the judge card on the display now, when `run` is its run; else None (the
+    card has gone, names another experiment, or the experiment has no print run to record a verdict on)."""
+    if not isinstance(run, str) or not run:
+        return None
+    _, lab_items = _needs_now(records.all())
+    card = display_feed._lab_card(lab_items)
+    if not card or card.get("ask") != "lab-judge" or card.get("run") != run:
+        return None
+    parts = str(lab_items[0].get("id") or "").split(":")
+    if len(parts) != 4 or parts[3] != run:
+        return None
+    project, eid = parts[2], parts[3]
+    lab.ready()
+    row = db.one("SELECT index_json FROM lab_projects WHERE project = ?", project)
+    try:
+        ix = json.loads(row["index_json"]) if row else {}
+    except ValueError:
+        return None
+    exps = ix.get("experiments") if isinstance(ix, dict) and isinstance(ix.get("experiments"), list) else []
+    x = next((e for e in exps if isinstance(e, dict) and e.get("id") == eid), None)
+    print_run = x.get("run") if x else None
+    if not lab._full(lab.RUN_ID_RE, print_run):
+        return None
+    rec = db.one("SELECT payload FROM lab_records WHERE project = ? AND id = ?", project, eid)
+    try:
+        record = json.loads(rec["payload"]) if rec and rec["payload"] else None
+    except ValueError:
+        record = None
+    return {"project": project, "experiment": eid, "run": print_run, "record": record}
+
+
+def _sent_before(run, request_id):
+    """A verdict request with this id for this experiment in the last 24 h, once the card has gone; else None."""
+    if not isinstance(run, str) or not lab._full(lab.REQUEST_ID_RE, request_id):
+        return None
+    lab.ready()
+    row = db.one("SELECT id, status, created_at FROM lab_requests WHERE id = ? AND kind = 'verdict' AND experiment = ?",
+                 request_id, run)
+    at = lab.parse_iso(row["created_at"]) if row else None
+    return row if at is not None and at >= time.time() - VERDICT_RETRY_S else None
+
+
+def _refuse(status, message, why):
+    auth.log("display", DEVICE, "display:verdict", f"refused: {why}")
+    raise HTTPException(status, message)
+
+
+@router.post("/lab/verdict")
+async def lab_verdict(request: Request):
+    """{run, requestId, grades, inconclusive, replace} → 202 {id, status}: the phone's verdict request, queued for the
+    Mac's lab pull with lighting "diagnostic" and no note. A requestId sent again is one request (its stored status);
+    replace true is Change it."""
+    display_pairing.require(request)
+    data = lab._load_request_json(await lab_guard.read_capped(request, VERDICT_MAX))
+    # Nothing below awaits: the check and the queueing run as one step on the event loop.
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Send {run, requestId, grades, inconclusive}.")
+    t = judge_target(data.get("run"))
+    if not t:
+        sent = _sent_before(data.get("run"), data.get("requestId"))
+        if sent:
+            auth.log("display", DEVICE, "display:verdict", "sent again")
+            return JSONResponse({"id": sent["id"], "status": sent["status"]}, status_code=202)
+        _refuse(409, MOVED, "moved")
+    sheet = sheet_of(t["record"])
+    if not sheet["criteria"] or not sheet["tabs"]:
+        _refuse(409, PHONE_ONLY, "phone only")
+    inconclusive = None
+    if data.get("inconclusive") is not None:
+        inconclusive = data["inconclusive"].strip() if isinstance(data["inconclusive"], str) else ""
+        if not inconclusive or len(inconclusive) > MAX_REASON:
+            _refuse(400, f"An inconclusive reason is up to {MAX_REASON} characters of text, or null.", "reason")
+    problem = grades_problem(data.get("grades"), sheet, inconclusive)
+    if problem:
+        _refuse(400, problem, "grades")
+    body = {"id": data.get("requestId"), "kind": "verdict", "experiment": t["experiment"], "run": t["run"],
+            "payload": {"grades": data["grades"], "lighting": "diagnostic", "note": None, "inconclusive": inconclusive,
+                        "replace": data.get("replace") is True}}
+    try:
+        answer = lab.queue_request(t["project"], body, "display")
+    except HTTPException as e:
+        _refuse(e.status_code, e.detail, str(e.status_code))
+    auth.log("display", DEVICE, "display:verdict", "queued")
+    return JSONResponse({"id": answer["id"], "status": answer["status"]}, status_code=202)
