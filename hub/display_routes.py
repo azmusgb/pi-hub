@@ -7,6 +7,7 @@ from . import auth, display_pairing
 
 router = APIRouter(prefix="/api/display")
 TLS_NAME = "home.home.arpa"
+DEVICE = "Workshop display"
 
 
 @router.post("/pair/start")
@@ -31,7 +32,7 @@ async def pair(request: Request):
     code = body.get("code") if isinstance(body, dict) else None
     key = display_pairing.redeem(str(code or ""), time.time())
     if not key:
-        auth.log("display", "", "display:pair", "refused")
+        auth.log("display", DEVICE, "display:pair", "refused")
         raise HTTPException(403, "That code isn't right or has run out. Ask for a new one.")
-    auth.log("display", "", "display:pair", "ok")
+    auth.log("display", DEVICE, "display:pair", "ok")
     return {"key": key, "tlsName": TLS_NAME}

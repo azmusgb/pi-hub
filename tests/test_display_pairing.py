@@ -47,6 +47,8 @@ def test_redeem_gives_a_key_and_stores_only_its_hash(env):
     stored = repr(db.rows("SELECT * FROM display_keys"))
     assert key not in stored
     assert display_pairing.status()["paired"] is True
+    row = db.one("SELECT role, device, action, result FROM action_log WHERE action = 'display:pair'")
+    assert row == {"role": "display", "device": "Workshop display", "action": "display:pair", "result": "ok"}
     r = env.post("/api/display/pair/start", headers=SAME)
     code = r.json()["code"]
     assert TestClient(hub_app.app).post("/api/display/pair", json={"code": code}, headers=SAME).json()["tlsName"] == "home.home.arpa"
@@ -107,3 +109,14 @@ def test_start_needs_the_owner(env):
     assert anon.post("/api/display/pair/start", headers=SAME).status_code == 401
     assert anon.get("/api/display/pair/status").status_code == 401
     assert env.get("/api/display/pair/status").json()["code_open"] is False
+
+
+def test_cross_site_simple_post_cannot_burn_tries(env):
+    code = env.post("/api/display/pair/start", headers=SAME).json()["code"]
+    anon = TestClient(hub_app.app)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(6):
+        r = anon.post("/api/display/pair", content=f'{{"code": "{wrong}"}}', headers={"Content-Type": "text/plain"})
+        assert r.status_code == 415
+    assert display_pairing.status()["code_open"] is True
+    assert anon.post("/api/display/pair", json={"code": code}, headers=SAME).status_code == 200

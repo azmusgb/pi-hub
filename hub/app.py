@@ -66,6 +66,10 @@ async def guard(request: Request, call_next):
                 return JSONResponse({"detail": "Pair the display first."}, status_code=401)
             display = True
         elif request.url.path == "/api/display/pair":
+            # Only JSON is exempt: a cross-site JSON POST needs a CORS preflight the hub never grants, whereas a form or
+            # text/plain POST would let any page burn the code's tries.
+            if not request.headers.get("content-type", "").lower().startswith("application/json"):
+                return JSONResponse({"detail": "Send the code as JSON."}, status_code=415)
             display = True
     if unsafe and not shortcut and not webhook and not mac and not display:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
