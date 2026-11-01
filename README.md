@@ -25,8 +25,8 @@ uv sync
 claude mcp add -s user home -- "$PWD/.venv/bin/python" -m home_mcp
 ```
 
-Configuration: `HOME_MCP_HUB_URL` (default `https://home.home.arpa`), `HOME_MCP_HUB_CA` (default
-`~/.config/print-lab/home-ca.crt`; system CAs if missing), `HOME_MCP_TIMEOUT` (default 10 seconds),
+Configuration: `HOME_MCP_HUB_URL` (default `https://hub.rahe-home.duckdns.org`), `HOME_MCP_HUB_CA` (a CA file
+to trust instead of the system CAs; unset by default), `HOME_MCP_TIMEOUT` (default 10 seconds),
 `HOME_MCP_PI_HOST` / `HOME_MCP_PC_HOST` (SSH host names, default `pi` / `windows`), `HOME_MCP_PIHUB_REPO` /
 `HOME_MCP_LOCALAI_REPO` (local checkouts, default `~/dev/pi-hub` / `~/dev/ai-harness/LocalAI`).
 
