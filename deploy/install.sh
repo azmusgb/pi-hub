@@ -42,7 +42,7 @@ if ! sudo test -s /etc/pi-hub/secrets/localai_hub_key; then
   python3 -c 'import secrets,sys; sys.stdout.write(secrets.token_urlsafe(32))' | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/localai_hub_key'
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets/localai_hub_key && sudo chmod 640 /etc/pi-hub/secrets/localai_hub_key
-key_hash=$(sudo tr -d '\r\n' < /etc/pi-hub/secrets/localai_hub_key | sha256sum | cut -d' ' -f1)
+key_hash=$(sudo cat /etc/pi-hub/secrets/localai_hub_key | tr -d '\r\n' | sha256sum | cut -d' ' -f1)
 [ "${#key_hash}" -eq 64 ] && [ "$key_hash" != e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ] \
   || { echo "The hub key is empty; remove /etc/pi-hub/secrets/localai_hub_key and rerun."; exit 1; }
 echo "LOCALAI_HUB_KEY_SHA256=$key_hash"
