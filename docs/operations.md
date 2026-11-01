@@ -33,6 +33,9 @@ ssh pi 'curl -fs http://127.0.0.1/healthz'
 ssh pi 'sudo systemctl status pi-hub pi-hub-helper x2d-camera-failover --no-pager'
 ```
 
+`/healthz` reads the hub's database on every call: 200 `{"ok": true}` when it can, 503 `{"ok": false, "error": "database"}`
+when it can't. The release gate and the outside heartbeat (platform baseline, section 11 step 2) rely on that.
+
 In the app, check Home, a contextual help link, Devices, Movies and Print. Confirm phone navigation and fresh data. Opening a page is separate from proving that a light switches, a movie plays, or a document prints.
 
 For the full operational check, use Help & system → System checks & advanced fixes → Run a self-check. The equivalent on the Pi is:

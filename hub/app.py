@@ -5,6 +5,7 @@ import os
 import queue
 import re
 import hmac
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -1102,6 +1103,11 @@ async def api_settings_save(what: str, request: Request):
 
 @app.get("/healthz")
 def healthz():
+    """Open and cheap: 200 only when the hub can read its own database. The outside heartbeat relies on this."""
+    try:
+        db.one("SELECT count(*) AS n FROM sqlite_master")
+    except (sqlite3.Error, OSError):
+        return JSONResponse({"ok": False, "error": "database"}, status_code=503, headers={"Cache-Control": "no-store"})
     return {"ok": True}
 
 
