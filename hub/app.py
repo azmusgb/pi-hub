@@ -254,7 +254,8 @@ def api_movies_catalog(section: str = "all"):
 # ---- Drives: health, and the copy of the PC's movies on the Pi's drive ----
 
 @app.get("/api/drives")
-def api_drives():
+def api_drives(request: Request):
+    need(request, "household")  # model and serial, and a smartctl run on the Pi: not for anyone on the network
     report = actions.helper("drives:report", timeout=120)
     return fresh({"drives": report.get("drives") or [], "mirror": (sources.pi_status() or {}).get("mirror"),
                   "ok": report.get("ok", False), "message": report.get("message")})
@@ -797,7 +798,8 @@ def api_wifi(request: Request):
 
 
 @app.get("/api/wifi/qr.svg")
-def api_wifi_qr():
+def api_wifi_qr(request: Request):
+    need(request, "household")  # the code holds the password, which /api/wifi keeps from anyone signed out
     svg = wifi.qr_svg()
     if not svg:
         raise HTTPException(404, "No Wi-Fi saved")

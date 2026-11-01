@@ -239,3 +239,18 @@ def test_push_goes_to_every_ntfy_server(monkeypatch, tmp_path):
     assert urls == ["http://127.0.0.1:8093/house-abc", "https://ntfy.sh/house-abc"]
     servers.write_text("")
     assert events.ntfy_servers() == ["https://ntfy.sh"]
+
+
+def test_digest_says_when_last_nights_backup_failed(monkeypatch, tmp_path):
+    import json
+    monkeypatch.setattr(sources, "pi_status", lambda: dict(BASE))
+    monkeypatch.setattr(outside, "weather", lambda: None)
+    monkeypatch.setattr(outside, "calendar", lambda: [])
+    record = tmp_path / "last_backup.json"
+    record.write_text(json.dumps({"timestamp": int(time.time()), "status": "failed",
+                                  "message": "Failed while copying to the Windows share (exit 1).",
+                                  "last_success": int(time.time()) - 2 * 86400}))
+    monkeypatch.setattr(digest, "BACKUP_RECORD", str(record))
+    _, body = digest.build()
+    assert "Backups: last night's backup failed. Failed while copying to the Windows share" in body
+    assert "The last good one is from" in body and "verified" not in body
