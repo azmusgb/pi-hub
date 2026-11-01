@@ -31,7 +31,7 @@ def setup_hub(c):
 
 
 def test_setup_needs_the_code_and_only_works_once(c):
-    assert c.get("/api/me").json() == {"role": "none", "setup_needed": True, "device": ""}
+    assert c.get("/api/me").json() == {"role": "none", "setup_needed": True, "device": "", "tailscale": False}
     bad = c.post("/api/setup", json={"code": "nope", "owner_password": "correct horse", "pin": "123456"}, headers=SAME)
     assert bad.status_code == 403
     weak = c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "short", "pin": "123456"}, headers=SAME)

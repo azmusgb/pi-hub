@@ -53,10 +53,15 @@ if ! sudo test -s /etc/pi-hub/secrets/grafana_gate.env; then
   h="X-Gate-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
   printf 'GRAFANA_GATE_HEADER=%s\nGF_AUTH_PROXY_HEADER_NAME=%s\n' "$h" "$h" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/grafana_gate.env'
 fi
+# The secret Caddy sends with each request's address, so the hub can trust it (the owner's own devices; hub/devices.py).
+if ! sudo test -s /etc/pi-hub/secrets/hub_proxy.env; then
+  printf 'HUB_PROXY_SECRET=%s\n' "$(python3 -c 'import secrets; print(secrets.token_hex(32))')" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/hub_proxy.env'
+fi
+sudo chown root:pi-hub /etc/pi-hub/secrets/hub_proxy.env && sudo chmod 640 /etc/pi-hub/secrets/hub_proxy.env
 sudo install -d -m 755 /etc/systemd/system/caddy.service.d
 # Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
 # write the secret to the journal).
-printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
 
 # One-time setup code for the hub's Settings page.
