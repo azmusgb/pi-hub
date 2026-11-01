@@ -213,4 +213,4 @@ def weather(w):
     headline = f"{temp}° {now.get('sky') or ''}".strip()
     if high is not None:
         headline += f", high {high}°"
-    return _rec("weather", "ok", headline, detail={"temp": temp, "high": high})
+    return _rec("weather", "ok", headline, detail={"temp": temp, "high": high, "sky": now.get("sky") or ""})

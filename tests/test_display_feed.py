@@ -31,7 +31,8 @@ def ai_on(approvals=2):
 
 
 AI_OFF = display_ai._empty(NOW)
-RECS = records_from(dict(PI, drive_state="Missing"), bambuddy=bud("RUNNING", progress=40))
+WEATHER = {"now": {"temp": 54, "sky": "Cloudy"}, "days": [{"high": 61}], "alerts": []}
+RECS = records_from(dict(PI, drive_state="Missing"), bambuddy=bud("RUNNING", progress=40), weather=WEATHER)
 LAB_ITEM = {"id": "pi:lab:hex-tile:E-021", "source": "Print lab", "tone": "attention", "title": "E-021: Judge the print",
             "detail": "Look at the top face.", "link": "/lab?e=E-021&do=judge", "as_of": ""}
 NEEDS = {"count": 4, "unread": [], "items": [
@@ -70,8 +71,6 @@ def test_shape_matches_local_ais_feed_v2():
         assert key in f and same_type(f[key], value), key
     assert f["ai"] == {"available": True, "checkedAt": int(NOW)}
     for theirs in FIXTURE["cards"]:
-        if theirs["kind"] == "weather":  # Local AI's own; Pi Hub doesn't send it (step 1)
-            continue
         ours = kind(f, theirs["kind"])
         assert ours is not None, theirs["kind"]
         for field, value in theirs.items():
@@ -87,6 +86,31 @@ def test_ai_pictures_go_through_pi_hub():
     assert [i["imageUrl"] for i in f["images"]] == ["/api/display/images/0", "/api/display/images/1"]
     assert kind(f, "image")["imageUrl"] == "/api/display/images/0"
     assert "/api/images/view" not in json.dumps(f)
+
+
+def test_weather_is_a_household_card():
+    card = kind(feed(), "weather")
+    assert card == {"kind": "weather", "title": "Weather", "text": "Right now: 54 degrees and cloudy, high 61°.",
+                    "tone": "info", "ask": "weather", "id": "weather"}
+    alert = records_from(PI, weather=dict(WEATHER, alerts=[{"headline": "Wind advisory until 6 PM"}]))
+    assert kind(feed(recs=alert), "weather")["text"] == "Wind advisory until 6 PM"
+    assert kind(feed(recs=alert), "weather")["tone"] == "warning"
+    assert kind(feed(recs={k: v for k, v in RECS.items() if k != "weather"}), "weather") is None
+    assert kind(feed(recs={**RECS, "weather": {**RECS["weather"], "stale": True}}), "weather") is None
+    assert kind(feed(ai=AI_OFF), "weather") is not None
+
+
+def test_the_plex_poster_leads_the_pictures_while_playing():
+    playing = [dict(SESSIONS[0], poster="/api/now/poster/0.jpg")]
+    f = feed(sessions=playing)
+    assert f["images"][0] == {"title": "Now playing · The Matrix", "imageUrl": "/api/display/images/poster", "at": int(NOW)}
+    assert [i["imageUrl"] for i in f["images"][1:]] == ["/api/display/images/0", "/api/display/images/1"]
+    assert kind(f, "image")["imageUrl"] == "/api/display/images/0"
+    assert [i["imageUrl"] for i in feed(ai=AI_OFF, sessions=playing)["images"]] == ["/api/display/images/poster"]
+    assert all("poster" not in i["imageUrl"] for i in feed(sessions=None)["images"])
+    assert all("poster" not in i["imageUrl"] for i in feed()["images"])  # no poster from Plex: nothing to show
+    long = feed(sessions=[dict(playing[0], title="T" * 200)])["images"][0]["title"]
+    assert len(long) <= 90
 
 
 def test_pc_asleep_hides_ai_cards_and_says_so():
@@ -193,6 +217,25 @@ def test_feed_needs_the_display_key(env):
     f = r.json()
     assert f["v"] == 2 and f["ai"]["available"] is False and kind(f, "ai")["id"] == "ai-off"
     assert kind(f, "needs") is not None
+
+
+def test_the_feed_never_waits_on_local_ai(env, monkeypatch):
+    calls = []
+
+    def slow():
+        calls.append(1)
+        time.sleep(5)
+    monkeypatch.setattr(sources, "localai_feed", slow)
+    monkeypatch.setitem(sources._cache, "localai-feed", (0, None))  # long expired: would fetch if asked
+    t = time.monotonic()
+    f = display_routes.feed_now()
+    assert time.monotonic() - t < 1 and not calls and kind(f, "needs") is not None
+    # what /api/needs already fetched is used, never refreshed from the feed
+    watch = {"cards": [{"kind": "watch", "id": "watch-mac-disk", "title": "Heads up", "text": "Mac disk is 91% full",
+                        "tone": "attention"}]}
+    monkeypatch.setitem(sources._cache, "localai-feed", (time.time(), watch))
+    f = display_routes.feed_now()
+    assert not calls and "localai:watch-mac-disk" in [n["id"] for n in f["needs"]]
 
 
 def test_unknown_signature_answers_at_once(env, monkeypatch):

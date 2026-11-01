@@ -153,11 +153,13 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
 
 
-def current(recs=None):
+def current(recs=None, *, fetch=True):
     """Needs you now, as /api/needs answers it (and the display's feed reads it): the hub's records, Local AI's own
-    attention and the print lab's stored asks."""
+    attention and the print lab's stored asks. fetch=False never asks Local AI: only what /api/needs last read and
+    is still fresh is used, else the household's items alone (with Local AI listed as unread)."""
     from . import lab, records, sources
     recs = records.all() if recs is None else recs
     printer = recs.get("printer") or {}
-    return build((), sources.localai_feed(), int(time.time()), records.problems(recs), lab=lab.stored_needs(),
+    feed = sources.localai_feed() if fetch else sources.localai_feed_cached()
+    return build((), feed, int(time.time()), records.problems(recs), lab=lab.stored_needs(),
                  printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"))

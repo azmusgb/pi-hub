@@ -47,7 +47,7 @@ def feed_now():
     """The feed as it stands: Pi Hub's records and Needs you, Plex, Bambuddy's spools, Local AI's cached AI cards."""
     now = time.time()
     recs = records.all()
-    needs_list = needs.current(recs)
+    needs_list = needs.current(recs, fetch=False)  # the feed never waits on the PC
     ai = display_ai.cards(now)
     lab = [i for i in needs_list["items"] if i.get("source") == needs.LAB]
     # Task 5 merges Pi Hub's own banners here; for now the display's messages are Local AI's.

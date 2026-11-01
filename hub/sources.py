@@ -44,6 +44,13 @@ def cached(key, ttl, fn):
     return value
 
 
+def peek(key, ttl):
+    """What cached(key, ttl, ...) holds while it is still fresh, else None. Never fetches, so never waits."""
+    with _lock:
+        hit = _cache.get(key)
+    return hit[1] if hit and 0 <= time.time() - hit[0] < ttl else None
+
+
 def _get_json(url, headers=None, timeout=6):
     req = urllib.request.Request(url, headers={"Accept": "application/json", **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -216,8 +223,17 @@ def _localai_feed():
         return json.load(r)
 
 
+LOCALAI_FEED_TTL = 30
+
+
 def localai_feed():
-    return cached("localai-feed", 30, _localai_feed)
+    return cached("localai-feed", LOCALAI_FEED_TTL, _localai_feed)
+
+
+def localai_feed_cached():
+    """Local AI's attention as localai_feed() last read it, or None when stale or never read: for paths that must
+    not wait on the PC (the display's feed)."""
+    return peek("localai-feed", LOCALAI_FEED_TTL)
 
 
 LAB_EXPERIMENT = re.compile(r"E-\d{1,6}")

@@ -100,6 +100,27 @@ def _materials_card(spools):
     return _card("materials", f"materials-{'low' if low else 'ok'}", "Materials", text, tone, ask="health")
 
 
+def _weather_card(rec):
+    """The house's weather record, worded as the display's header reads it ("<n> degrees and <sky>")."""
+    if not rec or rec.get("stale") or rec["state"] not in ("ok", "warning"):
+        return None
+    if rec["state"] == "warning":
+        return _card("weather", "weather", "Weather", rec["headline"], "warning", ask="weather")
+    d = rec.get("detail") or {}
+    sky = f" and {str(d['sky']).lower()}" if d.get("sky") else ""
+    high = f", high {d['high']}°" if d.get("high") is not None else ""
+    return _card("weather", "weather", "Weather", f"Right now: {d.get('temp')} degrees{sky}{high}.", "info", ask="weather")
+
+
+def _poster(sessions, now):
+    """While Plex plays something with a poster, it leads the pictures (Pi Hub serves it at images/poster)."""
+    play = sessions[0] if sessions else None
+    if not play or not play.get("poster"):
+        return []
+    return [{"title": cut(f"Now playing · {play.get('title')}", 90), "imageUrl": "/api/display/images/poster",
+             "at": int(now)}]
+
+
 def _ai_cards(ai, urls):
     out = []
     for c in ai["cards"]:
@@ -132,15 +153,17 @@ def build(now, ai, recs, needs_list, lab, messages, *, sessions=None, spools=Non
     display's banners; `sessions`: sources.plex_sessions(); `spools`: bambuddy.spools() (None when not answering)."""
     images = [i for i in ai["images"] if isinstance(i, dict) and i.get("imageUrl")][:6]
     household = [_needs_card(needs_list, ai["approvals"]), _printer_card(recs.get("printer")), _lab_card(lab),
-                 _home_card(recs), _playing_card(sessions), _materials_card(spools)]
+                 _home_card(recs), _playing_card(sessions), _materials_card(spools), _weather_card(recs.get("weather"))]
     cards = [c for c in household if c]
     cards += _ai_cards(ai, [i["imageUrl"] for i in images]) if ai["available"] else [dict(AI_OFF)]
     feed = {"v": 2, "at": _iso(now), "cards": cards[:MAX_CARDS], "needs": _needs_list(needs_list),
             "needsCount": needs_list.get("count", 0)}
-    if ai["available"] and images:
-        feed["images"] = [{"title": cut(i.get("title") or "An image", 90), "imageUrl": f"/api/display/images/{n}",
-                           **({"at": i["at"]} if isinstance(i.get("at"), (int, float)) and not isinstance(i.get("at"), bool) else {})}
-                          for n, i in enumerate(images)]
+    pictures = _poster(sessions, now) + ([
+        {"title": cut(i.get("title") or "An image", 90), "imageUrl": f"/api/display/images/{n}",
+         **({"at": i["at"]} if isinstance(i.get("at"), (int, float)) and not isinstance(i.get("at"), bool) else {})}
+        for n, i in enumerate(images)] if ai["available"] else [])
+    if pictures:
+        feed["images"] = pictures[:6]
     feed["messages"] = list(messages or [])
     feed["ai"] = {"available": bool(ai["available"]), "checkedAt": ai["checkedAt"]}
     return feed
