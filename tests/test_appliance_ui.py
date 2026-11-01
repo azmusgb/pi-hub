@@ -159,4 +159,4 @@ def test_the_pi_page_links_grafana_and_kuma_through_the_gate():
         text = open(f).read()
         assert "10.0.0.30:3000" not in text and "10.0.0.30:3001" not in text, f
     src = open(os.path.join(ROOT, "hub", "sources.py")).read()
-    assert '"https://network.home.arpa/"' in src and '"https://status.home.arpa/status/home"' in src
+    assert '"https://network.rahe-home.duckdns.org/"' in src and '"https://status.rahe-home.duckdns.org/status/home"' in src

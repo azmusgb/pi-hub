@@ -10,7 +10,7 @@ from . import db, events
 
 CAUSES = {"print": [("printer", "failed"), ("obico", "failure"), ("hms", "stopped")],
           "pc": [("pc_printing", "off_while_printing")]}
-CLICK = {"print": "https://home.home.arpa/workshop", "pc": "https://home.home.arpa/"}
+CLICK = {"print": "https://hub.rahe-home.duckdns.org/workshop", "pc": "https://hub.rahe-home.duckdns.org/"}
 LOOK = {"print": "Open the Workshop page to look.", "pc": "Open the hub to look."}
 REOPEN_AFTER = 600  # seconds clear before the same cause is a new occurrence
 

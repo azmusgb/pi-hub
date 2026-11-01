@@ -1,7 +1,7 @@
-# The front gate (docs/superpowers/specs/2026-10-24-one-home-design.md). Every house tool at https://<name>.home.arpa,
-# behind one sign-in: Pi Hub's owner session, checked at GET /api/gate. Certificates come from Caddy's own CA; trust
-# its root once per device (https://home.home.arpa/home-ca.crt). Never delete /var/lib/caddy: a new CA means
-# re-trusting it everywhere.
+# The front gate (docs/superpowers/specs/2026-10-24-one-home-design.md, 2026-11-01-real-names-design.md). Every house
+# tool at https://<tool>.rahe-home.duckdns.org, the hub at hub., behind one sign-in: Pi Hub's owner session, checked at
+# GET /api/gate. Their certificate is a real Let's Encrypt one. Caddy's own CA remains only for the Workshop display,
+# which still pins home.home.arpa and updates.home.arpa to this CA; never delete /var/lib/caddy while it does.
 {
 	local_certs
 	# The admin API would show the whole config, including Grafana's secret header name, to anything on the Pi;
@@ -102,6 +102,8 @@
 	}
 }
 
+# The old hub name, for the machines that still pin it: the Workshop display (its feed, /api/display/*, checked against
+# this CA) and the Mac's Print lab sync (/api/lab/*), plus the CA root. A browser goes to the same page on the hub.
 home.home.arpa {
 	handle /home-ca.crt {
 		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
@@ -109,51 +111,28 @@ home.home.arpa {
 		header Content-Type application/x-x509-ca-cert
 		file_server
 	}
-	import site_hub
+	# Lab uploads are at most 8 MiB; Caddy refuses a bigger body before it reaches the hub.
+	handle /api/lab/* {
+		request_body {
+			max_size 9MB
+		}
+		reverse_proxy 127.0.0.1:8100 {
+			import hub_peer
+		}
+	}
+	handle /api/display/* {
+		reverse_proxy 127.0.0.1:8100 {
+			import hub_peer
+		}
+	}
+	handle {
+		redir https://hub.rahe-home.duckdns.org{uri} 308
+	}
 }
 
-assistant.home.arpa {
-	import site_assistant https://assistant.home.arpa
-}
-
-bambuddy.home.arpa {
-	import site_tool 127.0.0.1:8000
-}
-
-paperless.home.arpa {
-	import site_tool 10.0.0.21:8010
-}
-
-homebox.home.arpa {
-	import site_tool 127.0.0.1:7745
-}
-
-backups.home.arpa {
-	import site_tool 127.0.0.1:9898
-}
-
-network.home.arpa {
-	import site_network
-}
-
-status.home.arpa {
-	import site_tool 127.0.0.1:3001
-}
-
-adguard.home.arpa {
-	import site_tool 127.0.0.1:3002
-}
-
-devices.home.arpa {
-	import site_tool 127.0.0.1:8581
-}
-
-pi.home.arpa {
-	import site_pi
-}
-
-scan.home.arpa {
-	import site_tool 127.0.0.1:8095
+# Every other old name (retired 1 Nov 2026) goes to the same page on its real name.
+*.home.arpa {
+	redir https://{labels.2}.rahe-home.duckdns.org{uri} 308
 }
 
 # The real names (docs/superpowers/specs/2026-11-01-real-names-design.md): every tool at <tool>.rahe-home.duckdns.org
@@ -231,14 +210,14 @@ updates.home.arpa {
 }
 
 # The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) are retired (one home, step 6):
-# a browser goes to the same page on the gate. Only the machine callers' paths still reach the hub over plain http, on
+# a browser goes to the same page on the hub. Only the machine callers' paths still reach the hub over plain http, on
 # any host name: Local AI's /api/now (and its poster images), /api/needs and /api/records (its printer reading), Bambuddy's webhook, Siri Shortcuts (each with its own key or token), the
 # health check, and the CA root. The PC's backup pull is ssh and never came through here.
 http:// {
-	# A home.arpa name without its own site (home.arpa itself, a mistyped name) goes to the hub over https, so the
-	# owner password never crosses the network in the clear.
-	@named host home.arpa *.home.arpa
-	redir @named https://home.home.arpa{uri}
+	# A house name over plain http goes to the hub over https, so the owner password never crosses the network in the
+	# clear.
+	@named host home.arpa *.home.arpa rahe-home.duckdns.org *.rahe-home.duckdns.org
+	redir @named https://hub.rahe-home.duckdns.org{uri}
 	# The CA root, so a new device can trust it before the names resolve (http://10.0.0.30/home-ca.crt).
 	handle /home-ca.crt {
 		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
@@ -251,6 +230,6 @@ http:// {
 		reverse_proxy 127.0.0.1:8100
 	}
 	handle {
-		redir https://home.home.arpa{uri} 308
+		redir https://hub.rahe-home.duckdns.org{uri} 308
 	}
 }

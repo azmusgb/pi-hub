@@ -149,17 +149,17 @@ def test_whois_is_cached(client):
 def test_the_gate_lets_a_device_through_and_renew_needs_no_code(client):
     remember(client, PC)
     r = client.get("/api/gate", follow_redirects=False, headers={
-        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", "X-Forwarded-Method": "GET", **via(PC, origin=None)})
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.rahe-home.duckdns.org", "X-Forwarded-Uri": "/", "X-Forwarded-Method": "GET", **via(PC, origin=None)})
     assert r.status_code == 200 and r.headers["x-remote-user"] == "bill"
-    r = client.post("/api/gate/renew", json={"next": "https://bambuddy.home.arpa/x"},
-                    headers={**via(PC), "Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
-    assert r.status_code == 200 and r.json()["next"] == "https://bambuddy.home.arpa/x"
+    r = client.post("/api/gate/renew", json={"next": "https://bambuddy.rahe-home.duckdns.org/x"},
+                    headers={**via(PC), "Host": "hub.rahe-home.duckdns.org", "Origin": "https://hub.rahe-home.duckdns.org"})
+    assert r.status_code == 200 and r.json()["next"] == "https://bambuddy.rahe-home.duckdns.org/x"
 
 
 def test_the_gate_still_refuses_an_unlisted_device(client):
     remember(client, PC)
     r = client.get("/api/gate", follow_redirects=False, headers={
-        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", **via(IPAD, origin=None)})
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.rahe-home.duckdns.org", "X-Forwarded-Uri": "/", **via(IPAD, origin=None)})
     assert r.status_code == 302
 
 
@@ -234,19 +234,18 @@ def test_caddy_sends_the_peer_and_secret_on_every_way_to_the_hub():
     assert "header_up X-Hub-Peer {remote_host}" in snippet and "header_up X-Hub-Proxy {$HUB_PROXY_SECRET}" in snippet
     fa = re.search(r"forward_auth 127\.0\.0\.1:8100 \{(.*?)\n\t\}", text, re.S).group(1)
     assert "header_up X-Hub-Peer {remote_host}" in fa and "header_up X-Hub-Proxy {$HUB_PROXY_SECRET}" in fa
-    # The hub's site (home.home.arpa and hub.<real name> both import it).
-    home = re.search(r"\n\(site_hub\) \{(.*?)\n\}", text, re.S).group(1)
-    proxies = re.findall(r"reverse_proxy 127\.0\.0\.1:8100( \{\s*import hub_peer\s*\})?", home)
-    assert proxies and all(p for p in proxies), "every reverse_proxy to the hub imports hub_peer"
-    assert re.search(r"\nhome\.home\.arpa \{.*?\n\timport site_hub\n\}", text, re.S)
+    # Every way to the hub over https (the hub's site, and the display's and lab's paths on the old name) imports
+    # hub_peer; only the plain-http machine paths don't, and they never carry the owner's devices.
+    proxies = re.findall(r"reverse_proxy 127\.0\.0\.1:8100( \{\s*import hub_peer\s*\})?", text)
+    assert sum(1 for p in proxies if p) == 4 and sum(1 for p in proxies if not p) == 1
+    plain = text.split("\nhttp:// {", 1)[1]
+    assert re.search(r"reverse_proxy 127\.0\.0\.1:8100\n", plain)
     assert "\thandle @hub {\n\t\timport site_hub\n\t}" in text
-    # Nothing else on the Caddyfile reaches the hub without the peer headers.
-    assert len(re.findall(r"reverse_proxy 127\.0\.0\.1:8100", text)) == len(proxies) + 1  # + the plain-http machine paths
 
 
 def gate_as(client, addr, **extra):
     return client.get("/api/gate", follow_redirects=False, headers={
-        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/api/x",
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.rahe-home.duckdns.org", "X-Forwarded-Uri": "/api/x",
         **via(addr, origin=None), **extra})
 
 
@@ -254,7 +253,7 @@ def gate_as(client, addr, **extra):
     {"X-Forwarded-Method": "POST", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"},
     {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate"},
     {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},
-    {"X-Forwarded-Method": "POST", "Origin": "https://bambuddy.home.arpa"},
+    {"X-Forwarded-Method": "POST", "Origin": "https://bambuddy.rahe-home.duckdns.org"},
     {"X-Forwarded-Method": "GET"},
 ])
 def test_the_gate_lets_a_device_through_where_a_lax_cookie_would_go(client, extra):
@@ -268,7 +267,7 @@ def test_the_gate_lets_a_device_through_where_a_lax_cookie_would_go(client, extr
     {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors"},
     {"X-Forwarded-Method": "DELETE", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors"},
     {"X-Forwarded-Method": "POST", "Origin": "https://evil.example"},
-    {"X-Forwarded-Method": "POST", "Origin": "https://home.home.arpa"},
+    {"X-Forwarded-Method": "POST", "Origin": "https://hub.rahe-home.duckdns.org"},
     {"X-Forwarded-Method": "POST"},
     {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},  # no method: assume a change
 ])

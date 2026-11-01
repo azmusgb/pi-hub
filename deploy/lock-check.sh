@@ -12,10 +12,11 @@ fail=0
 say() { printf '%-44s %s\n' "$1" "$2"; [ "$2" = ok ] || fail=1; }
 code() { curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$@"; }
 
-ip=$(dig +short +time=2 +tries=1 home.home.arpa | tail -1)
-[ "$ip" = "$PI" ] && say "home.home.arpa resolves to the Pi" ok || say "home.home.arpa resolves to the Pi" "got '${ip:-nothing}'"
-r=$(code https://home.home.arpa/healthz)
-[ "$r" = 200 ] && say "https://home.home.arpa trusted and up" ok || say "https://home.home.arpa trusted and up" "got $r"
+HUB=hub.rahe-home.duckdns.org
+ip=$(dig +short +time=2 +tries=1 $HUB | tail -1)
+case "$ip" in "$PI"|100.92.174.18) say "$HUB resolves to the Pi" ok ;; *) say "$HUB resolves to the Pi" "got '${ip:-nothing}'" ;; esac
+r=$(code https://$HUB/healthz)
+[ "$r" = 200 ] && say "https://$HUB trusted and up" ok || say "https://$HUB trusted and up" "got $r"
 r=$(code "http://$PI/api/now")
 case "$r" in 200|401|403) say "http://$PI/api/now still served" ok ;; *) say "http://$PI/api/now still served" "got $r" ;; esac
 r=$(code "http://$PI/home-ca.crt")
@@ -29,7 +30,7 @@ if [ "$MODE" = locked ]; then
   r=$(code http://10.0.0.21:8010/)
   [ "$r" = 000 ] && say "Paperless 10.0.0.21:8010 closed" ok || say "Paperless 10.0.0.21:8010 closed" "answered $r"
   r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' "http://$PI/workshop")
-  [ "$r" = "308 https://home.home.arpa/workshop" ] && say "old address → same page on the gate" ok || say "old address → same page on the gate" "got $r"
+  [ "$r" = "308 https://$HUB/workshop" ] && say "old address → same page on the gate" ok || say "old address → same page on the gate" "got $r"
   for path in /api/shortcut/x /api/webhook/bambuddy /api/now/poster/0.jpg; do
     r=$(code "http://$PI$path")
     case "$r" in 000|301|302|307|308) say "http://$PI$path still served" "got $r" ;; *) say "http://$PI$path still served" ok ;; esac

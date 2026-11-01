@@ -1,7 +1,7 @@
 // The hub's menu, by task (docs/superpowers/specs/2026-10-24-one-home-design.md, D2). The rail in index.html lists
 // these in this order; the router, the active tab and old bookmarks all read from here.
 
-export const ASSISTANT_URL = "https://assistant.home.arpa/";
+export const ASSISTANT_URL = "https://assistant.rahe-home.duckdns.org/";
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
@@ -41,15 +41,12 @@ export function redirectFor(path) {
 export const railItems = () => SECTIONS.map((s) => s.key);
 export const phoneTabs = () => [...PHONE];
 
-// The house's real name (docs/superpowers/specs/2026-11-01-real-names-design.md); the tools answer under it and under
-// home.arpa while both run.
+// The house's real name (docs/superpowers/specs/2026-11-01-real-names-design.md).
 export const REAL = "rahe-home.duckdns.org";
 
-// Each tool by its gate name, on the suffix the hub was opened on (`host`), so its sign-in hand-back stays on one
-// suffix (by default the page's own). Anything else (an IP, an old name) gets home.arpa, as since step 6 (one home).
-export function toolUrl(name, host = globalThis.location?.host || "") {
-  const h = String(host).split(":")[0].toLowerCase();
-  return h === REAL || h.endsWith("." + REAL) ? `https://${name}.${REAL}/` : `https://${name}.home.arpa/`;
+// Each tool by its gate name, whatever address the page was opened on; `host` stays for resolveLink's callers.
+export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
+  return `https://${name}.${REAL}/`;
 }
 
 // The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).

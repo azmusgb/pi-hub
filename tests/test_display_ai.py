@@ -265,7 +265,7 @@ def test_forward_http_error_raised_by_fetch_is_capped():
     assert big.asked == [display_ai.ANSWER_MAX + 1]
 
 
-@pytest.mark.parametrize("url", ["http://10.0.0.21", "HTTP://10.0.0.21", "Http://pc.home.arpa:8080"])
+@pytest.mark.parametrize("url", ["http://10.0.0.21", "HTTP://10.0.0.21", "Http://pc.rahe-home.duckdns.org:8080"])
 def test_plain_http_never_sends_the_key(monkeypatch, url):
     monkeypatch.setattr(display_ai, "URL", url)
     called = []

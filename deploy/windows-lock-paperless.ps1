@@ -1,5 +1,5 @@
 # One home, step 6 (lock): Paperless (port 8010 on the PC) answers only the Pi, where the front gate
-# (https://paperless.home.arpa) and the hub's Documents page reach it. Windows PowerShell 5.1, run as an admin:
+# (https://paperless.rahe-home.duckdns.org) and the hub's Documents page reach it. Windows PowerShell 5.1, run as an admin:
 #   powershell -NoProfile -File windows-lock-paperless.ps1 -Status | -Apply | -Undo
 # Docker Desktop's own firewall rules allow its program on every port, so this adds one Block rule for TCP 8010 from
 # every address except 10.0.0.30 (a block wins over an allow) and leaves Docker's rules alone. Loopback isn't filtered.
