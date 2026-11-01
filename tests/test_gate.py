@@ -46,8 +46,10 @@ def gate_cookie(r):
 
 
 def gate_get(client, host, uri, **kw):
+    # As Caddy's forward_auth sends them: it always names the method.
     return client.get("/api/gate", follow_redirects=False,
-                      headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": host, "X-Forwarded-Uri": uri}, **kw)
+                      headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": host, "X-Forwarded-Uri": uri,
+                               "X-Forwarded-Method": "GET"}, **kw)
 
 
 def renew(client, next_url):
@@ -92,7 +94,7 @@ def test_gate_lets_the_owner_through_with_either_cookie(client):
     assert gate_token != session_token  # the cookie a tool sees is not the hub session
     client.cookies.clear()
     for name, token in (("hub_gate", gate_token), ("hub_session", session_token)):
-        r = client.get("/api/gate", cookies={name: token})
+        r = client.get("/api/gate", cookies={name: token}, headers={"X-Forwarded-Method": "GET"})
         assert r.status_code == 200 and r.headers["x-remote-user"] == "bill"
 
 
@@ -327,3 +329,24 @@ def test_renew_on_the_real_name_refuses_either_hub(client):
     for bad in (f"https://{REAL_HUB}/", "https://home.home.arpa/", "https://evil.com/"):
         r = client.post("/api/gate/renew", json={"next": bad}, headers={"Host": REAL_HUB, "Origin": f"https://{REAL_HUB}"})
         assert r.status_code == 400, bad
+
+
+def test_a_gate_cookie_does_not_carry_a_change_from_another_tool(client):
+    # Under the real name every tool is one site, so SameSite=Lax would let status.<name> post to adguard.<name>.
+    signin(client, REAL_HUB)
+    r = client.post("/api/gate/renew", json={"next": "https://adguard.rahe-home.duckdns.org/"},
+                    headers={"Host": REAL_HUB, "Origin": f"https://{REAL_HUB}"})
+    nxt = urlsplit(r.json()["next"])
+    client.cookies.clear()
+    token = gate_cookie(gate_get(client, "adguard.rahe-home.duckdns.org", f"{nxt.path}?{nxt.query}"))
+    assert token
+
+    def ask(method, **h):
+        return client.get("/api/gate", follow_redirects=False, cookies={"hub_gate": token}, headers={
+            "X-Forwarded-Proto": "https", "X-Forwarded-Host": "adguard.rahe-home.duckdns.org",
+            "X-Forwarded-Uri": "/control/rewrite/add", "X-Forwarded-Method": method, **h})
+    assert ask("POST", **{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "cors"}).status_code == 302
+    assert ask("POST", Origin="https://status.rahe-home.duckdns.org").status_code == 302
+    assert ask("POST", **{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"}).status_code == 200
+    assert ask("POST", Origin="https://adguard.rahe-home.duckdns.org").status_code == 200
+    assert ask("GET", **{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "navigate"}).status_code == 200

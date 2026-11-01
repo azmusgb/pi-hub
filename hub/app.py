@@ -655,8 +655,12 @@ def api_gate(request: Request):
     spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
     url, code = gate.split_code(gate.original_url(request.headers))
     h = auth.session(request.cookies.get(auth.COOKIE))
-    ok = (auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
-          or (gate.lax_like(request.headers) and devices.owner_device(request)))
+    # Every pass needs a request a Lax cookie would allow across sites. Under home.arpa each tool is its own site, so the
+    # gate cookie's SameSite=Lax did this; under the real name every tool shares one site, so a page on one tool could
+    # otherwise post to another with that tool's cookie.
+    ok = gate.lax_like(request.headers) and bool(
+        auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
+        or devices.owner_device(request))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
         loc = gate.safe_next(url, gate.home_for(host))  # the redirect target must be the very host the code is spent on
