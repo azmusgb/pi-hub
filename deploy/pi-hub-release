@@ -58,7 +58,12 @@ rm -rf "$NEW.tmp" && mkdir -p "$NEW.tmp"
 git --git-dir="$REPO" archive "$SHA" | tar -x -C "$NEW.tmp" || { say "couldn't unpack $SHORT"; record failed "Couldn't unpack it."; exit 1; }
 
 say "testing ${SHORT}…"
-TESTDB=$(mktemp -d)
+# Everything the tests write goes under one folder on the SD card, removed after: /tmp is a small RAM disk, and the
+# tests' own temp folders, left there by each release, filled it until the lab's "1 GiB free" check refused uploads.
+mkdir -p /var/tmp
+TESTDB=$(mktemp -d -p /var/tmp pi-hub-test.XXXXXX)
+mkdir -p "$TESTDB/tmp"
+export TMPDIR="$TESTDB/tmp"
 if ! (cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 600 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1); then
   tail -15 "$TESTDB/test.log"
   say "tests failed; the running version is unchanged"
@@ -75,6 +80,7 @@ if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null && ! (cd "$NEW.tmp" && timeout 1
 fi
 say "JavaScript tests passed"
 rm -rf "$TESTDB"
+unset TMPDIR
 rm -rf "$NEW" && mv "$NEW.tmp" "$NEW"
 find "$NEW" -name __pycache__ -prune -exec rm -rf {} +
 for s in 180 192 512; do rsvg-convert -w $s -h $s "$NEW/hub/static/icon.svg" -o "$NEW/hub/static/icon-$s.png"; done
