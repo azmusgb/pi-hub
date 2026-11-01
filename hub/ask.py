@@ -1,13 +1,9 @@
 """Ask Local AI about the house. The question goes to Local AI on the Windows PC together with
 what the hub knows right now, so answers come from the hub's own facts, not guesses."""
 import json
-import ssl
 import time
-import urllib.request
 
-from . import bambuddy, events, now, records, sources
-
-CHAT_URL = "https://10.0.0.21/api/chat"
+from . import bambuddy, display_ai, events, now, records, sources
 
 
 def _when(ts):
@@ -89,17 +85,14 @@ def ask(question):
     prompt = ("You are the voice of a family's home hub on a Raspberry Pi. Answer the question in one to three short, "
               "plain sentences, using only the facts below. If the facts don't say, answer that the hub doesn't know.\n\n"
               f"Facts:\n{context()}\n\nQuestion: {question}")
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE  # Local AI uses its own certificate on the home network
-    req = urllib.request.Request(CHAT_URL, method="POST", headers={"Content-Type": "application/json"},
-                                 data=json.dumps({"messages": [{"role": "user", "content": prompt}], "brief": True,
-                                                 "title": "House question"}).encode())  # its name in Local AI's Recent
     try:
-        with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
-            reply = json.load(r)
+        reply = display_ai.call("/api/chat", method="POST", timeout=90,
+                                body={"messages": [{"role": "user", "content": prompt}], "brief": True,
+                                      "title": "House question"})  # its name in Local AI's Recent
     except OSError as e:
         raise RuntimeError("Local AI isn't answering. The Windows PC may be off.") from e
+    except ValueError as e:
+        raise RuntimeError("Local AI sent an answer the hub can't read. Try again.") from e
     text = ((reply.get("message") or {}).get("content") or "").strip()
     if not text:
         raise RuntimeError("Local AI didn't send an answer. Try again.")

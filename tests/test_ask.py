@@ -2,6 +2,8 @@ import json
 import os
 import tempfile
 
+import pytest
+
 os.environ["HUB_NO_SAMPLER"] = "1"
 os.environ.setdefault("HUB_DB", os.path.join(tempfile.mkdtemp(), "hub.db"))
 
@@ -11,18 +13,23 @@ from hub import ask  # noqa: E402
 def test_ask_labels_its_chat(monkeypatch):
     seen = {}
 
-    class Reply:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self, *a): return json.dumps({"message": {"content": "The printer is idle."}, "model": "m"}).encode()
-
-    def fake(req, timeout, context):
-        seen["body"] = json.loads(req.data)
-        return Reply()
+    def fake(path, **kwargs):
+        seen.update(path=path, **kwargs)
+        return {"message": {"content": "The printer is idle."}, "model": "m"}
     monkeypatch.setattr(ask, "context", lambda: "Printer: idle.")
-    monkeypatch.setattr(ask.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(ask.display_ai, "call", fake)
     assert ask.ask("Is the printer busy?")["answer"] == "The printer is idle."
+    assert seen["path"] == "/api/chat" and seen["method"] == "POST"
     assert seen["body"]["title"] == "House question"
+
+
+def test_ask_says_local_ai_is_quiet_when_it_cannot_reach_it(monkeypatch):
+    def down(path, **kwargs):
+        raise OSError("refused")
+    monkeypatch.setattr(ask, "context", lambda: "Printer: idle.")
+    monkeypatch.setattr(ask.display_ai, "call", down)
+    with pytest.raises(RuntimeError, match="isn't answering"):
+        ask.ask("Is the printer busy?")
 
 
 import pytest
@@ -84,13 +91,9 @@ def test_confirmed_zero_is_preserved_and_empty_playback_is_distinct_from_failure
 
 def test_attention_reader_uses_the_own_attention_endpoint(monkeypatch):
     seen = []
-    class Reply:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self, *a): return b'{"source":"localai","cards":[]}'
-    def fetch(req, **kwargs):
-        seen.append(req.full_url)
-        return Reply()
-    monkeypatch.setattr(ask.sources.urllib.request, "urlopen", fetch)
+    def fetch(path, **kwargs):
+        seen.append(path)
+        return {"source": "localai", "cards": []}
+    monkeypatch.setattr(ask.sources.display_ai, "call", fetch)
     assert ask.sources._localai_feed() == {"source": "localai", "cards": []}
-    assert seen == ["https://10.0.0.21/api/attention"]
+    assert seen == ["/api/attention"]

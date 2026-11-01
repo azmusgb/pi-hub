@@ -165,6 +165,28 @@ def _send(method, url, headers, body, timeout, cap=ANSWER_MAX):
     return _too_big() if len(data) > cap else (status, data, ctype)
 
 
+def call(path, *, method="GET", body=None, timeout=4, cap=ANSWER_MAX):
+    """Pi Hub's own call to Local AI (its world, attention, print lab list and house question) with the hub key, over
+    verified HTTPS only: the answer's JSON. Raises on no key, no CA, a non-2xx, an answer past `cap` or bad JSON, for
+    callers that already treat any failure as "Local AI is quiet"."""
+    key = _key()
+    if not key:
+        raise RuntimeError("Local AI hub key isn't set up")
+    if not _tls_ok():
+        raise RuntimeError("Local AI's address must be https with its CA certificate installed")
+    headers = {"X-LocalAI-Hub-Key": key, "Accept": "application/json"}
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode()
+    req = urllib.request.Request(f"{URL}{path}", data=data, method=method, headers=headers)
+    with _opener().open(req, timeout=timeout) as r:
+        raw = _read(r, cap)
+    if len(raw) > cap:
+        raise ValueError("Local AI's answer is too big")
+    return json.loads(raw)
+
+
 def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=ANSWER_MAX):
     """Pass one display request through to Local AI with the hub key: (status, body, content type). Never more than
     `cap` bytes of answer: past it, 502. A 3xx is never followed (it comes back as its status).
