@@ -60,8 +60,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --glass-surface: rgba(18, 26, 36, 0.72);
-    --glass-surface-elevated: rgba(24, 34, 48, 0.88);
+    --glass-surface: rgba(36, 41, 39, 0.72);
+    --glass-surface-elevated: rgba(42, 48, 45, 0.88);
     --glass-border: rgba(255, 255, 255, 0.08);
     --glass-border-subtle: rgba(255, 255, 255, 0.04);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
@@ -71,8 +71,8 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --glass-surface: rgba(18, 26, 36, 0.72);
-  --glass-surface-elevated: rgba(24, 34, 48, 0.88);
+  --glass-surface: rgba(36, 41, 39, 0.72);
+  --glass-surface-elevated: rgba(42, 48, 45, 0.88);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-border-subtle: rgba(255, 255, 255, 0.04);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
@@ -346,7 +346,7 @@ body::before {
 :root {
   /* text */
   --ink:        var(--text);
-  --ink-rgb:    17 24 33;
+  --ink-rgb:    22 26 24;
   --muted:      var(--text-2);
 
   /* surfaces */
@@ -367,27 +367,27 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    26 111 196;  /* the kit's light accent */
+  --pei-rgb:    11 122 131;  /* the kit's light accent (coolant teal) */
   --p:          var(--accent);
 
   /* status triples */
-  --ok-rgb:     18 103 67;
-  --warn-rgb:   125 81 0;
+  --ok-rgb:     41 97 15;
+  --warn-rgb:   119 80 0;
   --warn-ink:   #ffffff;
-  --bad-rgb:    167 40 30;
+  --bad-rgb:    156 43 27;
   --bad:        var(--danger);
   --bad-ink:    #ffffff;
 
   /* misc */
   --rain-rgb:   45 110 166;
   --rain-ink:   #2d6ea6;
-  --shade-rgb:  17 24 33;
+  --shade-rgb:  22 26 24;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ink:        var(--text);
-    --ink-rgb:    233 238 244;
+    --ink-rgb:    236 239 234;
     --muted:      var(--text-2);
 
     --field:        var(--surface-2);
@@ -405,13 +405,13 @@ body::before {
     --pei-deep:   var(--accent-strong);
     --pei-ink:    var(--on-accent);
     --on-pei:     var(--on-accent);
-    --pei-rgb:    90 180 255;
+    --pei-rgb:    63 193 201;
     --p:          var(--accent);
 
-    --ok-rgb:     62 207 142;
-    --warn-rgb:   245 176 61;
+    --ok-rgb:     143 204 108;
+    --warn-rgb:   240 180 60;
     --warn-ink:   #1a1206;
-    --bad-rgb:    255 115 108;
+    --bad-rgb:    255 149 127;
     --bad:        var(--danger);
     --bad-ink:    #1a1206;
 
@@ -423,7 +423,7 @@ body::before {
 
 [data-theme="dark"] {
   --ink:        var(--text);
-  --ink-rgb:    233 238 244;
+  --ink-rgb:    236 239 234;
   --muted:      var(--text-2);
 
   --field:        var(--surface-2);
@@ -441,13 +441,13 @@ body::before {
   --pei-deep:   var(--accent-strong);
   --pei-ink:    var(--on-accent);
   --on-pei:     var(--on-accent);
-  --pei-rgb:    90 180 255;
+  --pei-rgb:    63 193 201;
   --p:          var(--accent);
 
-  --ok-rgb:     62 207 142;
-  --warn-rgb:   245 176 61;
+  --ok-rgb:     143 204 108;
+  --warn-rgb:   240 180 60;
   --warn-ink:   #1a1206;
-  --bad-rgb:    255 115 108;
+  --bad-rgb:    255 149 127;
   --bad:        var(--danger);
   --bad-ink:    #1a1206;
 

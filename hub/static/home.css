@@ -1237,7 +1237,7 @@ body:not(.wall) .page-now { display: block; }
 .hud-cam-btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(11, 17, 24, 0.75);
+  background: rgba(26, 29, 28, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #fff;
@@ -1254,7 +1254,7 @@ body:not(.wall) .page-now { display: block; }
   transition: all 0.15s ease;
 }
 .hud-cam-btn:hover, .hud-cam-btn:focus-visible {
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(42, 48, 45, 0.9);
   border-color: rgba(255, 255, 255, 0.4);
   transform: scale(1.05);
 }
@@ -1317,7 +1317,7 @@ body:not(.wall) .page-now { display: block; }
   align-items: center;
   justify-content: space-between;
   padding: .65rem 1rem;
-  background: rgba(11, 17, 24, 0.72);
+  background: rgba(26, 29, 28, 0.72);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1354,7 +1354,7 @@ body:not(.wall) .page-now { display: block; }
   align-items: center;
   gap: 1rem;
   padding: .5rem 1.1rem;
-  background: rgba(11, 17, 24, 0.72);
+  background: rgba(26, 29, 28, 0.72);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1372,7 +1372,7 @@ body:not(.wall) .page-now { display: block; }
   font-weight: 700;
   padding: .3rem .65rem;
   border-radius: var(--r-full);
-  background: rgba(11, 17, 24, 0.78);
+  background: rgba(26, 29, 28, 0.78);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
