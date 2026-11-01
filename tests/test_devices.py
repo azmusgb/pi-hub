@@ -233,9 +233,14 @@ def test_caddy_sends_the_peer_and_secret_on_every_way_to_the_hub():
     assert "header_up X-Hub-Peer {remote_host}" in snippet and "header_up X-Hub-Proxy {$HUB_PROXY_SECRET}" in snippet
     fa = re.search(r"forward_auth 127\.0\.0\.1:8100 \{(.*?)\n\t\}", text, re.S).group(1)
     assert "header_up X-Hub-Peer {remote_host}" in fa and "header_up X-Hub-Proxy {$HUB_PROXY_SECRET}" in fa
-    home = re.search(r"\nhome\.home\.arpa \{(.*?)\n\}", text, re.S).group(1)
+    # The hub's site (home.home.arpa and hub.<real name> both import it).
+    home = re.search(r"\n\(site_hub\) \{(.*?)\n\}", text, re.S).group(1)
     proxies = re.findall(r"reverse_proxy 127\.0\.0\.1:8100( \{\s*import hub_peer\s*\})?", home)
-    assert proxies and all(p for p in proxies), "every reverse_proxy to the hub on home.home.arpa imports hub_peer"
+    assert proxies and all(p for p in proxies), "every reverse_proxy to the hub imports hub_peer"
+    assert re.search(r"\nhome\.home\.arpa \{.*?\n\timport site_hub\n\}", text, re.S)
+    assert "\thandle @hub {\n\t\timport site_hub\n\t}" in text
+    # Nothing else on the Caddyfile reaches the hub without the peer headers.
+    assert len(re.findall(r"reverse_proxy 127\.0\.0\.1:8100", text)) == len(proxies) + 1  # + the plain-http machine paths
 
 
 def gate_as(client, addr, **extra):

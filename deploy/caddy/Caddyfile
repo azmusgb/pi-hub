@@ -34,13 +34,8 @@
 	request_header Cookie "hub_gate=[^;]*" "hub_gate="
 }
 
-home.home.arpa {
-	handle /home-ca.crt {
-		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
-		rewrite * /root.crt
-		header Content-Type application/x-x509-ca-cert
-		file_server
-	}
+# Each tool once, served on both its home.arpa name and its real name (below).
+(site_hub) {
 	# Lab uploads are at most 8 MiB; Caddy refuses a bigger body before it reaches the hub.
 	handle /api/lab/* {
 		request_body {
@@ -57,13 +52,14 @@ home.home.arpa {
 	}
 }
 
-assistant.home.arpa {
+# {args[0]}: the address this copy answers on, for the Origin rewrite.
+(site_assistant) {
 	route {
 		import gated
 		# Local AI's own Caddy answers only its own names, so ask it as 10.0.0.21. Its same-origin check compares
 		# Origin with Host, so a request from this page carries 10.0.0.21 as its Origin too; any other Origin passes
 		# unchanged and is refused there as before.
-		@own header Origin https://assistant.home.arpa
+		@own header Origin {args[0]}
 		request_header @own Origin https://10.0.0.21
 		reverse_proxy https://10.0.0.21 {
 			header_up Host 10.0.0.21
@@ -74,35 +70,7 @@ assistant.home.arpa {
 	}
 }
 
-bambuddy.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:8000
-	}
-}
-
-paperless.home.arpa {
-	route {
-		import gated
-		reverse_proxy 10.0.0.21:8010
-	}
-}
-
-homebox.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:7745
-	}
-}
-
-backups.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:9898
-	}
-}
-
-network.home.arpa {
+(site_network) {
 	route {
 		import gated
 		# Grafana trusts its login header only from 127.0.0.1, and only under a secret name that Caddy and Grafana
@@ -115,28 +83,7 @@ network.home.arpa {
 	}
 }
 
-status.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:3001
-	}
-}
-
-adguard.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:3002
-	}
-}
-
-devices.home.arpa {
-	route {
-		import gated
-		reverse_proxy 127.0.0.1:8581
-	}
-}
-
-pi.home.arpa {
+(site_pi) {
 	route {
 		import gated
 		reverse_proxy https://127.0.0.1:9090 {
@@ -147,10 +94,129 @@ pi.home.arpa {
 	}
 }
 
-scan.home.arpa {
+# A gated tool on a plain upstream: {args[0]}.
+(site_tool) {
 	route {
 		import gated
-		reverse_proxy 127.0.0.1:8095
+		reverse_proxy {args[0]}
+	}
+}
+
+home.home.arpa {
+	handle /home-ca.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	import site_hub
+}
+
+assistant.home.arpa {
+	import site_assistant https://assistant.home.arpa
+}
+
+bambuddy.home.arpa {
+	import site_tool 127.0.0.1:8000
+}
+
+paperless.home.arpa {
+	import site_tool 10.0.0.21:8010
+}
+
+homebox.home.arpa {
+	import site_tool 127.0.0.1:7745
+}
+
+backups.home.arpa {
+	import site_tool 127.0.0.1:9898
+}
+
+network.home.arpa {
+	import site_network
+}
+
+status.home.arpa {
+	import site_tool 127.0.0.1:3001
+}
+
+adguard.home.arpa {
+	import site_tool 127.0.0.1:3002
+}
+
+devices.home.arpa {
+	import site_tool 127.0.0.1:8581
+}
+
+pi.home.arpa {
+	import site_pi
+}
+
+scan.home.arpa {
+	import site_tool 127.0.0.1:8095
+}
+
+# The real names (docs/superpowers/specs/2026-11-01-real-names-design.md): every tool at <tool>.rahe-home.duckdns.org
+# under one Let's Encrypt wildcard certificate, which Caddy gets and renews through DuckDNS (the token is in
+# /etc/pi-hub/secrets/duckdns.env). Public DNS points the name at the Pi's Tailscale address, so only the tailnet (and,
+# through AdGuard, the house) reaches it. The hub here is hub.; the bare name has no site.
+*.rahe-home.duckdns.org {
+	tls {
+		issuer acme {
+			dns duckdns {env.DUCKDNS_TOKEN}
+		}
+	}
+	@hub host hub.rahe-home.duckdns.org
+	handle @hub {
+		import site_hub
+	}
+	@assistant host assistant.rahe-home.duckdns.org
+	handle @assistant {
+		import site_assistant https://assistant.rahe-home.duckdns.org
+	}
+	@bambuddy host bambuddy.rahe-home.duckdns.org
+	handle @bambuddy {
+		import site_tool 127.0.0.1:8000
+	}
+	@paperless host paperless.rahe-home.duckdns.org
+	handle @paperless {
+		import site_tool 10.0.0.21:8010
+	}
+	@homebox host homebox.rahe-home.duckdns.org
+	handle @homebox {
+		import site_tool 127.0.0.1:7745
+	}
+	@backups host backups.rahe-home.duckdns.org
+	handle @backups {
+		import site_tool 127.0.0.1:9898
+	}
+	@network host network.rahe-home.duckdns.org
+	handle @network {
+		import site_network
+	}
+	@status host status.rahe-home.duckdns.org
+	handle @status {
+		import site_tool 127.0.0.1:3001
+	}
+	@adguard host adguard.rahe-home.duckdns.org
+	handle @adguard {
+		import site_tool 127.0.0.1:3002
+	}
+	@devices host devices.rahe-home.duckdns.org
+	handle @devices {
+		import site_tool 127.0.0.1:8581
+	}
+	@pi host pi.rahe-home.duckdns.org
+	handle @pi {
+		import site_pi
+	}
+	@scan host scan.rahe-home.duckdns.org
+	handle @scan {
+		import site_tool 127.0.0.1:8095
+	}
+	# Any other name under it: nothing here.
+	handle {
+		abort
 	}
 }
 

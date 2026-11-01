@@ -37,3 +37,15 @@ def test_url_quoted_for_the_pis_shell():
     # ssh joins its arguments into one line for the remote shell; an unquoted & would cut the URL short.
     assert "ssh -o BatchMode=yes pi \"bash -s -- '$CADDY_URL' '$CADDY_SHA256'\" <<'EOF'" in INSTALL
     assert "'" not in _pin("CADDY_URL")
+
+
+def test_duckdns_token_reaches_caddy_but_is_optional():
+    line = next(x for x in INSTALL.splitlines() if "caddy.service.d/gate.conf" in x and "printf" in x)
+    assert "EnvironmentFile=-/etc/pi-hub/secrets/duckdns.env" in line
+
+
+def test_every_home_arpa_tool_has_a_real_name():
+    caddyfile = open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
+    tools = set(re.findall(r"^([a-z]+)\.home\.arpa \{", caddyfile, re.M)) - {"home", "updates"}
+    real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", caddyfile, re.M))
+    assert tools and real == tools | {"hub"}
