@@ -51,3 +51,14 @@ def test_status_is_not_offered_to_other_websites():
     # Only the hub reads /status, server to server; it relays what Local AI keeps behind sign-in.
     src = (Path(__file__).resolve().parents[1] / "deploy" / "pi-status.py").read_text()
     assert "Access-Control-Allow-Origin" not in src
+
+
+@pytest.mark.parametrize("models, want", [
+    ({"loaded": None, "queue": None}, "Can't answer"),  # Local AI answered, Ollama didn't (iPad, 1 Nov)
+    ({"loaded": [], "queue": {"active": 0, "waiting": 0}}, "Ready"),  # Ollama up, nothing loaded yet
+    ({"loaded": [{"name": "m"}], "queue": {"active": 1, "waiting": 0}}, "Busy"),
+])
+def test_ai_state_tells_ollama_down_from_nothing_loaded(monkeypatch, models, want):
+    answers = {"world": {"models": models, "printer": {}, "kiosk": {}}}
+    monkeypatch.setattr(pi_status, "cached", lambda key, ttl, fn: answers.get(key))
+    assert pi_status.status()["ai_state"] == want

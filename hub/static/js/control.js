@@ -91,8 +91,8 @@ export async function load(state) {
   if (state.root.querySelector(".tile.busy")) return;
   const d = await api("/api/home");
   if (!d.connected) {
-    state.body.replaceChildren(card("Connect Homebridge", { cls: "wide" },
-      h("p", {}, d.message),
+    state.body.replaceChildren(card("Lights and plugs", { cls: "wide", pill: "Not connected", tone: "warn" },
+      h("p", { class: "callout callout--warn" }, d.message),
       h("a", { class: "action", href: "/settings", "data-link": true }, "Open Settings")));
     return;
   }

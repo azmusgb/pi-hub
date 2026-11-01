@@ -64,10 +64,13 @@ def pc(net, prev, now):
 def local_ai(s, pc_rec):
     if s is None:
         return None
-    state = {"Ready": "ready", "Busy": "busy", "Down": "down"}.get(_get(s, "ai_state"))
+    state = {"Ready": "ready", "Busy": "busy", "Down": "down", "Can't answer": "no_models"}.get(_get(s, "ai_state"))
     if not state:
         return _unknown("local_ai")
     detail = {"models": _get(s, "ai_models"), "waiting": _get(s, "ai_waiting")}
+    if state == "no_models":
+        return _rec("local_ai", state, "Local AI can't answer questions",
+                    cause="Its model service (Ollama) on the PC isn't answering.", detail=detail)
     if state != "down":
         return _rec("local_ai", state, "Local AI is " + state, detail=detail)
     cause = ("The PC is on; Local AI itself isn't answering." if pc_rec and pc_rec["state"] == "on"
@@ -174,7 +177,9 @@ def plex(s, sessions):
     return _rec("plex", "idle", "Nothing playing")
 
 
-def devices(s):
+def devices(s, login=None):
+    """`login`: homecontrol.login_state(). A running service whose saved login is turned down still can't
+    switch anything (iPad, 1 Nov: "running" beside "Homebridge turned down the saved login")."""
     if s is None:
         return None
     up = _get(_get(s, "services"), "homebridge")
@@ -183,6 +188,9 @@ def devices(s):
     if not up:
         return _rec("devices", "stopped", "The smart-home service has stopped",
                     actions=_restart("restart:homebridge", "Restart smart-home service"))
+    if login == "rejected":
+        return _rec("devices", "signed_out", "Smart-home controls can't sign in",
+                    cause="Homebridge turned down the saved login. Update it in Settings.")
     return _rec("devices", "ok", "Smart-home controls are running")
 
 

@@ -26,11 +26,15 @@ def test_backup_ages_are_the_newest_snapshot_in_each_repo(tmp_path):
 
 
 def test_adguard_stats_reads_two_numbers_and_survives_a_failure():
-    assert helper.adguard_stats(lambda: {"num_dns_queries": 900, "num_blocked_filtering": 120, "top_clients": []}) \
-        == {"queries": 900, "blocked": 120}
+    stats = lambda: {"num_dns_queries": 900, "num_blocked_filtering": 120, "top_clients": []}  # noqa: E731
+    assert helper.adguard_stats(stats, lambda: {"protection_enabled": True}) \
+        == {"queries": 900, "blocked": 120, "protection": True}
     def broken():
         raise OSError("refused")
     assert helper.adguard_stats(broken) is None
+    # protection paused reads as False; an unreadable status stays unknown, never "off"
+    assert helper.adguard_stats(stats, lambda: {"protection_enabled": False})["protection"] is False
+    assert helper.adguard_stats(stats, broken)["protection"] is None
 
 
 def test_the_api_turns_backup_ages_into_hours(monkeypatch):

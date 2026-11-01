@@ -105,12 +105,15 @@ export function printLabText(p) {
   return p.lab ? `${p.lab.exp} · ${p.lab.build}` : "Outside the lab";
 }
 
+const SLOW_MS = 100;  // as the internet record (things/network.py): wan or dns latency over this is slow
+
 export function plainInternet(net) {
   if (!net || net.status === "unknown") return "Network checks aren't answering";
   if (net.status === "bad") return "Internet down";
-  if (net.wan_ms > 150) return "Internet slow";
+  if (net.wan_ms > SLOW_MS || net.dns_ms > SLOW_MS) return "Internet slow";
+  // The Orbi's figures are the traffic right now, not the line's speed: "3 Mbps down" read as a slow line (1 Nov).
   const up = Number.isFinite(net.orbi_up_mbps) ? `, ${Math.round(net.orbi_up_mbps * 10) / 10} up` : "";
-  const speed = Number.isFinite(net.orbi_down_mbps) ? ` · ${Math.round(net.orbi_down_mbps)} Mbps down${up}` : "";
+  const speed = Number.isFinite(net.orbi_down_mbps) ? ` · using ${Math.round(net.orbi_down_mbps)} Mbps down${up}` : "";
   return `Internet OK${speed}`;
 }
 

@@ -190,7 +190,7 @@ def api_network_adguard():
     if not report or not report.get("ok"):
         return fresh({"available": False})
     return fresh({"available": True, "queries": report["queries"], "blocked": report["blocked"],
-                  "open": "tool:adguard"})
+                  "protection": report.get("protection"), "open": "tool:adguard"})
 
 
 @app.get("/api/documents")

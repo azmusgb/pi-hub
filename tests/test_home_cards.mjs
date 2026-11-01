@@ -178,3 +178,11 @@ test("a Local AI item about another printer leaves the X2D card green (review, 2
   const doc = { id: 'localai:watch-doc', source: 'Local AI', tone: 'warn', title: 'Heads up', detail: 'Document printer offline' };
   assert.equal(by(all({ needs: { count: 1, items: [doc], unread: [] } })).workshop.tone, 'ok');
 });
+
+test("a print's file name reads as a title", async () => {
+  const { jobTitle } = await import("../hub/static/js/now.js");
+  assert.equal(jobTitle("RIFT_MARKED_10IN_SINGLE.gcode.3mf"), "Rift marked 10in single");
+  assert.equal(jobTitle("Hex tile v2.3mf"), "Hex tile v2");
+  assert.equal(jobTitle(""), "");
+  assert.equal(jobTitle(null), "");
+});

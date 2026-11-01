@@ -252,3 +252,14 @@ def test_after_a_restart_with_everything_stale_it_is_fine():
 def test_the_print_ending_while_the_pc_stays_down_is_fine():
     from tests.helpers_records import bud
     assert _build(_prev(), pi={"ai_state": "Down"}, bambuddy=bud("IDLE"))["state"] == "fine"
+
+
+def test_local_ai_up_without_its_models_is_not_ready():
+    r = house.local_ai({"ai_state": "Can't answer"}, None)
+    assert r["state"] == "no_models" and r["headline"] == "Local AI can't answer questions"
+
+
+def test_devices_running_with_a_rejected_login_cant_sign_in():
+    d = house.devices({"services": {"homebridge": True}}, "rejected")
+    assert d["state"] == "signed_out" and "Settings" in d["cause"]
+    assert house.devices({"services": {"homebridge": True}}, None)["state"] == "ok"  # no answer makes no claim

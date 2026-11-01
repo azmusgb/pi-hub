@@ -49,7 +49,7 @@ test('a device that drops out and comes back many times in a day is one line', (
 });
 
 test('the internet summary is in plain words', () => {
-  assert.equal(plainInternet({ status: 'ok', wan_ms: 9.5, orbi_down_mbps: 20.96, orbi_up_mbps: 2.5 }), 'Internet OK · 21 Mbps down, 2.5 up');
+  assert.equal(plainInternet({ status: 'ok', wan_ms: 9.5, orbi_down_mbps: 20.96, orbi_up_mbps: 2.5 }), 'Internet OK · using 21 Mbps down, 2.5 up');
   assert.equal(plainInternet({ status: 'ok', wan_ms: 400 }), 'Internet slow');
   assert.equal(plainInternet({ status: 'bad' }), 'Internet down');
   assert.equal(plainInternet(null), "Network checks aren't answering");
@@ -100,7 +100,7 @@ test('an appliance switch shown on its own carries the appliance name', () => {
 });
 
 test('a missing upload speed is left out, not shown as 0', () => {
-  assert.equal(plainInternet({ status: 'ok', wan_ms: 9, orbi_down_mbps: 20.4, orbi_up_mbps: null }), 'Internet OK · 20 Mbps down');
+  assert.equal(plainInternet({ status: 'ok', wan_ms: 9, orbi_down_mbps: 20.4, orbi_up_mbps: null }), 'Internet OK · using 20 Mbps down');
 });
 
 test('a print row reads its word from the print log and its tone from the status', () => {

@@ -100,6 +100,7 @@ export function mergeProblems(records = [], needs = null) {
   const coveredAbout = new Set();
   for (const item of needs?.items || []) {
     if (item?.about) coveredAbout.add(item.about);
+    if (item?.record) coveredAbout.add(item.record);  // the hub's own record, said once (iPad, 1 Nov: Pi listed twice)
     out.push({
       kind: "need",
       id: item.id || item.title,

@@ -10,12 +10,11 @@ export const every = 15;
 
 export function mount(state) {
   state.band = h("div");
-  state.actions = h("div");
   state.cam = h("div");
   state.info = h("div", { class: "now-col-right" });
   state.body = h("div", { class: "cards" });
   
-  const leftCol = h("div", { class: "now-col-left" }, state.band, state.actions, state.cam);
+  const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
   state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body);
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
@@ -151,7 +150,7 @@ function labWorkshopCard(labData) {
       h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."),
       h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
         h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"),
-        h("a", { class: "action ghost", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
+        h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
   }
   const needs = Array.isArray(labData.needs) ? labData.needs : [];
   const active = Array.isArray(labData.active) ? labData.active : [];
@@ -163,14 +162,15 @@ function labWorkshopCard(labData) {
   return card("Print lab & queue", { pill, tone },
     needs.length
       ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
-        needs.slice(0, 3).map((n) => h("li", { class: "log-row" },
+        // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab), and the
+        // button under the title, not floating beside the paragraph's middle (iPad, 1 Nov).
+        needs.slice(0, 3).map((n) => h("li", { class: "log-row lab-need" },
           h("span", { class: "dot", dataset: { tone: "warn" }, "aria-hidden": "true" }),
           h("span", { class: "log-main" },
             h("strong", {}, `${n.id}: ${n.action}`),
-            n.question_text ? h("span", { class: "meta" }, n.question_text) : null,
-            n.judge_on ? h("span", { class: "meta" }, `Look at: ${n.judge_on}`) : null),
-          h("span", { class: "log-side" },
-            h("a", { class: "btn btn--primary", href: n.href || `/lab?e=${n.id}`, "data-link": true },
+            n.question_text ? h("span", { class: "meta clamp-2", title: n.question_text }, n.question_text) : null,
+            n.judge_on ? h("span", { class: "meta clamp-2", title: n.judge_on }, `Look at: ${n.judge_on}`) : null,
+            h("a", { class: "btn btn--primary lab-need-act", href: n.href || `/lab?e=${n.id}`, "data-link": true },
               n.action === "Judge the print" ? `Judge ${n.id}` : "Open")))))
       : active.length
         ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
@@ -183,8 +183,8 @@ function labWorkshopCard(labData) {
           ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
           : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
     h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
-      h("a", { class: "action", href: "/lab", "data-link": true }, "Print lab"),
-      h("a", { class: "action ghost", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
+      h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"),
+      h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
 }
 
 function projectsCard(projects) {
@@ -205,9 +205,12 @@ export async function load(state) {
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each.
   const [d, cam, pr] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
     settle(api("/api/projects"), 6000, { available: false })]);
-  state.band.replaceChildren(band(d.printer));
+  // The printer's buttons sit inside its card, under the readings they act on.
+  const printerBand = band(d.printer);
+  const buttons = printerButtons(d.printer, () => load(state));
+  if (buttons) printerBand.querySelector(".band-info")?.append(buttons);
+  state.band.replaceChildren(printerBand);
   state.facts = d.printer.headline;
-  state.actions.replaceChildren(...[printerButtons(d.printer, () => load(state))].filter(Boolean));
   if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
@@ -220,12 +223,14 @@ export async function load(state) {
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
       h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page ↗")),
-    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : d.ai.state === "Unknown" ? "warn" : "ok" },
+    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : ["Ready", "Busy"].includes(d.ai.state) ? "ok" : "warn" },
       d.ai.state === "Unknown" ? h("p", { class: "meta" }, "The hub couldn’t check Local AI. Its current state is unconfirmed.")
+      : d.ai.state === "Can't answer"
+        ? h("p", { class: "meta" }, "Local AI is up, but its model service (Ollama) on the PC isn't answering, so it can't answer questions.")
       : d.ai.state === "Down"
         ? h("p", { class: "meta" }, "The Windows PC isn't answering. It may be off, or the room's breaker tripped.")
         : h("dl", { class: "facts" },
-          h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None")),
+          h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None yet (loaded on first use)")),
           h("div", {}, h("dt", {}, "Jobs waiting"), h("dd", {}, String(d.ai.waiting ?? 0)))),
       h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );

@@ -731,3 +731,12 @@ main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.m
 /* Clear the plate, Pause, Resume under the Workshop printer band (one home, step 3) */
 .printer-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
 .printer-actions .btn { min-height: 44px; }
+
+/* System › Services on the Pi: status first, Restart small at the end of the row. */
+.service-list li { align-items: center; }
+.service-list .status-side .btn { min-height: 36px; padding-block: .25rem; border-color: var(--line-strong); color: var(--text); }
+
+/* Rows that open a page show it: a chevron at the end (iPad, 1 Nov: they read as plain text). */
+.more a { position: relative; padding-right: 2.25rem; }
+.more a[data-link]::after { content: "›"; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);
+  font-size: 1.3rem; line-height: 1; color: var(--text-3, var(--text-2)); }

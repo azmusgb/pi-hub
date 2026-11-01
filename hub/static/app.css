@@ -708,31 +708,3 @@ html {
   }
 }
 
-/* Admin & Appliance Services Grid */
-.admin-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: .65rem;
-  margin-top: .75rem;
-}
-.admin-action-btn {
-  font-size: .85rem;
-  font-weight: 600;
-  padding: .5rem .75rem;
-  border-radius: var(--r-sm);
-  background: var(--glass-surface);
-  border: 1px solid var(--glass-border);
-  color: var(--text);
-  cursor: pointer;
-  text-align: center;
-  transition: all .15s ease;
-}
-.admin-action-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--accent);
-  color: var(--accent-strong);
-}
-.admin-action-btn:disabled {
-  opacity: .7;
-  cursor: wait;
-}

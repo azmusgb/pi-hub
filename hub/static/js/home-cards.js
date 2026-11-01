@@ -3,7 +3,7 @@ import { toolUrl } from "./sections.js";
 import { agoText } from "./wording.js";
 
 const TONES = ["bad", "attention", "warn"];
-const SLOW_MS = 150;
+const SLOW_MS = 100;  // as the internet record (things/network.py)
 const STALE_HOURS = 36;
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -84,7 +84,7 @@ function networkCard(net, home) {
   const on = (home?.accessories || []).filter((a) => a.on).length;
   const internet = !net || net.status === "unknown" ? null
     : net.status === "bad" ? ["Internet down", "bad"]
-    : net.wan_ms > SLOW_MS ? ["Internet slow", "warn"] : ["Internet OK", "ok"];
+    : net.wan_ms > SLOW_MS || net.dns_ms > SLOW_MS ? ["Internet slow", "warn"] : ["Internet OK", "ok"];
   const devices = home?.connected ? ` · ${plural(on, "device")} on` : "";
   return { key: "network", title: "Home & network",
     status: internet ? internet[0] + devices : "Network checks aren't answering", tone: internet ? internet[1] : "warn",

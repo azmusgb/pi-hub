@@ -396,8 +396,10 @@ export function mount(state) {
     class: "stack",
   });
 
+  // Search and Add a movie share one row, aligned with the content under them (iPad, 1 Nov: a floating button above
+  // an indented search box left a dead band at the top of the page).
   state.root.append(
-    addMovieButton(() => load(state).catch(() => {})),
+    h("div", { class: "movie-toolbar" },
     h(
       "form",
       {
@@ -417,6 +419,7 @@ export function mount(state) {
 
       input,
     ),
+    addMovieButton(() => load(state).catch(() => {}))),
 
     state.results,
     state.body,

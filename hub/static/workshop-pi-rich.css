@@ -87,3 +87,10 @@
 /* Stat Cluster overrides for Pi */
 .stat-numbered .stat-value[data-tone="ok"] { color: var(--ok); }
 .stat-numbered .stat-value[data-tone="bad"] { color: var(--danger); }
+
+/* Long lab checklists: two lines, then an ellipsis; the whole text is in the title and on the Print lab page. */
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lab-need { align-items: start; }
+.lab-need .dot { margin-top: .45em; }
+.lab-need-act { justify-self: start; margin-top: .5rem; }
+.band .printer-actions { margin-top: .75rem; }

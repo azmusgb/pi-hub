@@ -638,3 +638,8 @@
   .log-row.np-row { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
   .log-row.np-row .progress { width: 100% !important; }
 }
+
+/* Search and Add a movie on one row at the content's left edge (iPad, 1 Nov). */
+.movie-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+.movie-toolbar .movie-search { flex: 1 1 18rem; max-width: none; margin: 0; }
+.movie-toolbar .movie-upload-row { margin: 0; }

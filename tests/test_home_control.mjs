@@ -38,3 +38,19 @@ test("Home's cards leave out the Needs you card when Problems is shown", () => {
 test("/next redirects to Home", () => {
   assert.equal(redirectFor("/next"), "/");
 });
+
+test("a Needs you item that stands for a hub record is listed once, not again as the record", () => {
+  const needs = { count: 1, items: [{ id: "pi:Raspberry Pi", title: "Raspberry Pi", tone: "warn", record: "pi" }], unread: [] };
+  const recs = [{ id: "pi", severity: "attention", headline: "Pi 62 °C" }];
+  const probs = mergeProblems(recs, needs);
+  assert.equal(probs.length, 1);
+  assert.equal(problemsBadge(needs, probs).count, needs.count);  // Home's badge matches every other page's
+});
+
+test("System lists each service with its record's health, and no health where no record speaks for it", async () => {
+  const { serviceRows } = await import("../hub/static/js/system.js");
+  const rows = serviceRows(
+    [{ name: "restart:plex", label: "Restart Plex" }, { name: "restart:ntfy", label: "Restart ntfy" }, { name: "restart:pi", label: "Restart the Pi" }],
+    [{ id: "plex", severity: "ok", state: "idle", headline: "Nothing playing" }]);
+  assert.deepEqual(rows.map((r) => [r.name, r.tone, r.status]), [["Plex", "ok", "Nothing playing"], ["ntfy", "", ""]]);
+});
