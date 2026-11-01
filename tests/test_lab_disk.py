@@ -154,6 +154,11 @@ def test_backup_script_includes_the_lab_folder():
     assert "var/lib/pi-hub/lab" in script and "--exclude='var/lib/pi-hub/lab/*/incoming'" in script
 
 
+def test_backup_script_includes_the_caddy_local_ca():
+    script = open(os.path.join(os.path.dirname(__file__), "..", "deploy/pi-hub-backup.sh")).read()
+    assert "var/lib/caddy/.local/share/caddy/pki" in script
+
+
 def test_workshop_print_lab_links_open_the_hubs_lab_page():
     root = os.path.join(os.path.dirname(__file__), "..", "hub/static/js")
     w = open(os.path.join(root, "workshop.js")).read()

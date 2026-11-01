@@ -33,11 +33,14 @@ finally:
     lock.close()
 PYBACKUP
 
+# The Caddy local CA (pki) is kept because the Workshop display pins it: losing it means re-flashing the
+# display over USB. The archive is root:pi-backup 640, like the /etc/pi-hub secrets it already holds.
 # Optional legacy services may be absent; errors archiving existing files must
 # fail the backup instead of publishing a silently incomplete archive.
 SOURCES=()
 for source in etc/fstab etc/samba etc/avahi etc/systemd/system etc/pi-status etc/pi-hub \
-              var/lib/pi-hub/lab var/lib/homebridge opt/homepage/config opt/netmon usr/local/bin; do
+              var/lib/pi-hub/lab var/lib/homebridge opt/homepage/config opt/netmon usr/local/bin \
+              var/lib/caddy/.local/share/caddy/pki; do
   if [ -e "/$source" ]; then SOURCES+=("$source"); fi
 done
 # tar exits 1 when a file (the lab folder, mostly) changed while it was read; that still leaves a usable archive.
