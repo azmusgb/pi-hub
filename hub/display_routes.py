@@ -6,7 +6,7 @@ import queue
 import time
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from . import (auth, bambuddy, db, display_ai, display_feed, display_messages, display_pairing, lab, lab_guard, needs,
                now as now_, printer_control, records, sources)
@@ -438,3 +438,80 @@ async def lab_verdict(request: Request):
         _refuse(e.status_code, e.detail, str(e.status_code))
     auth.log("display", DEVICE, "display:verdict", "queued")
     return JSONResponse({"id": answer["id"], "status": answer["status"]}, status_code=202)
+
+
+# ---- Local AI through Pi Hub: approvals, Ask and pictures, live, only while the PC answers ----
+# Nothing here caches, queues or retries; display_ai.forward holds the allow-list and the TLS rule.
+
+AI_DOWN = {"error": "AI unavailable — PC asleep"}
+IMAGE_MAX = 5 * 1024 * 1024
+DECIDE_MAX = 8 * 1024
+
+
+def _down():
+    return JSONResponse(AI_DOWN, status_code=503, headers={"Cache-Control": "no-store"})
+
+
+def _through(method, path, query="", body=None, cap=None):
+    """Forward once. Local AI's 2xx/3xx/4xx go back unchanged; a 5xx, an exception or too big an answer is the
+    display's "AI unavailable" (503) or, past `cap`, a 502."""
+    try:
+        status, data, ctype = display_ai.forward(method, path, query=query, body=body)
+    except Exception:  # noqa: BLE001
+        return _down(), 503
+    if status >= 500:
+        return _down(), status
+    if cap is not None and len(data) > cap:
+        return JSONResponse({"error": "That picture is too big."}, status_code=502), 502
+    return Response(data, status_code=status, media_type=ctype, headers={"Cache-Control": "no-store"}), status
+
+
+@router.get("/approvals")
+def approvals(request: Request):
+    display_pairing.require(request)
+    return _through("GET", "/api/display/approvals")[0]
+
+
+@router.post("/approvals/decide")
+async def approvals_decide(request: Request):
+    display_pairing.require(request)
+    raw = await request.body()
+    if len(raw) > DECIDE_MAX:
+        raise HTTPException(413, "That decision is too big.")
+    response, status = await asyncio.to_thread(_through, "POST", "/api/display/approvals/decide", "", raw)
+    auth.log("display", DEVICE, "display:approval", "sent" if status < 400 else f"refused: {status}")
+    return response
+
+
+@router.get("/ask")
+def ask(request: Request):
+    display_pairing.require(request)
+    return _through("GET", "/api/display/ask", request.url.query)[0]
+
+
+def _poster_jpeg():
+    """The poster of what Plex is playing now, as Pi Hub's own /api/now/poster serves it (404 when nothing plays)."""
+    from . import app as app_
+    return app_.api_now_poster(0).body
+
+
+@router.get("/images/poster")
+def image_poster(request: Request):
+    display_pairing.require(request)
+    return Response(_poster_jpeg(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@router.get("/images/{n}")
+def image(request: Request, n: str):
+    """The n-th AI picture of the feed, fetched from Local AI's original URL (only ever /api/images/view)."""
+    display_pairing.require(request)
+    if not n.isdigit():
+        raise HTTPException(404, "No such picture.")
+    pics = display_ai.cards(time.time()).get("images") or []
+    if int(n) >= len(pics):
+        raise HTTPException(404, "No such picture.")
+    url = pics[int(n)].get("imageUrl") if isinstance(pics[int(n)], dict) else None
+    path, _, query = url.partition("?") if isinstance(url, str) else ("", "", "")
+    if path != "/api/images/view":
+        raise HTTPException(404, "No such picture.")
+    return _through("GET", path, query, cap=IMAGE_MAX)[0]
