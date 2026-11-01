@@ -309,3 +309,50 @@ def test_redirects_are_never_followed(monkeypatch):
     finally:
         srv.shutdown()
     assert status == 302 and [h[0] for h in hits] == ["/api/display/ask?q=hi"]
+
+
+class _Capture(_Opener):
+    def __init__(self, resp):
+        super().__init__(resp)
+        self.reqs = []
+
+    def open(self, req, timeout=None):
+        self.reqs.append(req)
+        return self.resp
+
+
+def test_call_sends_the_key_and_returns_json(monkeypatch):
+    opener = _Capture(__import__("io").BytesIO(b'{"agents": []}'))
+    monkeypatch.setattr(display_ai, "_opener", lambda: opener)
+    assert display_ai.call("/api/world") == {"agents": []}
+    req = opener.reqs[0]
+    assert req.full_url == "https://10.0.0.21/api/world" and req.get_method() == "GET"
+    assert req.get_header("X-localai-hub-key") == "secret"
+
+
+def test_call_posts_json(monkeypatch):
+    opener = _Capture(__import__("io").BytesIO(b'{"message": {}}'))
+    monkeypatch.setattr(display_ai, "_opener", lambda: opener)
+    display_ai.call("/api/chat", method="POST", body={"q": 1})
+    req = opener.reqs[0]
+    assert req.get_method() == "POST" and json.loads(req.data) == {"q": 1}
+    assert req.get_header("Content-type") == "application/json"
+
+
+@pytest.mark.parametrize("setup", ["no-key", "no-ca", "http"])
+def test_call_never_sends_the_key_without_key_ca_and_https(monkeypatch, tmp_path, setup):
+    if setup == "no-key":
+        monkeypatch.setattr(display_ai, "KEY_FILE", str(tmp_path / "missing"))
+    elif setup == "no-ca":
+        monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "gone.crt"))
+    else:
+        monkeypatch.setattr(display_ai, "URL", "http://10.0.0.21")
+    monkeypatch.setattr(display_ai, "_opener", lambda: pytest.fail("called Local AI"))
+    with pytest.raises(RuntimeError):
+        display_ai.call("/api/world")
+
+
+def test_call_refuses_an_answer_past_the_cap(monkeypatch):
+    monkeypatch.setattr(display_ai, "_opener", lambda: _Opener(__import__("io").BytesIO(b"x" * 100)))
+    with pytest.raises(ValueError):
+        display_ai.call("/api/world", cap=10)

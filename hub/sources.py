@@ -8,13 +8,12 @@
 import json
 import os
 import re
-import ssl
 import threading
 import time
 import urllib.request
 from collections import deque
 
-from . import freshness
+from . import display_ai, freshness
 
 PI_STATUS_URL = os.environ.get("HUB_PI_STATUS_URL", "http://127.0.0.1:8099/status")
 NETMON_PROMETHEUS_URL = os.environ.get("HUB_NETMON_PROMETHEUS_URL", "http://127.0.0.1:9091")
@@ -209,18 +208,9 @@ def active_network_alerts():
     return cached("net_alerts", 15, _fetch)
 
 
-WORLD_URL = os.environ.get("HUB_WORLD_URL", "https://10.0.0.21/api/world")
-
-
 def _localai_feed():
     # Own attention only: never read the aggregate display feed back into /api/needs.
-    # Local AI's own Caddy uses its private CA; the Pi talks to it on the LAN as the gate does.
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    req = urllib.request.Request("https://10.0.0.21/api/attention", headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=4, context=ctx) as r:
-        return json.load(r)
+    return display_ai.call("/api/attention")
 
 
 LOCALAI_FEED_TTL = 30
@@ -241,12 +231,7 @@ LAB_EXPERIMENT = re.compile(r"E-\d{1,6}")
 
 def _localai_lab_projects():
     # Local AI's print lab list: each project with `live`, the experiment that is printing (Print lab page, 26 Oct).
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    req = urllib.request.Request("https://10.0.0.21/api/lab/projects", headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=4, context=ctx) as r:
-        return json.loads(r.read(256 * 1024))
+    return display_ai.call("/api/lab/projects")
 
 
 def _stored_lab():
@@ -288,12 +273,7 @@ def localai_lab():
 
 
 def _world():
-    import ssl
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE  # Local AI uses its own certificate on the home network
-    with urllib.request.urlopen(WORLD_URL, timeout=4, context=ctx) as r:
-        return json.load(r)
+    return display_ai.call("/api/world")
 
 
 def world():
