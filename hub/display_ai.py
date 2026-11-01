@@ -15,6 +15,7 @@ CA_FILE = os.environ.get("HUB_LOCALAI_CA_FILE", "/etc/pi-hub/secrets/localai-ca.
 TTL = 15      # seconds a good or bad answer is reused
 BUDGET = 3    # seconds cards() may take, however Local AI behaves
 FORWARD_PATHS = {"/api/display/approvals", "/api/display/approvals/decide", "/api/display/ask"}
+METHODS = {"/api/display/approvals/decide": "POST"}  # every other forwarded path is GET only
 
 _cache = (0.0, None)  # (at, value)
 
@@ -27,16 +28,13 @@ def _key():
         return ""
 
 
+def _tls_ok():
+    """Fail closed: the hub key never goes over HTTPS unless Local AI's CA is installed to verify it."""
+    return not URL.startswith("https") or os.path.exists(CA_FILE)
+
+
 def _context():
-    """Verify against Local AI's CA when it is installed; otherwise skip verification for this host only."""
-    if not URL.startswith("https"):
-        return None
-    if os.path.exists(CA_FILE):
-        return ssl.create_default_context(cafile=CA_FILE)
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE  # Local AI uses its own certificate on the home network
-    return ctx
+    return ssl.create_default_context(cafile=CA_FILE) if URL.startswith("https") else None
 
 
 def _fetch(url, key, timeout=BUDGET):
@@ -62,7 +60,7 @@ def _valid(d):
 
 def _load(now, fetch):
     key = _key()
-    if not key:
+    if not key or not _tls_ok():
         return _empty(now)
     box = []
 
@@ -101,22 +99,46 @@ def _err(status, msg):
     return status, json.dumps({"error": msg}).encode(), "application/json"
 
 
-def forward(method, path, *, query="", body=None, timeout=10):
-    """Pass one display request through to Local AI with the hub key: (status, body, content type)."""
-    if path not in FORWARD_PATHS and not path.startswith("/api/images/view"):
-        return _err(403, "not forwarded")
-    key = _key()
-    if not key:
-        return _err(502, "Local AI hub key isn't set up")
-    url = f"{URL}{path}" + (f"?{query}" if query else "")
-    headers = {"X-LocalAI-Hub-Key": key}
-    if body is not None:
-        headers["Content-Type"] = "application/json"
+def _bad(text):
+    return any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in text)
+
+
+def _allowed(path, query):
+    if path not in FORWARD_PATHS and path != "/api/images/view":
+        return False
+    if any(x in path for x in ("..", "//", "?", "#", "%")) or _bad(path):
+        return False
+    return not (query and ("#" in query or _bad(query)))
+
+
+def _send(method, url, headers, body, timeout):
     req = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=_context()) as r:
             return r.status, r.read(), r.headers.get("Content-Type", "application/octet-stream")
     except urllib.error.HTTPError as e:
         return e.code, e.read(), e.headers.get("Content-Type", "application/json")
+
+
+def forward(method, path, *, query="", body=None, timeout=10, fetch=None):
+    """Pass one display request through to Local AI with the hub key: (status, body, content type).
+    fetch(method, url, headers, body, timeout) -> (status, body, content type) is injectable for tests."""
+    if not _allowed(path, query):
+        return _err(403, "not forwarded")
+    if method != METHODS.get(path, "GET"):
+        return _err(405, "method not allowed")
+    key = _key()
+    if not key:
+        return _err(502, "Local AI hub key isn't set up")
+    if not _tls_ok():
+        return _err(502, "Local AI's CA certificate isn't installed")
+    url = f"{URL}{path}" + (f"?{query}" if query else "")
+    headers = {"X-LocalAI-Hub-Key": key}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        return (fetch or _send)(method, url, headers, body, timeout)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read(), "application/json"
     except Exception:
         return _err(502, "Local AI isn't answering")

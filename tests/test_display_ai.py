@@ -14,7 +14,9 @@ def _env(tmp_path, monkeypatch):
     key = tmp_path / "key"
     key.write_text("secret\n")
     monkeypatch.setattr(display_ai, "KEY_FILE", str(key))
-    monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "no-ca.crt"))
+    ca = tmp_path / "ca.crt"
+    ca.write_text("x")
+    monkeypatch.setattr(display_ai, "CA_FILE", str(ca))
     monkeypatch.setattr(display_ai, "_cache", (0.0, None))
 
 
@@ -92,5 +94,67 @@ def test_forward_no_key_is_502(monkeypatch, tmp_path):
 
 def test_forward_unreachable_is_502(monkeypatch):
     monkeypatch.setattr(display_ai, "URL", "http://127.0.0.1:9")
-    status, body, ctype = display_ai.forward("POST", "/api/display/ask", body=b"{}", timeout=1)
+    status, body, ctype = display_ai.forward("GET", "/api/display/ask", timeout=1)
     assert status == 502 and ctype == "application/json"
+
+
+BAD = ["/api/images/viewer-x", "/api/images/view/../../api/changes", "/api/images/view%2F..", "/api/images/view/",
+       "/api/display/ask?x=1", "/api/display/ask#f", "/api/display/ask\n", "/api/display/ ask",
+       "/api/display//ask"]
+
+
+@pytest.mark.parametrize("path", BAD)
+def test_forward_refuses_tricky_paths_without_calling(path):
+    called = []
+    assert display_ai.forward("GET", path, fetch=lambda *a: called.append(a))[0] == 403
+    assert not called
+
+
+@pytest.mark.parametrize("query", ["a=1#frag", "a=1 b", "a=1\nb"])
+def test_forward_refuses_bad_query_without_calling(query):
+    called = []
+    assert display_ai.forward("GET", "/api/images/view", query=query, fetch=lambda *a: called.append(a))[0] == 403
+    assert not called
+
+
+def test_forward_sends_key_and_never_caches():
+    calls = []
+
+    def fetch(method, url, headers, body, timeout):
+        calls.append((method, url, headers))
+        return 200, b"png", "image/png"
+    for _ in range(2):
+        r = display_ai.forward("GET", "/api/images/view", query="filename=a.png&type=output", fetch=fetch)
+        assert r == (200, b"png", "image/png")
+    assert len(calls) == 2
+    assert calls[0][1] == "https://10.0.0.21/api/images/view?filename=a.png&type=output"
+    assert calls[0][2]["X-LocalAI-Hub-Key"] == "secret"
+
+
+@pytest.mark.parametrize("method,path", [("POST", "/api/display/approvals"), ("GET", "/api/display/approvals/decide"),
+                                         ("POST", "/api/display/ask"), ("POST", "/api/images/view"),
+                                         ("DELETE", "/api/display/approvals"), ("PUT", "/api/display/approvals/decide")])
+def test_forward_wrong_method_is_405_without_calling(method, path):
+    called = []
+    assert display_ai.forward(method, path, fetch=lambda *a: called.append(a))[0] == 405
+    assert not called
+
+
+@pytest.mark.parametrize("method,path", [("GET", "/api/display/approvals"), ("GET", "/api/display/ask"),
+                                         ("GET", "/api/images/view"), ("POST", "/api/display/approvals/decide")])
+def test_forward_right_method_is_sent(method, path):
+    assert display_ai.forward(method, path, fetch=lambda *a: (200, b"{}", "application/json"))[0] == 200
+
+
+def test_missing_ca_never_sends_key_for_cards(monkeypatch, tmp_path):
+    monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "gone.crt"))
+    called = []
+    assert display_ai.cards(100, fetch=lambda u, k: called.append(1))["available"] is False
+    assert not called
+
+
+def test_missing_ca_never_sends_key_for_forward(monkeypatch, tmp_path):
+    monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "gone.crt"))
+    called = []
+    assert display_ai.forward("GET", "/api/display/approvals", fetch=lambda *a: called.append(a))[0] == 502
+    assert not called
