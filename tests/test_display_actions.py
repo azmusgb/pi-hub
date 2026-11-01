@@ -140,16 +140,41 @@ def test_clear_plate_refuses_while_one_is_running(env, monkeypatch):
     assert clear(env).status_code == 200  # the lock is free again
 
 
-def test_clear_plate_shares_the_hubs_printer_lock(env, monkeypatch):
+@pytest.mark.parametrize("holder, copy", [("pause", "The printer is busy with another command."),
+                                           ("resume", "The printer is busy with another command."),
+                                           ("clear", "Clear plate is already running.")])
+def test_clear_plate_shares_the_hubs_printer_lock(env, monkeypatch, holder, copy):
     post, calls = fake_post(["ok", "ok"])
     monkeypatch.setattr(printer_control, "_post", post)
-    assert printer_control.BUSY.acquire(blocking=False)  # the owner's Clear plate, pause or resume in flight
+    assert printer_control.hold(holder) is None  # the owner's Clear plate, pause or resume in flight
     try:
+        assert printer_control.hold("clear") == holder  # who holds it, and nothing taken
         r = clear(env)
     finally:
-        printer_control.BUSY.release()
-    assert r.status_code == 409 and r.json()["detail"] == "Clear plate is already running."
+        printer_control.release()
+    assert r.status_code == 409 and r.json()["detail"] == copy
     assert calls == []
+    assert printer_control.hold("clear") is None
+    printer_control.release()
+
+
+def test_the_owners_printer_buttons_say_which_command_runs(env, monkeypatch):
+    c, disp = env
+    started, release = threading.Event(), threading.Event()
+
+    def slow(path, key):
+        started.set()
+        release.wait(5)
+        return "ok"
+    monkeypatch.setattr(printer_control, "_post", slow)
+    t = threading.Thread(target=lambda: clear(env))
+    t.start()
+    assert started.wait(5)
+    try:
+        assert printer_control.hold("pause") == "clear"
+    finally:
+        release.set()
+        t.join(5)
 
 
 @pytest.mark.parametrize("answers, calls_made", [(["no answer"], 1), (["ok", "no answer"], 2)])
@@ -310,3 +335,102 @@ def test_verdict_without_criteria_is_for_the_phone(env, monkeypatch):
     r = verdict(env)
     assert r.status_code == 409 and r.json()["detail"] == "Judge it on your phone: this test compares A and B"
     assert queued() == []
+
+
+# ---- The Judge it sheet (Local AI's GET /api/display/lab/judge, tests/display-lab.test.cjs) ----
+
+def judge(env, run="E-021", key=True):
+    c, disp = env
+    return c.get("/api/display/lab/judge", params={"run": run}, headers=disp if key else SAME)
+
+
+@pytest.fixture
+def no_local_ai(monkeypatch):
+    import urllib.request
+
+    def refuse(*a, **k):
+        raise AssertionError("Judge it must not ask Local AI")
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(sources, "localai_feed", refuse)
+
+
+def test_judge_shape_matches_local_ais(env, no_local_ai):
+    c, _ = env
+    ix = index()
+    rec = dict(RECORD, judge_on="the seam on the top face",
+               criteria=[*CRITERIA, {"key": 42, "label": "broken"}])  # the record counts, malformed entries dropped
+    ix["records"]["E-021"]["payload"] = rec
+    ix["experiments"][0].update(criteria=[{"key": "x", "label": "X", "choices": ["a"]}], judge_on="index's own")
+    assert c.post("/api/lab/hex-tile/sync", json=ix, headers=MAC).status_code == 200
+    r = judge(env)
+    assert r.status_code == 200, r.text
+    assert r.headers["cache-control"] == "no-store"
+    assert r.json() == {"experiment": "E-021", "run": "E-021", "judgeOn": "the seam on the top face",
+                        "tabs": ["A", "B"], "criteria": CRITERIA, "judged": None, "pending": None}
+    # Sent from the display: judged by the display, with the request's state.
+    assert verdict(env).status_code == 202
+    body = judge(env).json()
+    assert body["judged"]["by"] == "display" and isinstance(body["judged"]["at"], str) and body["judged"]["at"]
+    assert body["pending"] == {"id": "rq-00000000000000a1", "status": "pending", "message": None}
+
+
+def test_judge_from_the_phone_says_phone(env):
+    c, _ = env
+    synced(env)
+    phone = {"id": "rq-00000000000000c1", "kind": "verdict", "experiment": "E-021", "run": "PR-021-01",
+             "payload": {"grades": ALL, "lighting": "diagnostic", "note": None, "inconclusive": None, "replace": False}}
+    c.cookies.clear()
+    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).status_code == 200
+    assert c.post("/api/lab/hex-tile/requests", json=phone, headers=SAME).status_code == 200
+    assert judge(env).json()["judged"]["by"] == "phone"
+
+
+def test_judge_judge_on_falls_back_to_the_index(env):
+    c, _ = env
+    ix = index()
+    ix["experiments"][0]["judge_on"] = "the top face"
+    assert c.post("/api/lab/hex-tile/sync", json=ix, headers=MAC).status_code == 200
+    assert judge(env).json()["judgeOn"] == "the top face"
+    synced(env, fingerprint="fp-2")
+    assert judge(env).json()["judgeOn"] == ""
+
+
+def test_judge_after_the_verdict_is_applied(env):
+    c, _ = env
+    synced(env)
+    assert verdict(env).status_code == 202
+    c.post("/api/lab/hex-tile/requests/rq-00000000000000a1/result", json={"status": "applied", "message": "Recorded."},
+           headers=MAC)
+    ix = index(needs=[], fingerprint="fp-2")
+    ix["experiments"][0].update(status="answered", verdict={"at": "2026-10-31T12:05:00Z", "by": "owner"})
+    assert c.post("/api/lab/hex-tile/sync", json=ix, headers=MAC).status_code == 200
+    r = judge(env)
+    assert r.status_code == 200
+    assert r.json() == {"experiment": "E-021", "run": "E-021", "judgeOn": "", "tabs": ["A", "B"], "criteria": CRITERIA,
+                        "judged": {"at": "2026-10-31T12:05:00Z", "by": "owner"},
+                        "pending": {"id": "rq-00000000000000a1", "status": "applied", "message": "Recorded."}}
+
+
+def test_judge_nothing_to_judge(env, no_local_ai):
+    assert judge(env).status_code == 409  # no lab data at all
+    assert judge(env).json()["detail"] == MOVED
+    synced(env)
+    for run in ("E-022", "PR-021-01", ""):
+        r = judge(env, run=run)
+        assert r.status_code == 409 and r.json()["detail"] == MOVED, run
+    synced(env, needs=[], fingerprint="fp-2")  # the card has gone and nothing was sent from here
+    assert judge(env).status_code == 409
+
+
+def test_judge_needs_the_display_key(env):
+    synced(env)
+    assert judge(env, key=False).status_code == 401
+
+
+def test_judge_without_criteria_is_for_the_phone(env):
+    c, _ = env
+    ix = index()
+    ix["records"]["E-021"]["payload"] = {"id": "E-021", "variants": RECORD["variants"]}
+    assert c.post("/api/lab/hex-tile/sync", json=ix, headers=MAC).status_code == 200
+    assert judge(env).json() == {"experiment": "E-021", "run": "E-021", "judgeOn": "", "phoneOnly": True,
+                                 "reason": "Judge it on your phone: this test compares A and B"}

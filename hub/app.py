@@ -379,7 +379,7 @@ def api_printer_action(action: str, request: Request):
     need(request, "owner")
     if action not in printer_control.STEPS:
         raise HTTPException(404, "The printer can clear, pause or resume.")
-    if not _printer_busy.acquire(blocking=False):
+    if printer_control.hold(action) is not None:
         raise HTTPException(409, "The hub is already sending the printer a command. Wait a moment.")
     try:
         # Check the printer's state now, not the page's: a stale tab must not pause or clear the wrong print.
@@ -392,7 +392,7 @@ def api_printer_action(action: str, request: Request):
                                      "Nothing was sent.")
         r = printer_control.run(action)
     finally:
-        _printer_busy.release()
+        printer_control.release()
     if "no key" not in r["steps"].values():  # Bambuddy was asked: the next refresh reads its state again
         sources._cache.pop("bambuddy_printer", None)
     if not r["ok"]:

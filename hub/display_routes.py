@@ -171,6 +171,7 @@ async def events(request: Request, since: str = ""):
 # ---- Clear plate ----
 
 CLEAR_RUNNING = "Clear plate is already running."
+PRINTER_BUSY = "The printer is busy with another command."
 # Local AI's banners for the same button (app/bambuddy-control.js clearPlateMessage), so the display reads the same.
 CLEAR_BANNERS = {
     "confirmed": ("Plate confirmed", "Bambuddy accepted the plate confirmation.", "ok"),
@@ -193,9 +194,10 @@ def printer_clear(request: Request):
     time across the hub (printer_control.BUSY; a second tap is refused, never queued), only while the printer is
     finished or failed and waiting for it, and never sent again after a timeout. One banner says how it went."""
     display_pairing.require(request)
-    if not printer_control.BUSY.acquire(blocking=False):
-        auth.log("display", DEVICE, "display:clear-plate", "refused: running")
-        raise HTTPException(409, CLEAR_RUNNING)
+    holder = printer_control.hold("clear")
+    if holder is not None:
+        auth.log("display", DEVICE, "display:clear-plate", f"refused: {holder or 'busy'} running")
+        raise HTTPException(409, CLEAR_RUNNING if holder == "clear" else PRINTER_BUSY)
     try:
         # The printer's state now, not the display's last feed: a stale screen must not clear a running print.
         sources._cache.pop("bambuddy_printer", None)
@@ -209,7 +211,7 @@ def printer_clear(request: Request):
                                      "Nothing was sent.")
         r = printer_control.run("clear")
     finally:
-        printer_control.BUSY.release()
+        printer_control.release()
     if "no key" not in r["steps"].values():  # Bambuddy was asked: the next read sees its state again
         sources._cache.pop("bambuddy_printer", None)
     outcome = _clear_outcome(r)
@@ -309,23 +311,89 @@ def judge_target(run):
     print_run = x.get("run") if x else None
     if not lab._full(lab.RUN_ID_RE, print_run):
         return None
+    return {"project": project, "experiment": eid, "run": print_run, "exp": x, "record": _record(project, eid),
+            "requests": _verdict_requests(project, eid, print_run)}
+
+
+def _record(project, eid):
     rec = db.one("SELECT payload FROM lab_records WHERE project = ? AND id = ?", project, eid)
     try:
-        record = json.loads(rec["payload"]) if rec and rec["payload"] else None
+        return json.loads(rec["payload"]) if rec and rec["payload"] else None
     except ValueError:
-        record = None
-    return {"project": project, "experiment": eid, "run": print_run, "record": record}
+        return None
+
+
+def _verdict_requests(project, eid, print_run, since=None):
+    """The verdict requests for this experiment's print run, newest first (since: only those sent after it)."""
+    rows = db.rows("SELECT id, status, message, created_at, by_device FROM lab_requests WHERE project = ? AND "
+                   "kind = 'verdict' AND experiment = ? AND run = ? ORDER BY created_at DESC, rowid DESC",
+                   project, eid, print_run)
+    if since is not None:
+        rows = [r for r in rows if (lab.parse_iso(r["created_at"]) or 0) >= since]
+    return rows
+
+
+def recent_target(run):
+    """Once the card has gone (the Mac applied the verdict and lab pull synced): for 24 h after a verdict request for
+    this experiment, its project, experiment, stored record and that print run's verdict requests (newest first), as
+    Local AI's recentVerdict. Else None."""
+    if not lab._full(lab.RUN_ID_RE, run):
+        return None
+    lab.ready()
+    since = time.time() - VERDICT_RETRY_S
+    for r in db.rows("SELECT project, run, created_at FROM lab_requests WHERE kind = 'verdict' AND experiment = ? "
+                     "ORDER BY created_at DESC, rowid DESC", run):
+        if (lab.parse_iso(r["created_at"]) or 0) < since:
+            continue
+        project = r["project"]
+        row = db.one("SELECT index_json FROM lab_projects WHERE project = ?", project)
+        try:
+            ix = json.loads(row["index_json"]) if row else {}
+        except ValueError:
+            ix = {}
+        exps = ix.get("experiments") if isinstance(ix, dict) and isinstance(ix.get("experiments"), list) else []
+        x = next((e for e in exps if isinstance(e, dict) and e.get("id") == run), None) or {"id": run}
+        return {"project": project, "experiment": run, "run": r["run"], "exp": x, "record": _record(project, run),
+                "requests": _verdict_requests(project, run, r["run"], since)}
+    return None
 
 
 def _sent_before(run, request_id):
-    """A verdict request with this id for this experiment in the last 24 h, once the card has gone; else None."""
-    if not isinstance(run, str) or not lab._full(lab.REQUEST_ID_RE, request_id):
-        return None
-    lab.ready()
-    row = db.one("SELECT id, status, created_at FROM lab_requests WHERE id = ? AND kind = 'verdict' AND experiment = ?",
-                 request_id, run)
-    at = lab.parse_iso(row["created_at"]) if row else None
-    return row if at is not None and at >= time.time() - VERDICT_RETRY_S else None
+    """A verdict request with this id, sent in the last 24 h for this experiment, once the card has gone; else None."""
+    t = recent_target(run)
+    return next((r for r in t["requests"] if r["id"] == request_id), None) if t else None
+
+
+@router.get("/lab/judge")
+def lab_judge(request: Request, run: str = ""):
+    """The Judge it sheet for the run on the judge card, in Local AI's shape (app/display-lab.js judge):
+    {experiment, run, judgeOn, tabs, criteria, judged, pending}, or {experiment, run, judgeOn, phoneOnly, reason} for a
+    test without criteria. After the card has gone, a run with a verdict request in the last 24 h still gets its sheet
+    (so the display shows Done); anything else is 409. `run` is the card's (the experiment id), as the display posts
+    it back."""
+    display_pairing.require(request)
+    run = run[:64]
+    t = judge_target(run) or recent_target(run)
+    if not t:
+        raise HTTPException(409, MOVED)
+    record, x = t["record"] if isinstance(t["record"], dict) else {}, t["exp"] if isinstance(t["exp"], dict) else {}
+    judge_on = record.get("judge_on") if _text(record.get("judge_on")) else x.get("judge_on") if _text(x.get("judge_on")) else ""
+    base = {"experiment": t["experiment"], "run": run, "judgeOn": judge_on}
+    sheet = sheet_of(t["record"])
+    if not sheet["criteria"] or not sheet["tabs"]:
+        return JSONResponse({**base, "phoneOnly": True, "reason": PHONE_ONLY}, headers={"Cache-Control": "no-store"})
+    reqs = t["requests"]
+    # JavaScript's `a || b`, as Local AI picks the verdict: an object counts even when empty
+    v = next((c for c in (x.get("verdict"), x.get("owner_verdict"), record.get("verdict"), record.get("owner_verdict"))
+              if isinstance(c, (dict, list)) or c), None)
+    waiting = next((r for r in reqs if r["status"] == "pending"), None)
+    judged = ({"at": v.get("at") if _text(v.get("at")) else None, "by": v.get("by") if _text(v.get("by")) else None}
+              if isinstance(v, dict) else
+              {"at": waiting["created_at"], "by": "display" if waiting["by_device"] == "display" else "phone"}
+              if waiting else None)
+    last = reqs[0] if reqs else None
+    pending = {"id": last["id"], "status": last["status"], "message": last["message"]} if last else None
+    return JSONResponse({**base, **sheet, "judged": judged, "pending": pending}, headers={"Cache-Control": "no-store"})
 
 
 def _refuse(status, message, why):
