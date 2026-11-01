@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import time
+import urllib.error
 import urllib.request
 
 HUB = "http://127.0.0.1:8100"
@@ -13,6 +14,8 @@ TOPIC_FILE = "/etc/pi-status/ntfy_topic"
 PAGES = ["/", "/media", "/documents", "/network", "/system", "/lists", "/workshop", "/print", "/pi", "/rules", "/alerts", "/drives", "/settings", "/more"]
 APIS = ["/api/needs", "/api/system/backups", "/api/movies/latest", "/api/projects", "/api/movie-night", "/api/freshness", "/api/now", "/api/movies", "/api/workshop", "/api/print", "/api/lists", "/api/pi", "/api/alerts",
         "/api/rules", "/api/outside", "/api/drives", "/api/camera", "/api/home", "/api/me"]
+# Signed out (as this check is), these must refuse: 401 means the API is up and its sign-in holds.
+SIGNED_IN = {"/api/drives"}
 SERVICES = {"plexmediaserver": "Plex", "homebridge": "Homebridge", "pi-hub": "Pi Hub", "pi-hub-helper": "Pi Hub helper",
             "pi-status": "Status and alerts", "cups": "Printing", "x2d-camera-failover": "Camera address",
             "caddy": "Front gate"}
@@ -21,9 +24,11 @@ GATE_CA = "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt"
 
 def fetch(path, timeout=20):
     t = time.time()
-    with urllib.request.urlopen(HUB + path, timeout=timeout) as r:
-        body = r.read()
-        return r.status, body, round((time.time() - t) * 1000)
+    try:
+        with urllib.request.urlopen(HUB + path, timeout=timeout) as r:
+            return r.status, r.read(), round((time.time() - t) * 1000)
+    except urllib.error.HTTPError as e:  # an answer all the same (a 401 is expected from SIGNED_IN)
+        return e.code, e.read(), round((time.time() - t) * 1000)
 
 
 def main(gate=False):
@@ -43,7 +48,8 @@ def main(gate=False):
         try:
             code, body, ms = fetch(p, timeout=150 if p == "/api/drives" else 30)
             json.loads(body)
-            add(f"API {p}", code == 200, f"{ms} ms")
+            want = 401 if p in SIGNED_IN else 200
+            add(f"API {p}", code == want, f"{ms} ms" if code == want else f"answered {code}, expected {want}")
         except Exception as e:  # noqa: BLE001
             add(f"API {p}", False, str(e)[:80])
     if gate:
