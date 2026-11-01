@@ -94,10 +94,18 @@ export function calmSummaryText(calm = []) {
   return `All else OK: ${shown}${extra}`;
 }
 
+// "Ad blocking: Ad blocking is off" says the name twice: a headline that already starts with the name stands alone.
+export function recordTitle(r) {
+  const label = RECORD_LABELS[r.id] || r.id;
+  const said = r.headline || r.state || "";
+  return said.toLowerCase().startsWith(label.toLowerCase()) ? said : `${label}: ${said}`;
+}
+
 // Merge Needs you items with any problem/attention records so nothing falls through the cracks.
 export function mergeProblems(records = [], needs = null) {
   const out = [];
   const coveredAbout = new Set();
+  const byId = new Map((records || []).map((r) => [r?.id, r]));
   for (const item of needs?.items || []) {
     if (item?.about) coveredAbout.add(item.about);
     if (item?.record) coveredAbout.add(item.record);  // the hub's own record, said once (iPad, 1 Nov: Pi listed twice)
@@ -108,8 +116,9 @@ export function mergeProblems(records = [], needs = null) {
       detail: item.detail || "",
       tone: item.tone === "bad" ? "bad" : "warn",
       about: item.about || "",
-      since: item.since || null,
+      since: item.since || byId.get(item.record)?.since || null,  // the record it stands for knows since when
       act: item.act || null,
+      link: typeof item.link === "string" ? item.link : "",
     });
   }
   for (const r of records) {
@@ -119,7 +128,7 @@ export function mergeProblems(records = [], needs = null) {
       kind: "record",
       id: `rec:${r.id}`,
       recordId: r.id,
-      title: `${RECORD_LABELS[r.id] || r.id}: ${r.headline || r.state}`,
+      title: recordTitle(r),
       detail: r.cause || "",
       tone: recordTone(r.severity),
       about: r.id,
@@ -340,7 +349,16 @@ function renderActiveItem(r, state, onReload) {
 
 function renderProblemRow(p, state, onReload) {
   const actButtons = [];
-  if (p.kind === "need" && p.act) {
+  if (p.kind === "need" && !p.act && p.link) {
+    // Without its own action a need still opens where it is dealt with (the lab's judging page, Settings, Help).
+    const resolved = resolveLink(p.link);
+    const external = /^https?:\/\//i.test(resolved) && !resolved.startsWith(location.origin);
+    actButtons.push(h("a", {
+      class: "action ghost",
+      href: resolved,
+      ...(external ? { target: "_blank", rel: "noopener" } : { "data-link": true }),
+    }, /[?&]do=judge\b/.test(p.link) ? "Judge" : "Open"));
+  } else if (p.kind === "need" && p.act) {
     if (p.act.href) {
       const resolved = resolveLink(p.act.href);
       const external = /^https?:\/\//i.test(resolved) && !resolved.startsWith(location.origin);
@@ -586,8 +604,15 @@ export async function loadControlRoom(state, needs) {
   ]);
   if (Array.isArray(recData?.records)) state.records = recData.records;
   if (Array.isArray(recData?.events)) state.events = recData.events;
-  state.needs = needsData;
+  state.needs = keepNeeds(needs, needsData, state.needs);
   renderControlRoom(state);
+}
+
+// Needs you after the records answer. Home passes null ("not known yet") and hands Needs you over by itself; when the
+// records answer after that hand-over, the null must not wipe it (1 Nov: Problems fell back to records only and lost
+// the print lab's ask whenever /api/records was the slower request).
+export function keepNeeds(passed, fetched, current) {
+  return passed === null && current ? current : fetched;
 }
 
 // Home hands over Needs you when it answers, without fetching the records again.

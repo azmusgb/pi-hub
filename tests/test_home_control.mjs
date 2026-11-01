@@ -54,3 +54,25 @@ test("System lists each service with its record's health, and no health where no
     [{ id: "plex", severity: "ok", state: "idle", headline: "Nothing playing" }]);
   assert.deepEqual(rows.map((r) => [r.name, r.tone, r.status]), [["Plex", "ok", "Nothing playing"], ["ntfy", "", ""]]);
 });
+
+test("records answering after Home's Needs you hand-over don't wipe it", async () => {
+  const { keepNeeds } = await import("../hub/static/js/next.js");
+  const handed = { count: 1, items: [{ id: "pi:lab:x:E-025" }] };
+  assert.equal(keepNeeds(null, null, handed), handed);      // Home passed "not yet"; its hand-over stands
+  assert.equal(keepNeeds(null, null, null), null);          // nothing handed over yet
+  const fetched = { count: 0, items: [] };
+  assert.equal(keepNeeds(undefined, fetched, handed), fetched);  // the page fetched its own: the fresh answer wins
+});
+
+test("a record whose headline already names it isn't titled twice", async () => {
+  const { recordTitle } = await import("../hub/static/js/next.js");
+  assert.equal(recordTitle({ id: "adguard", headline: "Ad blocking is off" }), "Ad blocking is off");
+  assert.equal(recordTitle({ id: "pi", headline: "Pi 66 °C" }), "Raspberry Pi: Pi 66 °C");
+});
+
+test("a need keeps its link and takes since from the record it stands for", () => {
+  const needs = { count: 1, items: [{ id: "pi:Raspberry Pi", title: "Raspberry Pi", tone: "warn", record: "pi", link: "/pi" }] };
+  const [p] = mergeProblems([{ id: "pi", severity: "attention", headline: "Pi 66 °C", since: 1_800_000_000 }], needs);
+  assert.equal(p.link, "/pi");
+  assert.equal(p.since, 1_800_000_000);
+});
