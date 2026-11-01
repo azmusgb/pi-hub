@@ -1,6 +1,7 @@
 # Platform product architecture: one product from the approved designs (design)
 
 Date: 2026-11-01 · Status: decisions D1-D9 approved by the owner on 1 Nov 2026, with four amendments and a rewording of D4 (section 12).
+C1 (Backblaze B2) and D2's service (Healthchecks.io) approved the same day.
 Pending one whole-spec consistency review before it becomes the baseline. Documentation only; no code, config or
 deploy changes
 Type: product architecture. It reconciles the approved designs of the owner's home platform into one product, and
@@ -823,7 +824,7 @@ phrase-table wording, and never shows an empty list as if nothing were wrong.
 | **Pi Hub down** (the Pi, Pi Hub, its Caddy or its database) | The Assistant on its own: Home, Work, Improve, Assistant status. The display's printer telemetry over MQTT. The failure-independent path (D2) | Assistant Home shows only its own attention items, plus one line: "House items unavailable: Pi Hub isn't answering". "← Home" stays visible and fails like any link to a host that is down. The display's household tabs and OTA. Every push except D2's outage message | The D2 outage message ("Pi Hub unreachable since …", then "Pi Hub is back"). LocalAI does not try to rebuild the household list |
 | **A deploy cannot write its `release:` record** (Pi Hub down or restarting) | The deploy itself. It is not blocked by Pi Hub | Versions shows the previous record until the new one arrives | The deploy mechanism keeps the record and retries until Pi Hub accepts it. Pi Hub's own deploy writes its record after the new release passes its checks, or records the rollback |
 | **Caddy's local CA lost** | Everything that uses the real names | The display loses Pi Hub and OTA (D4 boundary) | Display status on the device. Recovery is the tested restore in pi-hub `docs/operations.md` (#33) |
-| **The Pi lost** (disk or hardware) | The PC and the Mac | Every Pi Hub service until it is rebuilt | Restore from the nightly backup and its PC copy, including the CA (#31). There is no off-site copy until C1 is done |
+| **The Pi lost** (disk or hardware) | The PC and the Mac | Every Pi Hub service until it is rebuilt | Restore from the nightly backup and its PC copy, including the CA (#31). The off-site copy is in Backblaze B2 once C1 is live; until then there is none |
 
 ## 11. Migration sequence
 
@@ -850,7 +851,8 @@ it depends on are done. Steps on different lines can run in parallel.
    condition is a later firmware release of its own.
 10. **Atlas on release records (6.4)**, after 3.
 
-D9 (forge) and C1 (off-site backup) are not in this sequence. Neither blocks it.
+D9 (forge) and C1 (off-site backup, section 12) are not in this sequence. Neither blocks it. Step 2's
+`home-platform-alive` check exists before C1; C1 adds `offsite-backup`.
 
 ## 12. Decisions (approved 1 Nov 2026)
 
@@ -885,18 +887,39 @@ Why: the household push must work with the PC off.
 
 *Amendment: the failure-independent path.* One path exists whose only job is to detect and report that Pi Hub is
 unavailable. It must not depend on Pi Hub, its Caddy, its database or its local ntfy.
-- It is always on. The Mac and the PC sleep, so a watcher on either one misses outages while it sleeps. The shape
-  that meets this is a dead-man's switch outside the home: Pi Hub's checker fetches its own health endpoint through
-  Caddy (so Caddy and the database are tested) and, only when that passes, pings an external monitor every few
-  minutes. Silence past a grace period is the alert. A watcher on the Mac or PC is acceptable only with that sleep
-  limitation stated on the record.
-- It delivers through a channel not hosted on the Pi. The external service and account are the owner's choice, as
-  with C1.
+- It is always on. The Mac and the PC sleep, so a watcher on either one would miss outages while it sleeps. The
+  path is therefore a dead-man's switch outside the home, and nothing outside needs to reach Pi Hub.
+- *Service (approved 1 Nov 2026): Healthchecks.io*, check `home-platform-alive`. About every 5 minutes, a scheduled
+  task on the Pi fetches Pi Hub's health endpoint over HTTPS through Caddy, so Caddy and the database are tested.
+  Only when that passes does it ping the check. A failed local check sends nothing, never a success ping. Otherwise
+  the ping would only prove that the Pi can reach the internet. The grace period tolerates one missed run, so one
+  network hiccup does not alert.
+- It delivers through Healthchecks.io's own notifications, which are not hosted on the Pi.
+- Healthchecks.io's availability is best effort, not a guaranteed service level. This is a household-grade
+  independent alarm, not paging with a guarantee.
 - It ignores Pi Hub's quiet hours, because it cannot read them, and it sends at any hour. An outage is the one event
   that warrants that.
-- It says only two things: "Pi Hub unreachable since <time>" and "Pi Hub is back". One message per outage, and
-  nothing else ever goes through it. It is not a second general channel.
-- The probe host and the delivery channel are implementation choices. These constraints are not.
+- It says only two things: Pi Hub is down (and since when) and Pi Hub is back. One message per outage, and nothing
+  else ever goes through it. It is not a second general channel.
+- A second, separate check, `offsite-backup`, follows C1: it is pinged only after a backup to B2 completes
+  successfully, not when one starts. The two checks stay separate because they detect different failures: the house
+  is gone, and the off-site backup has silently stopped.
+
+**C1. Off-site backup: Backblaze B2.** (Report C1; approved 1 Nov 2026) Not a product decision, recorded here
+because section 10's "Pi lost" row depends on it.
+- The owner's personal Backblaze account, with one dedicated private bucket used only for this backup repository.
+  B2 bucket names are globally unique and public, so the name carries no personal information.
+- One application key, restricted to that bucket and to the capabilities restic needs. It is never the master key and
+  never a general-purpose key. It is stored only on the Pi, in Backrest.
+- Done means all of:
+  1. the repository initialises;
+  2. a scheduled backup completes;
+  3. the repository is visible independently of the USB and PC copies;
+  4. selected files are restored from B2 and verified, as the CA restore was;
+  5. a failed off-site backup produces an actionable alert, the `offsite-backup` heartbeat (D2).
+
+  "Backup completed" alone is not done.
+- Cost at about 7 GB is negligible.
 
 **D3. The shared header retires as navigation.** (K5)
 The tool list is generated from the registry. This reverses `kit-faceplate`:3's "D2 stands".
@@ -970,7 +993,7 @@ it block this work.
   - Three kit parts: the Needs-you renderer (exists), a palette component (new) and the phrase table (exists, grows).
 - **Backups, Ollama exposure, the Caddy CA backup** (Report C1-C3). They are prerequisites under any model (Report
   l.1200-1209), not product decisions. C2 and C3 were done on 1 Nov (Ollama firewall; CA backup and restore test,
-  pi-hub #31 and #33). C1, an independent off-site failure domain, is open.
+  pi-hub #31 and #33). C1 is decided (section 12) and not yet built.
 - **FormWorks work tools, personal apps, health data and vendor harnesses.** They stay outside (Report l.1045-1058).
 - **Restyling third-party tools, a multi-user model and replacing Plex's account** (`one-home`:37).
 - **Firmware changes themselves.** The display's tab rename, phrase keys and removal of the direct Bambuddy call go
