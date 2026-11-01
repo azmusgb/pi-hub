@@ -18,6 +18,9 @@ PORT = 8099
 # One home, step 6: pi-lock.py sets 127.0.0.1 (a systemd drop-in); only the hub reads this.
 BIND = os.environ.get("PI_STATUS_BIND", "0.0.0.0")
 WORLD_URL = "https://10.0.0.21/api/world"
+# Local AI's TLS handshake from the LAN sometimes takes 2-5 s while it answers on the PC in 0.2 s (1 Nov); at 1.5 s
+# the hub called a running Local AI down. 4 s stays inside the hub's 6 s wait for this service (sources._get_json).
+WORLD_TIMEOUT = 4
 # Local AI requires sign-in: send Pi Hub's key, and only to Local AI verified by its CA (as hub/display_ai.py does).
 LOCALAI_KEY_FILE = os.environ.get("HUB_LOCALAI_KEY_FILE", "/etc/pi-hub/secrets/localai_hub_key")
 LOCALAI_CA_FILE = os.environ.get("HUB_LOCALAI_CA_FILE", "/etc/pi-hub/secrets/localai-ca.crt")
@@ -188,7 +191,7 @@ def world():
         raise RuntimeError("Local AI hub key or CA isn't set up")
     opener = urllib.request.build_opener(_NoRedirect(), urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=LOCALAI_CA_FILE)))
     req = urllib.request.Request(WORLD_URL, headers={"X-LocalAI-Hub-Key": key, "Accept": "application/json"})
-    with opener.open(req, timeout=1.5) as r:
+    with opener.open(req, timeout=WORLD_TIMEOUT) as r:
         return json.loads(r.read(512 * 1024))
 
 
