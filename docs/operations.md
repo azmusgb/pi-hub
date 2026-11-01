@@ -217,8 +217,8 @@ Step 1 of moving the workshop display's household side onto Pi Hub. Built, not y
 **Pairing.** System, "Workshop display", Pair display. The page shows a 6-digit code with the minutes left (it re-checks every 5 seconds while open). Type it on the display. Afterwards the card says "Paired <date>"; "Pair again" makes a new code. Owner only.
 
 **The hub key and Local AI's CA.** `deploy/install.sh` (run from the Mac) does two things on the Pi, each only if missing and never overwriting:
-- Creates `/etc/pi-hub/secrets/localai_hub_key` (random, mode 0640 root:pi-hub) and prints `LOCALAI_HUB_KEY_SHA256=<hash>`. Only the hash is printed. Put that line in Local AI's `C:\LocalAI\stack\stack.env`, then recreate the appliance so it loads it (this restarts Local AI, so ask first): `docker compose --env-file C:\LocalAI\stack\stack.env -f C:\LocalAI\repo\deploy\stack\compose.yml up -d appliance`.
-- Fetches Local AI's CA from `http://10.0.0.21/localai-ca.crt` to `/etc/pi-hub/secrets/localai-ca.crt` (0644), checks it parses as a certificate, and prints its SHA-256 fingerprint. Confirm it matches the CA you expect; if the PC was off, rerun later.
+- Creates `/etc/pi-hub/secrets/localai_hub_key` (random, no trailing newline, mode 0640 root:pi-hub) and prints `LOCALAI_HUB_KEY_SHA256=<hash>`. Only the hash is printed. Put that line in Local AI's `C:\LocalAI\stack\stack.env`, then recreate the appliance so it loads it (this restarts Local AI, so ask first): `docker compose --env-file C:\LocalAI\stack\stack.env -f C:\LocalAI\repo\deploy\stack\compose.yml up -d appliance`.
+- Reads Local AI's CA from the PC over ssh (`ssh windows`, `C:\LocalAI\https\localai-ca.crt`; never plain HTTP), checks it parses as a certificate, installs it as `/etc/pi-hub/secrets/localai-ca.crt` (0644), and prints its SHA-256 fingerprint. Confirm it matches the CA you expect; if the PC is off or ssh fails, that step is skipped and the release continues; rerun later.
 
 **Check.** Pair a display, then `curl -s -H "Authorization: Bearer <display key>" https://home.home.arpa/api/display/feed`: it should show the household cards, and `ai.available: true` once Local AI has the hash.
 

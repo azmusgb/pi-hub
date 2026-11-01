@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { api } from "../hub/static/js/core.js";
 import { pairState, minutesText, pairError } from "../hub/static/js/display-pair.js";
 
 test("not paired", () => {
@@ -31,4 +32,16 @@ test("minutesText and error copy", () => {
   assert.equal(minutesText(0), "Under a minute left");
   assert.match(pairError({ status: 403 }), /household PIN|owner/i);
   assert.match(pairError(new Error("x")), /Couldn't/);
+});
+
+test("pairError shows the owner-only copy for an error thrown by the real api()", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ detail: "Owner only" }), { status: 403, headers: { "content-type": "application/json" } });
+  try {
+    await assert.rejects(api("/api/display/pair/start", { method: "POST" }), (e) => {
+      assert.equal(e.status, 403);
+      assert.match(pairError(e), /Only the owner/);
+      return true;
+    });
+  } finally { globalThis.fetch = realFetch; }
 });
