@@ -146,3 +146,26 @@ def test_heartbeat_updates_the_display_record(env):
     assert display_messages.last_heartbeat() is None
     assert house.workshop_display({"display_state": "Offline"})["state"] == "offline"
     assert house.workshop_display(None) is None
+
+
+def test_heartbeat_is_not_logged_and_is_hardened(env):
+    c, h = TestClient(hub_app.app), paired(env)
+    before = db.one("SELECT COUNT(*) AS n FROM action_log")["n"]
+    r = c.post("/api/display/heartbeat", json={"version": {"a": [1]}, "sourceSha": "s" * 500, "uptimeS": "x",
+                                               "rssi": -61.7, "heapFree": True, "psramFree": 9, "camera": "c" * 99,
+                                               "extra": 1}, headers=h)
+    assert r.status_code == 200
+    assert db.one("SELECT COUNT(*) AS n FROM action_log")["n"] == before
+    beat = display_messages.last_heartbeat()
+    assert beat == {"sourceSha": "s" * 64, "rssi": -61, "psramFree": 9, "camera": "c" * 32}
+    assert c.post("/api/display/heartbeat", json={"camera": False, "version": 7}, headers=h).status_code == 200
+    assert display_messages.last_heartbeat() == {"version": "7", "camera": False}
+
+
+def test_heartbeat_over_2kb_is_refused_and_never_reaches_the_record(env):
+    c, h = TestClient(hub_app.app), paired(env)
+    assert c.post("/api/display/heartbeat", json={"version": "v" * 10240}, headers=h).status_code == 413
+    assert display_messages.last_heartbeat() is None
+    assert c.post("/api/display/heartbeat", json={"version": {"nested": "v" * 100}}, headers=h).status_code == 200
+    assert len(str(house.workshop_display(None)["detail"]["firmware"] or "")) <= 64
+    assert "nested" not in repr(house.workshop_display(None))

@@ -1,5 +1,6 @@
 """What the workshop display calls: pairing, the feed and its long poll; actions join it later."""
 import asyncio
+import json
 import queue
 import time
 
@@ -89,14 +90,45 @@ async def notify(request: Request):
     return {"ok": True, "seq": seq}
 
 
+HEARTBEAT_MAX = 2048
+
+
+def _int(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        return None
+    return int(v)
+
+
+def clean_heartbeat(body):
+    """Only the known fields, each coerced: strings cut to 64, numbers as ints, camera a short string or a bool."""
+    out = {}
+    for k in ("version", "sourceSha"):
+        if isinstance(body.get(k), (str, int, float)) and not isinstance(body.get(k), bool):
+            out[k] = str(body[k])[:64]
+    for k in ("uptimeS", "rssi", "heapFree", "psramFree"):
+        n = _int(body.get(k))
+        if n is not None:
+            out[k] = n
+    cam = body.get("camera")
+    if isinstance(cam, bool):
+        out["camera"] = cam
+    elif isinstance(cam, str):
+        out["camera"] = cam[:32]
+    return out
+
+
 @router.post("/heartbeat")
 async def heartbeat(request: Request):
     display_pairing.require(request)
-    body = await _json(request)
-    keep = ("version", "sourceSha", "uptimeS", "rssi", "heapFree", "psramFree", "camera")
-    display_messages.store_heartbeat({k: body[k] for k in keep if k in body}, time.time())
-    auth.log("display", DEVICE, "display:heartbeat", "ok")
-    return {"ok": True}
+    raw = await request.body()
+    if len(raw) > HEARTBEAT_MAX:
+        raise HTTPException(413, "That heartbeat is too big.")
+    try:
+        body = json.loads(raw or b"{}")
+    except ValueError:
+        body = {}
+    display_messages.store_heartbeat(clean_heartbeat(body if isinstance(body, dict) else {}), time.time())
+    return {"ok": True}  # not logged: a heartbeat is the display's pulse, not an action
 
 
 @router.get("/feed")
