@@ -97,6 +97,34 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 
 The nightly backup script takes a consistent SQLite copy plus its referenced project model files, then archives selected Pi settings and Caddy's local CA (`/var/lib/caddy/.local/share/caddy/pki`). The Workshop display pins that CA, so restoring it is what saves a USB re-flash after rebuilding the Pi. A SQLite writer lock protects the database/file snapshot; mutations may briefly wait during this step. See the [household feature guide](household-features.md) for attachment limits and restore expectations. The Windows pull script is `deploy/windows-pull-backups.ps1`; historical deployment notes record copies in `C:\LocalAI\pi-backups`. Confirm freshness in Settings and the self-check rather than assuming that scheduled copies succeeded.
 
+### Restore Caddy's local CA (the display's trust anchor)
+
+The Workshop display pins this CA's root certificate (`home.home.arpa` for the feed, `updates.home.arpa` for updates). This is a temporary compatibility boundary: every other client uses `*.rahe-home.duckdns.org` with a public certificate. It ends when the firmware can use the production names and trust without a risky field migration. Until then, a rebuilt Pi must get **the same CA back**. If Caddy creates a new one, the display stops trusting the Pi until it is re-flashed over USB.
+
+The root to expect has SHA-256 fingerprint `C1:B4:0C:93:3F:4D:F2:5E:F7:04:DE:D4:11:65:AD:31:7B:3D:5C:B4:C9:D0:B4:03:75:B2:E8:77:9D:09:12:45`.
+
+Copies, newest first:
+- `/var/backups/pi-hub/pi-*.tgz` on the Pi (14 days).
+- The `pi` restic repository in Backrest (USB drive).
+- `C:\LocalAI\pi-backups\pi-*.tgz` on the PC.
+
+Restore before Caddy serves the house names, or with Caddy stopped:
+
+```sh
+sudo systemctl stop caddy
+sudo tar -xzf /path/to/pi-YYYYMMDD-HHMM.tgz -C / var/lib/caddy/.local/share/caddy/pki
+sudo chown -R caddy:caddy /var/lib/caddy/.local/share/caddy/pki
+sudo chmod -R go-rwx /var/lib/caddy/.local/share/caddy/pki
+# Certificates issued by any other CA in the meantime must go, or Caddy keeps serving them:
+sudo rm -rf /var/lib/caddy/.local/share/caddy/certificates/local
+sudo systemctl start caddy
+curl -s http://10.0.0.30/home-ca.crt | openssl x509 -noout -fingerprint -sha256   # must match the fingerprint above
+```
+
+Then check the display still reaches Pi Hub (the Workshop display card on `/system`).
+
+To test a backup without touching the running Pi, extract the `pki` folder into a temporary directory and compare `sha256sum` of `authorities/local/root.crt` and `root.key` with the live files. On 1 Nov 2026 this matched for the Pi archive and the PC copy, and the restored key matched the restored certificate.
+
 Application rollback does not restore SQLite data or undo schema migrations. The release mechanism does not guarantee recovery across power loss. A database restore drill and a schema migration strategy remain outstanding; use [the status checklist](status.md) to track them.
 
 ## Movie copy from the PC
