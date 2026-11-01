@@ -223,6 +223,21 @@ def test_make_client_uses_env(monkeypatch, tmp_path):
     assert str(client.base_url) == "https://example.test" and client.timeout.read == 10.0
 
 
+def test_make_client_defaults_to_the_hub_real_name(monkeypatch):
+    for name in ("HOME_MCP_HUB_URL", "HOME_MCP_HUB_CA", "HOME_MCP_TIMEOUT"):
+        monkeypatch.delenv(name, raising=False)
+    assert str(hub.make_client().base_url) == "https://hub.rahe-home.duckdns.org"
+
+
+async def test_a_moved_hub_is_named_not_bad_json():
+    def handler(request):
+        return httpx.Response(308, headers={"location": f"https://new.example{request.url.path}"})
+    d = await data(build_server(factory(handler)), "hub_now")
+    errors = {e["source"]: e for e in d["errors"]}
+    assert errors["pi-hub /api/now"] == {"source": "pi-hub /api/now", "error": "http",
+                                         "detail": "HTTP 308 to https://new.example/api/now"}
+
+
 # --- Review of 31 Oct 2026: a malformed answer is an error, never "nothing needs attention" --------------------
 
 async def test_hub_now_arrays_where_objects_belong_are_schema_errors():

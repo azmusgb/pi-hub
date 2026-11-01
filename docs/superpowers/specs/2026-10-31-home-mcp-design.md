@@ -29,8 +29,8 @@ CAD/slicing MCP; LocalAI's INTEGRATIONS.md plans an opt-in Penpot MCP bridge. Ne
 
 | Variable | Default |
 |---|---|
-| `HOME_MCP_HUB_URL` | `https://home.home.arpa` |
-| `HOME_MCP_HUB_CA` | `~/.config/print-lab/home-ca.crt` (system CAs if the file is missing) |
+| `HOME_MCP_HUB_URL` | `https://hub.rahe-home.duckdns.org` (was `https://home.home.arpa` until the names moved on 1 Nov 2026) |
+| `HOME_MCP_HUB_CA` | unset: system CAs (the hub's name has a public certificate) |
 | `HOME_MCP_TIMEOUT` | `10` seconds |
 
 ## Phases

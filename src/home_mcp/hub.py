@@ -7,8 +7,7 @@ from pathlib import Path
 
 import httpx
 
-DEFAULT_URL = "https://home.home.arpa"
-DEFAULT_CA = Path.home() / ".config" / "print-lab" / "home-ca.crt"
+DEFAULT_URL = "https://hub.rahe-home.duckdns.org"
 
 
 def now_iso() -> str:
@@ -32,8 +31,10 @@ def make_client(transport: httpx.AsyncBaseTransport | None = None) -> httpx.Asyn
         timeout = float(os.environ.get("HOME_MCP_TIMEOUT", "10"))
     except ValueError:
         timeout = 10.0
-    ca = Path(os.environ.get("HOME_MCP_HUB_CA") or DEFAULT_CA).expanduser()
-    verify: ssl.SSLContext | bool = ssl.create_default_context(cafile=str(ca)) if ca.is_file() else True
+    ca = os.environ.get("HOME_MCP_HUB_CA")
+    ca_path = Path(ca).expanduser() if ca else None
+    verify: ssl.SSLContext | bool = (ssl.create_default_context(cafile=str(ca_path))
+                                     if ca_path and ca_path.is_file() else True)
     return httpx.AsyncClient(base_url=base, timeout=timeout, verify=verify, transport=transport,
                              headers={"Accept": "application/json"})
 
@@ -47,6 +48,10 @@ async def get(client: httpx.AsyncClient, path: str) -> tuple[object | None, dict
         return None, {"source": source, "error": "unreachable", "detail": "timed out"}
     except httpx.HTTPError as e:
         return None, {"source": source, "error": "unreachable", "detail": str(e) or type(e).__name__}
+    if r.is_redirect:
+        where = r.headers.get("location")
+        detail = f"HTTP {r.status_code} to {where}" if where else f"HTTP {r.status_code}"
+        return None, {"source": source, "error": "http", "detail": detail}
     if r.status_code >= 400:
         return None, {"source": source, "error": "http", "detail": f"HTTP {r.status_code}"}
     try:
