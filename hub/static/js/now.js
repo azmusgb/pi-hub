@@ -90,6 +90,17 @@ function printerMetric(label, value) {
     h("strong", { class: "printer-metric__value" }, String(value)));
 }
 
+// A file name as a title: no extension, and "RIFT_MARKED_10IN_SINGLE" as "Rift marked 10in single". Mixed-case names
+// are kept as they were written.
+export function jobTitle(name) {
+  const base = String(name || "").replace(/\.(gcode\.3mf|3mf|gcode)$/i, "").trim();
+  if (!base) return "";
+  const spaced = base.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  if (spaced !== spaced.toUpperCase()) return spaced;
+  const lower = spaced.toLowerCase();
+  return lower[0].toUpperCase() + lower.slice(1);
+}
+
 function telemetryBadge(p) {
   const telemetry = p.telemetry || {};
   let state = telemetry.status || "offline";
@@ -98,11 +109,15 @@ function telemetryBadge(p) {
   if ((state === "offline" || !state) && (p.state === "printing" || p.state === "paused")) {
     state = "degraded";
   }
-  const label = state === "live" ? "Live" : state === "degraded" ? "Fallback" : "Offline";
+  // "Fallback" said nothing (iPad, 1 Nov): degraded means Bambuddy isn't connected and the Pi's status is read instead.
+  const label = state === "live" ? "Live" : state === "degraded" ? "Backup readings" : "Offline";
+  const why = state === "degraded"
+    ? "Bambuddy isn't connected to the printer, so these readings come from the Pi's status service and update less often."
+    : telemetry.source || "Printer telemetry";
   return h("span", {
     class: "printer-source",
     dataset: { state },
-    title: telemetry.source || "Printer telemetry"
+    title: why
   },
     h("span", { class: "printer-source__dot", "aria-hidden": "true" }),
     label);
@@ -153,7 +168,6 @@ export function band(p, cam = null) {
         ? `${p.bed_temp}°C${p.bed_target != null ? ` / ${p.bed_target}°C` : ""}`
         : null
     ),
-    printerMetric("ETA", p.minutes_left != null ? `${p.minutes_left} min` : null),
     printerMetric("AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null),
     printerMetric("Material", p.filament_type || null),
   ].filter(Boolean);
@@ -164,7 +178,7 @@ export function band(p, cam = null) {
   const displayHeadline = isPrinting && pct != null
     ? `${p.state === "paused" ? "Paused" : "Printing"} · ${pct}%`
     : p.headline;
-  const cleanJob = p.job_name ? String(p.job_name).replace(/\.(gcode\.3mf|3mf|gcode)$/i, "") : "";
+  const cleanJob = jobTitle(p.job_name);
 
   return h("section", {
     class: cls,
@@ -189,8 +203,7 @@ export function band(p, cam = null) {
           "aria-valuenow": pct
         },
           h("div", { class: "line-track" }),
-          h("div", { class: "line-bead", style: `width:${pct}%` }),
-          h("div", { class: "line-nozzle", style: `left:${pct}%` })),
+          h("div", { class: "line-bead", style: `width:${pct}%` })),
         h("p", { class: "band-detail" }, ...detail),
         metrics.length
           ? h("div", {
@@ -263,7 +276,7 @@ function workshopKioskConsole(d, cam, lab = null, onDone = null) {
   // "Layer 93 / 150" wraps as one piece, never "Layer 93 /" over "150".
   const done = isPrinting ? finishDay(p.minutes_left) : "";
   const layer = p.layer_num ? [" · ", h("span", { class: "nowrap" }, `Layer ${p.layer_num} / ${p.total_layers || '?'}`)] : null;
-  const cleanJob = p.job_name ? String(p.job_name).replace(/\.(gcode\.3mf|3mf|gcode)$/i, "") : "";
+  const cleanJob = jobTitle(p.job_name);
   const jobTag = isPrinting && cleanJob ? [" · ", h("span", { class: "kiosk-job-tag" }, cleanJob)] : null;
   const jobSubtitle = isPrinting && p.left
     ? [done ? `${pct}% · ${p.left} to go` : `Done in about ${p.left}`, layer, jobTag]
