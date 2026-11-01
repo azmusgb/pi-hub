@@ -134,4 +134,4 @@ def test_caddyfile_caps_lab_bodies():
     # Step 6: plain http keeps only the machine paths, so the lab (and the Mac's key) never reaches the hub there.
     http = text.split("\nhttp:// {", 1)[1].split("\n}\n", 1)[0]
     assert "/api/lab" not in http
-    assert "redir https://home.home.arpa{uri} 308" in http
+    assert "redir https://hub.rahe-home.duckdns.org{uri} 308" in http

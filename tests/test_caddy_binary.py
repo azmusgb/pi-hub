@@ -44,8 +44,20 @@ def test_duckdns_token_reaches_caddy_but_is_optional():
     assert "EnvironmentFile=-/etc/pi-hub/secrets/duckdns.env" in line
 
 
-def test_every_home_arpa_tool_has_a_real_name():
+def test_the_old_names_only_redirect_or_serve_machines():
     caddyfile = open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
-    tools = set(re.findall(r"^([a-z]+)\.home\.arpa \{", caddyfile, re.M)) - {"home", "updates"}
+    sites = re.findall(r"^(\S+) \{$", caddyfile, re.M)
+    old = [x for x in sites if x.endswith("home.arpa")]
+    assert sorted(old) == ["*.home.arpa", "home.home.arpa", "updates.home.arpa"]
+    assert "redir https://{labels.2}.rahe-home.duckdns.org{uri} 308" in caddyfile
+    block = caddyfile.split("\nhome.home.arpa {", 1)[1].split("\n}\n", 1)[0]
+    assert "handle /api/display/*" in block and "handle /api/lab/*" in block
+    assert "redir https://hub.rahe-home.duckdns.org{uri} 308" in block
+    assert "gated" not in block  # nothing for people on the old name
+
+
+def test_every_tool_has_a_real_name():
+    caddyfile = open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", caddyfile, re.M))
-    assert tools and real == tools | {"hub"}
+    assert real == {"hub", "assistant", "bambuddy", "paperless", "homebox", "backups", "network", "status", "adguard",
+                    "devices", "pi", "scan"}

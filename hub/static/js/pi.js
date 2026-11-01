@@ -1318,7 +1318,7 @@ function networkCard(network) {
         "a",
         {
           class: "button secondary",
-          href: m.grafana_url || "https://network.home.arpa/",
+          href: m.grafana_url || "https://network.rahe-home.duckdns.org/",
           target: "_blank",
           rel: "noopener",
           style: "font-size: .875rem; text-decoration: none;",
@@ -1329,7 +1329,7 @@ function networkCard(network) {
         "a",
         {
           class: "button secondary",
-          href: m.uptime_kuma_url || "https://status.home.arpa/status/home",
+          href: m.uptime_kuma_url || "https://status.rahe-home.duckdns.org/status/home",
           target: "_blank",
           rel: "noopener",
           style: "font-size: .875rem; text-decoration: none;",

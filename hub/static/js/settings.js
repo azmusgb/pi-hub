@@ -120,7 +120,7 @@ function signIn(state, m) {
 function devicesCard(v, save) {
   const mine = v.this && v.listed.some((x) => x.stable_id === v.this.stable_id);
   return card("Your devices", { cls: "wide", pill: v.listed.length ? `${v.listed.length}` : "None yet", tone: v.listed.length ? "ok" : "warn" },
-    h("p", { class: "meta" }, "Your own Tailscale devices open the hub and every home.arpa tool as the owner, with no password. Tailscale proves which device is asking. Remove a device here, or from Tailscale, and it needs the owner password again."),
+    h("p", { class: "meta" }, "Your own Tailscale devices open the hub and every house tool as the owner, with no password. Tailscale proves which device is asking. Remove a device here, or from Tailscale, and it needs the owner password again."),
     v.listed.length ? h("ul", { class: "log" }, v.listed.map((x) => h("li", { class: "log-row" },
       h("span", { class: "dot", dataset: { tone: "ok" } }),
       h("span", { class: "log-main" }, h("strong", {}, x.name, v.this?.stable_id === x.stable_id ? " (this device)" : ""),

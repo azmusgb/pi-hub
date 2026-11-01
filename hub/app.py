@@ -630,16 +630,15 @@ def _signed_in(token, role):
 
 @app.post("/api/gate/renew")
 async def api_gate_renew(request: Request):
-    """A signed-in owner on home.home.arpa asks to open a tool: hand back its address with a one-time code that the
-    gate spends on that tool's own host (a cookie can't span home.arpa names), so the sign-in hand-back never bounces."""
+    """A signed-in owner on the hub asks to open a tool: hand back its address with a one-time code that the gate
+    spends on that tool's own host (its cookie is host-only), so the sign-in hand-back never bounces."""
     need(request, "owner")
-    if not gate.on_home_arpa(request.headers.get("host", "")):
-        raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
+    if not gate.on_house_name(request.headers.get("host", "")):
+        raise HTTPException(400, f"Open the hub at {gate.HOME} to sign in to the other tools.")
     b = await request.json()
-    home = gate.home_for(request.headers.get("host", ""))
-    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None, home)
+    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None)
     host = urlsplit(nxt).hostname
-    if nxt == home or host in gate.HUBS.values():
+    if nxt == gate.HOME or host == gate.HUB_HOST:
         raise HTTPException(400, "That isn't one of the other tools.")
     if devices.owner_device(request):  # the gate lets the owner's own devices through without a code
         return fresh({"next": nxt})
@@ -651,19 +650,18 @@ async def api_gate_renew(request: Request):
 
 @app.get("/api/gate")
 def api_gate(request: Request):
-    """Caddy's forward_auth check for every *.home.arpa tool: only the owner passes. A hand-off code in the address is
+    """Caddy's forward_auth check for every gated tool: only the owner passes. A hand-off code in the address is
     spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
     url, code = gate.split_code(gate.original_url(request.headers))
     h = auth.session(request.cookies.get(auth.COOKIE))
-    # Every pass needs a request a Lax cookie would allow across sites. Under home.arpa each tool is its own site, so the
-    # gate cookie's SameSite=Lax did this; under the real name every tool shares one site, so a page on one tool could
-    # otherwise post to another with that tool's cookie.
+    # Every pass needs a request a Lax cookie would allow across sites: every tool shares one site, so SameSite=Lax alone
+    # would let a page on one tool post to another with that tool's cookie.
     ok = gate.lax_like(request.headers) and bool(
         auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
         or devices.owner_device(request))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
-        loc = gate.safe_next(url, gate.home_for(host))  # the redirect target must be the very host the code is spent on
+        loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
         same = urlsplit(loc).hostname == host
         token = auth.redeem_gate_code(code, host) if same else None
         if token:

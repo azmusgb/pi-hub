@@ -67,7 +67,7 @@ def test_browsers_keep_their_path(plain_http):
     assert "match" not in last
     (redir,) = [h for h in _handlers(last["handle"]) if h["handler"] == "static_response"]
     assert redir["status_code"] == 308
-    assert redir["headers"]["Location"] == ["https://home.home.arpa{http.request.uri}"]
+    assert redir["headers"]["Location"] == ["https://hub.rahe-home.duckdns.org{http.request.uri}"]
     assert not [h for h in _handlers(last["handle"]) if h["handler"] == "reverse_proxy"]
 
 

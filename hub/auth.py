@@ -155,7 +155,7 @@ def session(token, gate=False):
 
 
 def gate_session(owner_token):
-    """A token only the front gate accepts (role "gate"): it is the cookie every *.home.arpa tool sees, so it must
+    """A token only the front gate accepts (role "gate"): it is the cookie every gated tool sees, so it must
     never work as a hub session. It belongs to the owner sign-in that made it (device "gate:<that session's hash>"),
     ends when that sign-in ends, and goes when it signs out. None when owner_token isn't a live owner session."""
     owner = session(owner_token)
@@ -169,8 +169,8 @@ def gate_session(owner_token):
 
 
 def gate_code(owner_token, host):
-    """A one-time code (good GATE_CODE_SECONDS) that `host`'s tool trades for its own gate token. Browsers won't share
-    a cookie across *.home.arpa, so each tool redeems this on its own host. None when owner_token isn't a live owner."""
+    """A one-time code (good GATE_CODE_SECONDS) that `host`'s tool trades for its own gate token. Each tool's cookie is
+    host-only, so each tool redeems this on its own host. None when owner_token isn't a live owner."""
     owner = session(owner_token)
     if not owner or owner["role"] != "owner":
         return None

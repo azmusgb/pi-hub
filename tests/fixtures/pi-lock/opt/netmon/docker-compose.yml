@@ -77,7 +77,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      # The front gate (Caddy on this Pi, https://network.home.arpa) signs the owner in as `bill`. Host networking
+      # The front gate (Caddy on this Pi, https://network.rahe-home.duckdns.org) signs the owner in as `bill`. Host networking
       # means only processes on the Pi itself come from 127.0.0.1, and the header's name is a secret shared with
       # Caddy (GF_AUTH_PROXY_HEADER_NAME, from the env_file below), so other local services can't forge it.
       - GF_AUTH_PROXY_ENABLED=true

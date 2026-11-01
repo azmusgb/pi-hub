@@ -1,6 +1,6 @@
 #!/usr/sbin/nft -f
 # One home, step 6 (lock): Bambuddy's :8000 answers only its machine callers. The browser way in is the gate,
-# https://bambuddy.home.arpa (Caddy reaches it on 127.0.0.1). Its own table, so Docker rebuilding its tables never
+# https://bambuddy.rahe-home.duckdns.org (Caddy reaches it on 127.0.0.1). Its own table, so Docker rebuilding its tables never
 # removes it. Two ways in: Docker's NAT (forward, matched on the port the caller dialled: ct original) and docker-proxy's
 # own sockets on 0.0.0.0/[::] (input). Forward matches only connections Docker NATed to a published port (ct status dnat). IPv6 only from the
 # Pi itself.

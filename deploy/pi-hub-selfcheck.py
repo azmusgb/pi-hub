@@ -19,7 +19,6 @@ SIGNED_IN = {"/api/drives"}
 SERVICES = {"plexmediaserver": "Plex", "homebridge": "Homebridge", "pi-hub": "Pi Hub", "pi-hub-helper": "Pi Hub helper",
             "pi-status": "Status and alerts", "cups": "Printing", "x2d-camera-failover": "Camera address",
             "caddy": "Front gate"}
-GATE_CA = "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt"
 
 
 def fetch(path, timeout=20):
@@ -59,8 +58,9 @@ def main(gate=False):
     states = subprocess.run(["systemctl", "is-active", *SERVICES], capture_output=True, text=True).stdout.split()
     for (unit, name), state in zip(SERVICES.items(), states):
         add(name, state == "active", state)
-    r = subprocess.run(["curl", "-s", "--max-time", "10", "--cacert", GATE_CA, "--resolve", "home.home.arpa:443:127.0.0.1",
-                        "-o", "/dev/null", "-w", "%{http_code}", "https://home.home.arpa/healthz"], capture_output=True, text=True)
+    # The hub's real name, checked against the system's trust (its certificate is Let's Encrypt's).
+    r = subprocess.run(["curl", "-s", "--max-time", "10", "--resolve", "hub.rahe-home.duckdns.org:443:127.0.0.1",
+                        "-o", "/dev/null", "-w", "%{http_code}", "https://hub.rahe-home.duckdns.org/healthz"], capture_output=True, text=True)
     add("The front gate answers", r.stdout == "200", r.stdout or "no answer")
     st = os.statvfs("/")
     free = st.f_bavail * st.f_frsize / 1e9

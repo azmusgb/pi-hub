@@ -56,7 +56,7 @@ def test_failed_print_pushes_once_with_click_and_urgent():
     (title, body), k = send.calls[0]
     assert title == "X2D print stopped at 40%" and body == "Stopped at 40%."
     assert k == {"tags": "rotating_light", "priority": "high", "urgent": True,
-                 "click": "https://home.home.arpa/workshop"}
+                 "click": "https://hub.rahe-home.duckdns.org/workshop"}
     row = db.one("SELECT * FROM push_occurrences WHERE cause = 'print'")
     assert row == {"cause": "print", "first_seen": T, "pushed_at": T, "cleared_at": None}
 
@@ -128,7 +128,7 @@ def test_hms_is_a_print_cause_and_pc_has_its_own_link():
     got = urgent.check({"hms": rec("stopped"), "pc_printing": rec("off_while_printing")}, T, send=send)
     assert sorted(got) == ["pc", "print"]
     clicks = sorted(k["click"] for _, k in send.calls)
-    assert clicks == ["https://home.home.arpa/", "https://home.home.arpa/workshop"]
+    assert clicks == ["https://hub.rahe-home.duckdns.org/", "https://hub.rahe-home.duckdns.org/workshop"]
 
 
 def test_recently_pushed():
@@ -239,7 +239,7 @@ def test_webhook_failure_then_loop_is_one_phone_alert(monkeypatch):
     events.loop_pass(False, T + 90, inputs(bambuddy=bud("FAILED", 40, awaiting=True)))
     assert len(sent) == 1
     assert sent[0][1] == {"tags": "rotating_light", "priority": "high", "urgent": True,
-                          "click": "https://home.home.arpa/workshop"}
+                          "click": "https://hub.rahe-home.duckdns.org/workshop"}
 
 
 def _cancel(monkeypatch, awaiting):

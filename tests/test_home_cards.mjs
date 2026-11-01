@@ -13,7 +13,7 @@ const NEEDS = { count: 2, items: [{ source: 'Printer', tone: 'attention', title:
   { source: 'Pi', tone: 'warn', title: 'Pi is hot', detail: '', link: '/alerts' }], unread: [] };
 const BACKUPS = { available: true, repos: [{ name: 'Pi', hours: 6 }, { name: 'Mac', hours: 20 }] };
 const HOME = { connected: true, accessories: [{ on: true }, { on: false }, { on: true }] };
-const all = (over = {}) => homeCards({ now: NOW, needs: NEEDS, backups: BACKUPS, home: HOME, latest: { title: 'Dune' }, at: AT, host: 'home.home.arpa', ...over });
+const all = (over = {}) => homeCards({ now: NOW, needs: NEEDS, backups: BACKUPS, home: HOME, latest: { title: 'Dune' }, at: AT, host: 'hub.rahe-home.duckdns.org', ...over });
 const by = (cards) => Object.fromEntries(cards.map((c) => [c.key, c]));
 
 test('Needs you comes first, and only when something needs you', () => {
@@ -31,9 +31,9 @@ test('each card has a status line and one main action in task words', () => {
   const c = by(all());
   assert.equal(c.workshop.title, 'Bambu X2D');
   assert.match(c.workshop.status, /^Printing, 94% · done (2|14):20/);
-  assert.deepEqual(c.workshop.action, { label: 'Open Bambuddy ↗', href: 'https://bambuddy.home.arpa/' });
+  assert.deepEqual(c.workshop.action, { label: 'Open Bambuddy ↗', href: 'https://bambuddy.rahe-home.duckdns.org/' });
   assert.deepEqual(c.documents.action, { label: 'Find a document', href: '/documents' });
-  assert.deepEqual(c.documents.link, { label: 'Scan ↗', href: 'https://scan.home.arpa/' });
+  assert.deepEqual(c.documents.link, { label: 'Scan ↗', href: 'https://scan.rahe-home.duckdns.org/' });
   assert.equal(c.media.status, 'Now playing: Arrival · Latest: Dune');
   assert.equal(c.network.status, 'Internet OK · 2 devices on');
   assert.equal(c.system.status, 'Backed up 20 h ago · Pi 52 °C');
@@ -80,7 +80,7 @@ test('the Home badge equals the Needs you count', () => {
 });
 
 test('links use the gate names even when the hub is opened by IP (step 6)', () => {
-  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'https://bambuddy.home.arpa/');
+  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'https://bambuddy.rahe-home.duckdns.org/');
 });
 
 test('Needs you says when it could not check, even with nothing else to show', () => {
@@ -100,7 +100,7 @@ test('before the extra sources answer, Home shows its cards with "Checking…" i
 });
 
 test('Workshop card offers Clear plate when the print is done', () => {
-  const c = homeCards({ now: { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } }, at: AT, host: 'home.home.arpa' })
+  const c = homeCards({ now: { printer: { state: 'idle', headline: 'Print done — clear the plate', actions: ['clear'] } }, at: AT, host: 'hub.rahe-home.duckdns.org' })
     .find((x) => x.key === 'workshop');
   assert.deepEqual(c.action, { label: 'Clear the plate', do: 'clear' });
   assert.equal(c.status, 'Print done — clear the plate');
@@ -113,7 +113,7 @@ test('Workshop card keeps the Bambuddy link while printing', () => {
 });
 
 test('Workshop card stays red when the printer reports an error and the plate waits', () => {
-  const c = homeCards({ now: { printer: { state: 'error', headline: 'Print failed — clear the plate', actions: ['clear'] } }, at: AT, host: 'home.home.arpa' })
+  const c = homeCards({ now: { printer: { state: 'error', headline: 'Print failed — clear the plate', actions: ['clear'] } }, at: AT, host: 'hub.rahe-home.duckdns.org' })
     .find((x) => x.key === 'workshop');
   assert.equal(c.tone, 'bad');
   assert.equal(c.action.do, 'clear');
@@ -160,17 +160,17 @@ test("the printer card's dot follows Needs you: amber for a printer item, red fo
 test("the blind failure-detection item's link opens Bambuddy's Failure detection settings", async () => {
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const link = 'tool:bambuddy/settings?tab=failure-detection';
-  assert.equal(resolveLink(link, 'home.home.arpa'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');
-  assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.home.arpa/settings?tab=failure-detection');  // step 6: links name the gate only
+  assert.equal(resolveLink(link, 'hub.rahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');
+  assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');  // step 6: links name the gate only
 });
 
 test("the Mac disk item's link opens the Assistant with the question (its #ask?context= hand-off)", async () => {
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
   const url = new URL(resolveLink(link, '10.0.0.30'));
-  assert.equal(url.origin, 'https://assistant.home.arpa');  // step 6: links name the gate only
+  assert.equal(url.origin, 'https://assistant.rahe-home.duckdns.org');  // step 6: links name the gate only
   assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
-  assert.ok(resolveLink(link, 'home.home.arpa').startsWith('https://assistant.home.arpa/#ask?context='));
+  assert.ok(resolveLink(link, 'hub.rahe-home.duckdns.org').startsWith('https://assistant.rahe-home.duckdns.org/#ask?context='));
 });
 
 test("a Local AI item about another printer leaves the X2D card green (review, 28 Oct)", () => {

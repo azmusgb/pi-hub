@@ -83,7 +83,7 @@ fi
 sudo install -d -m 755 /etc/systemd/system/caddy.service.d
 # Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
 # write the secret to the journal). The DuckDNS token (the real names' certificate) is optional: without it only the
-# home.arpa names work.
+# home.arpa names, kept for the Workshop display, work.
 printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nEnvironmentFile=-/etc/pi-hub/secrets/duckdns.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile\nExecReload=\nExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
 # A new binary takes over now, on the Caddyfile already there; a release that ships no new commit wouldn't restart it.

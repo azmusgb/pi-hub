@@ -288,11 +288,11 @@ async function stayAwake() {
 }
 
 // The front gate (hub/gate.py) sends a signed-out visit to any tool here with ?signin=owner&next=…: sign in, then go
-// back to that tool. Only https addresses on the house's names (home.arpa or the real name) are followed, as on the server.
+// back to that tool. Only https addresses on the house's names are followed, as on the server.
 export function safeNext(url) {
   try {
     const u = new URL(url);
-    const ours = u.hostname === "home.arpa" || u.hostname.endsWith(".home.arpa") || u.hostname.endsWith(".rahe-home.duckdns.org");
+    const ours = u.hostname.endsWith(".rahe-home.duckdns.org");
     return u.protocol === "https:" && ours && !u.username && !u.password ? u.href : null;
   } catch { return null; }
 }
