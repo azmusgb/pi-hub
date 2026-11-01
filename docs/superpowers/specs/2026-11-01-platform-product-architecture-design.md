@@ -2,8 +2,8 @@
 
 Date: 2026-11-01 · Status: decisions D1-D9 approved by the owner on 1 Nov 2026, with four amendments and a rewording of D4 (section 12).
 C1 (Backblaze B2) and D2's service (Healthchecks.io) approved the same day.
-Pending one whole-spec consistency review before it becomes the baseline. Documentation only; no code, config or
-deploy changes
+**Baseline**: the authoritative platform architecture; implementation PRs follow it, and changes to it are
+amendments. Documentation only; no code, config or deploy changes.
 Type: product architecture. It reconciles the approved designs of the owner's home platform into one product, and
 changes an earlier decision only where the evidence says it no longer fits.
 
@@ -690,7 +690,7 @@ two release pipelines stay separate.
 |---|---|---|---|
 | Home: Now, Needs you, Since you last looked | Pi Hub records and events. Each field's source owns the fact | Pi Hub | Must work with the PC asleep (Report l.1051) |
 | Wall, Weather | Pi Hub records; Open-Meteo and NWS | Pi Hub | — |
-| Workshop › Printer, camera, filament, history | Bambuddy (printer, prints, spools); the camera bridge on the Pi | Pi Hub | One printer-control path (6.2) |
+| Workshop › Printer, camera, filament, history | Bambuddy (printer, prints, spools); the camera failover record (the Mac bridge today, the Pi bridge once the printer's LAN liveview is on) | Pi Hub | One printer-control path (6.2) |
 | Workshop › Print lab | print-lab on the Mac. Pi Hub holds the mirror and the request queue | Pi Hub `/lab` | The lab works with the PC off (`lab-on-hub`:13). The mirror is never authoritative (Report l.1053). The Mac applies requests, so the Mac stays the runtime |
 | Documents › Find | Paperless on the PC | Pi Hub | Pi Hub renders; the PC holds. "The PC is off" shows when it sleeps (`one-home`:181) |
 | Documents › Print a document, Lists | CUPS on the Pi; `hub.db` | Pi Hub | Pi-only. Scan is a tool (scanservjs) opened from Documents (5.4) |
@@ -744,7 +744,7 @@ without the Pi (section 10).
 | Kind | Examples | Provider | Works with the PC off |
 |---|---|---|---|
 | **Go** | Pages in both apps. Pi Hub lists the five Assistant pages as door links. The Assistant lists "House" and its pages | Each app | Yes (Pi Hub) |
-| **Do** | Pause or resume the print, Clear plate, stop a print, restart Plex, pair the display, turn a light off | Pi Hub: each record's `actions` and `/api/actions` (`hub/app.py:733`) | Yes |
+| **Do** | Pause or resume the print, Clear plate, stop a print, restart Plex, pair the display, turn a light off | Pi Hub: each record's `actions` and `/api/actions` (`hub/app.py:733,747`) | Yes |
 | **Find** | Records, Needs-you items, lab questions and experiments (the mirror), lists, movies (`hub/app.py:289`), alerts, documents | Pi Hub | Yes, except documents |
 | **Find** (Assistant) | Chat text, image prompts, mission outcomes, change titles (SQLite full-text, `evolution`:99-100) | LocalAI | No |
 | **Ask** | "Ask the Assistant: …" | Hand-off (`sections.js:63-74`) | No: the row reads "The PC is off" |
@@ -809,8 +809,9 @@ Internal ids never appear in the UI.
 | `assistant_down` | The Assistant isn't answering | The PC is on but `local_ai` has a problem. Replaces "AI unavailable" |
 | `mac_waiting` | The Mac hasn't picked this up. It runs when the Mac is awake | `mac_lab` has waiting requests (from `pl-verdicts`:80-81) |
 | `unknown_release` | Not reported | A Release with no evidence |
+| `source_down` | {name} isn't answering | A source a page needs is down, e.g. "House items unavailable: Pi Hub isn't answering" on Assistant Home (section 10) |
 
-The display line "AI unavailable — PC asleep" moves to these two keys when the firmware next changes strings.
+The display line "AI unavailable — PC asleep" moves to `pc_off` and `assistant_down` when the firmware next changes strings.
 
 ## 10. Failure boundaries
 
@@ -840,10 +841,12 @@ it depends on are done. Steps on different lines can run in parallel.
    labels its SSH reads as verification. SSH reads go only when every target publishes and drift has another check.
 5. **Pushes onto Pi Hub (D2), after 2.** LocalAI, print-lab and mac-watch post to Pi Hub. LocalAI's Web Push retires
    once ntfy is seen delivering the Assistant's events.
-6. **Print lab (D5), independent of 2-5.** Redirect the tab now. Then build the caller inventory and gather the log
+6. **Print lab (D5), independent of 2-5.** `/lab` takes `?p=` and `do=judge`, and the `mac_lab` record exists.
+   Then redirect the tab. Then build the caller inventory and gather the log
    evidence. Then remove `/api/lab/*`.
 7. **Navigation and names (D3, D6), independent.** The System strip, `/pi` into Health, the `/control` and `/next`
-   retirements, the registry-generated tool list replacing the shared header, and the renames on Pi Hub and LocalAI.
+   retirements, the real 404 page, the ⌘K palette component, the registry-generated tool list replacing the shared
+   header, and the renames on Pi Hub and LocalAI. Versions joins the strip, and Deployments → Versions lands, after 3.
 8. **The display.** It moves to Pi Hub for its household facts and the direct Bambuddy call is removed. Then display
    step 4, after which LocalAI's display routes and Services card retire. A firmware candidate carries the tab
    rename, the phrase keys and Display status.
@@ -890,7 +893,9 @@ unavailable. It must not depend on Pi Hub, its Caddy, its database or its local 
 - It is always on. The Mac and the PC sleep, so a watcher on either one would miss outages while it sleeps. The
   path is therefore a dead-man's switch outside the home, and nothing outside needs to reach Pi Hub.
 - *Service (approved 1 Nov 2026): Healthchecks.io*, check `home-platform-alive`. About every 5 minutes, a scheduled
-  task on the Pi fetches Pi Hub's health endpoint over HTTPS through Caddy, so Caddy and the database are tested.
+  task on the Pi fetches a Pi Hub endpoint over HTTPS through Caddy at the real name (not `home.home.arpa`). The
+  endpoint must read the database: today's `/healthz` returns a constant (`hub/app.py:1103`), so either it gains a
+  database read or the check uses `GET /api/records`. That way Caddy, the app and the database are all tested.
   Only when that passes does it ping the check. A failed local check sends nothing, never a success ping. Otherwise
   the ping would only prove that the Pi can reach the internet. The grace period tolerates one missed run, so one
   network hiccup does not alert.
