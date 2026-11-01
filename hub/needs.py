@@ -3,6 +3,7 @@ every call; nothing is copied (D8). The Pi's alert history isn't used: it mixes 
 went offline", "display is back"), and the records already say what is still wrong. A finished or failed print is
 the printer record's own "clear the plate"."""
 import re
+import time
 from datetime import datetime
 from urllib.parse import quote
 
@@ -150,3 +151,13 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
     items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     drop = ("ts", "thing")
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
+
+
+def current(recs=None):
+    """Needs you now, as /api/needs answers it (and the display's feed reads it): the hub's records, Local AI's own
+    attention and the print lab's stored asks."""
+    from . import lab, records, sources
+    recs = records.all() if recs is None else recs
+    printer = recs.get("printer") or {}
+    return build((), sources.localai_feed(), int(time.time()), records.problems(recs), lab=lab.stored_needs(),
+                 printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"))
