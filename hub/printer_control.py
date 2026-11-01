@@ -4,6 +4,7 @@ The hub's read key (bambuddy.KEY_FILE) stays read-only; printer actions use a se
 "Control printer" for printer 1, kept root:pi-hub 640 and made once by deploy/bambuddy-control-key.py. Clear plate
 makes the same two calls as Local AI's /api/display/printer/clear, so the display and the hub agree."""
 import os
+import threading
 import urllib.error
 import urllib.request
 
@@ -13,6 +14,28 @@ KEY_FILE = os.environ.get("HUB_BAMBUDDY_CONTROL_KEY_FILE", "/etc/pi-hub/secrets/
 PRINTER = 1
 TIMEOUT = 5  # seconds per Bambuddy call
 STEPS = {"clear": ("clear-plate", "hms/clear"), "pause": ("print/pause",), "resume": ("print/resume",)}
+# One printer command at a time, from any surface (the hub's own buttons and the workshop display): acquired without
+# waiting, so a second tap is refused, never queued behind the first.
+BUSY = threading.Lock()
+_holding = threading.Lock()  # makes taking BUSY and naming who has it one step
+_holder = None
+
+
+def hold(action):
+    """Take BUSY for `action` without waiting: None when taken, else the action that has it ("" when unknown)."""
+    global _holder
+    with _holding:
+        if not BUSY.acquire(blocking=False):
+            return _holder or ""
+        _holder = action
+        return None
+
+
+def release():
+    global _holder
+    with _holding:
+        _holder = None
+        BUSY.release()
 DONE = {"clear": "Plate cleared. Ready for the next print.", "pause": "Paused. Resume it here or on the printer.",
         "resume": "Resumed."}
 

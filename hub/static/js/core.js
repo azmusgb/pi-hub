@@ -370,12 +370,14 @@ export async function api(
     );
 
   if (!response.ok) {
-    throw new Error(
+    const failure = new Error(
       responseErrorMessage(
         response,
         body,
       ),
     );
+    failure.status = response.status;
+    throw failure;
   }
 
   return body;

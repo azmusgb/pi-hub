@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -598,7 +599,15 @@ async def create_request(project: str, request: Request):
         raise HTTPException(404, "No such project.")
 
     data = _load_request_json(await read_capped(request, MAX_REQUEST))
+    return JSONResponse(queue_request(project, data, by))
 
+
+def queue_request(project: str, data: dict, by: str) -> dict:
+    """Checks one request as Local AI's queueRequest does and queues it for the Mac's lab pull: {ok, id, status}, or
+    HTTPException. An id sent again is one request: its stored status comes back and nothing else changes. Used by
+    the lab page's route and the workshop display's Judge it; the caller checks who may send and that the project
+    exists. `by` is who sent it (the signed-in device, or "display")."""
+    ready()
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid JSON request body")
 
@@ -636,7 +645,7 @@ async def create_request(project: str, request: Request):
 
     existing = db.one("SELECT id, status FROM lab_requests WHERE id = ?", req_id)
     if existing:
-        return JSONResponse({"ok": True, "id": req_id, "status": existing["status"]})
+        return {"ok": True, "id": req_id, "status": existing["status"]}
 
     pending_count = db.one("SELECT COUNT(*) as c FROM lab_requests WHERE project = ? AND status = 'pending'", project)["c"]
     if pending_count >= MAX_PENDING:
@@ -646,14 +655,20 @@ async def create_request(project: str, request: Request):
         raise HTTPException(429, f"The Mac hasn't picked up the last {MAX_PENDING_TOTAL} requests across all projects. "
                                  "Check that the Mac is awake.")
 
-    db.run(
-        "INSERT INTO lab_requests (id, project, kind, experiment, run, run_seen, payload, status, created_at, by_device) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
-        req_id, project, kind, experiment, run or "", run_seen if kind == "start" else None,
-        json.dumps(_stored_payload(kind, payload)), now_iso(), (by or "")[:80]
-    )
+    try:
+        db.run(
+            "INSERT INTO lab_requests (id, project, kind, experiment, run, run_seen, payload, status, created_at, "
+            "by_device) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+            req_id, project, kind, experiment, run or "", run_seen if kind == "start" else None,
+            json.dumps(_stored_payload(kind, payload)), now_iso(), (by or "")[:80]
+        )
+    except sqlite3.IntegrityError:  # the same id, sent twice at once from another thread: still one request
+        existing = db.one("SELECT status FROM lab_requests WHERE id = ?", req_id)
+        if not existing:
+            raise
+        return {"ok": True, "id": req_id, "status": existing["status"]}
 
-    return JSONResponse({"ok": True, "id": req_id, "status": "pending"})
+    return {"ok": True, "id": req_id, "status": "pending"}
 
 
 @router.get("/{project}/requests")

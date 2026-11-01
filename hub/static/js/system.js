@@ -3,6 +3,7 @@ import { api, fix, h } from "./core.js";
 import { toolUrl } from "./sections.js";
 import { agoText } from "./wording.js";
 import { linkGroup } from "./section-links.js";
+import { displayCard } from "./display-pair.js";
 
 export const every = 300;
 
@@ -16,6 +17,7 @@ export function mount(state) {
       h("h2", {}, "Appliance Services & Containers"),
       state.containers
     ),
+    displayCard(),
     linkGroup("Look after the hub", [
       ["/alerts", "Alerts", "Recent events and warnings"],
       ["/rules", "Automations", "Choose what happens automatically"],
