@@ -180,7 +180,8 @@ grace 5 min). A failed check sends nothing, so Healthchecks.io alerts after abou
 when pings resume.
 
 - **Secret:** `/etc/pi-hub/healthchecks.env`, owned by root, mode `0600`, one line `HC_PING_URL=<the check's ping URL>`.
-  It is not in the repo or the backup's docs. Until the file exists, the service skips itself.
+  It is never in the repo. Like the other `/etc/pi-hub` secrets it is in the nightly backup, so a restored Pi keeps
+  its heartbeat. Until the file exists, the service skips itself.
 - **Started by:** each live release (`systemctl enable --now pi-hub-heartbeat.timer`) and `deploy/install.sh`.
 - **Check it:** `ssh pi 'systemctl list-timers pi-hub-heartbeat.timer; journalctl -u pi-hub-heartbeat -n 5 --no-pager'`.
   A healthy run logs nothing. A failure names its cause and never the URL.
