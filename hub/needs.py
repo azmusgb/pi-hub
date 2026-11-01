@@ -29,6 +29,17 @@ LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Sen
             "Fix the plan": "warn"}
 
 
+def _clip(text, n):
+    """`text` cut to at most `n` characters at a word boundary, with an ellipsis when cut, so a page never shows
+    half a word ("...or adhe", iPad, 1 Nov)."""
+    text = str(text or "").strip()
+    if len(text) <= n:
+        return text
+    cut = text[:n - 1]
+    space = cut.rfind(" ")
+    return (cut[:space] if space > n // 2 else cut).rstrip(" ,;:.") + "…"
+
+
 def _due(s, now):
     """True when `s` (an ISO time) is at or before `now`; None when it can't be read."""
     try:
@@ -62,7 +73,7 @@ def _lab_items(lab, now, printer_done):
             if judge and n.get("due_at") is not None and not printer_done and not _due(n["due_at"], now):
                 continue  # not yet due (or an unreadable time): the verdict waits for the print
             out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
-                        "title": f"{eid}: {action}"[:80], "detail": str(n.get("why") or "")[:200],
+                        "title": f"{eid}: {action}"[:80], "detail": _clip(n.get("why"), 200),
                         "link": f"/lab?e={eid}&do=judge" if judge else f"/lab?e={eid}",
                         "as_of": str(as_of or ""), "ts": now})
     return out
@@ -106,11 +117,11 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                               "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
                               "title": f"Printer needs attention ({e['code']})",
                               "detail": f"{e['code']}, severity {sev if known else 'unknown'}",
-                              "link": i["href"], "ts": now, "thing": key})
+                              "link": i["href"], "ts": now, "thing": key, "record": key})
             continue
         id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
         item = {"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
-                "detail": i["say"], "link": i["href"], "ts": now, "thing": key}
+                "detail": i["say"], "link": i["href"], "ts": now, "thing": key, "record": key}
         rec = by_id.get(key) or {}
         if key == "obico" and rec.get("state") == "blind" and not rec.get("stale"):
             # nothing watches the print: above "Worth a look", and the fix is in Bambuddy's settings (IMG_1047, 28 Oct)
@@ -128,7 +139,7 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
             if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
                 continue
             item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
-                    "title": str(c.get("title", ""))[:80], "detail": str(c.get("text", ""))[:200],
+                    "title": _clip(c.get("title", ""), 80), "detail": _clip(c.get("text", ""), 200),
                     "link": ASSISTANT, "ts": now}
             if c.get("id") == "watch-mac-disk":
                 _whats_using_it(item)

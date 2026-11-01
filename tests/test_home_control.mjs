@@ -38,3 +38,11 @@ test("Home's cards leave out the Needs you card when Problems is shown", () => {
 test("/next redirects to Home", () => {
   assert.equal(redirectFor("/next"), "/");
 });
+
+test("a Needs you item that stands for a hub record is listed once, not again as the record", () => {
+  const needs = { count: 1, items: [{ id: "pi:Raspberry Pi", title: "Raspberry Pi", tone: "warn", record: "pi" }], unread: [] };
+  const recs = [{ id: "pi", severity: "attention", headline: "Pi 62 °C" }];
+  const probs = mergeProblems(recs, needs);
+  assert.equal(probs.length, 1);
+  assert.equal(problemsBadge(needs, probs).count, needs.count);  // Home's badge matches every other page's
+});

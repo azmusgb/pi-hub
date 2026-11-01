@@ -77,7 +77,7 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
 def test_the_hubs_own_live_issues_need_you_too():
     n = needs.build([], {"cards": []}, NOW, problems({"services": {"plex": False, "homebridge": True}}))
     assert n["items"][0] == {"id": "pi:Movies", "source": "Pi Hub", "tone": "bad", "title": "Movies",
-                             "detail": "The movie service has stopped", "link": "/pi"}
+                             "detail": "The movie service has stopped", "link": "/pi", "record": "plex"}
 
 
 def test_the_alert_history_is_not_needs():
@@ -348,3 +348,19 @@ def test_another_printer_item_does_not_fold_with_x2d():
     ids = {i["id"] for i in res}
     assert "localai:watch-doc" in ids
     assert "localai:watch-bambu" in ids
+
+
+# ---- iPad, 1 Nov: Problems listed the Pi twice, and lab text stopped mid-word ----
+def test_hub_items_name_the_record_they_stand_for():
+    n = needs.build([], {"cards": []}, NOW, problems({"drive_state": "Not mounted"}))
+    hub = [i for i in n["items"] if i["source"] == "Pi Hub"]
+    assert hub and all(i["record"] for i in hub)
+    assert {i["record"] for i in hub} <= {r["id"] for r in problems({"drive_state": "Not mounted"})}
+
+
+def test_long_text_is_cut_at_a_word_with_an_ellipsis():
+    text = "Inspect the band first, then " + "the full wall and end features " * 10
+    out = needs._clip(text, 200)
+    assert len(out) <= 200 and out.endswith("…")
+    assert text.startswith(out[:-1]) and text[len(out) - 1] == " "
+    assert needs._clip("short", 200) == "short"
