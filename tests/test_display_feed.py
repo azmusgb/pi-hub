@@ -274,3 +274,36 @@ def test_a_change_answers_before_the_wait_ends(env, monkeypatch):
     t = time.monotonic()
     r = c.get(f"/api/display/events?since={sig}", headers=key).json()
     assert r["changed"] is True and r["sig"] != sig and time.monotonic() - t < 3
+
+
+# ---- final review fixes ----
+
+REAL_CARDS = display_ai.cards
+
+
+def test_malformed_ai_messages_never_break_the_feed(env, monkeypatch, tmp_path):
+    from hub import display_messages
+    c, key = env
+    (tmp_path / "k").write_text("secret")
+    (tmp_path / "ca").write_text("x")
+    monkeypatch.setattr(display_ai, "KEY_FILE", str(tmp_path / "k"))
+    monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "ca"))
+    monkeypatch.setattr(display_ai, "_cache", (0.0, None))
+    monkeypatch.setattr(display_ai, "cards", REAL_CARDS)
+    ai = {"cards": [], "approvals": {"count": 0, "speech": ""}, "images": [],
+          "messages": ["oops", {"seq": 1, "at": "2026-10-31T15:00:00Z", "title": "iso"}, {"seq": 2, "title": "no at"},
+                      {"seq": 3, "at": int(time.time()), "title": "ai ok"}]}
+    monkeypatch.setattr(display_ai, "_fetch", lambda url, k: (200, json.dumps(ai).encode()))
+    display_messages.post("Hub banner", now=time.time())
+    r = c.get("/api/display/feed", headers=key)
+    assert r.status_code == 200
+    f = r.json()
+    assert kind(f, "needs") is not None and f["ai"]["available"] is True
+    assert {m["title"] for m in f["messages"]} == {"Hub banner", "ai ok"}
+    assert c.get("/api/display/events", headers=key).status_code == 200
+
+
+def test_operations_doc_names_the_display_key_header():
+    doc = open(os.path.join(os.path.dirname(__file__), "..", "docs", "operations.md")).read()
+    section = doc.split("## Workshop display on Pi Hub", 1)[1]
+    assert "X-Hub-Display-Key: <display key>" in section and "Bearer <display key>" not in section

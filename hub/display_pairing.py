@@ -49,18 +49,23 @@ def status():
 
 def redeem(code, now):
     """A new key for the right open code (spent at once), else None. Five wrong codes close the code."""
+    return try_redeem(code, now)[0]
+
+
+def try_redeem(code, now):
+    """(key or None, counted): counted is True when a code was open, so the attempt was a try against it."""
     with _lock:
         if not _code_open(now):
-            return None
+            return None, False
         if not hmac.compare_digest(_sha(str(code or "").strip()), _open["hash"]):
             _open["tries"] += 1
-            return None
+            return None, True
         _open.clear()
     _ready()
     key = "hubd_" + secrets.token_urlsafe(24)[:32]
     db.run("DELETE FROM display_keys")
     db.run("INSERT INTO display_keys (key_hash, created) VALUES (?, ?)", _sha(key), int(now))
-    return key
+    return key, True
 
 
 def key_ok(request: Request) -> bool:

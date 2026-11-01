@@ -120,3 +120,30 @@ def test_cross_site_simple_post_cannot_burn_tries(env):
         assert r.status_code == 415
     assert display_pairing.status()["code_open"] is True
     assert anon.post("/api/display/pair", json={"code": code}, headers=SAME).status_code == 200
+
+
+# ---- final review fixes ----
+
+def _refusals():
+    return db.one("SELECT COUNT(*) AS n FROM action_log WHERE action = 'display:pair' AND result = 'refused'")["n"]
+
+
+def test_pair_body_over_256_bytes_is_413(env):
+    code = env.post("/api/display/pair/start", headers=SAME).json()["code"]
+    anon = TestClient(hub_app.app)
+    r = anon.post("/api/display/pair", content=b'{"code": "' + code.encode() + b'"' + b" " * 300 + b"}",
+                  headers={"Content-Type": "application/json"})
+    assert r.status_code == 413
+    assert display_pairing.status()["code_open"] is True  # no try was spent
+    assert anon.post("/api/display/pair", json={"code": code}).status_code == 200
+
+
+def test_pair_refusal_is_logged_only_when_a_code_was_open(env):
+    anon = TestClient(hub_app.app)
+    for _ in range(3):
+        assert anon.post("/api/display/pair", json={"code": "123456"}).status_code == 403
+    assert _refusals() == 0  # no code open: nothing written
+    code = env.post("/api/display/pair/start", headers=SAME).json()["code"]
+    wrong = "000000" if code != "000000" else "111111"
+    assert anon.post("/api/display/pair", json={"code": wrong}).status_code == 403
+    assert _refusals() == 1

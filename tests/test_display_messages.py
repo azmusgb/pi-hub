@@ -169,3 +169,61 @@ def test_heartbeat_over_2kb_is_refused_and_never_reaches_the_record(env):
     assert c.post("/api/display/heartbeat", json={"version": {"nested": "v" * 100}}, headers=h).status_code == 200
     assert len(str(house.workshop_display(None)["detail"]["firmware"] or "")) <= 64
     assert "nested" not in repr(house.workshop_display(None))
+
+
+# ---- final review fixes ----
+
+MAC_KEY = "mac-lab-key-for-tests"
+
+
+@pytest.fixture
+def mac_key(tmp_path, monkeypatch):
+    import hashlib
+    from hub import lab_guard
+    f = tmp_path / "lab_mac_key.sha256"
+    f.write_text(hashlib.sha256(MAC_KEY.encode()).hexdigest() + "\n")
+    monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(f))
+    return MAC_KEY
+
+
+def test_mac_notify_without_origin(env, mac_key):
+    anon = TestClient(hub_app.app)
+    r = anon.post("/api/display/notify", json={"title": "From the Mac"}, headers={"X-Hub-Mac-Key": mac_key})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    r = anon.post("/api/display/notify", json={"title": "x"}, headers={"X-Hub-Mac-Key": "wrong"})
+    assert r.status_code == 401
+    # no key at all and no Origin: still the same-origin refusal
+    assert anon.post("/api/display/notify", json={"title": "x"}).status_code == 403
+    row = db.one("SELECT role, result FROM action_log WHERE action = 'display:notify' ORDER BY rowid DESC")
+    assert row == {"role": "mac", "result": "ok"}
+
+
+def test_display_key_without_origin(env):
+    h = {"X-Hub-Display-Key": paired(env)["X-Hub-Display-Key"]}  # no Origin
+    anon = TestClient(hub_app.app)
+    assert anon.post("/api/display/heartbeat", json={"version": "v1"}, headers=h).status_code == 200
+    assert anon.post("/api/display/notify", json={"title": "x"}, headers=h).status_code == 200
+
+
+def test_notify_body_over_4kb_is_413(env):
+    r = env.post("/api/display/notify", content=b'{"title": "x"' + b" " * 5000 + b"}",
+                 headers={**SAME, "Content-Type": "application/json"})
+    assert r.status_code == 413
+    assert display_messages.pending(__import__("time").time()) == []
+
+
+def test_heartbeat_reads_its_body_capped(env, monkeypatch):
+    from hub import lab_guard
+    caps = []
+    real = lab_guard.read_capped
+
+    async def spy(request, cap):
+        caps.append(cap)
+        return await real(request, cap)
+    h = paired(env)
+    monkeypatch.setattr(lab_guard, "read_capped", spy)
+    c = TestClient(hub_app.app)
+    assert c.post("/api/display/heartbeat", json={"version": "1"}, headers=h).status_code == 200
+    assert c.post("/api/display/notify", json={"title": "x"}, headers=h).status_code == 200
+    assert caps == [2048, 4096]
+    assert c.post("/api/display/heartbeat", content=iter([b"x" * 1500, b"x" * 1500]), headers=h).status_code == 413

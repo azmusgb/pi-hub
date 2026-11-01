@@ -31,16 +31,41 @@ def pair_status(request: Request):
     return display_pairing.status()
 
 
+PAIR_MAX = 256
+NOTIFY_MAX = 4 * 1024
+
+
+async def _body(request, cap):
+    """The body, read as it arrives and never past `cap` (413, also at once for a Content-Length over it)."""
+    declared = request.headers.get("content-length", "")
+    if declared.isascii() and declared.isdigit() and int(declared) > cap:
+        raise HTTPException(413, "That's too big.")
+    try:
+        return bytes(await lab_guard.read_capped(request, cap))
+    except HTTPException as e:
+        if e.status_code == 413:
+            raise HTTPException(413, "That's too big.")
+        raise
+
+
+async def _json(request, cap):
+    raw = await _body(request, cap)
+    try:
+        body = json.loads(raw or b"{}")
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
 @router.post("/pair")
 async def pair(request: Request):
-    try:
-        body = await request.json()
-    except ValueError:
-        body = {}
-    code = body.get("code") if isinstance(body, dict) else None
-    key = display_pairing.redeem(str(code or ""), time.time())
+    """Open to the display (no key yet): the body is capped, and a refusal is logged only when it spent a try on an
+    open code, so a caller with no code to guess at can't fill the action log."""
+    body = await _json(request, PAIR_MAX)
+    key, counted = display_pairing.try_redeem(str(body.get("code") or ""), time.time())
     if not key:
-        auth.log("display", DEVICE, "display:pair", "refused")
+        if counted:
+            auth.log("display", DEVICE, "display:pair", "refused")
         raise HTTPException(403, "That code isn't right or has run out. Ask for a new one.")
     auth.log("display", DEVICE, "display:pair", "ok")
     return {"key": key, "tlsName": TLS_NAME}
@@ -52,7 +77,7 @@ def feed_now():
     recs = records.all()
     needs_list, lab_items = _needs_now(recs)
     ai = display_ai.cards(now)
-    messages = sorted([*ai["messages"], *display_messages.pending(now)], key=lambda m: m.get("at") or 0)
+    messages = [*ai["messages"], *display_messages.pending(now)]  # build orders them (display_ai keeps only sortable ones)
     return display_feed.build(now, ai, recs, needs_list, lab_items, messages,
                               sessions=sources.plex_sessions(), spools=bambuddy.spools())
 
@@ -61,14 +86,6 @@ def _needs_now(recs):
     """Needs you and its Print lab items, as the feed shows them (it never waits on the PC)."""
     needs_list = needs.current(recs, fetch=False)
     return needs_list, [i for i in needs_list["items"] if i.get("source") == needs.LAB]
-
-
-async def _json(request):
-    try:
-        body = await request.json()
-    except ValueError:
-        return {}
-    return body if isinstance(body, dict) else {}
 
 
 @router.post("/notify")
@@ -83,7 +100,7 @@ async def notify(request: Request):
         sender = ("mac", "Mac")
     else:
         raise HTTPException(401, "Sign in as the owner, or use the display or Mac key.")
-    body = await _json(request)
+    body = await _json(request, NOTIFY_MAX)
     try:
         seq = display_messages.post(body.get("title"), body.get("text") or "", body.get("tone") or "info",
                                     body.get("chime") is not False, body.get("action"))
@@ -126,9 +143,7 @@ def clean_heartbeat(body):
 @router.post("/heartbeat")
 async def heartbeat(request: Request):
     display_pairing.require(request)
-    raw = await request.body()
-    if len(raw) > HEARTBEAT_MAX:
-        raise HTTPException(413, "That heartbeat is too big.")
+    raw = await _body(request, HEARTBEAT_MAX)
     try:
         body = json.loads(raw or b"{}")
     except ValueError:
@@ -453,14 +468,19 @@ def _down():
 
 
 def _through(method, path, query="", body=None, cap=None):
-    """Forward once. Local AI's 2xx/3xx/4xx go back unchanged; a 5xx, an exception or too big an answer is the
-    display's "AI unavailable" (503) or, past `cap`, a 502."""
+    """Forward once. Local AI's 2xx and other 4xx (a 409 stale approval) go back unchanged. A 5xx, an exception, or
+    a 401/403 (Local AI refusing the hub key, which the display would read as "Pair the display first") is the display's
+    "AI unavailable" (503); a 3xx is a 502 that never carries Local AI's address; past `cap`, a 502."""
     try:
-        status, data, ctype = display_ai.forward(method, path, query=query, body=body)
+        kw = {"cap": cap} if cap is not None else {}
+        status, data, ctype = display_ai.forward(method, path, query=query, body=body, **kw)
     except Exception:  # noqa: BLE001
         return _down(), 503
-    if status >= 500:
+    if status >= 500 or status in (401, 403):
         return _down(), status
+    if 300 <= status < 400:
+        return JSONResponse({"error": "Local AI answered with a redirect."}, status_code=502,
+                            headers={"Cache-Control": "no-store"}), 502
     if cap is not None and len(data) > cap:
         return JSONResponse({"error": "That picture is too big."}, status_code=502), 502
     return Response(data, status_code=status, media_type=ctype, headers={"Cache-Control": "no-store"}), status
@@ -475,9 +495,7 @@ def approvals(request: Request):
 @router.post("/approvals/decide")
 async def approvals_decide(request: Request):
     display_pairing.require(request)
-    raw = await request.body()
-    if len(raw) > DECIDE_MAX:
-        raise HTTPException(413, "That decision is too big.")
+    raw = await _body(request, DECIDE_MAX)
     response, status = await asyncio.to_thread(_through, "POST", "/api/display/approvals/decide", "", raw)
     auth.log("display", DEVICE, "display:approval", "sent" if status < 400 else f"refused: {status}")
     return response
@@ -505,13 +523,13 @@ def image_poster(request: Request):
 def image(request: Request, n: str):
     """The n-th AI picture of the feed, fetched from Local AI's original URL (only ever /api/images/view)."""
     display_pairing.require(request)
-    if not n.isdigit():
+    if not (n.isascii() and n.isdigit()):
         raise HTTPException(404, "No such picture.")
     pics = display_ai.cards(time.time()).get("images") or []
     if int(n) >= len(pics):
         raise HTTPException(404, "No such picture.")
-    url = pics[int(n)].get("imageUrl") if isinstance(pics[int(n)], dict) else None
-    path, _, query = url.partition("?") if isinstance(url, str) else ("", "", "")
+    url = pics[int(n)]["imageUrl"]  # display_ai keeps only pictures with a string address
+    path, _, query = url.partition("?")
     if path != "/api/images/view":
         raise HTTPException(404, "No such picture.")
     return _through("GET", path, query, cap=IMAGE_MAX)[0]

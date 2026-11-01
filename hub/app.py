@@ -53,7 +53,9 @@ async def guard(request: Request, call_next):
     # The Mac's lab calls are exempt only when they carry the hub's lab key and that key verifies, never for the path alone.
     # A key that is sent but wrong is refused as such; with no key header the normal same-origin check applies.
     mac = False
-    if unsafe and request.url.path.startswith("/api/lab/") and "x-hub-mac-key" in request.headers:
+    # The Mac may also post a banner to the display (/api/display/notify), on the same terms.
+    mac_path = request.url.path.startswith("/api/lab/") or request.url.path == "/api/display/notify"
+    if unsafe and mac_path and "x-hub-mac-key" in request.headers:
         if not lab_guard.mac_key_ok(request):
             return JSONResponse({"detail": "The Mac's lab key is missing or wrong."}, status_code=401)
         mac = True

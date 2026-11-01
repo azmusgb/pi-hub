@@ -34,7 +34,7 @@ def env(tmp_path, monkeypatch):
 def fake(monkeypatch, answer):
     calls = []
 
-    def forward(method, path, *, query="", body=None, timeout=10, fetch=None):
+    def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=None):
         calls.append((method, path, query, body))
         if isinstance(answer, Exception):
             raise answer
@@ -153,3 +153,63 @@ def test_poster_404_when_nothing_plays(env, monkeypatch):
     c, disp = env
     monkeypatch.setattr(sources, "plex_sessions", lambda: [])
     assert c.get("/api/display/images/poster", headers=disp).status_code == 404
+
+
+# ---- final review fixes ----
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_local_ai_refusing_the_hub_key_is_ai_unavailable(env, monkeypatch, status):
+    c, disp = env
+    fake(monkeypatch, (status, b'{"error":"Pair the display first."}', "application/json"))
+    for r in (c.get("/api/display/approvals", headers=disp), c.get("/api/display/ask?q=hi", headers=disp),
+              c.post("/api/display/approvals/decide", content=b"{}", headers=disp)):
+        assert r.status_code == 503 and r.json() == {"error": "AI unavailable — PC asleep"}
+    images(monkeypatch, ["/api/images/view?filename=x.png"])
+    assert c.get("/api/display/images/0", headers=disp).status_code == 503
+
+
+@pytest.mark.parametrize("status", [301, 302, 307, 308])
+def test_local_ai_redirect_is_502_and_never_leaks_its_address(env, monkeypatch, status):
+    c, disp = env
+    fake(monkeypatch, (status, b"Moved to https://10.0.0.21:8443/elsewhere", "text/plain"))
+    r = c.get("/api/display/approvals", headers=disp)
+    assert r.status_code == 502 and "10.0.0.21" not in r.text and "location" not in r.headers
+
+
+def test_unicode_digit_picture_index_is_404(env, monkeypatch):
+    c, disp = env
+    images(monkeypatch, ["/api/images/view?filename=x.png"])
+    calls = fake(monkeypatch, (200, JPEG, "image/jpeg"))
+    for n in ("²", "١", "٣"):
+        assert c.get(f"/api/display/images/{n}", headers=disp).status_code == 404
+    assert calls == []
+
+
+def test_images_route_passes_the_5_mb_cap_to_forward(env, monkeypatch):
+    c, disp = env
+    images(monkeypatch, ["/api/images/view?filename=x.png"])
+    seen = []
+
+    def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=None):
+        seen.append(cap)
+        return 200, JPEG, "image/jpeg"
+    monkeypatch.setattr(display_ai, "forward", forward)
+    assert c.get("/api/display/images/0", headers=disp).status_code == 200
+    assert seen == [5 * 1024 * 1024]
+
+
+def test_decide_reads_its_body_capped(env, monkeypatch):
+    from hub import lab_guard
+    c, disp = env
+    calls = fake(monkeypatch, (200, b"{}", "application/json"))
+    caps = []
+    real = lab_guard.read_capped
+
+    async def spy(request, cap):
+        caps.append(cap)
+        return await real(request, cap)
+    monkeypatch.setattr(lab_guard, "read_capped", spy)
+    assert c.post("/api/display/approvals/decide", content=b'{"id":"a"}', headers=disp).status_code == 200
+    assert caps == [8 * 1024]
+    r = c.post("/api/display/approvals/decide", content=iter([b"x" * 5000, b"x" * 5000]), headers=disp)
+    assert r.status_code == 413 and len(calls) == 1
