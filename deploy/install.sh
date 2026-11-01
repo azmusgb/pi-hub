@@ -19,7 +19,8 @@ CADDY_SHA256=c7f294f87d4dada6c2322da95da15a07f6ad7897634507cf45ca84a705b21b5a
 CADDY_URL="https://caddyserver.com/api/download?os=linux&arch=arm64&version=$CADDY_VERSION&p=github.com%2Fcaddy-dns%2Fduckdns%40$CADDY_DUCKDNS"
 
 scp -q deploy/pi-hub-release pi:/tmp/pi-hub-release 2>&1 | quiet
-ssh -o BatchMode=yes pi bash -s -- "$CADDY_URL" "$CADDY_SHA256" <<'EOF' 2>&1 | quiet
+# ssh hands its arguments to the Pi's shell as one line, so the URL (full of &) is quoted for that shell.
+ssh -o BatchMode=yes pi "bash -s -- '$CADDY_URL' '$CADDY_SHA256'" <<'EOF' 2>&1 | quiet
 set -euo pipefail
 caddy_url="$1" caddy_sha256="$2"
 id pi-hub >/dev/null 2>&1 || sudo useradd --system --no-create-home --shell /usr/sbin/nologin pi-hub
