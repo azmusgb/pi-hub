@@ -55,7 +55,7 @@ moved. These are the conflicts found, and how each is resolved.
 | K10 | Two ⌘K palettes with different scopes (`hub/static/js/enhance.js:71-81`; LocalAI `app/public/app.js:850-885`) | One kit component, two providers | 8 |
 | K11 | A lab item has three id spellings: `lab:<p>:<e>` (`one-needs-you`:70), `pi:lab:<p>:<e>` (`lab-on-hub`:50), `lab:<project>:<experiment>` as a task id (`household`:74) | The object id is `lab:<project>:<experiment>`. The item id is the producer prefix plus the object id | 4 |
 | K12 | `lab-on-hub` L8 keeps printer telemetry on LocalAI. Pi Hub's `printer` record is the designated source (`control-room`:70) | Telemetry comes from the `printer` record on Pi Hub | 6 |
-| K13 | "The PC is off" (`one-home`:144), "AI unavailable — PC asleep" (`display-on-hub`:24, 64), "{name} isn't answering" (`one-needs-you`:92) | Two phrase-table entries (section 9) | 9 |
+| K13 | "The PC is off" (`one-home`:144), "AI unavailable — PC asleep" (`display-on-hub`:24, 64), "{name} isn't answering" (`one-needs-you`:92) | Phrase-table entries `pc_off`, `assistant_down` and `source_down` (section 9) | 9 |
 | K14 | The control-room sketch menu says "Network" (`control-room`:165). The code says "Home & network" (`hub/static/js/sections.js:11`) | Keep the code's label | 5 |
 
 ### 1.2 Pi Hub specs
@@ -146,7 +146,7 @@ moved. These are the conflicts found, and how each is resolved.
 | D4 No queued or replayed AI actions | Kept | — |
 | D5 Feed v2 shape unchanged | Kept | — |
 | Pairing fetches the CA over HTTP and pins `home.home.arpa` (l.43-44) | Kept, as a compatibility boundary | K4, D4. It stays until the firmware supports the production hostname and trust model without requiring an unsafe or fragile field migration |
-| "AI unavailable — PC asleep" | Extended | Replaced by two phrase-table entries (K13) |
+| "AI unavailable — PC asleep" | Extended | Replaced by `pc_off` and `assistant_down` (K13) |
 | Clear plate and Judge it through Pi Hub | Kept | Consequence: the firmware's direct, unauthenticated call to Bambuddy (`tabs_pages.cppfrag:47-60`, Report l.326, H7) must go when the display switches |
 | Rollout steps 1-4 | Kept | Step 4 (retire LocalAI's display routes) is still pending (Report l.383) |
 
@@ -676,7 +676,7 @@ list. The third step there ("LocalAI forwards it to the display") is superseded 
 | Doors | LocalAI composer; Pi Hub `/api/ask` (`hub/app.py:909`); display Ask; Siri and Watch; the Mac `dsh-phone` portal (Report l.962) | The same doors, except `dsh-phone`: one gateway behind all of them |
 | Gateway | Four reach LocalAI; `dsh-phone` reaches Ollama directly | LocalAI `/api/ask` for all. A direct-Ollama path is outside the platform |
 | Privacy | Policy exists in LocalAI only | The same policy: house questions, voice and Siri are private (`coordinator`:31) |
-| Unavailable | "The PC is off" and "AI unavailable — PC asleep" | Two phrase-table entries (section 9), the same on every surface |
+| Unavailable | "The PC is off" and "AI unavailable — PC asleep" | `pc_off` and `assistant_down` (section 9), the same on every surface |
 | Deep work | The Assistant button hands over page and facts, at most 300 characters | Unchanged (`sections.js:63-74`) |
 | Provenance | On LocalAI runs only | "Answered by …" on quick-ask answers too |
 
@@ -690,7 +690,7 @@ two release pipelines stay separate.
 |---|---|---|---|
 | Home: Now, Needs you, Since you last looked | Pi Hub records and events. Each field's source owns the fact | Pi Hub | Must work with the PC asleep (Report l.1051) |
 | Wall, Weather | Pi Hub records; Open-Meteo and NWS | Pi Hub | — |
-| Workshop › Printer, camera, filament, history | Bambuddy (printer, prints, spools); the camera failover record (the Mac bridge today, the Pi bridge once the printer's LAN liveview is on) | Pi Hub | One printer-control path (6.2) |
+| Workshop › Printer, camera, filament, history | Bambuddy (printer, prints, spools); the camera bridge (the Mac's today, the Pi's once the printer's LAN liveview is on) | Pi Hub | One printer-control path (6.2) |
 | Workshop › Print lab | print-lab on the Mac. Pi Hub holds the mirror and the request queue | Pi Hub `/lab` | The lab works with the PC off (`lab-on-hub`:13). The mirror is never authoritative (Report l.1053). The Mac applies requests, so the Mac stays the runtime |
 | Documents › Find | Paperless on the PC | Pi Hub | Pi Hub renders; the PC holds. "The PC is off" shows when it sleeps (`one-home`:181) |
 | Documents › Print a document, Lists | CUPS on the Pi; `hub.db` | Pi Hub | Pi-only. Scan is a tool (scanservjs) opened from Documents (5.4) |
@@ -844,9 +844,9 @@ it depends on are done. Steps on different lines can run in parallel.
 6. **Print lab (D5), independent of 2-5.** `/lab` takes `?p=` and `do=judge`, and the `mac_lab` record exists.
    Then redirect the tab. Then build the caller inventory and gather the log
    evidence. Then remove `/api/lab/*`.
-7. **Navigation and names (D3, D6), independent.** The System strip, `/pi` into Health, the `/control` and `/next`
+7. **Navigation and names (D3, D6), independent of 2-6.** The System strip, `/pi` into Health, the `/control` and `/next`
    retirements, the real 404 page, the ⌘K palette component, the registry-generated tool list replacing the shared
-   header, and the renames on Pi Hub and LocalAI. Versions joins the strip, and Deployments → Versions lands, after 3.
+   header, and the renames on Pi Hub and LocalAI. Only the strip's Versions entry waits for 3.
 8. **The display.** It moves to Pi Hub for its household facts and the direct Bambuddy call is removed. Then display
    step 4, after which LocalAI's display routes and Services card retire. A firmware candidate carries the tab
    rename, the phrase keys and Display status.
@@ -894,8 +894,8 @@ unavailable. It must not depend on Pi Hub, its Caddy, its database or its local 
   path is therefore a dead-man's switch outside the home, and nothing outside needs to reach Pi Hub.
 - *Service (approved 1 Nov 2026): Healthchecks.io*, check `home-platform-alive`. About every 5 minutes, a scheduled
   task on the Pi fetches a Pi Hub endpoint over HTTPS through Caddy at the real name (not `home.home.arpa`). The
-  endpoint must read the database: today's `/healthz` returns a constant (`hub/app.py:1103`), so either it gains a
-  database read or the check uses `GET /api/records`. That way Caddy, the app and the database are all tested.
+  endpoint is a dedicated, unauthenticated health route that reads the database. Today's `/healthz` returns a
+  constant (`hub/app.py:1103`), so it gains that read. That way Caddy, the app and the database are all tested.
   Only when that passes does it ping the check. A failed local check sends nothing, never a success ping. Otherwise
   the ping would only prove that the Pi can reach the internet. The grace period tolerates one missed run, so one
   network hiccup does not alert.
