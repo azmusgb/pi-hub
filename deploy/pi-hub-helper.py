@@ -126,22 +126,29 @@ def backups_ages(roots=RESTIC):
     return out
 
 
-def _adguard_fetch():
+def _adguard_fetch(path="/control/stats"):
     user = re.search(r"users:\s*\n\s*-\s*name:\s*(\S+)", open(ADGUARD_CONF).read()).group(1)
     password = open(ADGUARD_SECRET).read().strip()
-    req = urllib.request.Request("http://127.0.0.1:3002/control/stats", headers={
+    req = urllib.request.Request("http://127.0.0.1:3002" + path, headers={
         "Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()})
     with urllib.request.urlopen(req, timeout=4) as r:
         return json.load(r)
 
 
-def adguard_stats(fetch=_adguard_fetch):
-    """Today's DNS queries and blocks; the admin password stays in here."""
+def adguard_stats(fetch=_adguard_fetch, status=lambda: _adguard_fetch("/control/status")):
+    """Today's DNS queries and blocks, and whether protection is on; the admin password stays in here. Protection
+    stays None when the status can't be read, so a missing answer never reads as "off"."""
     try:
         s = fetch()
-        return {"queries": int(s["num_dns_queries"]), "blocked": int(s["num_blocked_filtering"])}
+        out = {"queries": int(s["num_dns_queries"]), "blocked": int(s["num_blocked_filtering"])}
     except Exception:  # noqa: BLE001
         return None
+    try:
+        on = status().get("protection_enabled")
+        out["protection"] = on if isinstance(on, bool) else None
+    except Exception:  # noqa: BLE001
+        out["protection"] = None
+    return out
 
 
 def run(name):

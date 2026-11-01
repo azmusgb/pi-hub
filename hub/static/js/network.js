@@ -18,6 +18,15 @@ export function mount(state) {
     state.extras);
 }
 
+// Paused protection still answers lookups and blocks none, so it is said plainly, not as a count (iPad, 1 Nov).
+export function adBlocking(adguard) {
+  if (!adguard?.available) return h("p", { class: "callout callout--warn" }, "AdGuard isn't answering.");
+  const counted = `${adguard.blocked.toLocaleString()} of ${adguard.queries.toLocaleString()} lookups blocked today`;
+  return adguard.protection === false
+    ? h("p", { class: "callout callout--warn" }, `Ad blocking is off: AdGuard's protection is paused. ${counted}.`)
+    : h("p", {}, `${counted[0].toUpperCase()}${counted.slice(1)}.`);
+}
+
 export async function load(state) {
   const [now, adguard, wifi] = await Promise.all([
     api("/api/now").catch(() => null),
@@ -29,9 +38,7 @@ export async function load(state) {
   state.internet.replaceChildren(networkPanel(now?.network) || h("p", { class: "meta" }, "The network checks aren't answering."));
   state.extras.replaceChildren(...[
     h("section", { class: "more-group" }, h("h2", {}, "Ad blocking"),
-      h("p", {}, adguard?.available
-        ? `Blocked today: ${adguard.blocked.toLocaleString()} of ${adguard.queries.toLocaleString()} lookups`
-        : "AdGuard isn't answering."),
+      adBlocking(adguard),
       h("a", { class: "tool-link", href: toolUrl("adguard"), target: "_blank", rel: "noopener" }, "Open AdGuard ↗")),
     wifi.set ? h("section", { class: "more-group wifi-panel" }, h("h2", {}, "Guest Wi-Fi"),
       h("div", { class: "wifi-content" },

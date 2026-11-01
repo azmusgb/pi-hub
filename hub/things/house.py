@@ -64,10 +64,13 @@ def pc(net, prev, now):
 def local_ai(s, pc_rec):
     if s is None:
         return None
-    state = {"Ready": "ready", "Busy": "busy", "Down": "down"}.get(_get(s, "ai_state"))
+    state = {"Ready": "ready", "Busy": "busy", "Down": "down", "Can't answer": "no_models"}.get(_get(s, "ai_state"))
     if not state:
         return _unknown("local_ai")
     detail = {"models": _get(s, "ai_models"), "waiting": _get(s, "ai_waiting")}
+    if state == "no_models":
+        return _rec("local_ai", state, "Local AI can't answer questions",
+                    cause="Its model service (Ollama) on the PC isn't answering.", detail=detail)
     if state != "down":
         return _rec("local_ai", state, "Local AI is " + state, detail=detail)
     cause = ("The PC is on; Local AI itself isn't answering." if pc_rec and pc_rec["state"] == "on"

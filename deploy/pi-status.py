@@ -226,6 +226,8 @@ def status():
     loaded = m.get("loaded") or []
     if w is None:
         ai_state = "Down"
+    elif m.get("loaded") is None:  # Local AI answered but Ollama didn't: "Ready" beside "Intelligence: Down" (1 Nov)
+        ai_state = "Can't answer"
     elif queue.get("active") or queue.get("waiting"):
         ai_state = "Busy"
     else:

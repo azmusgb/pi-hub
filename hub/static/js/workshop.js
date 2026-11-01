@@ -220,12 +220,14 @@ export async function load(state) {
       h("dl", { class: "facts" },
         h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
       h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page ↗")),
-    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : d.ai.state === "Unknown" ? "warn" : "ok" },
+    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : ["Ready", "Busy"].includes(d.ai.state) ? "ok" : "warn" },
       d.ai.state === "Unknown" ? h("p", { class: "meta" }, "The hub couldn’t check Local AI. Its current state is unconfirmed.")
+      : d.ai.state === "Can't answer"
+        ? h("p", { class: "meta" }, "Local AI is up, but its model service (Ollama) on the PC isn't answering, so it can't answer questions.")
       : d.ai.state === "Down"
         ? h("p", { class: "meta" }, "The Windows PC isn't answering. It may be off, or the room's breaker tripped.")
         : h("dl", { class: "facts" },
-          h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None")),
+          h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None yet (loaded on first use)")),
           h("div", {}, h("dt", {}, "Jobs waiting"), h("dd", {}, String(d.ai.waiting ?? 0)))),
       h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );

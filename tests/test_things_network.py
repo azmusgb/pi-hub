@@ -92,3 +92,9 @@ def test_api_camera_never_returns_null_on_a_bad_health_reply(monkeypatch):
         assert body["ok"] is False and body["source"] is None and body["sources"] == {}
         assert body["reason"] == "printer_unreachable"
     sources._cache.clear()
+
+
+def test_adguard_paused_is_said_not_counted_as_blocking():  # iPad, 1 Nov: "Blocking ads: 0 of 3,294" while paused
+    r = network.adguard({"ok": True, "queries": 3294, "blocked": 0, "protection": False})
+    assert r["state"] == "paused" and r["headline"] == "Ad blocking is off"
+    assert network.adguard({"ok": True, "queries": 10, "blocked": 1, "protection": None})["state"] == "blocking"

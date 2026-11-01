@@ -51,6 +51,9 @@ def adguard(report):
     queries, blocked = _get(report, "queries"), _get(report, "blocked")
     if not ok or not _num(queries) or not _num(blocked):
         return _unknown("adguard")
+    if _get(report, "protection") is False:  # paused in AdGuard: lookups still answer, nothing is blocked (1 Nov)
+        return _rec("adguard", "paused", "Ad blocking is off",
+                    cause=f"AdGuard's protection is paused: {blocked} of {queries} lookups blocked today.")
     return _rec("adguard", "blocking", f"Blocking ads: {blocked} of {queries} today")
 
 
