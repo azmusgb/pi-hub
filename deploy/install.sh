@@ -148,5 +148,5 @@ running=$(basename "$(readlink -f /opt/pi-hub/current)")
 echo "running: $running"
 [ "$running" = "$expected" ] || { echo "Release did not become live; inspect Settings → Versions."; exit 1; }
 sudo systemctl enable pi-hub pi-hub-helper x2d-camera-failover caddy >/dev/null 2>&1
-sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer pi-hub-movies-mount.timer pi-hub-movies-mirror.timer pi-paperless-backup.timer >/dev/null 2>&1
+sudo systemctl enable --now pi-hub-backup.timer pi-hub-selfcheck.timer pi-hub-movies-mount.timer pi-hub-movies-mirror.timer pi-paperless-backup.timer pi-hub-heartbeat.timer >/dev/null 2>&1
 EOF
