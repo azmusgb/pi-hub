@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException, Request
 
-from . import db
+from . import db, devices
 
 COOKIE = "hub_session"
 LIFETIME = {"kid": 30 * 86400, "household": 30 * 86400, "owner": 12 * 3600}
@@ -274,8 +274,12 @@ def allowed(role, need):
 
 
 def who(request: Request):
+    """The cookie sign-in first; else, one of the owner's own Tailscale devices is the owner (hub/devices.py)."""
     s = session(request.cookies.get(COOKIE))
-    return (s["role"], s["device"]) if s else ("none", "")
+    if s:
+        return s["role"], s["device"]
+    name = devices.owner_device(request)
+    return ("owner", name) if name else ("none", "")
 
 
 def need(request: Request, role):

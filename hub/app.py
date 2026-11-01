@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -640,6 +640,8 @@ async def api_gate_renew(request: Request):
     host = urlsplit(nxt).hostname
     if nxt == gate.HOME or host == "home.home.arpa":
         raise HTTPException(400, "That isn't one of the other tools.")
+    if devices.owner_device(request):  # the gate lets the owner's own devices through without a code
+        return fresh({"next": nxt})
     code = auth.gate_code(request.cookies.get(auth.COOKIE), host)
     if not code:
         raise HTTPException(401, "Sign in as the owner first.")
@@ -652,7 +654,8 @@ def api_gate(request: Request):
     spent here for that tool's host-only cookie, and the browser is sent on to the address without it."""
     url, code = gate.split_code(gate.original_url(request.headers))
     h = auth.session(request.cookies.get(auth.COOKIE))
-    ok = auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
+    ok = (auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
+          or devices.owner_device(request))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
         loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
@@ -679,7 +682,8 @@ def api_assistant():
 @app.get("/api/me")
 def api_me(request: Request):
     role, device = who(request)
-    return fresh({"role": role, "setup_needed": auth.setup_needed(), "device": device})
+    return fresh({"role": role, "setup_needed": auth.setup_needed(), "device": device,
+                  "tailscale": bool(devices.this_device(request))})
 
 
 @app.post("/api/setup")
@@ -706,6 +710,12 @@ async def api_signin(request: Request):
             token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
     except PermissionError as e:
         raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
+    if role == "owner" and b.get("remember") and devices.this_device(request):
+        try:
+            name = devices.add(request)
+            auth.log(role, _device(request), "settings:device-add", f"Remembered {name} as your device.")
+        except ValueError:
+            pass  # signed in all the same; Settings › Your devices says why
     return _signed_in(token, role)
 
 
@@ -979,6 +989,7 @@ def api_settings(request: Request):
         "people": auth.people(),
         "releases": system.releases(),
         "shortcut_keys": auth.shortcut_keys(),
+        "devices": _devices_view(request),
         "digest": auth.get("digest", {"on": True, "at": "08:00"}),
         "quiet": auth.get("quiet_hours", {"on": False, "from": "22:00", "to": "07:00"}),
         "place": (auth.get("place") or {}).get("name"),
@@ -986,6 +997,12 @@ def api_settings(request: Request):
         "calendar_set": bool(auth.get("calendar_url")),
         "alerts_ready": events.topic_ready(),
     })
+
+
+def _devices_view(request: Request):
+    me = devices.this_device(request)
+    return {"listed": devices.listed(), "this": me and {"stable_id": me["stable_id"], "name": me["name"]},
+            "login": devices.owner_login()}
 
 
 @app.post("/api/settings/{what}")
@@ -1019,6 +1036,18 @@ async def api_settings_save(what: str, request: Request):
             if not r.get("ok"):
                 raise ValueError(r.get("message") or "Couldn't go back to that version.")
             msg = r["message"]
+        elif what == "device-add":
+            name = devices.add(request)
+            auth.log(role, device, "settings:device-add", f"Added {name} as your device.")
+            return fresh({"ok": True, "message": f"{name} is now one of your devices. It opens the hub as the owner."})
+        elif what == "device-remove":
+            sid = str(b.get("stable_id", ""))
+            me = devices.this_device(request)
+            if me and me["stable_id"] == sid and not auth.session(request.cookies.get(auth.COOKIE)):
+                raise ValueError("Sign in with the owner password on this device before removing it, so you aren't "
+                                 "locked out.")
+            devices.remove(sid)
+            msg = "Device removed. It needs the owner password from now on."
         elif what == "shortcut-add":
             key = auth.add_shortcut_key(b.get("name"))
             auth.log(role, device, "settings:shortcut-add", "Made a Siri Shortcut key.")

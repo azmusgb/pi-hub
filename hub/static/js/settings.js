@@ -105,15 +105,36 @@ function setup(state) {
     field("pin2", "Household PIN again", { name: "pin2", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))));
 }
 
-function signIn(state, role) {
+function signIn(state, m) {
+  // Over Tailscale, the sign-in can also make this one of the owner's devices, which then never asks again.
   return h("div", { class: "auth-box" }, card("Owner sign-in", {},
-    h("p", {}, role === "household" ? "This device has the household PIN. Settings need the owner password." : "Settings need the owner password."),
+    h("p", {}, m.role === "household" ? "This device has the household PIN. Settings need the owner password." : "Settings need the owner password."),
     form(async (v) => {
-      await post("/api/signin", { password: v.password });
+      await post("/api/signin", { password: v.password, remember: v.remember === "on" });
       forgetMe();
       state.force = true;
       load(state);
-    }, "Sign in", field("owner-pw", "Owner password", { name: "password", type: "password", required: true, autocomplete: "current-password" }))));
+    }, "Sign in", field("owner-pw", "Owner password", { name: "password", type: "password", required: true, autocomplete: "current-password" }),
+    m.tailscale ? h("label", { class: "check", for: "remember-device" },
+      h("input", { type: "checkbox", id: "remember-device", name: "remember", checked: true }),
+      "Remember this device. It opens the hub as the owner from now on, with no password.") : null)));
+}
+
+function devicesCard(v, save) {
+  const mine = v.this && v.listed.some((x) => x.stable_id === v.this.stable_id);
+  return card("Your devices", { cls: "wide", pill: v.listed.length ? `${v.listed.length}` : "None yet", tone: v.listed.length ? "ok" : "warn" },
+    h("p", { class: "meta" }, "Your own Tailscale devices open the hub and every home.arpa tool as the owner, with no password. Tailscale proves which device is asking. Remove a device here, or from Tailscale, and it needs the owner password again."),
+    v.listed.length ? h("ul", { class: "log" }, v.listed.map((x) => h("li", { class: "log-row" },
+      h("span", { class: "dot", dataset: { tone: "ok" } }),
+      h("span", { class: "log-main" }, h("strong", {}, x.name, v.this?.stable_id === x.stable_id ? " (this device)" : ""),
+        h("span", { class: "meta" }, x.last_seen ? `Last seen ${when(x.last_seen)}` : "Not seen yet")),
+      h("button", { class: "ghost small", onclick: async () => {
+        if (confirm(`Remove ${x.name}? It needs the owner password from now on.`)) await save("device-remove")({ stable_id: x.stable_id });
+      } }, "Remove")))) : null,
+    v.this
+      ? (mine ? null : h("button", { class: "primary", onclick: () => save("device-add")({}) }, `Add this device (${v.this.name})`))
+      : h("p", { class: "note" }, "This device isn't reaching the hub over Tailscale, so it can't be added. Turn Tailscale on to add it."),
+    v.login ? h("p", { class: "meta" }, `Tailscale account: ${v.login}`) : null);
 }
 
 export async function load(state) {
@@ -121,7 +142,7 @@ export async function load(state) {
   state.force = false;
   const m = await whoami(true);
   if (m.setup_needed) { state.body.replaceChildren(setup(state)); return; }
-  if (m.role !== "owner") { state.body.replaceChildren(signIn(state, m.role)); return; }
+  if (m.role !== "owner") { state.body.replaceChildren(signIn(state, m)); return; }
   const d = await api("/api/settings");
   const save = (what) => async (v) => {
     const r = await post(`/api/settings/${what}`, v);
@@ -202,6 +223,7 @@ export async function load(state) {
         `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
         : h("p", { class: "note" }, "Not copied to the PC yet.")),
     versionsCard(d.releases, save),
+    devicesCard(d.devices, save),
     shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },
       d.log.length
@@ -225,7 +247,7 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
-    ["people", "People and access", ["People", "Siri and Shortcuts", "Household PIN", "Owner password"]],
+    ["people", "People and access", ["Your devices", "People", "Siri and Shortcuts", "Household PIN", "Owner password"]],
     ["pi", "The Pi", ["Versions", "Backups", "Activity"]],
   ];
   const steps = [

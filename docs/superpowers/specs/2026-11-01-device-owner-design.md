@@ -1,6 +1,6 @@
 # Your devices are the owner
 
-**Date:** 1 Nov 2026 · **Status:** draft for the owner's review
+**Date:** 1 Nov 2026 · **Status:** approved by the owner, 1 Nov 2026
 
 **Owner's words:** "Rethink full experience. Right now I'm the only user on the internal network. All three devices are
 mine. Maybe we can tie admin to machine registrations." Then "Yes" to: your Tailscale machines are the registration.
@@ -43,7 +43,7 @@ password and no expiry. Any other device sees today's sign-in. The owner adds or
 
 - `whois` fails or times out (tailscaled down): not a device; the sign-in page shows, with "Your devices aren't
   recognised right now (Tailscale isn't answering on the Pi)".
-- A listed device removed from the tailnet: `whois` no longer names it; it stops being the owner at once.
+- A listed device removed from the tailnet: `whois` no longer names it; it stops being the owner within a minute (the cache).
 - A lost or stolen device: Remove in Settings, or remove it in the Tailscale admin console; either ends it at once.
 - The last device can't be removed while it's the one asking unless the owner password is entered (no lock-out).
 
