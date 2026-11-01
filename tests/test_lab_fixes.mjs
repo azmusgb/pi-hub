@@ -210,9 +210,9 @@ test('M7: closing the photos sheet revokes every preview URL', () => {
   assert.doesNotThrow(() => releasePreviews({}, () => {}));
 });
 
-// ---- M8: a cancelled PIN leaves a Sign in button ----
-test('M8: a cancelled PIN is a 401 the page can offer to sign in for, only when nothing is shown yet', async () => {
-  setDeps({ fetch: async () => res(401, { detail: 'Enter the household PIN first.' }), ensure: async () => false, hidden: () => false });
+// ---- M8: a cancelled sign-in leaves a Sign in button ----
+test('M8: a cancelled sign-in is a 401 the page can offer to sign in for, only when nothing is shown yet', async () => {
+  setDeps({ fetch: async () => res(401, { detail: 'Sign in as the owner first.' }), ensure: async () => false, hidden: () => false });
   const err = await labFetch('/api/lab/projects').catch((e) => e);
   assert.equal(err.status, 401);
   assert.equal(signInOffer({ currentData: null }, err), true);

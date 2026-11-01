@@ -55,7 +55,7 @@ def client():
     os.environ["HUB_SETUP_CODE_FILE"] = CODE_FILE
     auth._tries.clear()
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD, "pin": "123456"}, headers=ORIGIN)
+    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD}, headers=ORIGIN)
     assert r.status_code == 200, r.text
     c.cookies.clear()
     return c
@@ -106,10 +106,10 @@ def test_an_empty_key_file_counts_as_missing(no_key):
 
 
 def test_endpoint_is_owner_only(client):
-    assert client.post("/api/printer/pause", headers=ORIGIN).status_code == 401
-    assert client.post("/api/signin", json={"pin": "123456"}, headers=ORIGIN).json()["role"] == "household"
     r = client.post("/api/printer/pause", headers=ORIGIN)
     assert r.status_code == 401 and r.json()["detail"] == "Sign in as the owner first."
+    assert client.post("/api/signin", json={"password": PASSWORD}, headers=ORIGIN).json()["role"] == "owner"
+    assert client.post("/api/printer/pause", headers=ORIGIN).status_code != 401  # the owner is past the gate
 
 
 def test_endpoint_unknown_action_is_404(owner, monkeypatch):

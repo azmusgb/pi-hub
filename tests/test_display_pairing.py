@@ -22,7 +22,7 @@ def env(tmp_path):
     os.environ["HUB_SETUP_CODE_FILE"] = CODE_FILE
     auth._tries.clear()
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "DISP-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "DISP-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     return c  # setup signs the owner in
 
@@ -91,8 +91,8 @@ def test_key_opens_display_routes_only(env):
     assert anon.post("/api/display/pair/start", headers=h).status_code == 401  # owner route, key is not the owner
     assert anon.post("/api/display/feed", headers=h).status_code not in (401, 403)
     # on other routes the key is ignored: same-origin check, then owner check
-    assert anon.post("/api/settings/pin", json={}, headers=h).status_code == 403
-    assert anon.post("/api/settings/pin", json={}, headers={**h, **SAME}).status_code == 401
+    assert anon.post("/api/settings/password", json={}, headers=h).status_code == 403
+    assert anon.post("/api/settings/password", json={}, headers={**h, **SAME}).status_code == 401
     # a wrong key is 401
     assert anon.post("/api/display/feed", headers={"X-Hub-Display-Key": "hubd_nope"}).status_code == 401
 

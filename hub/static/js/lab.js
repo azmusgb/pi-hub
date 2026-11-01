@@ -527,7 +527,7 @@ export function releasePreviews(state, revoke = (u) => URL.revokeObjectURL(u)) {
   for (const u of list(state && state.previewUrls)) { try { revoke(u); } catch { /* already gone */ } }
   if (state) state.previewUrls = [];
 }
-// A first load that ended at a cancelled PIN sheet (a 401 with nothing shown yet) offers a Sign in button.
+// A first load that ended at a cancelled sign-in sheet (a 401 with nothing shown yet) offers a Sign in button.
 export const signInOffer = (state, err) => !(state && state.currentData) && Boolean(err && err.status === 401);
 
 export function mount(state) {
@@ -1126,7 +1126,7 @@ export function mount(state) {
   }
 }
 
-// What a refresh fetches. The first attempt after mount may open the PIN sheet, once, whatever its outcome; every
+// What a refresh fetches. The first attempt after mount may open the sign-in sheet, once, whatever its outcome; every
 // later refresh (main.js repeats load every 15 s) is quiet. Returns null when there is no lab data yet. When the Mac's
 // fingerprint is the one already drawn, the project itself isn't fetched again: `labData` is null and `unchanged` is true.
 export async function fetchLab(state) {
@@ -1198,8 +1198,8 @@ export async function load(state) {
   }
 }
 
-// main.js calls this when load() throws. A cancelled PIN is the one failure the page can fix with a tap; the tap may open
-// the PIN sheet, while the 15 s refresh still never does.
+// main.js calls this when load() throws. A cancelled sign-in is the one failure the page can fix with a tap; the tap may open
+// the sign-in sheet, while the 15 s refresh still never does.
 export function failed(state, err) {
   if (!signInOffer(state, err) || !state.box) return;
   const btn = h("button", { class: "btn-primary", type: "button", onclick: async () => {
@@ -1212,7 +1212,7 @@ export function failed(state, err) {
       }
     } catch { /* main.js's next refresh says what went wrong */ } finally { btn.disabled = false; }
   } }, "Sign in");
-  state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("The lab needs the household PIN."), btn));
+  state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("The lab needs the owner."), btn));
 }
 
 export function leave(state) {

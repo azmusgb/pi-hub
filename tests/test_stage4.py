@@ -158,7 +158,7 @@ def test_bambuddy_reads_send_the_api_key_when_there_is_one(monkeypatch, tmp_path
     assert seen == [{}, {"X-API-Key": "bb_secret"}]
 
 
-def test_scan_page_needs_the_household_pin_and_is_proxied(monkeypatch):
+def test_scan_page_needs_the_owner_and_is_proxied(monkeypatch):
     import httpx
     from fastapi.testclient import TestClient
     from hub import app as hub_app
@@ -171,7 +171,7 @@ def test_scan_page_needs_the_household_pin_and_is_proxied(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
     c = TestClient(hub_app.app)
     r = c.get("/scan/")
-    assert r.status_code == 401 and "household PIN" in r.text and not seen
+    assert r.status_code == 401 and "needs the owner" in r.text and not seen
     assert c.get("/scan/api/v1/context").status_code == 401
     monkeypatch.setattr(hub_app, "need", lambda *a: ("household", "Test"))
     r = c.get("/scan/api/v1/context?x=1", cookies={"hub_session": "secret"})

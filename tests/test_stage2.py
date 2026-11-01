@@ -149,7 +149,7 @@ def test_ask_sends_the_hubs_facts(monkeypatch):
         ask.ask("?")
 
 
-def test_rule_routes_need_the_pin():
+def test_rule_routes_need_the_owner():
     c = TestClient(hub_app.app)
     assert c.post("/api/rules", json={"trigger": "print_finished", "action": "notify"}, headers=SAME).status_code == 401
     assert c.post("/api/ask", json={"question": "Is Plex up?"}, headers=SAME).status_code == 401

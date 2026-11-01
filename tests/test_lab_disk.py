@@ -34,10 +34,10 @@ def client(tmp_path, monkeypatch):
     lab.ready()
     from hub import db
     db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', '{}', 'x')", "hex-tile")
-    assert c.post("/api/setup", json={"code": "LABS-9911", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "LABS-9911", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     c.cookies.clear()
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).status_code == 200
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).status_code == 200
     return c
 
 

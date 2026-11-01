@@ -59,11 +59,11 @@ def client(tmp_path, monkeypatch):
     key_file.write_text(hashlib.sha256(KEY.encode()).hexdigest() + "\n")
     monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(key_file))
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "LABS-5678", "owner_password": "long enough", "pin": "123456"},
+    r = c.post("/api/setup", json={"code": "LABS-5678", "owner_password": "long enough"},
                headers=SAME)
     assert r.status_code == 200, r.text
     c.cookies.clear()
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).json()["role"] == "household"
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).json()["role"] == "owner"
     make_project(c, "hex-tile")
     return c
 
@@ -289,24 +289,12 @@ def test_applied_photos_remove_only_their_incoming_files(client, tmp_path):
     assert outside.exists()
 
 
-def test_by_is_the_household_sign_in_not_the_user_agent(client):
+def test_by_is_the_sign_in_not_the_user_agent(client):
     data = VALID["verdict"]()
     assert post(client, data, **{"User-Agent": "EvilAgent/9.9 (spoofed)"}).status_code == 200
     by = pending(client)[data["id"]]["by"]
     assert by == "A browser"
     assert "EvilAgent" not in by
-
-
-def test_by_names_the_person_when_they_signed_in_with_their_own_pin(client):
-    client.cookies.clear()
-    assert client.post("/api/signin", json={"password": "long enough"}, headers=SAME).json()["role"] == "owner"
-    r = client.post("/api/settings/person-add", json={"name": "Ann", "kind": "adult", "pin": "246810"}, headers=SAME)
-    assert r.status_code == 200, r.text
-    ann = TestClient(hub_app.app, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)"})
-    assert ann.post("/api/signin", json={"pin": "246810"}, headers=SAME).json()["role"] == "household"
-    data = VALID["abandon"]()
-    assert ann.post(URL, json=data, headers={**SAME, "User-Agent": "EvilAgent/1"}).status_code == 200
-    assert pending(client)[data["id"]]["by"] == "Ann on iPhone"
 
 
 def raw(c, text, url=URL, **headers):

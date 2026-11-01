@@ -24,7 +24,7 @@ def env(tmp_path, monkeypatch):
     auth._tries.clear()
     monkeypatch.setattr(display_ai, "_cache", (0.0, None))
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "PASS-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "PASS-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     code = c.post("/api/display/pair/start", headers=SAME).json()["code"]
     key = TestClient(hub_app.app).post("/api/display/pair", json={"code": code}, headers=SAME).json()["key"]

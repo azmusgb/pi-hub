@@ -1,4 +1,4 @@
-"""A persistent household shortlist, with one vote per named person or shared-PIN session."""
+"""A persistent household shortlist, with one vote per signed-in session."""
 import hashlib
 import json
 import re
@@ -26,8 +26,7 @@ def voter(token):
     session = auth.session(token)
     if not session:
         return None
-    return f"person:{session['person_id']}" if session.get('person_id') else \
-        "session:" + hashlib.sha256(token.encode()).hexdigest()
+    return "session:" + hashlib.sha256(token.encode()).hexdigest()
 
 
 def movie(key):

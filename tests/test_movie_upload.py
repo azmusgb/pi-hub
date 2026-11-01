@@ -31,7 +31,7 @@ def env(tmp_path, monkeypatch):
     refreshed = []
     monkeypatch.setattr(uploads, "refresh_plex", lambda: refreshed.append(1) or True)
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "MOVI-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "MOVI-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     return c, movies, refreshed
 
@@ -92,8 +92,8 @@ def test_owner_only(env):
     c, _, _ = env
     c.cookies.clear()
     assert start(c).status_code == 401
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).status_code == 200  # household PIN
-    assert start(c).status_code == 401
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).status_code == 200
+    assert start(c).status_code == 200
 
 
 @pytest.mark.parametrize("kw,why", [

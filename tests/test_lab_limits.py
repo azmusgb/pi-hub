@@ -33,10 +33,10 @@ def env(tmp_path, monkeypatch):
     key_file.write_text(hashlib.sha256(KEY.encode()).hexdigest() + "\n")
     monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(key_file))
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "LABS-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "LABS-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     c.cookies.clear()
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).status_code == 200
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).status_code == 200
     return c
 
 

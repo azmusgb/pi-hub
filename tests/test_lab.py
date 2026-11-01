@@ -22,7 +22,7 @@ MAC_HEADER = {"X-Hub-Mac-Key": TEST_KEY}
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """Signed in with the household PIN (the phone); Mac calls add MAC_HEADER."""
+    """Signed in as the owner (the phone); Mac calls add MAC_HEADER."""
     db_path = str(tmp_path / "hub.db")
     lab_dir = tmp_path / "lab"
     os.environ["HUB_DB"] = db_path
@@ -35,11 +35,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(key_file))
 
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "LABS-1234", "owner_password": "long enough", "pin": "123456"},
+    r = c.post("/api/setup", json={"code": "LABS-1234", "owner_password": "long enough"},
                headers=ORIGIN)
     assert r.status_code == 200, r.text
     c.cookies.clear()
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=ORIGIN).json()["role"] == "household"
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=ORIGIN).json()["role"] == "owner"
     return c
 
 

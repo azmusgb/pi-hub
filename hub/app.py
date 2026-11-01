@@ -115,7 +115,7 @@ def api_now():
     data = now.build(records.all(), sources.plex_sessions(), sampler.snapshot(), disk, sources.network_metrics())
     data["reminders"] = reminders.due_today()
     data["setup_left"] = sum(1 for k in ("homebridge_login", "place", "wifi", "calendar_url") if not auth.get(k)) \
-        + (0 if auth.people() else 1) if not auth.setup_needed() else None
+        if not auth.setup_needed() else None
     return fresh(data)
 
 
@@ -624,7 +624,7 @@ def _device(request: Request):
 
 def _signed_in(token, role):
     resp = fresh({"role": role})
-    resp.set_cookie(auth.COOKIE, token, max_age=auth.LIFETIME[role], httponly=True, samesite="strict", path="/")
+    resp.set_cookie(auth.COOKIE, token, max_age=auth.OWNER_LIFETIME, httponly=True, samesite="strict", path="/")
     return resp
 
 
@@ -665,7 +665,7 @@ def api_gate(request: Request):
         if token:
             auth.sign_out(request.cookies.get(gate.COOKIE))  # this tool's previous token, if the browser sent one
             resp = Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
-            resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.LIFETIME["owner"]))
+            resp.set_cookie(gate.COOKIE, token, **gate.cookie_kwargs(auth.OWNER_LIFETIME))
             return resp
         if ok and same:  # a spent code on an already signed-in visit: drop it from the tool's address
             return Response(status_code=302, headers={"Location": loc, "Cache-Control": "no-store"})
@@ -691,7 +691,7 @@ def api_me(request: Request):
 async def api_setup(request: Request):
     b = await request.json()
     try:
-        auth.setup(b.get("code", ""), b.get("owner_password", ""), str(b.get("pin", "")))
+        auth.setup(b.get("code", ""), b.get("owner_password", ""))
     except PermissionError as e:
         raise HTTPException(403, str(e))
     except ValueError as e:
@@ -705,13 +705,10 @@ async def api_setup(request: Request):
 async def api_signin(request: Request):
     b = await request.json()
     try:
-        if "password" in b:
-            token, role = auth.sign_in(request.client.host, _device(request), password=str(b["password"]))
-        else:
-            token, role = auth.sign_in(request.client.host, _device(request), pin=str(b.get("pin", "")))
+        token, role = auth.sign_in(request.client.host, _device(request), str(b.get("password", "")))
     except PermissionError as e:
         raise HTTPException(429 if "Too many" in str(e) else 403, str(e))
-    if role == "owner" and b.get("remember") and devices.this_device(request):
+    if b.get("remember") and devices.this_device(request):
         try:
             name = devices.add(request)
             auth.log(role, _device(request), "settings:device-add", f"Remembered {name} as your device.")
@@ -987,7 +984,6 @@ def api_settings(request: Request):
         "backups": system.backups(),
         "pc_copy": system.pc_copy(),
         "log": auth.recent_actions(30),
-        "people": auth.people(),
         "releases": system.releases(),
         "shortcut_keys": auth.shortcut_keys(),
         "devices": _devices_view(request),
@@ -1011,11 +1007,8 @@ async def api_settings_save(what: str, request: Request):
     role, device = need(request, "owner")
     b = await request.json()
     try:
-        if what == "pin":
-            auth.set_pin(str(b.get("pin", "")))
-            msg = "Household PIN changed. Everyone needs the new PIN next time."
-        elif what == "password":
-            auth.set_owner_password(str(b.get("password", "")))
+        if what == "password":
+            auth.set_owner_password(str(b.get("password", "")), keep=request.cookies.get(auth.COOKIE))
             msg = "Owner password changed."
         elif what == "homebridge":
             user, pw = str(b.get("username", "")).strip(), str(b.get("password", ""))
@@ -1056,12 +1049,6 @@ async def api_settings_save(what: str, request: Request):
         elif what == "shortcut-remove":
             auth.remove_shortcut_key(int(b.get("id", 0)))
             msg = "Shortcut key removed. That phone's Shortcuts stop working."
-        elif what == "person-add":
-            auth.add_person(b.get("name"), str(b.get("kind", "")), str(b.get("pin", "")))
-            msg = f"Added {' '.join(str(b.get('name', '')).split())[:30]}."
-        elif what == "person-remove":
-            auth.remove_person(int(b.get("id", 0)))
-            msg = "Removed that person, and signed out their devices."
         elif what == "digest":
             at = str(b.get("at", "08:00"))
             if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", at):
@@ -1121,9 +1108,9 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
 
-# ---- Scanning: scanservjs (Docker on the Pi), only through the hub so it needs the household PIN ----
+# ---- Scanning: scanservjs (Docker on the Pi), only through the hub so it needs the owner ----
 # scanservjs listens on 127.0.0.1:8095 only; its page and API are served here under /scan/ (its paths are relative).
-# Every request needs a household sign-in, because a scan goes straight into Paperless. scanservjs runs on the hub's own
+# Every request needs the owner, because a scan goes straight into Paperless. scanservjs runs on the hub's own
 # address, so the hub's cookie and Authorization are never forwarded and only content headers come back.
 SCAN_URL = os.environ.get("HUB_SCAN_URL", "http://127.0.0.1:8095")
 _HOP = {"connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te",
@@ -1140,7 +1127,7 @@ SCAN_SIGNED_OUT = """<!doctype html>
 <style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
 main{max-width:32rem}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}p{margin:0 0 16px;color:var(--ui-muted)}</style>
 </head><body><main>
-<h1>Scan needs the household PIN</h1>
+<h1>Scan needs the owner</h1>
 <p>A scan goes straight into Paperless, so the hub asks who you are first. Sign in, then open Scan again.</p>
 <a class="ui-btn ui-btn--primary" href="/settings" target="_top">Sign in to Pi Hub</a>
 </main></body></html>"""

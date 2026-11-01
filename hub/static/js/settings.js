@@ -46,7 +46,7 @@ function shortcutsCard(state, keys, save) {
       h("li", {}, "End each with “Speak Text” on the result, and name them what you'll say: “Hey Siri, add to shopping”."),
       h("li", {}, "Away from home, use the Tailscale address ", h("code", {}, "http://pi"), " in place of this one.")));
   return card("Siri and Shortcuts", { cls: "wide", pill: keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : null, tone: "ok" },
-    h("p", { class: "meta" }, "A key lets a phone's Shortcuts add to the lists, hear the house's status, and ask Local AI, with no PIN. Make one per phone; remove it if the phone is lost."),
+    h("p", { class: "meta" }, "A key lets a phone's Shortcuts add to the lists, hear the house's status, and ask Local AI, with no sign-in. Make one per phone; remove it if the phone is lost."),
     shown ? h("div", { class: "new-key" }, h("p", {}, h("strong", {}, "Copy this key now. It won't be shown again.")),
       h("code", { class: "key", tabindex: 0 }, shown),
       h("button", { class: "ghost", onclick: async () => { try { await navigator.clipboard.writeText(shown); toast("Key copied."); } catch { toast("Select the key and copy it.", "warn"); } } }, "Copy key")) : null,
@@ -89,26 +89,23 @@ export function mount(state) {
 
 function setup(state) {
   return h("div", { class: "auth-box" }, card("Set up the hub", {},
-    h("p", {}, "Choose an owner password (for these settings) and a 6-digit household PIN (for everyone who should be able to restart things and switch lights)."),
+    h("p", {}, "Choose an owner password. It protects these settings and everything that restarts or changes things."),
     h("p", { class: "meta" }, "The setup code is on the Pi. On the Mac, run: ssh pi sudo cat /etc/pi-hub/setup-code"),
     form(async (v) => {
-      if (v.pin !== v.pin2) throw new Error("The two PINs don't match.");
-      await post("/api/setup", { code: v.code, owner_password: v.owner_password, pin: v.pin });
+      await post("/api/setup", { code: v.code, owner_password: v.owner_password });
       forgetMe();
       toast("The hub is set up, and you're signed in as the owner.");
       state.force = true;
       load(state);
     }, "Set up",
     field("code", "Setup code", { name: "code", required: true, autocomplete: "off", autocapitalize: "characters" }),
-    field("owner_password", "Owner password", { name: "owner_password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }),
-    field("pin", "Household PIN (6 digits)", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }),
-    field("pin2", "Household PIN again", { name: "pin2", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))));
+    field("owner_password", "Owner password", { name: "owner_password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }))));
 }
 
 function signIn(state, m) {
   // Over Tailscale, the sign-in can also make this one of the owner's devices, which then never asks again.
   return h("div", { class: "auth-box" }, card("Owner sign-in", {},
-    h("p", {}, m.role === "household" ? "This device has the household PIN. Settings need the owner password." : "Settings need the owner password."),
+    h("p", {}, "Settings need the owner password. Signing in lasts 30 days on this device."),
     form(async (v) => {
       await post("/api/signin", { password: v.password, remember: v.remember === "on" });
       forgetMe();
@@ -191,25 +188,6 @@ export async function load(state) {
       form(save("calendar"), d.calendar_set ? "Replace calendar" : "Connect calendar",
         field("cal-url", "Calendar address", { name: "url", type: "url", placeholder: "https://…/basic.ics", required: true, autocomplete: "off" })),
       d.calendar_set ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/calendar", { clear: true }); toast("Calendar removed."); state.force = true; load(state); } }, "Remove calendar") : null),
-    card("People", { pill: d.people.length ? `${d.people.length}` : null, cls: "wide" },
-      h("p", { class: "meta" }, "Give each person their own PIN so the activity log shows who did what. Adults can do everything the household PIN can; kids can switch lights and plugs, use lists, and nominate or vote for movies. Adults manage automations and system fixes."),
-      d.people.length ? h("ul", { class: "log" }, d.people.map((p) => h("li", { class: "log-row" },
-        h("span", { class: "dot", dataset: { tone: "ok" } }),
-        h("span", { class: "log-main" }, h("strong", {}, p.name), h("span", { class: "meta" }, p.kind === "kid" ? "Kid" : "Adult")),
-        h("button", { class: "ghost small", onclick: async () => {
-          if (!confirm(`Remove ${p.name}? Their devices are signed out.`)) return;
-          await save("person-remove")({ id: p.id });
-        } }, "Remove")))) : null,
-      form(save("person-add"), "Add person",
-        h("div", { class: "two" },
-          field("person-name", "Name", { name: "name", required: true, maxlength: 30, autocomplete: "off" }),
-          h("label", { class: "field", for: "person-kind" }, h("span", {}, "Who"),
-            h("select", { id: "person-kind", name: "kind" }, h("option", { value: "adult" }, "Adult"), h("option", { value: "kid" }, "Kid")))),
-        field("person-pin", "Their 6-digit PIN", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))),
-    card("Household PIN", {},
-      h("p", { class: "meta" }, "Changing it signs every device out of the household PIN."),
-      form(save("pin"), "Change PIN",
-        field("new-pin", "New 6-digit PIN", { name: "pin", type: "password", inputmode: "numeric", pattern: "[0-9]{6}", maxlength: 6, required: true, autocomplete: "off" }))),
     card("Owner password", {},
       form(save("password"), "Change password",
         field("new-pw", "New owner password", { name: "password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }))),
@@ -228,7 +206,7 @@ export async function load(state) {
     card("Activity", { cls: "wide" },
       d.log.length
         ? firstFew(d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
-          h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household PIN"}`)),
+          h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household"}`)),
           h("span", { class: "log-side" }, when(l.ts)))), { n: 6, noun: "changes" })
         : [empty("Nothing yet. Every restart, fix and settings change is listed here.")]),
   ];
@@ -247,7 +225,7 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
-    ["people", "People and access", ["Your devices", "People", "Siri and Shortcuts", "Household PIN", "Owner password"]],
+    ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
     ["pi", "The Pi", ["Versions", "Backups", "Activity"]],
   ];
   const steps = [
@@ -255,7 +233,7 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["Set your town", !!d.place, "outside", "for the weather and the wall's day and night"],
     ["Add guest Wi-Fi", !!d.wifi, "home", "for the QR code guests scan"],
     ["Connect a calendar", d.calendar_set, "outside", "for “Coming up” and the digest"],
-    ["Add the people in the house", d.people.length > 0, "people", "so the activity log says who did what"],
+    ["Add your devices", d.devices.listed.length > 0, "people", "so the hub opens as you, with no password"],
   ];
   const left = steps.filter((x) => !x[1]);
   state.body.replaceChildren(

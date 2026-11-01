@@ -825,7 +825,7 @@ export function piLink(
   return `${scheme}://${hostname}:${port}${suffix}`;
 }
 
-// ---- Who's signed in, and asking for the PIN only when an action needs it ----
+// ---- Who's signed in, and asking for the owner password only when an action needs it ----
 
 let me = null;
 let meRequest = null;
@@ -868,8 +868,8 @@ export function forgetMe() {
 export async function ensure(
   role = "household",
 ) {
-  // "kid" is enough for switching lights; everything else that acts
-  // needs an adult's PIN.
+  // Only the owner signs in: a listed device is the owner already, any
+  // other device gets the password sheet.
 
   const required =
     RANK[role];
@@ -899,7 +899,7 @@ export async function ensure(
     user?.setup_needed
   ) {
     toast(
-      "Set up the hub first: choose the household PIN in Settings.",
+      "Set up the hub first: choose the owner password in Settings.",
       "warn",
     );
 
@@ -925,10 +925,10 @@ export async function ensure(
     return false;
   }
 
-  return pinSheet();
+  return passwordSheet();
 }
 
-function pinSheet() {
+function passwordSheet() {
   return new Promise(
     (resolve) => {
       const previousFocus =
@@ -941,18 +941,12 @@ function pinSheet() {
         "input",
         {
           type: "password",
-          inputmode:
-            "numeric",
-          pattern: "[0-9]*",
-          maxlength: 6,
           autocomplete:
-            "one-time-code",
-          id: "pin-input",
-          class:
-            "pin-input",
+            "current-password",
+          id: "owner-password-input",
 
           "aria-describedby":
-            "pin-help",
+            "owner-password-help",
 
           required: true,
         },
@@ -988,7 +982,7 @@ function pinSheet() {
             class:
               "primary",
           },
-          "Unlock",
+          "Sign in",
         );
 
       let dialog;
@@ -1037,12 +1031,12 @@ function pinSheet() {
               ) => {
                 event.preventDefault();
 
-                const pin =
-                  input.value.trim();
+                const password =
+                  input.value;
 
-                if (!pin) {
+                if (!password) {
                   error.textContent =
-                    "Enter your PIN.";
+                    "Enter the owner password.";
 
                   input.focus();
 
@@ -1064,7 +1058,7 @@ function pinSheet() {
                 try {
                   await post(
                     "/api/signin",
-                    { pin },
+                    { password },
                   );
 
                   forgetMe();
@@ -1072,7 +1066,7 @@ function pinSheet() {
                   await whoami();
 
                   toast(
-                    "Unlocked on this device for 30 days.",
+                    "Signed in on this device for 30 days.",
                   );
 
                   close(true);
@@ -1081,7 +1075,7 @@ function pinSheet() {
                 ) {
                   error.textContent =
                     requestError?.message ||
-                    "The PIN could not be verified.";
+                    "The password could not be verified.";
 
                   input.disabled =
                     false;
@@ -1101,28 +1095,28 @@ function pinSheet() {
             "h2",
             {
               id:
-                "pin-title",
+                "owner-password-title",
             },
-            "Enter your PIN",
+            "Sign in as the owner",
           ),
 
           h(
             "p",
             {
-              id: "pin-help",
+              id: "owner-password-help",
               class: "meta",
             },
-            "The household PIN, or your own. Needed once on each device before it can change things.",
+            "The owner password. Needed once on each device, then it lasts 30 days.",
           ),
 
           h(
             "label",
             {
               for:
-                "pin-input",
+                "owner-password-input",
               class: "sr",
             },
-            "Household PIN",
+            "Owner password",
           ),
 
           input,
@@ -1147,10 +1141,10 @@ function pinSheet() {
             class: "sheet",
 
             "aria-labelledby":
-              "pin-title",
+              "owner-password-title",
 
             "aria-describedby":
-              "pin-help",
+              "owner-password-help",
           },
           form,
         );
