@@ -37,7 +37,7 @@ KINDS = {
     "adguard": {"blocking": "ok", "not_answering": "attention", "paused": "attention"},
     "backups": {"ok": "ok", "behind": "attention"},
     "plex": {"playing": "info", "idle": "ok", "stopped": "problem"},
-    "devices": {"ok": "ok", "stopped": "problem"},
+    "devices": {"ok": "ok", "signed_out": "attention", "stopped": "problem"},
     "paper_printer": {"ready": "ok", "busy": "info", "problem": "attention"},
     "weather": {"ok": "ok", "warning": "attention"},
     "hub": {"ok": "ok", "disagreement": "attention"},

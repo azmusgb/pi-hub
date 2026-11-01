@@ -177,7 +177,9 @@ def plex(s, sessions):
     return _rec("plex", "idle", "Nothing playing")
 
 
-def devices(s):
+def devices(s, login=None):
+    """`login`: homecontrol.login_state(). A running service whose saved login is turned down still can't
+    switch anything (iPad, 1 Nov: "running" beside "Homebridge turned down the saved login")."""
     if s is None:
         return None
     up = _get(_get(s, "services"), "homebridge")
@@ -186,6 +188,9 @@ def devices(s):
     if not up:
         return _rec("devices", "stopped", "The smart-home service has stopped",
                     actions=_restart("restart:homebridge", "Restart smart-home service"))
+    if login == "rejected":
+        return _rec("devices", "signed_out", "Smart-home controls can't sign in",
+                    cause="Homebridge turned down the saved login. Update it in Settings.")
     return _rec("devices", "ok", "Smart-home controls are running")
 
 

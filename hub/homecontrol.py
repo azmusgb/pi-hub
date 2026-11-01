@@ -36,17 +36,29 @@ def _call(method, path, body=None, token=None, timeout=8):
 def _login():
     creds = auth.get("homebridge_login")
     if not creds:
-        raise NotConnected("Homebridge isn't connected yet. The owner can connect it in Settings.")
+        raise NotConnected("Homebridge isn't connected yet. Connect it in Settings to control lights and plugs from here.")
     with _lock:
         if _token["value"] and _token["expires"] > time.time() + 60:
             return _token["value"]
         try:
             r = _call("POST", "/api/auth/login", {"username": creds["username"], "password": creds["password"]})
         except urllib.error.HTTPError as e:
-            raise NotConnected("Homebridge turned down the saved login. The owner can update it in Settings.") from e
+            raise NotConnected("Homebridge turned down the saved login, so lights and plugs can't be controlled from here. Update the login in Settings.") from e
         _token["value"] = r["access_token"]
         _token["expires"] = time.time() + int(r.get("expires_in", 3600))
         return _token["value"]
+
+
+def login_state():
+    """For the devices record: "ok", "rejected" (the saved login was turned down), "not_set", or None when
+    Homebridge didn't answer (its service record says why)."""
+    try:
+        _login()
+        return "ok"
+    except NotConnected:
+        return "not_set" if not auth.get("homebridge_login") else "rejected"
+    except (OSError, ValueError, KeyError):
+        return None
 
 
 def test_login(username, password):

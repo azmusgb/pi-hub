@@ -27,6 +27,11 @@ def _lab():
     return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
 
 
+def _homebridge_login():
+    from .. import homecontrol, sources
+    return sources.cached("homebridge-login", 300, homecontrol.login_state)
+
+
 def _obico():
     from .. import bambuddy
     return bambuddy.obico_status()
@@ -37,7 +42,8 @@ def _fetchers():
     return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
             "netmon": sources.network_metrics, "lab": _lab, "sessions": sources.plex_sessions,
             "paper": printing.printer_state, "weather": outside.weather, "adguard": _adguard,
-            "backups": _backups, "obico": _obico, "camera": sources.camera_health}
+            "backups": _backups, "obico": _obico, "camera": sources.camera_health,
+            "homebridge_login": _homebridge_login}
 
 
 def gather():
@@ -74,7 +80,7 @@ def build_all(inputs, prev, now):
         "movies_drive": lambda: house.movies_drive(s),
         "movie_copy": lambda: house.movie_copy(s, now),
         "plex": lambda: house.plex(s, i("sessions")),
-        "devices": lambda: house.devices(s),
+        "devices": lambda: house.devices(s, i("homebridge_login")),
         "paper_printer": lambda: house.paper_printer(i("paper")),
         "weather": lambda: house.weather(i("weather")),
         "internet": lambda: network.internet(net),
