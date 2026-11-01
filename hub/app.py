@@ -636,9 +636,10 @@ async def api_gate_renew(request: Request):
     if not gate.on_home_arpa(request.headers.get("host", "")):
         raise HTTPException(400, "Open the hub at https://home.home.arpa to sign in to the other tools.")
     b = await request.json()
-    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None)
+    home = gate.home_for(request.headers.get("host", ""))
+    nxt = gate.safe_next(b.get("next") if isinstance(b, dict) else None, home)
     host = urlsplit(nxt).hostname
-    if nxt == gate.HOME or host == "home.home.arpa":
+    if nxt == home or host in gate.HUBS.values():
         raise HTTPException(400, "That isn't one of the other tools.")
     if devices.owner_device(request):  # the gate lets the owner's own devices through without a code
         return fresh({"next": nxt})
@@ -658,7 +659,7 @@ def api_gate(request: Request):
           or (gate.lax_like(request.headers) and devices.owner_device(request)))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
-        loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on
+        loc = gate.safe_next(url, gate.home_for(host))  # the redirect target must be the very host the code is spent on
         same = urlsplit(loc).hostname == host
         token = auth.redeem_gate_code(code, host) if same else None
         if token:

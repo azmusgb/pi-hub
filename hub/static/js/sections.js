@@ -41,10 +41,15 @@ export function redirectFor(path) {
 export const railItems = () => SECTIONS.map((s) => s.key);
 export const phoneTabs = () => [...PHONE];
 
-// Each tool by its gate name. The old IP:port addresses were retired in step 6 (one home), so the address the hub was
-// opened on no longer matters; `host` stays for resolveLink's callers.
-export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
-  return `https://${name}.home.arpa/`;
+// The house's real name (docs/superpowers/specs/2026-11-01-real-names-design.md); the tools answer under it and under
+// home.arpa while both run.
+export const REAL = "rahe-home.duckdns.org";
+
+// Each tool by its gate name, on the suffix the hub was opened on (`host`), so its sign-in hand-back stays on one
+// suffix (by default the page's own). Anything else (an IP, an old name) gets home.arpa, as since step 6 (one home).
+export function toolUrl(name, host = globalThis.location?.host || "") {
+  const h = String(host).split(":")[0].toLowerCase();
+  return h === REAL || h.endsWith("." + REAL) ? `https://${name}.${REAL}/` : `https://${name}.home.arpa/`;
 }
 
 // The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).

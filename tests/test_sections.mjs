@@ -99,3 +99,11 @@ test('a print row links the hub\'s own /lab page on the experiment', async () =>
   assert.equal(printLabUrl('E-022'), '/lab?e=E-022');
   assert.equal(printLabUrl('E-023'), '/lab?e=E-023');
 });
+
+// Real names (docs/superpowers/specs/2026-11-01-real-names-design.md): a hub opened on the real name links to the tools
+// on it, so a tool's sign-in hand-back stays on one suffix.
+test('tool links follow a hub opened on the real name', () => {
+  assert.equal(toolUrl('bambuddy', 'hub.rahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
+  assert.equal(toolUrl('scan', 'hub.rahe-home.duckdns.org:443'), 'https://scan.rahe-home.duckdns.org/');
+  assert.equal(toolUrl('bambuddy', 'evilrahe-home.duckdns.org'), 'https://bambuddy.home.arpa/');
+});

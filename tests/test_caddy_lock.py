@@ -11,7 +11,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CADDYFILE = os.path.join(ROOT, "deploy", "caddy", "Caddyfile")
 MACHINE_PATHS = ["/api/now", "/api/now/*", "/api/needs", "/api/records", "/api/webhook/bambuddy", "/api/shortcut/*", "/home-ca.crt", "/healthz"]
 
-pytestmark = pytest.mark.skipif(not shutil.which("caddy"), reason="caddy not installed")
+def _has_duckdns():
+    if not shutil.which("caddy"):
+        return False
+    mods = subprocess.run(["caddy", "list-modules"], capture_output=True, text=True).stdout.split()
+    return "dns.providers.duckdns" in mods
+
+
+# The Caddyfile names the DuckDNS module, so only a Caddy with it (the Pi's pinned build) can adapt it.
+pytestmark = pytest.mark.skipif(not _has_duckdns(), reason="caddy with the DuckDNS module not installed")
 
 
 @pytest.fixture(scope="module")

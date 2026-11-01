@@ -282,3 +282,43 @@ def test_a_redeemed_gate_token_ends_when_its_owner_does(client):
     (owner_expires,) = db.execute("SELECT expires FROM sessions WHERE token_hash = ?",
                                   (hashlib.sha256(owner.encode()).hexdigest(),)).fetchone()
     assert auth.session(token, gate=True)["expires"] == owner_expires
+
+
+# Real names (docs/superpowers/specs/2026-11-01-real-names-design.md): each tool also answers under the real name, and a
+# visit there signs in, and is sent back, on that name's hub.
+REAL_HUB = "hub.rahe-home.duckdns.org"
+
+
+def test_safe_next_allows_the_real_name_only():
+    assert gate.safe_next("https://bambuddy.rahe-home.duckdns.org/x") == "https://bambuddy.rahe-home.duckdns.org/x"
+    for bad in ("https://evilrahe-home.duckdns.org/", "https://rahe-home.duckdns.org.evil.com/",
+                "https://other.duckdns.org/", "http://bambuddy.rahe-home.duckdns.org/"):
+        assert gate.safe_next(bad) == "https://home.home.arpa/"
+    assert gate.safe_next("https://evil.com", f"https://{REAL_HUB}/") == f"https://{REAL_HUB}/"
+
+
+def test_signed_out_on_the_real_name_signs_in_on_its_hub(client):
+    g = gate_get(client, "bambuddy.rahe-home.duckdns.org", "/inventory")
+    assert g.status_code == 302
+    assert g.headers["location"] == (f"https://{REAL_HUB}/?signin=owner&next="
+                                     "https%3A%2F%2Fbambuddy.rahe-home.duckdns.org%2Finventory")
+
+
+def test_the_hand_off_works_on_the_real_name(client):
+    signin(client, REAL_HUB)
+    r = client.post("/api/gate/renew", json={"next": "https://bambuddy.rahe-home.duckdns.org/x"},
+                    headers={"Host": REAL_HUB, "Origin": f"https://{REAL_HUB}"})
+    assert r.status_code == 200, r.text
+    nxt = urlsplit(r.json()["next"])
+    assert nxt.hostname == "bambuddy.rahe-home.duckdns.org"
+    client.cookies.clear()
+    g = gate_get(client, "bambuddy.rahe-home.duckdns.org", f"{nxt.path}?{nxt.query}")
+    assert g.status_code == 302 and g.headers["location"] == "https://bambuddy.rahe-home.duckdns.org/x"
+    assert gate_get(client, "bambuddy.rahe-home.duckdns.org", "/x", cookies={"hub_gate": gate_cookie(g)}).status_code == 200
+
+
+def test_renew_on_the_real_name_refuses_either_hub(client):
+    signin(client, REAL_HUB)
+    for bad in (f"https://{REAL_HUB}/", "https://home.home.arpa/", "https://evil.com/"):
+        r = client.post("/api/gate/renew", json={"next": bad}, headers={"Host": REAL_HUB, "Origin": f"https://{REAL_HUB}"})
+        assert r.status_code == 400, bad

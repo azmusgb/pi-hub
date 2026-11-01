@@ -127,7 +127,7 @@ def test_understated_content_length_cannot_dodge_the_cap(env):
 
 def test_caddyfile_caps_lab_bodies():
     text = (pathlib.Path(__file__).resolve().parent.parent / "deploy/caddy/Caddyfile").read_text()
-    block = text.split("home.home.arpa {", 1)[1].split("\n}\n", 1)[0]
+    block = text.split("\n(site_hub) {", 1)[1].split("\n}\n", 1)[0]  # the hub's site, on both names
     lab = block.split("handle /api/lab/* {", 1)[1].split("reverse_proxy", 1)[0]
     assert "request_body" in lab and "max_size 9MB" in lab
     assert block.index("handle /api/lab/*") < block.rindex("\thandle {")

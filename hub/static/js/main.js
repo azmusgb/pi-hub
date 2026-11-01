@@ -287,12 +287,12 @@ async function stayAwake() {
   try { if (isWall() && "wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch {}
 }
 
-// The front gate (hub/gate.py) sends a signed-out visit to any *.home.arpa tool here with ?signin=owner&next=…:
-// sign in, then go back to that tool. Only https home.arpa addresses are followed, as on the server.
+// The front gate (hub/gate.py) sends a signed-out visit to any tool here with ?signin=owner&next=…: sign in, then go
+// back to that tool. Only https addresses on the house's names (home.arpa or the real name) are followed, as on the server.
 export function safeNext(url) {
   try {
     const u = new URL(url);
-    const ours = u.hostname === "home.arpa" || u.hostname.endsWith(".home.arpa");
+    const ours = u.hostname === "home.arpa" || u.hostname.endsWith(".home.arpa") || u.hostname.endsWith(".rahe-home.duckdns.org");
     return u.protocol === "https:" && ours && !u.username && !u.password ? u.href : null;
   } catch { return null; }
 }
@@ -308,12 +308,12 @@ async function gateSignIn() {
   // tool still sends us back within a minute, say so instead of bouncing.
   let tries = [];
   try { tries = JSON.parse(sessionStorage.getItem("gateTries") || "[]").filter((t) => Date.now() - t < 60000); } catch { /* private mode */ }
-  if (tries.length >= 2) { toast("This browser isn't keeping the sign-in for the other tools. Check that it allows cookies for home.arpa.", "bad"); return; }
+  if (tries.length >= 2) { toast("This browser isn't keeping the sign-in for the other tools. Check that it allows cookies for this site.", "bad"); return; }
   try { sessionStorage.setItem("gateTries", JSON.stringify([...tries, Date.now()])); } catch { /* private mode */ }
   const r = await fetch("/api/gate/renew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ next }) }).catch(() => null);
   const to = r && r.ok ? safeNext((await r.json().catch(() => ({}))).next) : null;
   if (to) location.replace(new URL(to).hash ? to : to + hash);
-  else toast("Couldn't sign in to the other tools. Open https://home.home.arpa and try again.", "bad");
+  else toast(`Couldn't sign in to the other tools. Open https://${location.host} and try again.`, "bad");
 }
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
