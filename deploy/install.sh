@@ -10,9 +10,18 @@ quiet() { grep -v "post-quantum\|store now\|openssh.com/pq\|server may need" || 
 
 [ -z "$(git status --porcelain)" ] || { echo "Commit your changes first; only committed work ships."; exit 1; }
 
+# Caddy with the DuckDNS module, for the house names' certificate (docs/superpowers/specs/2026-11-01-real-names-design.md).
+# Built by Caddy's own build server at a pinned version; the Pi installs it only if its SHA-256 matches. To update, change
+# the two versions, download the URL below once, and record its new SHA-256.
+CADDY_VERSION=v2.11.7
+CADDY_DUCKDNS=v0.5.0
+CADDY_SHA256=c7f294f87d4dada6c2322da95da15a07f6ad7897634507cf45ca84a705b21b5a
+CADDY_URL="https://caddyserver.com/api/download?os=linux&arch=arm64&version=$CADDY_VERSION&p=github.com%2Fcaddy-dns%2Fduckdns%40$CADDY_DUCKDNS"
+
 scp -q deploy/pi-hub-release pi:/tmp/pi-hub-release 2>&1 | quiet
-ssh -o BatchMode=yes pi 'bash -s' <<'EOF' 2>&1 | quiet
+ssh -o BatchMode=yes pi bash -s -- "$CADDY_URL" "$CADDY_SHA256" <<'EOF' 2>&1 | quiet
 set -euo pipefail
+caddy_url="$1" caddy_sha256="$2"
 id pi-hub >/dev/null 2>&1 || sudo useradd --system --no-create-home --shell /usr/sbin/nologin pi-hub
 sudo mkdir -p /opt/pi-hub/releases /etc/pi-hub/secrets
 sudo install -d -m 755 /usr/local/lib/pi-hub
@@ -58,11 +67,29 @@ if ! sudo test -s /etc/pi-hub/secrets/hub_proxy.env; then
   printf 'HUB_PROXY_SECRET=%s\n' "$(python3 -c 'import secrets; print(secrets.token_hex(32))')" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/hub_proxy.env'
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets/hub_proxy.env && sudo chmod 640 /etc/pi-hub/secrets/hub_proxy.env
+# The pinned Caddy (above), replaced only when its hash differs. A download that doesn't match leaves the old one.
+caddy_new=0
+if [ "$(sha256sum /usr/local/bin/caddy 2>/dev/null | cut -d' ' -f1)" != "$caddy_sha256" ]; then
+  t=$(mktemp)
+  curl -fsSL --retry 3 -o "$t" "$caddy_url"
+  [ "$(sha256sum "$t" | cut -d' ' -f1)" = "$caddy_sha256" ] || { rm -f "$t"; echo "The Caddy download's SHA-256 doesn't match the pin; nothing changed."; exit 1; }
+  chmod 755 "$t" && "$t" list-modules | grep -qx dns.providers.duckdns || { rm -f "$t"; echo "The Caddy download lacks the DuckDNS module; nothing changed."; exit 1; }
+  sudo install -m 755 -o root -g root "$t" /usr/local/bin/caddy.new && sudo mv -f /usr/local/bin/caddy.new /usr/local/bin/caddy
+  rm -f "$t"
+  caddy_new=1
+  echo "Caddy $(/usr/local/bin/caddy version | cut -d' ' -f1) installed"
+fi
 sudo install -d -m 755 /etc/systemd/system/caddy.service.d
 # Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
 # write the secret to the journal).
-printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile\nExecReload=\nExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
+# A new binary takes over now, on the Caddyfile already there; a release that ships no new commit wouldn't restart it.
+if [ "$caddy_new" = 1 ] && systemctl is-active --quiet caddy; then
+  sudo sh -c 'set -a; . /etc/pi-hub/secrets/grafana_gate.env; . /etc/pi-hub/secrets/hub_proxy.env; /usr/local/bin/caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1' \
+    || { echo "The current Caddyfile doesn't validate on the new Caddy; Caddy keeps running the old one."; exit 1; }
+  sudo systemctl restart caddy
+fi
 
 # One-time setup code for the hub's Settings page.
 if [ ! -s /etc/pi-hub/setup-code ]; then
