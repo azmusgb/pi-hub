@@ -30,7 +30,7 @@ test("paired shows the date; a fresh code wins over paired", () => {
 test("minutesText and error copy", () => {
   assert.equal(minutesText(1), "1 min left");
   assert.equal(minutesText(0), "Under a minute left");
-  assert.match(pairError({ status: 403 }), /household PIN|owner/i);
+  assert.match(pairError({ status: 403 }), /owner/i);
   assert.match(pairError(new Error("x")), /Couldn't/);
 });
 

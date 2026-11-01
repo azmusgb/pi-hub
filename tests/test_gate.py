@@ -1,5 +1,7 @@
+import hashlib
 import os
 import tempfile
+import time
 from urllib.parse import unquote, urlsplit
 
 os.environ["HUB_NO_SAMPLER"] = "1"
@@ -11,7 +13,7 @@ with open(CODE_FILE, "w") as f:
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from hub import auth, gate  # noqa: E402
+from hub import auth, db, gate  # noqa: E402
 from hub import app as hub_app  # noqa: E402
 
 PASSWORD = "correct horse"
@@ -23,7 +25,7 @@ def client():
     os.environ["HUB_SETUP_CODE_FILE"] = CODE_FILE
     auth._tries.clear()
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD, "pin": "123456"},
+    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD},
                headers={"Origin": "http://testserver"})
     assert r.status_code == 200, r.text
     c.cookies.clear()
@@ -105,10 +107,13 @@ def test_a_gate_token_is_never_a_hub_session(client):
     assert client.get("/api/gate", cookies={"hub_gate": session_token}, follow_redirects=False).status_code == 302
 
 
-def test_gate_refuses_household_and_unknown_tokens(client):
-    household = signin(client, "home.home.arpa", pin="123456").cookies.get("hub_session")
-    client.cookies.clear()
+def test_gate_refuses_a_pin_day_household_session_and_unknown_tokens(client):
+    household = "old-household-token"
+    auth._ready()
+    db.run("INSERT INTO sessions (token_hash, role, created, expires) VALUES (?, 'household', 0, ?)",
+           hashlib.sha256(household.encode()).hexdigest(), int(time.time()) + 3600)
     assert client.get("/api/gate", cookies={"hub_gate": household}, follow_redirects=False).status_code == 302
+    assert client.get("/api/gate", cookies={"hub_session": household}, follow_redirects=False).status_code == 302
     assert client.get("/api/gate", cookies={"hub_gate": "not-a-token"}, follow_redirects=False).status_code == 302
 
 
@@ -199,9 +204,6 @@ def test_renewing_the_gate_needs_the_owner_on_home_arpa(client):
     headers = {"Host": "home.home.arpa", "Origin": "https://home.home.arpa"}
     body = {"next": "https://bambuddy.home.arpa/"}
     assert client.post("/api/gate/renew", json=body, headers=headers).status_code == 401
-    signin(client, "home.home.arpa", pin="123456")
-    assert client.post("/api/gate/renew", json=body, headers=headers).status_code == 401
-    client.cookies.clear()
     signin(client, "10.0.0.30")
     r = client.post("/api/gate/renew", json=body, headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
     assert r.status_code == 400 and gate_cookie(r) is None
@@ -252,7 +254,10 @@ def test_a_gate_code_expires_and_dies_with_its_sign_in(client, monkeypatch):
 
 
 def test_only_a_live_owner_gets_a_gate_code(client):
-    household = signin(client, "home.home.arpa", pin="123456").cookies.get("hub_session")
+    household = "old-household-token"
+    auth._ready()
+    db.run("INSERT INTO sessions (token_hash, role, created, expires) VALUES (?, 'household', 0, ?)",
+           hashlib.sha256(household.encode()).hexdigest(), int(time.time()) + 3600)
     assert auth.gate_code(household, "bambuddy.home.arpa") is None
     assert auth.gate_code("not-a-token", "bambuddy.home.arpa") is None
 

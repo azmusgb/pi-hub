@@ -18,30 +18,30 @@ function rig(responses) {
   return { calls, state, queue };
 }
 
-test('401 asks for the PIN once and retries once', async () => {
-  const { calls } = rig([res(401, { detail: 'Enter the household PIN first.' }), res(200, { ok: 1 })]);
+test('401 asks for the owner password once and retries once', async () => {
+  const { calls } = rig([res(401, { detail: 'Sign in as the owner first.' }), res(200, { ok: 1 })]);
   assert.deepEqual(await labFetch('/api/lab/projects'), { ok: 1 });
   assert.equal(calls.ensure, 1);
   assert.equal(calls.fetch.length, 2);
 });
 
 test('a second 401 throws with the detail text, no third try', async () => {
-  const { calls } = rig([res(401, { detail: 'Enter the household PIN first.' })]);
-  await assert.rejects(labFetch('/api/lab/projects'), /Enter the household PIN first\./);
+  const { calls } = rig([res(401, { detail: 'Sign in as the owner first.' })]);
+  await assert.rejects(labFetch('/api/lab/projects'), /Sign in as the owner first\./);
   assert.equal(calls.ensure, 1);
   assert.equal(calls.fetch.length, 2);
 });
 
-test('a refused PIN sheet does not retry', async () => {
-  const { calls, state } = rig([res(401, { detail: 'Enter the household PIN first.' })]);
+test('a refused sign-in sheet does not retry', async () => {
+  const { calls, state } = rig([res(401, { detail: 'Sign in as the owner first.' })]);
   state.ensureResult = false;
-  await assert.rejects(labFetch('/api/lab/projects'), /PIN/);
+  await assert.rejects(labFetch('/api/lab/projects'), /owner|sign-in/i);
   assert.equal(calls.fetch.length, 1);
 });
 
 test('{prompt:false} never calls ensure', async () => {
-  const { calls } = rig([res(401, { detail: 'Enter the household PIN first.' })]);
-  await assert.rejects(labFetch('/api/lab/projects', {}, { prompt: false }), /PIN/);
+  const { calls } = rig([res(401, { detail: 'Sign in as the owner first.' })]);
+  await assert.rejects(labFetch('/api/lab/projects', {}, { prompt: false }), /owner|sign-in/i);
   assert.equal(calls.ensure, 0);
   assert.equal(calls.fetch.length, 1);
 });
@@ -172,30 +172,30 @@ test('stop() ends it; a failed fetch keeps going; it gives up after 10 minutes',
   const after = r.calls.fetch.length;
   await tick(60000);
   assert.equal(r.calls.fetch.length, after);
-  assert.equal(r.calls.ensure, 0, 'the poller never opens a PIN sheet');
+  assert.equal(r.calls.ensure, 0, 'the poller never opens a sign-in sheet');
   mock.timers.reset();
 });
 
 // ---- the page's load decision ----
 test('first load may prompt once; a cancelled sheet means later refreshes never prompt', async () => {
-  const { calls, state } = rig([res(401, { detail: 'Enter the household PIN first.' })]);
+  const { calls, state } = rig([res(401, { detail: 'Sign in as the owner first.' })]);
   state.ensureResult = false;
   const page = {};
-  await assert.rejects(fetchLab(page), /PIN/);
+  await assert.rejects(fetchLab(page), /owner|sign-in/i);
   assert.equal(calls.ensure, 1);
-  await assert.rejects(fetchLab(page), /PIN/);
-  await assert.rejects(fetchLab(page), /PIN/);
+  await assert.rejects(fetchLab(page), /owner|sign-in/i);
+  await assert.rejects(fetchLab(page), /owner|sign-in/i);
   assert.equal(calls.ensure, 1);
 });
 
 test('after a good load the refresh uses prompt:false', async () => {
   const { calls } = rig([
     res(200, { projects: [{ name: 'print-lab' }] }), res(200, { index: {} }), res(200, { items: [] }),
-    res(401, { detail: 'Enter the household PIN first.' }),
+    res(401, { detail: 'Sign in as the owner first.' }),
   ]);
   const page = {};
   assert.ok(await fetchLab(page));
-  await assert.rejects(fetchLab(page), /PIN/);
+  await assert.rejects(fetchLab(page), /owner|sign-in/i);
   assert.equal(calls.ensure, 0);
 });
 

@@ -1,5 +1,5 @@
-"""Who may do what. Viewing is open on the home network; actions need the household PIN;
-settings need the owner password. Both are set once with a setup code from the Pi."""
+"""Who may do what. Viewing is open on the home network; everything that acts, and settings, needs the owner: one of
+the owner's own devices (hub/devices.py) or the owner password, which is set once with a setup code from the Pi."""
 import hashlib
 import hmac
 import json
@@ -13,10 +13,10 @@ from fastapi import HTTPException, Request
 from . import db, devices
 
 COOKIE = "hub_session"
-LIFETIME = {"kid": 30 * 86400, "household": 30 * 86400, "owner": 12 * 3600}
-# kid: switch lights and plugs; household: everything that acts (fixes, rules, filament, Ask); owner: settings.
+OWNER_LIFETIME = 30 * 86400
+# Only the owner signs in now. "household" stays for what acts without a sign-in (the Siri Shortcut keys log as it);
+# "kid" is what routes ask for when switching lights and plugs is enough. The owner passes every check.
 RANK = {"none": 0, "kid": 1, "household": 2, "owner": 3}
-PERSON_ROLE = {"adult": "household", "kid": "kid"}
 MAX_TRIES, LOCK_SECONDS = 5, 600
 GATE_CODE_SECONDS = 30
 
@@ -29,9 +29,6 @@ CREATE TABLE IF NOT EXISTS action_log (ts INTEGER NOT NULL, role TEXT, device TE
 CREATE TABLE IF NOT EXISTS shortcut_keys (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, last_used INTEGER
 );
-CREATE TABLE IF NOT EXISTS people (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, pin TEXT NOT NULL, created INTEGER NOT NULL
-);
 CREATE TABLE IF NOT EXISTS gate_codes (
   code_hash TEXT PRIMARY KEY, owner_hash TEXT NOT NULL, host TEXT NOT NULL, expires INTEGER NOT NULL
 );
@@ -43,7 +40,6 @@ _tries_lock = threading.Lock()
 
 def _ready():
     db.conn().executescript(SCHEMA)
-    db.ensure_columns("sessions", {"person_id": "INTEGER"})
 
 
 def get(key, default=None):
@@ -83,15 +79,11 @@ def _setup_code():
         return None
 
 
-def valid_pin(pin):
-    return isinstance(pin, str) and len(pin) == 6 and pin.isdigit()
-
-
 def valid_password(pw):
     return isinstance(pw, str) and 8 <= len(pw) <= 128
 
 
-def setup(code, owner_password, pin):
+def setup(code, owner_password):
     if not setup_needed():
         raise PermissionError("The hub is already set up.")
     expected = _setup_code()
@@ -99,17 +91,7 @@ def setup(code, owner_password, pin):
         raise PermissionError("That setup code isn't right.")
     if not valid_password(owner_password):
         raise ValueError("The owner password needs at least 8 characters.")
-    if not valid_pin(pin):
-        raise ValueError("The household PIN needs exactly 6 digits.")
     put("owner_password", _hash(owner_password))
-    put("household_pin", _hash(pin))
-
-
-def set_pin(pin):
-    if not valid_pin(pin):
-        raise ValueError("The household PIN needs exactly 6 digits.")
-    put("household_pin", _hash(pin))
-    db.run("DELETE FROM sessions WHERE role = 'household' AND person_id IS NULL")
 
 
 def set_owner_password(pw):
@@ -132,70 +114,24 @@ def _fail(who):
         t["count"] += 1
 
 
-def people():
-    _ready()
-    return db.rows("SELECT id, name, kind, created FROM people ORDER BY name")
-
-
-def _pin_taken(pin):
-    _ready()
-    if _check(pin, get("household_pin")):
-        return True
-    return any(_check(pin, json.loads(r["pin"])) for r in db.rows("SELECT pin FROM people"))
-
-
-def add_person(name, kind, pin):
-    name = " ".join(str(name or "").split())[:30]
-    if not name:
-        raise ValueError("Give the person a name.")
-    if kind not in PERSON_ROLE:
-        raise ValueError("Choose adult or kid.")
-    if not valid_pin(pin):
-        raise ValueError("Their PIN needs exactly 6 digits.")
-    if _pin_taken(pin):
-        raise ValueError("Someone already uses that PIN. Choose another.")
-    if db.one("SELECT COUNT(*) AS n FROM people")["n"] >= 12:
-        raise ValueError("That's the most people the hub keeps.")
-    return db.run("INSERT INTO people (name, kind, pin, created) VALUES (?, ?, ?, ?)",
-                  name, kind, json.dumps(_hash(pin)), int(time.time())).lastrowid
-
-
-def remove_person(person_id):
-    _ready()
-    db.run("DELETE FROM sessions WHERE person_id = ?", person_id)
-    db.run("DELETE FROM people WHERE id = ?", person_id)
-
-
-def sign_in(who, device, pin=None, password=None):
-    """Returns (token, role). `who` is the caller's address, used for the try limit."""
+def sign_in(who, device, password):
+    """Returns (token, "owner"). `who` is the caller's address, used for the try limit."""
     if _locked(who) or _locked("*"):
         raise PermissionError("Too many wrong tries. Wait 10 minutes and try again.")
-    person = None
-    if password is not None:
-        ok, role = _check(password, get("owner_password")), "owner"
-    else:
-        ok, role = _check(str(pin or ""), get("household_pin")), "household"
-        if not ok:
-            _ready()
-            for r in db.rows("SELECT id, name, kind, pin FROM people"):
-                if _check(str(pin or ""), json.loads(r["pin"])):
-                    ok, role, person = True, PERSON_ROLE[r["kind"]], r
-                    break
-    if not ok:
+    if not _check(password, get("owner_password")):
         _fail(who)
-        _fail("*") if role == "owner" else None
-        raise PermissionError("That password isn't right." if role == "owner" else "That PIN isn't right.")
+        _fail("*")
+        raise PermissionError("That password isn't right.")
     with _tries_lock:
         _tries.pop(who, None)
     token = secrets.token_urlsafe(32)
     now = int(time.time())
     _ready()
-    label = f"{person['name']} on {device}" if person else device
-    db.run("INSERT INTO sessions (token_hash, role, created, expires, device, person_id) VALUES (?, ?, ?, ?, ?, ?)",
-           hashlib.sha256(token.encode()).hexdigest(), role, now, now + LIFETIME[role], (label or "")[:80],
-           person["id"] if person else None)
-    db.run("DELETE FROM sessions WHERE expires < ?", now)
-    return token, role
+    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'owner', ?, ?, ?)",
+           hashlib.sha256(token.encode()).hexdigest(), now, now + OWNER_LIFETIME, (device or "")[:80])
+    # Household and kid sign-ins from the PIN days are refused by session(); this clears their rows.
+    db.run("DELETE FROM sessions WHERE expires < ? OR role IN ('household', 'kid')", now)
+    return token, "owner"
 
 
 def session(token, gate=False):
@@ -203,9 +139,11 @@ def session(token, gate=False):
     if not token:
         return None
     _ready()
-    row = db.one("SELECT role, device, expires, person_id FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
+    row = db.one("SELECT role, device, expires FROM sessions WHERE token_hash = ?", hashlib.sha256(token.encode()).hexdigest())
     if not row or row["expires"] < time.time() or (row["role"] == "gate") != gate:
         return None
+    if row["role"] not in ("owner", "gate"):
+        return None  # a household or kid sign-in made with the old PIN: it ended when the PIN did
     return row
 
 
@@ -285,9 +223,7 @@ def who(request: Request):
 def need(request: Request, role):
     have, device = who(request)
     if not allowed(have, role):
-        if have == "kid":
-            raise HTTPException(403, "Kids' PINs can switch devices, use lists and vote for movies. Ask a grown-up for this change.")
-        raise HTTPException(401, "Sign in as the owner first." if role == "owner" else "Enter the household PIN first.")
+        raise HTTPException(401, "Sign in as the owner first.")
     return have, device
 
 

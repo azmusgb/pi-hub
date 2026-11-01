@@ -23,7 +23,7 @@ export function mount(state) {
       ["/rules", "Automations", "Choose what happens automatically"],
       ["/pi", "Help & system", "Solve a problem and check the hub"],
       ["/drives", "Movie storage", "The movies drive and its health"],
-      ["/settings", "Settings", "Household access, connections and backups"],
+      ["/settings", "Settings", "Your devices, access, connections and backups"],
       [toolUrl("pi"), "The Pi's admin ↗", "Services, updates and logs, in Cockpit"],
     ]));
 }
@@ -66,7 +66,7 @@ export function serviceRows(actions = [], records = []) {
 // whole section (iPad, 1 Nov: eight identical Restart buttons and no status).
 function renderContainers(state, act, recs) {
   if (!act?.actions?.length) {
-    state.containers.replaceChildren(h("p", { class: "meta" }, "Sign in with household PIN to manage services."));
+    state.containers.replaceChildren(h("p", { class: "meta" }, "Sign in as the owner to manage services."));
     return;
   }
   const rows = serviceRows(act.actions, recs?.records || recs);

@@ -1,4 +1,4 @@
-// Control: lights, plugs and switches from Homebridge. Tap to switch; the PIN is asked once per device.
+// Control: lights, plugs and switches from Homebridge. Tap to switch; a device that is not the owner's is asked to sign in once.
 import { api, card, ensure, h, post, toast } from "./core.js";
 import { applianceLabel, groupAppliances } from "./wording.js";
 

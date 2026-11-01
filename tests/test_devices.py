@@ -49,7 +49,7 @@ def client(monkeypatch):
     asked.clear()
     auth._tries.clear()
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD, "pin": "123456"},
+    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": PASSWORD},
                headers={"Origin": "http://testserver"})
     assert r.status_code == 200, r.text
     c.cookies.clear()
@@ -207,9 +207,10 @@ def test_remember_off_or_off_tailscale_adds_nothing(client):
 
 def test_the_cookie_still_decides_first(client):
     remember(client, MAC)
-    r = client.post("/api/signin", json={"pin": "123456"}, headers=via(MAC))
+    r = client.post("/api/signin", json={"password": PASSWORD}, headers=via(MAC))
     assert r.status_code == 200
-    assert role(client, via(MAC)) == "household"  # a PIN sign-in on this browser is what it says
+    assert role(client, via(MAC)) == "owner"
+    assert client.get("/api/me", headers=via(MAC)).json()["device"] == "A browser"  # the cookie's name, not the list's
 
 
 def test_device_actions_are_logged_with_the_device_name(client):

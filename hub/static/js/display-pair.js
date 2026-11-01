@@ -6,7 +6,7 @@ export function minutesText(m) {
 }
 
 export function pairError(err) {
-  if (err && (err.status === 401 || err.status === 403)) return "Only the owner can pair the display. Sign in with the household PIN.";
+  if (err && (err.status === 401 || err.status === 403)) return "Only the owner can pair the display. Sign in as the owner.";
   const why = err?.message ? ` ${err.message}` : "";
   return `Couldn't start pairing.${why}`;
 }

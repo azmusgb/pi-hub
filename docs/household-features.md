@@ -8,7 +8,7 @@ Open **Movies → Movie night**. Add contenders from the unwatched suggestions, 
 
 - **Time available** filters suggestions to films with a known runtime that fits. **Family-friendly ratings** limits suggestions to the listed family-oriented ratings. This is a discovery filter, not parental access control or a guarantee of suitability.
 - Each suggestion explains its fit. Filters affect suggestions; existing shortlist entries remain visible with their votes.
-- A named person's PIN identifies their votes across devices. Owner/shared household PIN sessions vote per signed-in browser session. Repeated clicks or retries do not add duplicate votes. Each identity can vote for several films and withdraw its own votes.
+- Each signed-in browser session votes once per film. Repeated clicks or retries do not add duplicate votes. Each identity can vote for several films and withdraw its own votes.
 - Children can nominate and vote. Adults and the owner choose the shared pick or remove a nominee and its votes.
 - The shortlist holds up to 12 films. Its stored titles, votes and selected pick remain available when Plex is temporarily unreachable. This does not establish current playback availability.
 - The selected film and votes remain until changed or removed; the shortlist does not reset at midnight.

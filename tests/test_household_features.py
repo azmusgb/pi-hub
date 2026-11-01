@@ -99,10 +99,11 @@ def test_movie_time_and_rating_filters_explain_matches():
     with pytest.raises(ValueError):movie_night.add('../../settings')
 
 
-def test_named_person_voter_is_shared_across_sessions_without_exposing_token(monkeypatch):
-    monkeypatch.setattr(auth,'session',lambda token:{'person_id':7} if token!='shared' else {'person_id':None})
-    assert movie_night.voter('first')==movie_night.voter('second')=='person:7'
+def test_voter_is_the_session_without_exposing_the_token(monkeypatch):
+    monkeypatch.setattr(auth,'session',lambda token:{'role':'owner'} if token else None)
     assert movie_night.voter('shared').startswith('session:') and 'shared' not in movie_night.voter('shared')
+    assert movie_night.voter('first')!=movie_night.voter('second')
+    assert movie_night.voter(None) is None
 
 
 def test_feature_routes_enforce_roles(monkeypatch):
@@ -112,19 +113,6 @@ def test_feature_routes_enforce_roles(monkeypatch):
     # Projects and spools live in Bambuddy since 24 Oct 2026; the hub has no routes that change them.
     assert c.post('/api/projects',json={'title':'Model'},headers=SAME).status_code==405
     assert c.post('/api/filament',json={'material':'PLA','colour':'Red'},headers=SAME).status_code in (404,405)
-
-
-def test_real_child_can_vote_but_cannot_choose(monkeypatch,tmp_path):
-    code=tmp_path/'setup';code.write_text('ABCD-1234')
-    monkeypatch.setenv('HUB_SETUP_CODE_FILE',str(code))
-    auth.setup('ABCD-1234','strong password','123456')
-    auth.add_person('Kid','kid','222222')
-    c=TestClient(hub_app.app)
-    assert c.post('/api/signin',json={'pin':'222222'},headers=SAME).status_code==200
-    assert c.post('/api/movie-night',json={'key':'1'},headers=SAME).status_code==200
-    assert c.post('/api/movie-night/1/vote',json={'vote':True},headers=SAME).status_code==200
-    assert c.post('/api/movie-night/1/choose',headers=SAME).status_code==403
-    assert c.post('/api/rules/preview',json={'trigger':'print_finished','action':'notify'},headers=SAME).status_code==403
 
 
 def test_backup_snapshot_contains_database_and_only_referenced_files(tmp_path):
@@ -156,7 +144,7 @@ def test_parallel_first_requests_migrate_each_column_once():
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(lambda _: (reminders.ready(), filament.ready(), auth._ready()), range(16)))
     assert {'due','repeat','reminded'} <= {row['name'] for row in db.rows('PRAGMA table_info(items)')}
-    assert 'person_id' in {row['name'] for row in db.rows('PRAGMA table_info(sessions)')}
+    assert {'token_hash','role','device'} <= {row['name'] for row in db.rows('PRAGMA table_info(sessions)')}
 
 
 def test_unknown_device_readings_do_not_trigger_automations(monkeypatch):

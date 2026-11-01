@@ -28,7 +28,7 @@ def env(tmp_path, monkeypatch):
     display_messages._sends.clear()
     auth._tries.clear()
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "DISP-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "DISP-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     return c
 

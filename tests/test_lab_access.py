@@ -1,4 +1,4 @@
-"""Who may use the print lab: the household for people, the hub's own lab key for the Mac, and nothing anonymous."""
+"""Who may use the print lab: the owner for people, the hub's own lab key for the Mac, and nothing anonymous."""
 import hashlib
 import os
 import tempfile
@@ -47,15 +47,15 @@ def client(tmp_path, monkeypatch):
     # Local AI's key sits where the old code fell back to it; it must not open the lab.
     monkeypatch.setenv("HUB_MAC_KEY_SHA256", hashlib.sha256(LOCALAI_KEY.encode()).hexdigest())
     c = TestClient(hub_app.app)
-    r = c.post("/api/setup", json={"code": "LABS-4321", "owner_password": "long enough", "pin": "123456"},
+    r = c.post("/api/setup", json={"code": "LABS-4321", "owner_password": "long enough"},
                headers=SAME)
     assert r.status_code == 200, r.text
     c.cookies.clear()
     return c
 
 
-def household(c):
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).json()["role"] == "household"
+def signed_in(c):
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).json()["role"] == "owner"
     return c
 
 
@@ -69,19 +69,8 @@ def test_anonymous_cannot_read_or_write_the_lab(client):
         assert r.status_code == 401, (method, path, r.status_code)
 
 
-def test_kid_cannot_post_a_verdict(client):
-    assert client.post("/api/signin", json={"password": "long enough"}, headers=SAME).json()["role"] == "owner"
-    r = client.post("/api/settings/person-add", json={"name": "Max", "kind": "kid", "pin": "333333"}, headers=SAME)
-    assert r.status_code == 200, r.text
-    kid = TestClient(hub_app.app)
-    assert kid.post("/api/signin", json={"pin": "333333"}, headers=SAME).json()["role"] == "kid"
-    r = kid.post("/api/lab/hex-tile/requests", json=VERDICT, headers=SAME)
-    assert r.status_code == 403 and "grown-up" in r.json()["detail"]
-    assert kid.get("/api/lab/projects").status_code == 403
-
-
-def test_household_can_read_and_post(client):
-    household(client)
+def test_the_owner_can_read_and_post(client):
+    signed_in(client)
     assert client.get("/api/lab/projects").json() == {"projects": []}
     assert client.get("/api/lab/hex-tile/photos").json() == {"have": []}
     ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T09:00:00Z",
@@ -92,15 +81,15 @@ def test_household_can_read_and_post(client):
     assert client.get("/api/lab/hex-tile/requests").json()["items"][0]["id"] == VERDICT["id"]
 
 
-def test_household_cannot_use_mac_routes(client):
-    household(client)
+def test_the_owner_cannot_use_mac_routes(client):
+    signed_in(client)
     for method, path in MAC_ROUTES:
         assert call(client, method, path, headers=SAME).status_code == 401, (method, path)
 
 
 def test_cross_origin_text_plain_verdict_is_refused(client):
     import json
-    household(client)
+    signed_in(client)
     r = client.post("/api/lab/hex-tile/requests", content=json.dumps(VERDICT),
                     headers={"Origin": "https://evil.example", "Content-Type": "text/plain"})
     assert r.status_code == 403
@@ -148,7 +137,7 @@ def test_the_key_exempts_the_guard_only_when_it_verifies(client):
     assert r.json()["detail"] == "The Mac's lab key is missing or wrong."
     assert client.post("/api/lab/hex-tile/sync", json=sync, headers={"X-Hub-Mac-Key": KEY}).status_code == 200
     # Nothing else under /api/lab is exempt just for its path.
-    household(client)
+    signed_in(client)
     assert client.post("/api/lab/hex-tile/requests", json=VERDICT).status_code == 403
     # The key opens only the lab, not the rest of the hub.
     r = client.post("/api/lists/shopping", json={"text": "milk"}, headers={"X-Hub-Mac-Key": KEY})
@@ -171,8 +160,8 @@ def test_invalid_utf8_hash_file_refuses_the_mac_and_never_500s(client, monkeypat
         assert r.status_code in (401, 403), (method, path, r.status_code)
     r = client.post("/api/lab/hex-tile/sync", json={}, headers={"X-Hub-Mac-Key": KEY})
     assert r.status_code in (401, 403)
-    # Household reads still work.
-    household(client)
+    # Owner reads still work.
+    signed_in(client)
     assert client.get("/api/lab/projects").status_code == 200
     assert client.get("/api/lab/hex-tile/photos").status_code == 200
 

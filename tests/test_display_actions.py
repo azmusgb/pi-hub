@@ -55,7 +55,7 @@ def env(tmp_path, monkeypatch):
     key_file.write_text(hashlib.sha256(MAC_KEY.encode()).hexdigest() + "\n")
     monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(key_file))
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "ACTS-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "ACTS-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     code = c.post("/api/display/pair/start", headers=SAME).json()["code"]
     key = TestClient(hub_app.app).post("/api/display/pair", json={"code": code}, headers=SAME).json()["key"]
@@ -380,7 +380,7 @@ def test_judge_from_the_phone_says_phone(env):
     phone = {"id": "rq-00000000000000c1", "kind": "verdict", "experiment": "E-021", "run": "PR-021-01",
              "payload": {"grades": ALL, "lighting": "diagnostic", "note": None, "inconclusive": None, "replace": False}}
     c.cookies.clear()
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).status_code == 200
+    assert c.post("/api/signin", json={"password": "long enough"}, headers=SAME).status_code == 200
     assert c.post("/api/lab/hex-tile/requests", json=phone, headers=SAME).status_code == 200
     assert judge(env).json()["judged"]["by"] == "phone"
 

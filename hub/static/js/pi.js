@@ -232,7 +232,7 @@ export function mount(state) {
         {
           class: "meta",
         },
-        "Service restarts, updates, charts and diagnostics. Actions ask for confirmation and the household PIN.",
+        "Service restarts, updates, charts and diagnostics. Actions ask for confirmation and the owner.",
       ),
 
       state.body,

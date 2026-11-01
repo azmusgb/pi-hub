@@ -1,5 +1,7 @@
+import hashlib
 import os
 import tempfile
+import time
 
 os.environ["HUB_NO_SAMPLER"] = "1"
 _tmp = tempfile.mkdtemp()
@@ -25,20 +27,20 @@ def c():
 
 
 def setup_hub(c):
-    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": "correct horse", "pin": "123456"}, headers=SAME)
+    r = c.post("/api/setup", json={"code": "abcd-1234", "owner_password": "correct horse"}, headers=SAME)
     assert r.status_code == 200, r.text
     return r
 
 
 def test_setup_needs_the_code_and_only_works_once(c):
     assert c.get("/api/me").json() == {"role": "none", "setup_needed": True, "device": "", "tailscale": False}
-    bad = c.post("/api/setup", json={"code": "nope", "owner_password": "correct horse", "pin": "123456"}, headers=SAME)
+    bad = c.post("/api/setup", json={"code": "nope", "owner_password": "correct horse"}, headers=SAME)
     assert bad.status_code == 403
-    weak = c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "short", "pin": "123456"}, headers=SAME)
+    weak = c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "short"}, headers=SAME)
     assert weak.status_code == 400
     setup_hub(c)
     assert c.get("/api/me").json()["role"] == "owner"
-    again = c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "another one", "pin": "654321"}, headers=SAME)
+    again = c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "another one"}, headers=SAME)
     assert again.status_code == 403
 
 
@@ -48,15 +50,16 @@ def test_secrets_are_hashed_not_stored(c):
     assert "correct horse" not in raw and "123456" not in raw
 
 
-def test_pin_unlocks_actions_but_not_settings(c, monkeypatch):
+def test_owner_sign_in_unlocks_actions_and_settings(c, monkeypatch):
     setup_hub(c)
     c.post("/api/signout", headers=SAME)
     assert c.post("/api/actions/restart:plex", headers=SAME).status_code == 401
-    assert c.post("/api/signin", json={"pin": "123456"}, headers=SAME).json()["role"] == "household"
+    assert c.get("/api/settings").status_code == 401
+    assert c.post("/api/signin", json={"password": "correct horse"}, headers=SAME).json()["role"] == "owner"
     monkeypatch.setattr(actions, "helper", lambda name, timeout=0: {"ok": True, "message": "Done."})
     r = c.post("/api/actions/restart:plex", headers=SAME)
     assert r.status_code == 200 and r.json()["message"] == "Plex restarted."
-    assert c.get("/api/settings").status_code == 401
+    assert c.get("/api/settings").status_code == 200
     assert auth.recent_actions()[0]["action"] == "restart:plex"
 
 
@@ -72,12 +75,12 @@ def test_failed_action_explains_itself(c, monkeypatch):
     assert r.status_code == 502 and r.json()["detail"].startswith("Restart Homebridge didn't work.")
 
 
-def test_wrong_pins_lock_out_after_five_tries(c):
+def test_wrong_passwords_lock_out_after_five_tries(c):
     setup_hub(c)
     c.post("/api/signout", headers=SAME)
     for _ in range(5):
-        assert c.post("/api/signin", json={"pin": "000000"}, headers=SAME).status_code == 403
-    r = c.post("/api/signin", json={"pin": "123456"}, headers=SAME)
+        assert c.post("/api/signin", json={"password": "wrong password"}, headers=SAME).status_code == 403
+    r = c.post("/api/signin", json={"password": "correct horse"}, headers=SAME)
     assert r.status_code == 429 and "10 minutes" in r.json()["detail"]
 
 
@@ -87,13 +90,35 @@ def test_session_cookie_is_http_only_and_strict(c):
     assert "httponly" in cookie and "samesite=strict" in cookie
 
 
-def test_changing_the_pin_signs_out_household_devices(c):
+def test_owner_sessions_last_30_days(c):
+    r = setup_hub(c)
+    assert "max-age=2592000" in r.headers["set-cookie"].lower()
+    (row,) = db.rows("SELECT created, expires FROM sessions WHERE role = 'owner'")
+    assert row["expires"] - row["created"] == 30 * 86400
+
+
+def test_the_household_pin_is_gone(c):
     setup_hub(c)
-    other = TestClient(hub_app.app)
-    other.post("/api/signin", json={"pin": "123456"}, headers=SAME)
-    assert other.get("/api/me").json()["role"] == "household"
-    assert c.post("/api/settings/pin", json={"pin": "999999"}, headers=SAME).status_code == 200
-    assert other.get("/api/me").json()["role"] == "none"
+    c.post("/api/signout", headers=SAME)
+    # a PIN is just a wrong password now, and counts toward the lock-out
+    r = c.post("/api/signin", json={"pin": "123456"}, headers=SAME)
+    assert r.status_code == 403 and "password" in r.json()["detail"]
+    assert c.post("/api/settings/pin", json={"pin": "999999"}, headers=SAME).status_code == 401
+    assert c.post("/api/settings/person-add", json={"name": "Sam", "kind": "adult", "pin": "222222"},
+                  headers=SAME).status_code == 401
+    assert c.post("/api/setup", json={"code": "ABCD-1234", "owner_password": "another one"}, headers=SAME).status_code == 403
+
+
+def test_pin_day_household_and_kid_sessions_are_refused_and_cleared(c):
+    setup_hub(c)
+    c.post("/api/signout", headers=SAME)
+    for token, role in (("old-household", "household"), ("old-kid", "kid")):
+        db.run("INSERT INTO sessions (token_hash, role, created, expires) VALUES (?, ?, 0, ?)",
+               hashlib.sha256(token.encode()).hexdigest(), role, int(time.time()) + 86400)
+        assert c.get("/api/me", cookies={"hub_session": token}).json()["role"] == "none"
+        assert c.post("/api/actions/restart:plex", headers=SAME, cookies={"hub_session": token}).status_code == 401
+    c.post("/api/signin", json={"password": "correct horse"}, headers=SAME)  # the next sign-in clears their rows
+    assert db.rows("SELECT role FROM sessions WHERE role IN ('household', 'kid')") == []
 
 
 def test_wifi_qr_and_password_visibility(c):

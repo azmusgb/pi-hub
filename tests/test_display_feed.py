@@ -200,7 +200,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(sources, "plex_sessions", lambda: None)
     monkeypatch.setattr(bambuddy, "spools", lambda: None)
     c = TestClient(hub_app.app)
-    assert c.post("/api/setup", json={"code": "FEED-4321", "owner_password": "long enough", "pin": "123456"},
+    assert c.post("/api/setup", json={"code": "FEED-4321", "owner_password": "long enough"},
                   headers=SAME).status_code == 200
     code = c.post("/api/display/pair/start", headers=SAME).json()["code"]
     key = TestClient(hub_app.app).post("/api/display/pair", json={"code": code}, headers=SAME).json()["key"]

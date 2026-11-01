@@ -19,7 +19,7 @@ export function mountMovieNight(state) {
   ui.root = card('Movie night', {cls:'wide feature movie-night'},
     h('div', {class:'feature-intro'}, h('p',{class:'feature-kicker'}, 'A GOOD NIGHT STARTS HERE'),
       h('p', {class:'feature-lead'}, 'A few good films. Everyone gets a say.'),
-      h('p', {class:'meta'}, 'Shortlist a film, vote for anything you’d enjoy, then choose tonight’s pick. Your own PIN keeps your votes together across devices.')),
+      h('p', {class:'meta'}, 'Shortlist a film, vote for anything you’d enjoy, then choose tonight’s pick.')),
     ui.message, ui.shortlist,
     h('div', {class:'feature-section-heading'}, h('div',{},h('h3',{},'Find a contender'),h('p',{class:'meta'},'Unwatched films from your library, with a reason they fit.')),
       h('div',{class:'night-filters'},h('label',{class:'field',for:'night-budget'},h('span',{},'Time available'),ui.budget),

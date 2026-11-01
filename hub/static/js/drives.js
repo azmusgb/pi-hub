@@ -53,7 +53,7 @@ export async function load(state) {
   state.force = false;
   if (!["household", "owner"].includes((await whoami())?.role)) {
     state.body.replaceChildren(card("Movie storage", {},
-      h("p", { class: "meta" }, "Drive health is for the household. Sign in with the household PIN to see it."),
+      h("p", { class: "meta" }, "Drive health is for the owner. Sign in to see it."),
       h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("household")) { state.force = true; load(state); } } }, "Sign in")));
     return;
   }

@@ -209,7 +209,7 @@ export function buildCommandItems(query = "", { records = [], needs = null, host
     { label: "Alerts & Event log", href: "/alerts", badge: "Page", keywords: "alerts events history log" },
     { label: "Help & Diagnostics", href: "/pi", badge: "Page", keywords: "help diagnostics pi temperature cpu memory" },
     { label: "Movie storage & Drives", href: "/drives", badge: "Page", keywords: "drives storage usb disk movies" },
-    { label: "Settings", href: "/settings", badge: "Page", keywords: "settings pin password wifi homebridge" },
+    { label: "Settings", href: "/settings", badge: "Page", keywords: "settings password devices wifi homebridge" },
   ];
   for (const p of pages) {
     all.push({ id: `page:${p.href}`, label: p.label, badge: p.badge, kind: "nav", href: p.href, keywords: p.keywords });
