@@ -1,5 +1,9 @@
 # Pi Hub status — 24 October 2026
 
+## Display on Pi Hub, step 1 — built, not yet in use
+
+Pi Hub now serves the workshop display's household feed, pairing and banners, with a "Workshop display" pairing card on System and key and CA setup in `deploy/install.sh`. Not released, not paired, and Local AI does not yet have `LOCALAI_HUB_KEY_SHA256`; nothing was checked live. Steps and rollback: [operations](operations.md).
+
 ## One home, step 6: lock — 31 October 2026
 
 Live release `82fa0bd` (step 6 merged as `759bde2`, plus the allow-list fix). The Pi's tools answer only through the gate; plain `http://10.0.0.30` keeps only the machine paths; Bambuddy's `:8000` takes an allow-list; Paperless on the PC answers only the Pi. See [operations](operations.md) for what stays open, why, and the undo commands.

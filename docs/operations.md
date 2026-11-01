@@ -209,3 +209,17 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
   - **Undo:** `ssh -t pi sudo python3 /opt/pi-hub/current/deploy/pi-lock.py undo`; on the PC, as admin, `powershell -NoProfile -File windows-lock-paperless.ps1 -Undo`; then release a commit with the pre-step-6 Caddyfile. `pi-lock.py status` shows each item. A netmon deploy re-applies the lock.
 - **Rollback:** a release from before the gate runs its hub on :80, so a release (or rollback) without `deploy/caddy/Caddyfile` stops Caddy.
 - **Paperless** keeps its own login. Its port is limited to the Pi since step 6 (see the gap above); turning on its trusted login is still to do.
+
+## Workshop display on Pi Hub
+
+Step 1 of moving the workshop display's household side onto Pi Hub. Built, not yet in use: the display still pairs with Local AI until you pair it here.
+
+**Pairing.** System, "Workshop display", Pair display. The page shows a 6-digit code with the minutes left (it re-checks every 5 seconds while open). Type it on the display. Afterwards the card says "Paired <date>"; "Pair again" makes a new code. Owner only.
+
+**The hub key and Local AI's CA.** `deploy/install.sh` (run from the Mac) does two things on the Pi, each only if missing and never overwriting:
+- Creates `/etc/pi-hub/secrets/localai_hub_key` (random, mode 0640 root:pi-hub) and prints `LOCALAI_HUB_KEY_SHA256=<hash>`. Only the hash is printed. Put that line in Local AI's `C:\LocalAI\stack\stack.env`, then recreate the appliance so it loads it (this restarts Local AI, so ask first): `docker compose --env-file C:\LocalAI\stack\stack.env -f C:\LocalAI\repo\deploy\stack\compose.yml up -d appliance`.
+- Fetches Local AI's CA from `http://10.0.0.21/localai-ca.crt` to `/etc/pi-hub/secrets/localai-ca.crt` (0644), checks it parses as a certificate, and prints its SHA-256 fingerprint. Confirm it matches the CA you expect; if the PC was off, rerun later.
+
+**Check.** Pair a display, then `curl -s -H "Authorization: Bearer <display key>" https://home.home.arpa/api/display/feed`: it should show the household cards, and `ai.available: true` once Local AI has the hash.
+
+**Rollback.** Pair the display with Local AI again (its own pairing screen); the display then ignores Pi Hub. Nothing on the Pi needs undoing.

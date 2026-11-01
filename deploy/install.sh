@@ -35,6 +35,28 @@ if sudo test -e /etc/pi-hub/secrets/paperless_token; then
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets && sudo chmod 750 /etc/pi-hub/secrets
 
+# The workshop display's key to Local AI (Pi Hub is the keyholder). Made once; only its hash is printed, for
+# LOCALAI_HUB_KEY_SHA256 in Local AI's stack.env (see docs/operations.md).
+if ! sudo test -s /etc/pi-hub/secrets/localai_hub_key; then
+  python3 -c 'import secrets; print(secrets.token_urlsafe(32))' | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/localai_hub_key'
+fi
+sudo chown root:pi-hub /etc/pi-hub/secrets/localai_hub_key && sudo chmod 640 /etc/pi-hub/secrets/localai_hub_key
+echo "LOCALAI_HUB_KEY_SHA256=$(sudo sha256sum /etc/pi-hub/secrets/localai_hub_key | cut -d' ' -f1)"
+
+# Local AI's CA, so the hub can trust its HTTPS. Fetched once, never overwritten; confirm the fingerprint below.
+if ! sudo test -s /etc/pi-hub/secrets/localai-ca.crt; then
+  if curl -fsS --max-time 10 http://10.0.0.21/localai-ca.crt -o /tmp/localai-ca.crt \
+     && openssl x509 -in /tmp/localai-ca.crt -noout -fingerprint -sha256 >/dev/null 2>&1; then
+    sudo install -m 644 -o root -g root /tmp/localai-ca.crt /etc/pi-hub/secrets/localai-ca.crt
+  else
+    echo "Could not fetch a valid Local AI CA from http://10.0.0.21/localai-ca.crt (is the PC on?); rerun later."
+  fi
+  rm -f /tmp/localai-ca.crt
+fi
+if sudo test -s /etc/pi-hub/secrets/localai-ca.crt; then
+  echo "Local AI CA $(sudo openssl x509 -in /etc/pi-hub/secrets/localai-ca.crt -noout -fingerprint -sha256) (confirm it is yours)"
+fi
+
 # The secret header name Caddy uses to sign the owner into Grafana (netmon reads the same file).
 if ! sudo test -s /etc/pi-hub/secrets/grafana_gate.env; then
   h="X-Gate-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
