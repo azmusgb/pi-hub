@@ -6,7 +6,7 @@ field we need gives an "unknown" record rather than an error.
 """
 import time
 
-from .. import records
+from .. import display_messages, records
 
 PC_DOWN_AFTER = 300  # seconds a failing probe may go on before the PC counts as off
 HOT_AT = 75  # degrees C
@@ -91,6 +91,13 @@ def pc_printing(printer_rec, local_ai_rec, now):
 
 
 def workshop_display(s):
+    """The display's own heartbeat (newer than 10 minutes) wins; else what the Pi's status service says."""
+    try:
+        beat = display_messages.last_heartbeat()
+    except Exception:
+        beat = None
+    if beat is not None:
+        return _rec("workshop_display", "online", "The touchscreen is online", detail={"firmware": beat.get("version")})
     if s is None:
         return None
     state = {"Online": "online", "Offline": "offline"}.get(_get(s, "display_state"))

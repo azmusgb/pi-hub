@@ -13,6 +13,7 @@ from .records import problems
 
 AI_KINDS = {"watch", "running", "done", "image", "disk"}  # what Local AI's aiCards sends; anything else is dropped
 MAX_CARDS = 12  # Local AI's most: needs, lab, two watch, home, running, playing, done, weather, image, disk, materials
+MAX_MESSAGES = 6
 NEED_TONES = {"bad", "attention", "warn"}
 PRINTER_THINGS = {"printer", "obico", "hms", "camera"}  # the printer card speaks for these; home is the rest of the house
 AI_OFF = {"kind": "ai", "id": "ai-off", "title": "AI unavailable — PC asleep", "tone": "info"}
@@ -22,6 +23,12 @@ LOCAL_AI = "Local AI"  # needs items from Local AI's attention: its approvals co
 def cut(s, n):
     chars = re.sub(r"\s+", " ", str("" if s is None else s)).strip()
     return chars[:n - 1] + "…" if len(chars) > n else chars
+
+
+def _messages(messages):
+    """The newest 6 banners, oldest first, cut as Local AI cuts them (24 and 120), so the body stays under the display's limit."""
+    ordered = sorted((m for m in messages or () if isinstance(m, dict)), key=lambda m: (m.get("at") or 0, m.get("seq") or 0))
+    return [{**m, "title": cut(m.get("title"), 24), "text": cut(m.get("text"), 120)} for m in ordered[-MAX_MESSAGES:]]
 
 
 def _card(kind, id, title, text, tone, **extra):
@@ -164,7 +171,7 @@ def build(now, ai, recs, needs_list, lab, messages, *, sessions=None, spools=Non
         for n, i in enumerate(images)] if ai["available"] else [])
     if pictures:
         feed["images"] = pictures[:6]
-    feed["messages"] = list(messages or [])
+    feed["messages"] = _messages(messages)
     feed["ai"] = {"available": bool(ai["available"]), "checkedAt": ai["checkedAt"]}
     return feed
 

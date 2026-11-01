@@ -6,7 +6,8 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from . import auth, bambuddy, display_ai, display_feed, display_pairing, needs, records, sources
+from . import (auth, bambuddy, display_ai, display_feed, display_messages, display_pairing, lab_guard, needs, records,
+               sources)
 
 router = APIRouter(prefix="/api/display")
 TLS_NAME = "home.home.arpa"
@@ -50,9 +51,52 @@ def feed_now():
     needs_list = needs.current(recs, fetch=False)  # the feed never waits on the PC
     ai = display_ai.cards(now)
     lab = [i for i in needs_list["items"] if i.get("source") == needs.LAB]
-    # Task 5 merges Pi Hub's own banners here; for now the display's messages are Local AI's.
-    return display_feed.build(now, ai, recs, needs_list, lab, ai["messages"],
+    messages = sorted([*ai["messages"], *display_messages.pending(now)], key=lambda m: m.get("at") or 0)
+    return display_feed.build(now, ai, recs, needs_list, lab, messages,
                               sessions=sources.plex_sessions(), spools=bambuddy.spools())
+
+
+async def _json(request):
+    try:
+        body = await request.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+@router.post("/notify")
+async def notify(request: Request):
+    """A banner on the display. The owner, the display's own key or the Mac's lab key may send one."""
+    role, device = auth.who(request)
+    if auth.allowed(role, "owner"):
+        sender = (role, device)
+    elif display_pairing.key_ok(request):
+        sender = ("display", DEVICE)
+    elif lab_guard.mac_key_ok(request):
+        sender = ("mac", "Mac")
+    else:
+        raise HTTPException(401, "Sign in as the owner, or use the display or Mac key.")
+    body = await _json(request)
+    try:
+        seq = display_messages.post(body.get("title"), body.get("text") or "", body.get("tone") or "info",
+                                    body.get("chime") is not False, body.get("action"))
+    except display_messages.Refused as e:
+        auth.log(sender[0], DEVICE, "display:notify", "refused: rate limit")
+        raise HTTPException(e.status, e.message)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    auth.log(sender[0], DEVICE, "display:notify", "ok")
+    return {"ok": True, "seq": seq}
+
+
+@router.post("/heartbeat")
+async def heartbeat(request: Request):
+    display_pairing.require(request)
+    body = await _json(request)
+    keep = ("version", "sourceSha", "uptimeS", "rssi", "heapFree", "psramFree", "camera")
+    display_messages.store_heartbeat({k: body[k] for k in keep if k in body}, time.time())
+    auth.log("display", DEVICE, "display:heartbeat", "ok")
+    return {"ok": True}
 
 
 @router.get("/feed")
