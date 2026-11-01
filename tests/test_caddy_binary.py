@@ -31,3 +31,9 @@ def test_service_runs_pinned_binary():
     assert "ExecReload=\\nExecReload=/usr/local/bin/caddy reload" in line
     assert "/usr/bin/caddy" not in line
     assert "--environ" not in line
+
+
+def test_url_quoted_for_the_pis_shell():
+    # ssh joins its arguments into one line for the remote shell; an unquoted & would cut the URL short.
+    assert "ssh -o BatchMode=yes pi \"bash -s -- '$CADDY_URL' '$CADDY_SHA256'\" <<'EOF'" in INSTALL
+    assert "'" not in _pin("CADDY_URL")
