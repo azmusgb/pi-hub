@@ -655,7 +655,7 @@ def api_gate(request: Request):
     url, code = gate.split_code(gate.original_url(request.headers))
     h = auth.session(request.cookies.get(auth.COOKIE))
     ok = (auth.session(request.cookies.get(gate.COOKIE), gate=True) or (h and h["role"] == "owner")
-          or devices.owner_device(request))
+          or (gate.lax_like(request.headers) and devices.owner_device(request)))
     if code:
         host = request.headers.get("x-forwarded-host", "").lower().split(":")[0]
         loc = gate.safe_next(url)  # the redirect target must be the very host the code is spent on

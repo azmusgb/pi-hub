@@ -64,3 +64,22 @@ def signin_url(headers):
 def cookie_kwargs(max_age):
     """Settings for a tool's host-only `hub_gate` cookie."""
     return dict(secure=True, httponly=True, samesite="lax", path="/", max_age=max_age)
+
+
+def lax_like(headers):
+    """Whether a browser would send a SameSite=Lax cookie with the request behind this forward_auth check: one from the
+    tool's own pages or typed into the address bar, or a top-level link to it that changes nothing. The owner's own
+    devices pass the gate on these alone, so another website open on the Mac can't post to a tool as the owner (its
+    gate cookie, being Lax, never could)."""
+    method = (headers.get("x-forwarded-method") or "").upper()  # Caddy always sends it; without it, assume a change
+    site = (headers.get("sec-fetch-site") or "").lower()
+    if site in ("same-origin", "none"):
+        return True
+    if site:  # same-site, cross-site: home.arpa is a public suffix, so another tool counts as another site
+        return method in ("GET", "HEAD") and (headers.get("sec-fetch-mode") or "").lower() == "navigate"
+    # A browser without Fetch Metadata: its Origin (sent on every change) must be the tool's own address.
+    origin = headers.get("origin")
+    if origin is None:
+        return method in ("GET", "HEAD")
+    host = (headers.get("x-forwarded-host") or "").lower()
+    return bool(host) and urlsplit(origin).netloc.lower() == host

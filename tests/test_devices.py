@@ -56,8 +56,10 @@ def client(monkeypatch):
     return c
 
 
-def via(addr, secret=SECRET):
-    h = {"Origin": "http://testserver", "X-Hub-Peer": addr}
+def via(addr, secret=SECRET, origin="http://testserver"):
+    h = {"X-Hub-Peer": addr}
+    if origin:
+        h["Origin"] = origin
     if secret is not None:
         h["X-Hub-Proxy"] = secret
     return h
@@ -147,7 +149,7 @@ def test_whois_is_cached(client):
 def test_the_gate_lets_a_device_through_and_renew_needs_no_code(client):
     remember(client, PC)
     r = client.get("/api/gate", follow_redirects=False, headers={
-        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", **via(PC)})
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", "X-Forwarded-Method": "GET", **via(PC, origin=None)})
     assert r.status_code == 200 and r.headers["x-remote-user"] == "bill"
     r = client.post("/api/gate/renew", json={"next": "https://bambuddy.home.arpa/x"},
                     headers={**via(PC), "Host": "home.home.arpa", "Origin": "https://home.home.arpa"})
@@ -157,7 +159,7 @@ def test_the_gate_lets_a_device_through_and_renew_needs_no_code(client):
 def test_the_gate_still_refuses_an_unlisted_device(client):
     remember(client, PC)
     r = client.get("/api/gate", follow_redirects=False, headers={
-        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", **via(IPAD)})
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/", **via(IPAD, origin=None)})
     assert r.status_code == 302
 
 
@@ -234,3 +236,36 @@ def test_caddy_sends_the_peer_and_secret_on_every_way_to_the_hub():
     home = re.search(r"\nhome\.home\.arpa \{(.*?)\n\}", text, re.S).group(1)
     proxies = re.findall(r"reverse_proxy 127\.0\.0\.1:8100( \{\s*import hub_peer\s*\})?", home)
     assert proxies and all(p for p in proxies), "every reverse_proxy to the hub on home.home.arpa imports hub_peer"
+
+
+def gate_as(client, addr, **extra):
+    return client.get("/api/gate", follow_redirects=False, headers={
+        "X-Forwarded-Proto": "https", "X-Forwarded-Host": "bambuddy.home.arpa", "X-Forwarded-Uri": "/api/x",
+        **via(addr, origin=None), **extra})
+
+
+@pytest.mark.parametrize("extra", [
+    {"X-Forwarded-Method": "POST", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"},
+    {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate"},
+    {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},
+    {"X-Forwarded-Method": "POST", "Origin": "https://bambuddy.home.arpa"},
+    {"X-Forwarded-Method": "GET"},
+])
+def test_the_gate_lets_a_device_through_where_a_lax_cookie_would_go(client, extra):
+    remember(client, PC)
+    assert gate_as(client, PC, **extra).status_code == 200
+
+
+@pytest.mark.parametrize("extra", [
+    {"X-Forwarded-Method": "POST", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},
+    {"X-Forwarded-Method": "POST", "Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "cors"},
+    {"X-Forwarded-Method": "GET", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors"},
+    {"X-Forwarded-Method": "DELETE", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors"},
+    {"X-Forwarded-Method": "POST", "Origin": "https://evil.example"},
+    {"X-Forwarded-Method": "POST", "Origin": "https://home.home.arpa"},
+    {"X-Forwarded-Method": "POST"},
+    {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},  # no method: assume a change
+])
+def test_another_website_cant_use_the_device_at_the_gate(client, extra):
+    remember(client, PC)
+    assert gate_as(client, PC, **extra).status_code == 302
