@@ -97,6 +97,20 @@ def test_owner_sessions_last_30_days(c):
     assert row["expires"] - row["created"] == 30 * 86400
 
 
+def test_changing_the_password_ends_every_other_sign_in(c):
+    setup_hub(c)
+    other = TestClient(hub_app.app)
+    assert other.post("/api/signin", json={"password": "correct horse"}, headers=SAME).status_code == 200
+    db.run("INSERT INTO gate_codes (code_hash, owner_hash, host, expires) VALUES ('c', 'someone', 'x', ?)",
+           int(time.time()) + 30)
+    assert c.post("/api/settings/password", json={"password": "new battery staple"}, headers=SAME).status_code == 200
+    assert other.get("/api/me").json()["role"] == "none"
+    assert c.get("/api/me").json()["role"] == "owner"  # the one who changed it stays signed in
+    assert db.rows("SELECT code_hash FROM gate_codes") == []
+    assert c.post("/api/signout", headers=SAME).status_code == 200
+    assert c.post("/api/signin", json={"password": "new battery staple"}, headers=SAME).json()["role"] == "owner"
+
+
 def test_the_household_pin_is_gone(c):
     setup_hub(c)
     c.post("/api/signout", headers=SAME)

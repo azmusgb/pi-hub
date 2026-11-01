@@ -1007,7 +1007,7 @@ async def api_settings_save(what: str, request: Request):
     b = await request.json()
     try:
         if what == "password":
-            auth.set_owner_password(str(b.get("password", "")))
+            auth.set_owner_password(str(b.get("password", "")), keep=request.cookies.get(auth.COOKIE))
             msg = "Owner password changed."
         elif what == "homebridge":
             user, pw = str(b.get("username", "")).strip(), str(b.get("password", ""))

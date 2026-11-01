@@ -94,10 +94,17 @@ def setup(code, owner_password):
     put("owner_password", _hash(owner_password))
 
 
-def set_owner_password(pw):
+def set_owner_password(pw, keep=None):
+    """Sets the password and ends every other owner sign-in, with their gate tokens and unspent gate codes (they last
+    30 days, so a changed password must reach them). `keep` is the caller's own session token, which stays."""
     if not valid_password(pw):
         raise ValueError("The owner password needs at least 8 characters.")
     put("owner_password", _hash(pw))
+    _ready()
+    h = hashlib.sha256(keep.encode()).hexdigest() if keep else ""
+    db.run("DELETE FROM gate_codes WHERE owner_hash != ?", h)
+    db.run("DELETE FROM sessions WHERE (role = 'owner' AND token_hash != ?) OR (role = 'gate' AND device != ?)",
+           h, "gate:" + h)
 
 
 def _locked(who):
