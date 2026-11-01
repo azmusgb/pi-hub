@@ -100,7 +100,7 @@ def lax_like(headers):
     site = (headers.get("sec-fetch-site") or "").lower()
     if site in ("same-origin", "none"):
         return True
-    if site:  # same-site, cross-site: home.arpa is a public suffix, so another tool counts as another site
+    if site:  # same-site, cross-site: another tool (another site under home.arpa, the same site under the real name)
         return method in ("GET", "HEAD") and (headers.get("sec-fetch-mode") or "").lower() == "navigate"
     # A browser without Fetch Metadata: its Origin (sent on every change) must be the tool's own address.
     origin = headers.get("origin")
