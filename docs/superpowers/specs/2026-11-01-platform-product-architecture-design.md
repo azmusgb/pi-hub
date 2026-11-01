@@ -1,6 +1,6 @@
 # Platform product architecture: one product from the approved designs (design)
 
-Date: 2026-11-01 · Status: decisions D1-D9 approved by the owner on 1 Nov 2026, with four amendments (section 10).
+Date: 2026-11-01 · Status: decisions D1-D9 approved by the owner on 1 Nov 2026, with four amendments and a rewording of D4 (section 12).
 Pending one whole-spec consistency review before it becomes the baseline. Documentation only; no code, config or
 deploy changes
 Type: product architecture. It reconciles the approved designs of the owner's home platform into one product, and
@@ -133,7 +133,7 @@ moved. These are the conflicts found, and how each is resolved.
 | L5-L7 Streamed bodies, request validation, disk caps | Kept | — |
 | L8 Dual-target sync; printer telemetry stays on LocalAI | Superseded in part | K12. Dual-target sync has ended: print-lab sends only to Pi Hub (`lab/sync.py:97`, print-lab `8fcc640`). Telemetry moves to Pi Hub's `printer` record (Report l.321 shows the LocalAI dependency; a sleeping PC loses it) |
 | L9 `/lab` page parity | Kept | — |
-| L10 Lab items in Needs you, built from Pi Hub's copy, list-only | Kept | Item id rule in section 4 |
+| L10 Lab items in Needs you, built from Pi Hub's copy, list-only | Kept | "List-only" means never pushed. The item's action opens the judge or approve sheet (6.1). Item id rule in section 4 |
 
 **display-on-hub** (31 Oct)
 
@@ -144,7 +144,7 @@ moved. These are the conflicts found, and how each is resolved.
 | D3 AI cards go LocalAI → Pi Hub, never PC → display | Kept | — |
 | D4 No queued or replayed AI actions | Kept | — |
 | D5 Feed v2 shape unchanged | Kept | — |
-| Pairing fetches the CA over HTTP and pins `home.home.arpa` (l.43-44) | Kept, as a compatibility boundary | K4, D4. It stays until the firmware can use the production name and trust |
+| Pairing fetches the CA over HTTP and pins `home.home.arpa` (l.43-44) | Kept, as a compatibility boundary | K4, D4. It stays until the firmware supports the production hostname and trust model without requiring an unsafe or fragile field migration |
 | "AI unavailable — PC asleep" | Extended | Replaced by two phrase-table entries (K13) |
 | Clear plate and Judge it through Pi Hub | Kept | Consequence: the firmware's direct, unauthenticated call to Bambuddy (`tabs_pages.cppfrag:47-60`, Report l.326, H7) must go when the display switches |
 | Rollout steps 1-4 | Kept | Step 4 (retire LocalAI's display routes) is still pending (Report l.383) |
@@ -198,7 +198,7 @@ until home-mcp #3 (1 Nov). That was an unfinished rollout, not a design change.
 | `web-critique` D6 "Improve only when developer tools are on" | Superseded | `nav-structure` N1 |
 | `aw-*` (four Agent World specs): the street, beacons for Needs you, watch mode read-only | Kept | LocalAI-internal. `aw-main-street`:209 says no main-nav entry; this spec agrees (section 5) |
 | `aw-main-street`: the Workshop Garage opens Pi Hub (l.65) | Kept | Matches K1 and K2 |
-| `aw-main-street`: Kiosk tap opens `#integrations?card=workshop` | Superseded when display step 4 lands | Pairing and display state live on Pi Hub System › Workshop display (`display-on-hub`:42) |
+| `aw-main-street`: Kiosk tap opens `#integrations?card=workshop` | Superseded when display step 4 lands | Pairing and display state live on Pi Hub System › Settings › Workshop display (`display-on-hub`:42) |
 | `coordinator`: local by default, cloud only for non-private work; Pi Hub questions, voice and Siri are private (l.7-13, 31) | Kept | Drives workflow 6.7 |
 | `coordinator`: "Answered by …" on each run (l.75-79) | Extended | The same provenance line appears on quick-ask surfaces |
 | `forgejo`: Forgejo replaces GitHub (draft, **not approved**; l.3) | Not decided | The product architecture stays independent of the forge: a release's identity is its commit SHA. See D9 and Report l.1306 |
@@ -322,7 +322,7 @@ names. Domains are for thinking; areas (section 5) are for navigating.
 | Operations and observability | Health, freshness, self-checks, netmon, uptime, logs, watchdog, heartbeats, backups | Kept | Report l.958 |
 | Attention | Needs you, notifications, approvals, Inbox, alerts | Adjusted: a lens over records, not a store with its own data. The list is built from records, lab items and LocalAI's own items | `control-room` C1; `display-on-hub`:58-59; `hub/needs.py:105` |
 | Knowledge and workspace | Projects, sources, memory, library, GridCraft, ArtCraft | Kept. LocalAI-only. Print lab has left it | `registry`:46-47 |
-| Shared foundations | Kit, contracts, registry, clients, error envelope, healthz | Kept. UX needs only what section 11 lists | Report l.980 |
+| Shared foundations | Kit, contracts, registry, clients, error envelope, healthz | Kept. UX needs only what section 13 lists | Report l.980 |
 | Outside the platform | FormWorks work tools, personal apps, health data, vendor harnesses | Kept | Report l.1045-1058 |
 
 ## 4. Minimal object model
@@ -354,7 +354,7 @@ flowchart LR
 | **Lab request** | `request_id`, idempotent. Kinds: verdict, photos, start, approve, abandon, observation (`lab-on-hub` L6) | Pi Hub holds the pending queue. print-lab applies it and owns the result | `hub.db` request tables; `lab pull` applies | `lab-request.v1` |
 | **Assistant run** | Run id, with `threadId` and `projectId` (`evolution`:56-60) | LocalAI | `localai.db` run ledger; `/api/runs` | None at platform level. It reaches the platform only as a Needs-you item or a `#run/<id>` link |
 | **Backlog item** (and its Signal) | Board id (`signal-<issueId>` for promoted signals) | LocalAI | `localai.db` settings under the Claude board prefix; `/api/claude/priorities` | None at platform level. It joins a Release by `shipped.commit` (`improve`:28-37) |
-| **Release** | Target plus commit SHA | The deploy target. Its deploy mechanism publishes `release:<target>` to Pi Hub when it deploys; that record is the canonical deployment state (D1, D7) | Scattered today: Pi Hub `releases.json`; LocalAI `.deploy/state.json` and `/healthz` `releaseCommit`; firmware `release.json`; netmon none (Report l.558, 567, 575) | `record.v1`, kind `release:<target>`. Runtime probes (`healthz.v1`, home-mcp's SSH) verify it; they are not the source |
+| **Release** | Target plus commit SHA | The deploy target owns the facts (commit, result, time). Pi Hub owns the record, which its deploy mechanism writes on each deploy, and derives its state. It is the canonical deployment state (D1, D7) | Scattered today: Pi Hub `releases.json`; LocalAI `.deploy/state.json` and `/healthz` `releaseCommit`; firmware `release.json`; netmon none (Report l.558, 567, 575) | `record.v1`, kind `release:<target>`. Runtime probes (`healthz.v1`, home-mcp's SSH) verify it; they are not the source |
 | **Architecture snapshot** | Repo plus commit | Atlas, in LocalAI on the PC | `.atlas/graph`, `.atlas/investigations` (Report l.569) | None. A derived, rebuildable report. It links from a Release by commit |
 | **Tool** (a gated third-party app) | Name, such as `bambuddy`; host `<name>.rahe-home.duckdns.org` (`real-names` N6) | The registry (platform) | Copied today into `sections.js:45-50`, appliance-ui `suite.json`, LocalAI links and the firmware installer nav (Report l.526, 260) | The registry, generated per language (Report l.1186) |
 
@@ -379,7 +379,14 @@ second identity. LocalAI's `lab:` prefix in `one-needs-you`:70 is superseded.
   State is `live`, `behind`, `ahead`, `unknown` or `drifted`. "Unknown" is explicit and is not a failure.
   `deployments`:10 and Report l.175 show why: today every target except LocalAI reads "Environment unknown".
   `drifted` means a verification probe disagrees with the record: the deploy said it succeeded, but the runtime now
-  runs something else.
+  runs something else. Pi Hub sets it from the probes it runs (`healthz`, the display heartbeat). home-mcp is
+  read-only: it reports drift it sees, and does not write state.
+  `behind` and `ahead` compare the live commit with the head of the target's deploy branch (pi-hub `main`, LocalAI
+  `release`, the firmware's latest published candidate). Without a reading of that head, the state stays `live`.
+  For the firmware, "published to the OTA host" and "running on the display" are separate facts. The record is
+  `live` only when the display heartbeat reports the published version.
+  As a `record.v1`, a failed deploy or `drifted` is severity warn and raises a Needs-you item. `behind`, `ahead` and
+  `unknown` show on Versions only.
 
   ```
   deploy ── writes ──► release:<target> ──► System › Versions
@@ -443,7 +450,7 @@ which level each existing model is, and retires the one that adds nothing.
 | Desktop web | Rail with Home, Workshop, Documents, Media, Home & network, System. The Assistant button sits at the rail's foot. ⌘K in the top bar | `one-home`:107-110; `sections.js:6-13` |
 | Phone web | Bottom bar Home, Workshop, Documents, Media, More. More holds Home & network and System. The Assistant button is in the top bar. The Home tab carries the Needs-you count | `one-home` D7; `sections.js:16` |
 | Wall (`/wall`) | No navigation. It is an ambient mode of Home's Now. Esc or `w` returns (`enhance.js:162-186`) | `control-room` C5 |
-| Display | Tabs map to areas: Home is Home, Printer is Workshop, Assistant is the Assistant, More is settings and device health. One tab name only (Report l.267 lists four variants) | `display-on-hub`; Report l.239, 267 |
+| Display | Tabs map to areas: Home is Home, Printer is Workshop, Assistant is the Assistant, More is device settings and Display status. One tab name only (Report l.267 lists four variants) | `display-on-hub`; Report l.239, 267 |
 | Inside the Assistant | LocalAI's five pages with "← Home" as the door. Phone bar of five | `nav-structure` N3 |
 
 The shared header is not navigation (K5, D3). Its useful half survives: one list of tools, generated from the
@@ -493,8 +500,8 @@ this list with one component each (`one-needs-you` N3; `display-card`:8-19).
 |---|---|---|---|
 | `/` | Keep | Home: Now, Needs you, Since you last looked | `control-room` C5 |
 | `/wall` | Keep | Ambient mode of Home | No navigation model of its own |
-| `/weather` | Keep | A page in Home's strip | `control-room` lists `weather` as a record |
-| `/workshop` | Keep | Workshop › Printer | — |
+| `/weather` | Keep | Home › Weather, opened from Now's weather record | `control-room` lists `weather` as a record |
+| `/workshop` | Keep | Workshop › Printer, with camera, filament and history as sections of the page | — |
 | `/lab` | Keep, extend | Workshop › Print lab, taking `?e=`, `?p=` and `do=judge` | K1; `one-needs-you` N7 |
 | `/documents` | Keep | Documents › Find | — |
 | `/print` | Keep, relabel | Documents › Print a document | Paper, not 3D (section 9) |
@@ -508,7 +515,7 @@ this list with one component each (`one-needs-you` N3; `display-card`:8-19).
 | `/pi` ("Help & system") | Merge | System › Health. Keep `/pi` as a redirect | Report l.279: the page does too many jobs; the name is plumbing (`one-home`:21) |
 | `/alerts` | Keep | System › Alerts: what the house told you | — |
 | `/rules` | Keep | System › Automations | — |
-| `/settings` | Keep | System › Settings. Its Versions card moves | `hub/static/js/settings.js:67`; K7 |
+| `/settings` | Keep | System › Settings, including Your devices and Workshop display (pairing and display state). Its Versions card moves | `hub/static/js/settings.js:67`; K7 |
 | (new) `/versions` | Add | System › Versions: what is live where, all targets | K7, D1 |
 | `/more` | Keep | Phone only. Fix the blank desktop view | Report l.232, `control-room`:36 |
 | `/next` | Retire | Redirect to `/`; delete `next.js` | `sections.js:19`; Report l.271 |
@@ -520,9 +527,10 @@ this list with one component each (`one-needs-you` N3; `display-card`:8-19).
 
 | Route (id) | Decision | Becomes | Why |
 |---|---|---|---|
-| `home` | Keep | Assistant Home. Needs you is the shared list | Section 5.5 |
+| `home` | Keep | Assistant Home. Needs you is the shared list; with Pi Hub down it shows only its own items (section 10) | Section 5.5 |
 | `inbox` (`approvals`) | Keep | Decision history behind the bell. Not a queue | `web-critique` D8; `nav-structure` |
-| `work`, `automationStudio` | Keep | — | — |
+| `work` | Keep | — | — |
+| `automationStudio` | Keep, relabel | **Assistant automations** | Section 9; Pi Hub's System › Automations is the house's |
 | `projects`, `knowledge`, `memory`, `library`, `spreadsheets` | Keep | — | Knowledge and workspace |
 | `printLab` | Retire | Redirect to Pi Hub `/lab`. Remove the dead render code, five scripts and `/api/lab/*` once LocalAI's logs show no remaining caller (D5, Report U-11) | K1; Report l.258, 1303 (U-11) |
 | `backlog`, `inProgress`, `shipped`, `signals`, `claude` | Keep | Improve | `nav-structure` N1, N2 |
@@ -540,7 +548,7 @@ this list with one component each (`one-needs-you` N3; `display-card`:8-19).
 | Tabs Home, Printer, Local AI, More | Keep three, rename one | The "Local AI" tab becomes "Assistant" (D6) |
 | Judge it overlay | Keep | Same sheet as the phone (`display-card`:72-90) |
 | Ask | Keep | A door into the Assistant (section 6.7) |
-| More's 14 pages | Keep | Device settings, not areas |
+| More's 14 pages | Keep | Device settings, not areas. The device health page is named **Display status** (D6) |
 | Installer `appliance-nav.js` | Retire | Points at the retired Filament Inventory and `10.0.0.21:3080` (Report l.260) |
 | `/os12/inventory/*` portal routes | Retire | Retired integration (Report l.240) |
 
@@ -614,9 +622,9 @@ A backlog for non-LocalAI targets is not designed here: `improve`:89 plans with 
 
 | | Today | Target |
 |---|---|---|
-| Trigger | Manual `quick_arch.py` (Report l.947) | On a Release record change, plus a manual button |
+| Trigger | Manual `quick_arch.py` (Report l.947) | When awake, LocalAI reads Pi Hub's release records and snapshots any new commit. A PC that slept catches up on waking. Repos with no deploy target, and anything else, use the manual button |
 | Coverage | LocalAI's repo only | Every home-platform repo and satellite, as snapshots keyed by repo and commit |
-| Where it runs | PC, from the git checkout the deploy task requires to be clean (Report l.569) | From a deployed copy (Report l.1197) |
+| Where it runs | PC, from the git checkout the deploy task requires to be clean (Report l.569) | From a clean copy at the snapshot's commit, not the deploy checkout (Report l.1197) |
 | Where it is read | Assistant › System › Advanced › Architecture | Same page. Versions rows link to "Architecture at this commit" |
 | Findings | Page only | Findings stay on that page. The owner can promote one into Improve's Signals, which is LocalAI's existing intake |
 
@@ -684,24 +692,25 @@ two release pipelines stay separate.
 | Workshop › Printer, camera, filament, history | Bambuddy (printer, prints, spools); the camera bridge on the Pi | Pi Hub | One printer-control path (6.2) |
 | Workshop › Print lab | print-lab on the Mac. Pi Hub holds the mirror and the request queue | Pi Hub `/lab` | The lab works with the PC off (`lab-on-hub`:13). The mirror is never authoritative (Report l.1053). The Mac applies requests, so the Mac stays the runtime |
 | Documents › Find | Paperless on the PC | Pi Hub | Pi Hub renders; the PC holds. "The PC is off" shows when it sleeps (`one-home`:181) |
-| Documents › Scan, Print a document, Lists | scanservjs on the Pi; CUPS on the Pi; `hub.db` | Pi Hub | Pi-only |
+| Documents › Print a document, Lists | CUPS on the Pi; `hub.db` | Pi Hub | Pi-only. Scan is a tool (scanservjs) opened from Documents (5.4) |
 | Media, Media › Storage | Plex; drive checks on the Pi | Pi Hub | — |
 | Home & network | Homebridge, AdGuard, netmon, Orbi | Pi Hub. Grafana and Kuma open as tools | `control-room`:169-178 |
 | System › Health | Pi Hub records fed by pi-status, netmon, LocalAI `healthz`, the display heartbeat | Pi Hub | One answer to "is it OK" |
 | System › Backups | Backrest and restic | Pi Hub | `control-room` piece 5 |
-| System › Versions | The `release:<target>` records, written by each target's deploy | Pi Hub | Pi Hub's own state must show with the PC off. Rollback exists only for Pi Hub's release runner (D7) |
+| System › Versions | The `release:<target>` records, written by each target's deploy. The `mac_lab` record shows on Print lab and Needs you, not as a page | Pi Hub | Pi Hub's own state must show with the PC off. Rollback exists only for Pi Hub's release runner (D7) |
 | System › Settings, Your devices, Workshop display pairing | Pi Hub (`owner_devices`, display key hashes) | Pi Hub | Tailscale proves the machine; the display is not a device of the owner (`device-owner` R9) |
 | System › Alerts, Automations | Pi Hub events and rules | Pi Hub | — |
-| Assistant: Home, Work, Projects | LocalAI (`localai.db`) | LocalAI | GPU, Docker and Windows (Report l.1051) |
+| Assistant: Home, Work, Projects, Inbox (decision history) | LocalAI (`localai.db`) | LocalAI | GPU, Docker and Windows (Report l.1051) |
 | Assistant: Improve | LocalAI (Claude board, change requests) | LocalAI | Coupled to the run ledger and the Mac relay |
 | Assistant: System (Assistant status, Models, Connections, Audit log) | LocalAI | LocalAI | The Assistant itself (`one-home`:151) |
 | Assistant › Architecture | Atlas, in LocalAI on the PC | LocalAI | Needs Ollama and Goose |
 | Agent World street | LocalAI `/api/world`; the printer reading is Pi Hub's `printer` record | LocalAI | `household`:31-37 |
 | Display | Firmware renders. Household facts come from Pi Hub. Printer telemetry is direct MQTT. AI cards come from LocalAI through Pi Hub | Firmware | Failure isolation (Report l.1050) |
 | Display › Judge it | The verdict request in Pi Hub's queue | Firmware | `display-on-hub`:79-81 |
+| Display › More › Display status | The firmware (device health); Pi Hub holds the heartbeat | Firmware | D6 |
 | Grafana, Uptime Kuma | netmon | The tools | Depth tools, opened in a new tab |
 | Bambuddy, Paperless, AdGuard, Homebox, Backrest, Homebridge, Cockpit | Vendors | The tools | Not restyled (`one-home`:37) |
-| home-mcp | Reads Pi Hub (and later LocalAI) | Agents on the Mac | Read-only; writes are two-step (`home-mcp`:48-50) |
+| home-mcp | Reads Pi Hub, including the `release:` records (and later LocalAI). Its SSH reads only verify | Agents on the Mac | Read-only; writes are two-step (`home-mcp`:48-50) |
 | print-lab CLI | print-lab | The Mac terminal | Authoring stays on the Mac |
 
 ## 8. Search and command model
@@ -716,8 +725,8 @@ Two ⌘K palettes exist, and neither is the one the control-room design describe
 ### 8.1 One component, two providers
 
 The kit gets one palette component, as it got one Needs-you renderer (`one-needs-you` N3). Each app registers its own
-providers. There is no central search service, because Pi Hub must work while the PC sleeps and LocalAI must not need
-the Pi.
+providers. There is no central search service, because Pi Hub must work while the PC sleeps and LocalAI must keep working
+without the Pi (section 10).
 
 | Part | Rule |
 |---|---|
@@ -777,6 +786,7 @@ Internal ids never appear in the UI.
 | **Since you last looked** | Events since this browser last visited | — | `control-room` C5 |
 | **Inbox** | The Assistant's history of notices and decided approvals | A queue | `web-critique` D8 |
 | **Health** | Pi Hub's System › Health only: the whole platform's operational health. The one-line answer is Home's Needs you | The name of any other page. The Assistant's page is **Assistant status**; the display's is **Display status** | Report l.257; D6 |
+| **Automations** | Pi Hub's System › Automations: house rules. LocalAI's page is **Assistant automations** | Two pages with one name | Section 5.6 |
 | **Versions** | What is live where, for every target, read from the `release:<target>` records | Deployments, Releases | K7; Report l.256 |
 | **Shipped** | Improve's list of changes that went out, per release | What is live | — |
 | **Improve** | The Assistant's change pipeline: Backlog, In progress, Shipped, Signals, Claude Code | "Engineering" (a domain name, not a menu label) | `nav-structure` N1 |
@@ -801,9 +811,51 @@ Internal ids never appear in the UI.
 
 The display line "AI unavailable — PC asleep" moves to these two keys when the firmware next changes strings.
 
-## 10. Decisions (approved 1 Nov 2026)
+## 10. Failure boundaries
 
-The owner approved D1-D9 on 1 Nov 2026 as recommended, with four amendments (to D1+D7, D2, D4, D5 and D6). Each entry
+Each host fails on its own. The rule from section 8.1 holds in every row: a surface says which source is missing, in the
+phrase-table wording, and never shows an empty list as if nothing were wrong.
+
+| Failure | Keeps working | Degrades | What the owner sees |
+|---|---|---|---|
+| **PC asleep or off** | All of Pi Hub, including Home, Workshop, Print lab, Versions (last known records) and pushes. The display's household facts and its direct printer MQTT. Lab requests queue as usual | The Assistant, Ask, Documents › Find, AI cards on the display. LocalAI's attention items stop updating | "The PC is off". Pi Hub keeps the last `localai:` Needs-you items, marked with their `as_of` time, because a pending approval is still pending. It does not drop them or present them as current |
+| **Mac asleep** | Pi Hub and the PC. The lab page reads the mirror | Lab requests wait. The workshop camera stops, because the Mac bridge is the only camera until the printer's LAN liveview is on | `mac_waiting` on the item; the `mac_lab` record shows how many requests wait. The camera tile says the camera is unavailable, not that the printer is |
+| **Pi Hub down** (the Pi, Pi Hub, its Caddy or its database) | The Assistant on its own: Home, Work, Improve, Assistant status. The display's printer telemetry over MQTT. The failure-independent path (D2) | Assistant Home shows only its own attention items, plus one line: "House items unavailable: Pi Hub isn't answering". "← Home" stays visible and fails like any link to a host that is down. The display's household tabs and OTA. Every push except D2's outage message | The D2 outage message ("Pi Hub unreachable since …", then "Pi Hub is back"). LocalAI does not try to rebuild the household list |
+| **A deploy cannot write its `release:` record** (Pi Hub down or restarting) | The deploy itself. It is not blocked by Pi Hub | Versions shows the previous record until the new one arrives | The deploy mechanism keeps the record and retries until Pi Hub accepts it. Pi Hub's own deploy writes its record after the new release passes its checks, or records the rollback |
+| **Caddy's local CA lost** | Everything that uses the real names | The display loses Pi Hub and OTA (D4 boundary) | Display status on the device. Recovery is the tested restore in pi-hub `docs/operations.md` (#33) |
+| **The Pi lost** (disk or hardware) | The PC and the Mac | Every Pi Hub service until it is rebuilt | Restore from the nightly backup and its PC copy, including the CA (#31). There is no off-site copy until C1 is done |
+
+## 11. Migration sequence
+
+The order the decisions imply. Each step needs its own plan and PR (section 13). A step starts only when the steps
+it depends on are done. Steps on different lines can run in parallel.
+
+1. **Done on 1 Nov 2026:** Ollama firewalled (C2), the CA in the backup with a tested restore (C3; pi-hub #31, #33),
+   home-mcp on the real name (home-mcp #3).
+2. **The failure-independent outage path (D2).** It comes first, because the later steps make Pi Hub the only sender.
+3. **The `release:` write path and System › Versions (D1, D7).** Pi Hub publishes its own record first. Then
+   LocalAI's ship and Safe Deploy, the firmware OTA host, netmon and the Mac agents, one at a time.
+4. **After 3, per target:** LocalAI's Deployments page becomes a link to Versions. home-mcp reads the records and
+   labels its SSH reads as verification. SSH reads go only when every target publishes and drift has another check.
+5. **Pushes onto Pi Hub (D2), after 2.** LocalAI, print-lab and mac-watch post to Pi Hub. LocalAI's Web Push retires
+   once ntfy is seen delivering the Assistant's events.
+6. **Print lab (D5), independent of 2-5.** Redirect the tab now. Then build the caller inventory and gather the log
+   evidence. Then remove `/api/lab/*`.
+7. **Navigation and names (D3, D6), independent.** The System strip, `/pi` into Health, the `/control` and `/next`
+   retirements, the registry-generated tool list replacing the shared header, and the renames on Pi Hub and LocalAI.
+8. **The display.** It moves to Pi Hub for its household facts and the direct Bambuddy call is removed. Then display
+   step 4, after which LocalAI's display routes and Services card retire. A firmware candidate carries the tab
+   rename, the phrase keys and Display status.
+9. **`real-names` PR 5 with D4's scope**, after 8, so the display does not depend on a retired path. The D4 exit
+   condition is a later firmware release of its own.
+10. **Atlas on release records (6.4)**, after 3.
+
+D9 (forge) and C1 (off-site backup) are not in this sequence. Neither blocks it.
+
+## 12. Decisions (approved 1 Nov 2026)
+
+The owner approved D1-D9 on 1 Nov 2026 as recommended, with four amendments (to D1+D7, D2, D5 and D6) and a rewording
+of D4. Each entry
 states the decision, then why. The options that were weighed are in the PR #32 history. D4 sets the scope of
 `real-names` PR 5.
 
@@ -833,8 +885,15 @@ Why: the household push must work with the PC off.
 
 *Amendment: the failure-independent path.* One path exists whose only job is to detect and report that Pi Hub is
 unavailable. It must not depend on Pi Hub, its Caddy, its database or its local ntfy.
-- It runs off the Pi (the Mac or the PC) and probes Pi Hub's health endpoint from outside.
-- It delivers through a channel not hosted on the Pi.
+- It is always on. The Mac and the PC sleep, so a watcher on either one misses outages while it sleeps. The shape
+  that meets this is a dead-man's switch outside the home: Pi Hub's checker fetches its own health endpoint through
+  Caddy (so Caddy and the database are tested) and, only when that passes, pings an external monitor every few
+  minutes. Silence past a grace period is the alert. A watcher on the Mac or PC is acceptable only with that sleep
+  limitation stated on the record.
+- It delivers through a channel not hosted on the Pi. The external service and account are the owner's choice, as
+  with C1.
+- It ignores Pi Hub's quiet hours, because it cannot read them, and it sends at any hour. An outage is the one event
+  that warrants that.
 - It says only two things: "Pi Hub unreachable since <time>" and "Pi Hub is back". One message per outage, and
   nothing else ever goes through it. It is not a second general channel.
 - The probe host and the delivery channel are implementation choices. These constraints are not.
@@ -864,8 +923,11 @@ Retiring everything on schedule breaks the display step already merged (#243).
 dual-target sync (`lab-on-hub` L8) has ended.
 1. Now: the Print lab tab redirects to Pi Hub `/lab`.
 2. Then: watch LocalAI's logs for requests to `/api/lab/*` (Report U-11).
-3. Remove the backend once those logs show no remaining caller, with every caller seen accounted for.
-The gate is evidence, not elapsed time. There is no fixed waiting period.
+3. Remove the backend when the evidence shows no remaining caller:
+   - a caller inventory: LocalAI's own front end, print-lab, scripts and agents, each retired or repointed; and
+   - LocalAI access logs, retained over at least one period in which the PC was up and the Mac was awake and syncing,
+     with no request to `/api/lab/*`.
+The gate is that coverage, not elapsed time. There is no fixed waiting period.
 
 **D6. The glossary renames are approved, with "Health" narrowed.**
 Display tab "Local AI" → "Assistant"; Problems → Needs you; Help & system → Health; Deployments → Versions;
@@ -892,15 +954,18 @@ This spec does not depend on the answer. A Release's identity is the commit SHA.
 request through the target's forge adapter. Decide it on its own merits before any repository move, and do not let
 it block this work.
 
-## 11. Out of scope
+## 13. Out of scope
 
 - **Implementation.** No code, config, deploy, firmware change or migration comes from this document. Each decision
   above needs its own plan.
 - **Repository migration.** Whether and when `home-platform` exists, what joins it, and in what order (Report
   l.1131-1162) is the Report's question, not this spec's. This spec moves into that repository when it exists.
 - **Contract and registry technical design.** Only what the UX needs from them is listed here:
-  - `record.v1` (including kind `release:<target>`), `needs-item.v1`, `print-lab-index.v1`, `lab-request.v1`, `healthz.v1` (with the release commit) and
+  - `record.v1` (including kind `release:<target>` and its `printer-record.v1` detail), `needs-item.v1`, `print-lab-index.v1`, `lab-request.v1`, `healthz.v1` (with the release commit) and
     `error.v1`. `record.v1` is the one name the Report's list (l.1175-1183) lacks.
+  - The `release:` write path: one endpoint on Pi Hub, a key per deploy mechanism (LocalAI's deploy on the PC, the
+    Mac agents, the OTA host, netmon) scoped to its own target, and the retry rule in section 10.
+  - Unchanged and owned by `display-on-hub`: the display feed v2 and the display message channel.
   - One registry of tools, names, hostnames and the display and OTA exception.
   - Three kit parts: the Needs-you renderer (exists), a palette component (new) and the phrase table (exists, grows).
 - **Backups, Ollama exposure, the Caddy CA backup** (Report C1-C3). They are prerequisites under any model (Report
