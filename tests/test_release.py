@@ -221,3 +221,29 @@ def test_gate_release_refuses_without_caddy(release):
     assert result.returncode != 0
     assert 'install.sh' in result.stdout + result.stderr
     assert (root / 'opt/pi-hub/current').resolve().name == 'previous'
+
+
+def test_the_release_check_expects_signed_in_apis_to_refuse(monkeypatch, capsys):
+    import importlib.util, json, urllib.error
+    spec = importlib.util.spec_from_file_location("selfcheck", Path(__file__).resolve().parents[1] / "deploy/pi-hub-selfcheck.py")
+    sc = importlib.util.module_from_spec(spec); spec.loader.exec_module(sc)
+    assert "/api/drives" in sc.SIGNED_IN
+
+    class Resp:
+        status = 200
+        def __init__(self, body): self.body = body
+        def read(self): return self.body
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def answer(url, timeout):
+        path = url[len(sc.HUB):]
+        if path in sc.SIGNED_IN:
+            raise urllib.error.HTTPError(url, 401, "x", {}, __import__("io").BytesIO(b'{"detail": "Sign in"}'))
+        return Resp(b"js/main.js" if not path.startswith("/api/") else b"{}")
+    monkeypatch.setattr(sc.urllib.request, "urlopen", answer)
+    try:
+        sc.main(gate=True)
+    except SystemExit as e:
+        out = json.loads(capsys.readouterr().out)
+        assert e.code == 0, [c for c in out["checks"] if not c["ok"]]
