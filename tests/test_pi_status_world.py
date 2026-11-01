@@ -23,9 +23,11 @@ def files(tmp_path, monkeypatch):
 class _Opener:
     def __init__(self):
         self.reqs = []
+        self.timeouts = []
 
     def open(self, req, timeout=None):
         self.reqs.append(req)
+        self.timeouts.append(timeout)
         return io.BytesIO(b'{"printer": {"state": "idle"}}')
 
 
@@ -36,6 +38,8 @@ def test_world_sends_the_key(files, monkeypatch):
     assert pi_status.world() == {"printer": {"state": "idle"}}
     assert opener.reqs[0].get_header("X-localai-hub-key") == "secret"
     assert opener.reqs[0].full_url == "https://10.0.0.21/api/world"
+    # a slow TLS handshake (2-5 s, 1 Nov) isn't "down"; and it stays inside the hub's 6 s wait for pi-status
+    assert 1.5 < opener.timeouts[0] < 6
 
 
 @pytest.mark.parametrize("missing", ["key", "ca"])
