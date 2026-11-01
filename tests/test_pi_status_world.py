@@ -45,3 +45,9 @@ def test_world_never_calls_without_key_and_ca(files, monkeypatch, missing):
     with pytest.raises(Exception):
         pi_status.world()
     assert pi_status.cached("world-test-" + missing, 15, pi_status.world) is None
+
+
+def test_status_is_not_offered_to_other_websites():
+    # Only the hub reads /status, server to server; it relays what Local AI keeps behind sign-in.
+    src = (Path(__file__).resolve().parents[1] / "deploy" / "pi-status.py").read_text()
+    assert "Access-Control-Allow-Origin" not in src
