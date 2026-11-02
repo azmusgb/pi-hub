@@ -1,6 +1,6 @@
 // Control: lights, plugs and switches from Homebridge. Tap to switch; a device that is not the owner's is asked to sign in once.
 import { api, card, ensure, h, post, toast } from "./core.js";
-import { applianceLabel, groupAppliances } from "./wording.js";
+import { applianceControls, applianceLabel, groupAppliances } from "./wording.js";
 
 export const every = 10;
 
@@ -92,12 +92,7 @@ export async function load(state) {
   const applianceCards = appliances.map((ap) => h("section", { class: "row-section appliance" },
     h("h2", { class: "section-title" }, ap.name),
     ap.status ? h("p", { class: "meta" }, ap.status) : null,
-    // Like the other sections, a switch already in Favourites isn't repeated here; each keeps its star.
-    h("div", { class: "tiles" }, [[ap.power, "Power"], [ap.running, "Running"]]
-      .filter(([a]) => a && !favs.has(a.id)).map(([a, label]) => tile(a, state, { label, favourite: false }))),
-    ap.programs.some((p) => !favs.has(p.id)) ? h("h3", { class: "sub" }, "Programs") : null,
-    h("div", { class: "tiles tiles--compact" }, ap.programs.filter((p) => !favs.has(p.id))
-      .map((p) => tile(p, state, { label: p.name, favourite: false })))));
+    h("div", { class: "tiles" }, applianceControls(ap, favs).map((a) => tile(a, state, { label: "Power", favourite: false })))));
   const sections = groups.map(([kind, title]) => {
     const list = rest.filter((a) => a.kind === kind && !favs.has(a.id));
     return list.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, title),

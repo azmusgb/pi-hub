@@ -26,6 +26,13 @@ export function applianceLabel(a) {
   return name && !a.name.toLowerCase().startsWith(name.toLowerCase()) ? `${name}: ${a.name}` : a.name;
 }
 
+// The only switch an appliance card offers is its power. Its programs and "running" switch stay in its status line:
+// with remote start allowed, one stray tap on a program switch starts a wash (1 Nov). A switch already in Favourites
+// isn't repeated here.
+export function applianceControls(ap, favs = new Set()) {
+  return ap.power && !favs.has(ap.power.id) ? [ap.power] : [];
+}
+
 export function groupAppliances(accessories) {
   const byRoom = new Map();
   for (const a of accessories) {

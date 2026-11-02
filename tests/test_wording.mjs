@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agoText, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
+import { agoText, applianceControls, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -28,6 +28,13 @@ test('an appliance whose functions arrive as separate switches becomes one card'
   assert.deepEqual(d.programs.map((p) => p.name), ['Auto', 'Normal', 'Rinse', 'Speed 60']);
   assert.equal(d.status, 'On · Normal selected');
   assert.equal(groupAppliances([sw('x', 'Fan', 'Kitchen'), sw('y', 'Pump', 'Kitchen')]).appliances.length, 0);
+});
+
+test('an appliance card switches only its power: no program or running switch to start a wash by accident', () => {
+  const { appliances } = groupAppliances([sw('p', 'Dishwasher Power'), sw('a', 'Dishwasher Active Program'), sw('1', 'Auto')]);
+  assert.deepEqual(applianceControls(appliances[0]).map((a) => a.id), ['p']);
+  assert.deepEqual(applianceControls(appliances[0], new Set(['p'])), []);  // already in Favourites
+  assert.deepEqual(applianceControls({ power: null, running: null, programs: [] }), []);
 });
 
 test('a device that drops out and comes back many times in a day is one line', () => {
