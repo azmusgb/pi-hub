@@ -19,7 +19,9 @@ if [ "$body" != '{"ok":true}' ]; then
   echo "Pi Hub answered /healthz with an unexpected body; no heartbeat sent" >&2
   exit 1
 fi
-if ! curl -sS --max-time 10 --retry 3 --fail -o /dev/null "$URL" 2>/dev/null; then
+# The URL goes to curl on stdin, not argv, so it never shows in /proc/<pid>/cmdline. The pattern above already
+# excludes quotes and backslashes, so it is safe inside curl's config syntax.
+if ! printf 'url = "%s"\n' "$URL" | curl -sS --max-time 10 --retry 3 --fail -o /dev/null -K - 2>/dev/null; then
   echo "Pi Hub is healthy but the heartbeat did not reach Healthchecks.io" >&2
   exit 1
 fi

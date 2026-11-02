@@ -18,6 +18,10 @@ def run(tmp_path, health='{"ok":true}', ping="ok", url=PING):
 import os, sys
 args = sys.argv[1:]
 with open(os.environ["CALLS"], "a") as f: f.write(" ".join(args) + "\n")
+if "-K" in args:
+    config = sys.stdin.read()
+    with open(os.environ["CALLS"], "a") as f: f.write("PING " + config.strip() + "\n")
+    sys.exit(0 if os.environ["PING"] == "ok" else 6)
 if args[-1].endswith("/healthz"):
     if os.environ["HEALTH"] == "fail":
         print("curl: (22) The requested URL returned error: 503", file=sys.stderr); sys.exit(22)
@@ -37,7 +41,7 @@ else:
 
 
 def pings(lines):
-    return [line for line in lines if line.endswith(PING)]
+    return [line for line in lines if line == f'PING url = "{PING}"']
 
 
 def test_a_healthy_hub_sends_one_heartbeat(tmp_path):
@@ -98,3 +102,10 @@ def test_the_release_installs_the_heartbeat_and_starts_it_only_once_live():
     assert release.count("pi-hub-heartbeat.service pi-hub-heartbeat.timer") == 2  # snapshot and install
     assert '"$D/pi-hub-heartbeat.sh"' in release
     assert release.index('record live') < release.index("enable --now pi-hub-heartbeat.timer")
+
+
+def test_the_ping_url_never_appears_in_curl_arguments(tmp_path):
+    result, lines = run(tmp_path)
+    assert result.returncode == 0, result.stderr
+    argv_lines = [line for line in lines if not line.startswith("PING ")]
+    assert argv_lines and all(PING not in line and "hc-ping.com" not in line for line in argv_lines)
