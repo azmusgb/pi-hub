@@ -339,3 +339,21 @@ def test_reports_keep_the_newest_ten(release):
         os.utime(p, (1000 + i, 1000 + i))
     run()
     assert len(list(inbox.glob('pi-hub-*.json'))) == 10
+
+
+def test_live_release_refreshes_the_push_runner(release):
+    root, _, run = release
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    incoming = root / 'usr/local/lib/pi-hub/pi-hub-release-incoming'
+    assert incoming.read_text() == (ROOT / 'deploy/pi-hub-release').read_text()
+    assert incoming.stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.parametrize('failure', ['js', 'gate'])
+def test_failed_release_keeps_the_push_runner(release, failure):
+    root, _, run = release
+    incoming = root / 'usr/local/lib/pi-hub/pi-hub-release-incoming'
+    incoming.write_text('old runner')
+    run(failure)
+    assert incoming.read_text() == 'old runner'
