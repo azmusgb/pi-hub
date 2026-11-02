@@ -9,6 +9,8 @@ BASE=/opt/pi-hub
 REL=$BASE/releases
 CUR=$BASE/current
 LOG=/var/lib/pi-hub-releases/releases.json
+# release:pi-hub (platform step 3): the hub reads each report from here; the newest 10 are kept.
+INBOX=/var/lib/pi-hub-releases/inbox
 # Serialise pushes and owner-requested rollbacks.
 exec 9>/var/lock/pi-hub-release.lock
 flock -n 9 || { echo "pi-hub: another release is running"; exit 1; }
@@ -17,19 +19,47 @@ SHORT="${SHA:0:10}"
 NEW="$REL/$SHORT"
 say() { echo "pi-hub: $*"; }
 
-record() {  # status message
-  python3 - "$LOG" "$SHORT" "$1" "$2" "$(git --git-dir="$REPO" log -1 --format=%s "$SHA" 2>/dev/null)" <<'PY'
+record() {  # status message [restored]
+  python3 - "$LOG" "$SHORT" "$1" "$2" "$(git --git-dir="$REPO" log -1 --format=%s "$SHA" 2>/dev/null)" "${3:-}" <<'PY'
 import json, os, sys, time
-path, sha, status, message, subject = sys.argv[1:]
+path, sha, status, message, subject, restored = sys.argv[1:]
 os.makedirs(os.path.dirname(path), exist_ok=True)
 try:
     data = json.load(open(path))
 except (OSError, ValueError):
     data = []
-data.insert(0, {"sha": sha, "status": status, "message": message, "subject": subject[:120], "ts": int(time.time())})
+entry = {"sha": sha, "status": status, "message": message, "subject": subject[:120], "ts": int(time.time())}
+if restored:
+    entry["restored"] = restored
+data.insert(0, entry)
 json.dump(data[:30], open(path + ".tmp", "w"))
 os.chmod(path + ".tmp", 0o644)
 os.replace(path + ".tmp", path)
+PY
+}
+
+report() {  # result running message: this release's report for release:pi-hub; it never fails the release
+  python3 - "$INBOX" "$SHA" "$1" "$2" "$3" "$(git --git-dir="$REPO" rev-parse --verify -q refs/heads/main 2>/dev/null || true)" <<'PY' || say "couldn't write the release report"
+import glob, json, os, re, sys, time
+from datetime import datetime, timezone
+inbox, commit, result, running, message, head = sys.argv[1:]
+hexsha = re.compile(r"[0-9a-f]{7,40}")
+if result == "rolled-back" and not hexsha.fullmatch(running):
+    result, running = "failed", ""  # the restored release has no commit name; the hub keeps what it knew
+body = {"target": "pi-hub", "commit": commit, "result": result, "at": datetime.now(timezone.utc).isoformat(),
+        "mechanism": "pi-hub-release", "message": message[:200]}
+if running:
+    body["running"] = running
+if hexsha.fullmatch(head):
+    body["head"] = head
+os.makedirs(inbox, exist_ok=True)
+name = os.path.join(inbox, f"pi-hub-{time.time_ns()}-{os.getpid()}.json")
+with open(name + ".tmp", "w") as f:
+    json.dump(body, f)
+os.chmod(name + ".tmp", 0o644)
+os.replace(name + ".tmp", name)
+for old in sorted(glob.glob(os.path.join(inbox, "pi-hub-*.json")), key=os.path.getmtime)[:-10]:
+    os.remove(old)
 PY
 }
 
@@ -55,7 +85,7 @@ healthy_for() {
 
 mkdir -p "$REL"
 rm -rf "$NEW.tmp" && mkdir -p "$NEW.tmp"
-git --git-dir="$REPO" archive "$SHA" | tar -x -C "$NEW.tmp" || { say "couldn't unpack $SHORT"; record failed "Couldn't unpack it."; exit 1; }
+git --git-dir="$REPO" archive "$SHA" | tar -x -C "$NEW.tmp" || { say "couldn't unpack $SHORT"; record failed "Couldn't unpack it."; report failed "" "Couldn't unpack it."; exit 1; }
 
 say "testing ${SHORT}…"
 # Everything the tests write goes under one folder on the SD card, removed after: /tmp is a small RAM disk, and the
@@ -68,6 +98,7 @@ if ! (cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 600 python
   tail -15 "$TESTDB/test.log"
   say "tests failed; the running version is unchanged"
   record failed "Tests failed; nothing changed."
+  report failed "" "Tests failed; nothing changed."
   rm -rf "$NEW.tmp" "$TESTDB"
   exit 1
 fi
@@ -75,6 +106,7 @@ say "$(tail -1 "$TESTDB/test.log")"
 if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null && ! (cd "$NEW.tmp" && timeout 120 node --test tests/*.mjs > "$TESTDB/js.log" 2>&1); then
   tail -15 "$TESTDB/js.log"
   record failed "JavaScript tests failed; nothing changed."
+  report failed "" "JavaScript tests failed; nothing changed."
   rm -rf "$NEW.tmp" "$TESTDB"
   exit 1
 fi
@@ -140,9 +172,11 @@ recover() {
       systemctl restart x2d-camera-bridge || restored=0
     fi
     if [ "$restored" = 1 ] && healthy_for "$PREV"; then
-      record rolled-back "Release failed; restored the previous app and supporting files." || true
+      record rolled-back "Release failed; restored the previous app and supporting files." "$(basename "$PREV")" || true
+      report rolled-back "$(basename "$PREV")" "Release failed; restored the previous app and supporting files." || true
     else
       record failed "Release failed; recovery needs attention. Snapshot: $SNAP" || true
+      report failed "" "Release failed; recovery needs attention." || true
       say "recovery needs attention; snapshot retained at $SNAP"
       exit "$result"
     fi
@@ -204,6 +238,7 @@ fi
 if [ $ok = 1 ]; then
   say "$SHORT is live"
   record live "Tests passed and every page and API answered."
+  report deployed "" "Tests passed and every page and API answered."
 else
   say "$SHORT failed its checks; switching back"
   cat /tmp/pi-hub-gate.json 2>/dev/null | python3 -c "import json,sys; [print('  failed:', c['name'], c['detail']) for c in json.load(sys.stdin)['checks'] if not c['ok']]" 2>/dev/null || true

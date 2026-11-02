@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -128,7 +128,7 @@ STREAM_SLICE = 1  # how often the stream looks for a vanished client
 
 def records_body():
     recs = records.all()
-    return {"as_of": time.time(), "records": [recs[k] for k in records.KINDS if k in recs]}
+    return {"as_of": time.time(), "records": [recs[k] for k in [*records.KINDS, *releases.ids()] if k in recs]}
 
 
 @app.get("/api/records")
