@@ -267,8 +267,13 @@ amendment.
 ### Task 1 (pi-hub): `POST /api/releases/{target}` and deploy keys
 
 **Files:**
-- Create: `deploy/deploy-key.sh <target>`, copying `lab-key.sh`. It writes the hash on the Pi and prints the key once, to
-  the terminal of the owner who runs it, never into a file in a repo.
+- Create: `deploy/deploy-key.sh <localai|mac>`, run by the owner from the Mac. It copies `lab-key.sh` for the Pi side.
+  - It makes the key in memory and sends only its SHA-256 to the Pi.
+  - It installs the key where it is used: for `localai`, over SSH stdin into `C:\LocalAI\stack\pi-hub-deploy.key`, with an
+    ACL for the Safe Deploy task's account; for `mac`, into the login Keychain through `security`'s stdin prompt.
+  - The key never appears in terminal output, process arguments, logs, a repo or a PR.
+  - Test: `test_deploy_key_never_printed`. Run the script with stubbed `ssh` and `security`, then assert the key is absent
+    from stdout, stderr and every stub's argv.
 - Modify:
   - `hub/app.py`: the route, and the `guard` exemption for `X-Hub-Deploy-Key` on `/api/releases/*` only;
   - `hub/releases.py`: `key_ok(request, target)`, refusing `X-Forwarded-Proto: http` as the lab key does.
@@ -294,7 +299,7 @@ amendment.
     - `deployed` with `head` = `origin/release`;
     - `failed` or `rolled-back`, read from `.deploy/state.json` `status` (`ROLLED_BACK`, `DEPLOY_FAILED_UNCHANGED`);
   - every run, it flushes the outbox, including runs with nothing to deploy. That is the retry.
-- **Key:** read from a file outside the repo, such as `C:\LocalAI\stack\pi-hub-deploy.key`, with an ACL for the task's
+- **Key:** read from `C:\LocalAI\stack\pi-hub-deploy.key`, placed by `deploy-key.sh localai` (PR 3.3 Task 1), with an ACL for the task's
   account. It is never logged or put in process arguments. The owner places the key.
 - Test: the LocalAI PowerShell tests used by local CI. Cover the outbox kept on failure, the outbox emptied on success,
   and `ROLLED_BACK` mapped to `rolled-back`.
