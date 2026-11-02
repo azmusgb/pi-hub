@@ -11,8 +11,12 @@ export function agoText(hours) {
 // switch per program). Only appliances named here are grouped: three switches from one maker are not an appliance.
 const APPLIANCE_NAMES = { Bosch: "Dishwasher" };
 
+// Devices Homebridge names by a raw hardware id (the Govee plugin uses the device id), keyed by that name (1 Nov).
+const DEVICE_NAMES = { "0EEAC47545E6515C": "Master Bedroom Lamp" };
+
 // An appliance's switch shown on its own (a favourite) says which appliance it belongs to.
 export function applianceLabel(a) {
+  if (DEVICE_NAMES[a.name]) return DEVICE_NAMES[a.name];
   const name = APPLIANCE_NAMES[a.room];
   return name && !a.name.toLowerCase().startsWith(name.toLowerCase()) ? `${name}: ${a.name}` : a.name;
 }
