@@ -5,6 +5,8 @@ INBOX, which the hub reads every loop pass: the hub only reads it (ProtectSystem
 last few reports and a report read twice is a no-op. Probes only verify: a mismatch makes the record `drifted`, never a
 new commit. Release records are facts about the last deploy, not readings, so they are never marked stale.
 """
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -28,6 +30,11 @@ CURRENT = os.environ.get("HUB_CURRENT_RELEASE", "/opt/pi-hub/current")
 FUTURE = 300  # seconds a report's time may be ahead of the hub's clock
 HEX = re.compile(r"[0-9a-f]{7,40}")
 INVALID = "That release report isn't valid."
+# Off-Pi deploys report over HTTPS with a deploy key (X-Hub-Deploy-Key). One key per host, each good for its own targets
+# only; the Pi keeps only each key's SHA-256, made by deploy/deploy-key.sh.
+KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac"}
+KEY_DIR = os.environ.get("HUB_DEPLOY_KEY_DIR", "/etc/pi-hub/secrets/deploy_keys")
+MAX_BODY = 4096
 
 for _t, _label in TARGETS.items():
     records.LABELS[PREFIX + _t] = _label + " deploy"
@@ -35,6 +42,29 @@ for _t, _label in TARGETS.items():
 
 _lock = threading.Lock()
 _refused = set()  # inbox files already reported as invalid, so each is logged once
+
+
+def _expected(name):
+    """The stored SHA-256 for deploy key `name` as 64 hex characters, or b"" (missing, unreadable or not hex). Read on
+    every request, so a new key takes effect without a restart; never raises."""
+    try:
+        with open(os.path.join(KEY_DIR, name + ".sha256"), "rb") as f:
+            raw = f.read(4096).strip().lower()
+        bytes.fromhex(raw.decode("ascii"))
+        return raw if len(raw) == 64 else b""
+    except (OSError, ValueError):
+        return b""
+
+
+def key_ok(request, target):
+    """True only for a deploy key that verifies for `target`, over HTTPS (Caddy) or straight to the hub."""
+    if request.headers.get("x-forwarded-proto", "").lower() == "http":
+        return False
+    key, name = request.headers.get("x-hub-deploy-key"), KEY_FOR.get(target)
+    expected = _expected(name) if name else b""
+    if not key or not expected:
+        return False
+    return hmac.compare_digest(hashlib.sha256(key.encode()).hexdigest().encode(), expected)
 
 
 def ids():
@@ -188,15 +218,11 @@ def read_inbox(now, path=None):
     return len(reports)
 
 
-def verify_pi_hub(now, current=None):
-    """Pi Hub's own drift check: the release folder `current` points at against the record's commit."""
-    current = CURRENT if current is None else current
-    try:
-        running = os.path.basename(os.path.realpath(current, strict=True))
-    except OSError:
-        return None
+def _verify(target, running, by, now):
+    """Checks the record against what a probe says runs. A mismatch is `drifted` (attention, Needs you); a match after
+    drift is live again. No record, or no reading, changes nothing: a probe never writes the commit."""
     with _lock:
-        prev = records.get(PREFIX + "pi-hub")
+        prev = records.get(PREFIX + target)
         detail = dict(prev["detail"]) if prev else {}
         commit = detail.get("commit")
         if not commit or not HEX.fullmatch(running or ""):
@@ -204,14 +230,31 @@ def verify_pi_hub(now, current=None):
         drift = None if _same(commit, running) else commit
         if drift == detail.get("drift_from") and (detail.get("verified") or {}).get("commit") == running:
             return prev
-        detail["verified"] = {"commit": running, "at": now, "by": "pi-hub current release"}
+        detail["verified"] = {"commit": running, "at": now, "by": by}
         if drift:
             detail["drift_from"] = drift
         else:
             detail.pop("drift_from", None)
-        rec = _build("pi-hub", detail, prev, now, prev["source"])
+        rec = _build(target, detail, prev, now, prev["source"])
         records.store({rec["id"]: rec}, now)
         return rec
+
+
+def verify_pi_hub(now, current=None):
+    """Pi Hub's own drift check: the release folder `current` points at against the record's commit."""
+    current = CURRENT if current is None else current
+    try:
+        running = os.path.basename(os.path.realpath(current, strict=True))
+    except OSError:
+        return None
+    return _verify("pi-hub", running, "pi-hub current release", now)
+
+
+def verify_localai(now, reading):
+    """Local AI's drift check: the commit its /healthz reports (via pi-status) against release:localai. With the PC
+    asleep there is no reading, and the record stays as it was."""
+    running = (reading or {}).get("ai_release")
+    return _verify("localai", running.lower(), "localai healthz", now) if isinstance(running, str) else None
 
 
 def loop(now):
@@ -219,3 +262,9 @@ def loop(now):
     seed(now)
     read_inbox(now)
     verify_pi_hub(now)
+    from . import sources
+    try:
+        reading = sources.pi_status()
+    except Exception:
+        reading = None
+    verify_localai(now, reading)

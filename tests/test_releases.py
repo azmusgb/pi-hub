@@ -248,3 +248,26 @@ def test_next_deploy_clears_drift(tmp_path):
 
 def test_no_record_no_drift(tmp_path):
     assert releases.verify_pi_hub(T, release_dirs(tmp_path, B)) is None
+
+
+# ---- Local AI's drift check (its /healthz, read by pi-status) ----
+
+def test_localai_drift():
+    r = releases.valid("localai", {**report(), "mechanism": "safe-deploy"}, T + 10)
+    releases.put("localai", r, T + 10)
+    d = releases.verify_localai(T + 20, {"ai_release": B})
+    assert (d["state"], d["severity"]) == ("drifted", "attention")
+    assert d["detail"]["verified"]["by"] == "localai healthz"
+    assert releases.verify_localai(T + 30, {"ai_release": A})["state"] == "live"
+
+
+def test_pc_asleep_is_not_drift():
+    r = releases.valid("localai", {**report(), "mechanism": "safe-deploy"}, T + 10)
+    releases.put("localai", r, T + 10)
+    for reading in (None, {}, {"ai_release": None}, {"ai_release": "not a sha"}):
+        assert releases.verify_localai(T + 20, reading) in (None, records.get("release:localai"))
+    assert records.get("release:localai")["state"] == "live"
+
+
+def test_localai_without_record_is_unchanged():
+    assert releases.verify_localai(T, {"ai_release": A}) is None

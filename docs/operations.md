@@ -89,6 +89,19 @@ when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`
 - **Pi Hub's own record:** the release runner writes one report per release to `/var/lib/pi-hub-releases/inbox/`:
   `deployed`, `failed` or `rolled-back` (with the restored release). The newest 10 are kept. The hub reads the folder
   every 30 s and never writes to it, so a report written while the hub restarts is read when it comes back.
+- **Reports from off the Pi** (Local AI on the PC, the Mac's agents): `POST /api/releases/<target>` over HTTPS at
+  `hub.rahe-home.duckdns.org`, with a deploy key in `X-Hub-Deploy-Key`. There is one key per host (`localai`, `mac`), and
+  each is good only for its own targets. Plain http and owner sessions are refused. Make or replace a key from the Mac:
+
+  ```sh
+  deploy/deploy-key.sh localai           # or: mac; add --rotate to replace one
+  ```
+
+  The script puts the key where it is used (`C:\LocalAI\stack\pi-hub-deploy.key` on the PC, readable by the Safe
+  Deploy account only, or the Mac's login Keychain, service `pi-hub-deploy-key`), on stdin. It never shows the key. The
+  Pi keeps only its SHA-256 in `/etc/pi-hub/secrets/deploy_keys/`, which the hub reads on each report, so no restart.
+- **Drift checks:** Pi Hub's `/opt/pi-hub/current`, and Local AI's `/healthz` `releaseCommit` (read by pi-status). With the
+  PC asleep there is no reading, and the record stays as it was.
 - **States:**
   - `live`: running the reported commit.
   - `behind`: `main` was ahead of what runs when the deploy reported.

@@ -74,7 +74,13 @@ async def guard(request: Request, call_next):
             if not request.headers.get("content-type", "").lower().startswith("application/json"):
                 return JSONResponse({"detail": "Send the code as JSON."}, status_code=415)
             display = True
-    if unsafe and not shortcut and not webhook and not mac and not display:
+    # A deploy reporting its release (platform step 3): exempt only with a deploy key that verifies for that target.
+    deploy = False
+    if unsafe and request.url.path.startswith("/api/releases/") and "x-hub-deploy-key" in request.headers:
+        if not releases.key_ok(request, request.url.path[len("/api/releases/"):]):
+            return JSONResponse({"detail": "That deploy key is missing or wrong."}, status_code=401)
+        deploy = True
+    if unsafe and not shortcut and not webhook and not mac and not display and not deploy:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
             return JSONResponse({"error": "This change has to come from the hub's own page."}, status_code=403)
@@ -167,6 +173,27 @@ async def records_stream(request, ping=None):
 async def api_records_stream(request: Request):
     return StreamingResponse(records_stream(request), media_type="text/event-stream",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/releases/{target}")
+async def api_release_report(target: str, request: Request):
+    """A deploy off the Pi reports how it went; the hub keeps it as release:<target> (releases.py). Only a deploy key
+    for this target may write, never an owner's session: what is live is the deploy's fact, not a person's."""
+    if not releases.key_ok(request, target):
+        raise HTTPException(401, "That deploy key is missing or wrong.")
+    raw = await request.body()
+    if len(raw) > releases.MAX_BODY:
+        raise HTTPException(413, "That release report is too big.")
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        body = None
+    now = time.time()
+    report = releases.valid(target, body, now)
+    if report is None:
+        raise HTTPException(400, releases.INVALID)
+    rec = releases.put(target, report, now)
+    return {"ok": True, "id": rec["id"], "state": rec["state"], "commit": rec["detail"].get("commit")}
 
 
 @app.get("/api/needs")
