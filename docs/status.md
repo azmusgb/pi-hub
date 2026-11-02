@@ -1,5 +1,16 @@
 # Pi Hub status — 24 October 2026
 
+## Platform step 3: every target publishes — 2 November 2026
+
+All six `release:<target>` records are written by their own deploys (D1, D7). Checked on the Pi at 17:35: pi-hub live
+`b22512f` (#46-#50, #55), localai live `85728c7` (LocalAI #460, #461; Safe Deploy's own automatic report,
+"Certified, promoted and healthy."), firmware `ahead` (#54; the display runs 12.8.0 `2564c9b`, Stable is 12.7.1
+`06a49e1`), netmon live `23c607f` (netmon #4), mac-watch live `85728c7` and x2d-bridge-mac live `446b22b` (LocalAI
+#461, bambuhelper #247, through mac-watch's outbox and the `mac` deploy key). Versions has no `unknown` row. Evidence
+is on each PR. Still to be seen on a real run: a firmware publish going `behind` → `live`, and a failed or dirty netmon
+deploy. Step 4 has started: Local AI's Running now links to Versions (LocalAI #462), and home-mcp reads the records
+(`releases`, and `record` in `deploy_state`; home-mcp #4).
+
 ## Platform step 3, PR 3.1: release records — 2 November 2026
 
 `release:<target>` records are live (#46, `eea7f07`). Pi Hub reports its own releases through
