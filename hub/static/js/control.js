@@ -76,13 +76,14 @@ export function mount(state) {
   state.root.append(state.body);
 }
 
-// Read-only: LG's own API, not Homebridge. Hidden until the ThinQ token is saved on the Pi.
+// Read-only: LG ThinQ, GE SmartHQ and Bosch Home Connect. Hidden until a token is saved on the Pi. A source that
+// fails shows its message under the machines the others still report.
 export function laundryCard(l) {
   if (!l?.configured) return null;
-  const lines = l.available
-    ? (l.machines.length ? l.machines.map((m) => h("p", { class: "meta" }, laundryLine(m)))
-      : [h("p", { class: "meta" }, "LG lists no washer or dryer on this account.")])
-    : [h("p", { class: "callout callout--warn" }, l.message || "Laundry isn't answering.")];
+  const machines = l.available ? (l.machines || []) : [];
+  const lines = machines.length ? machines.map((m) => h("p", { class: "meta" }, laundryLine(m)))
+    : l.available ? [h("p", { class: "meta" }, "No washer, dryer or dishwasher found on these accounts.")] : [];
+  if (l.message || !l.available) lines.push(h("p", { class: "callout callout--warn" }, l.message || "Laundry isn't answering."));
   return h("section", { class: "row-section appliance" }, h("h2", { class: "section-title" }, "Laundry"), ...lines);
 }
 
