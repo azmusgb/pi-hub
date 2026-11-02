@@ -1,5 +1,13 @@
 # Pi Hub status — 24 October 2026
 
+## Platform step 3, PR 3.1: release records — 2 November 2026
+
+`release:<target>` records are live (#46, `eea7f07`). Pi Hub reports its own releases through
+`/var/lib/pi-hub-releases/inbox`; the other five targets read "Not publishing yet" until their PRs (3.3-3.6). Checked
+on the Pi after `eea7f07`: `/api/records` lists all six release records, each `unknown`/`info`, because the release that
+installed the new runner was run by the old one. The release of this entry is the first one the new runner reports.
+See [operations](operations.md#release-records-platform-step-3-since-2-november-2026).
+
 ## Display on Pi Hub, step 1 — built, not yet in use
 
 Pi Hub now serves the workshop display's household feed, pairing and banners, with a "Workshop display" pairing card on System and key and CA setup in `deploy/install.sh`. Not released, not paired, and Local AI does not yet have `LOCALAI_HUB_KEY_SHA256`; nothing was checked live. Steps and rollback: [operations](operations.md).
