@@ -8,10 +8,12 @@ export const every = 60;
 const REPO = {
   "pi-hub": "azmusgb/pi-hub", localai: "azmusgb/LocalAI", firmware: "azmusgb/bambuhelper-smart-display",
   netmon: "azmusgb/netmon", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
+  "print-lab": "azmusgb/print-lab",
 };
 const BY = {
   "pi-hub-release": "Pi Hub's release runner", "safe-deploy": "Local AI's Safe Deploy", "ota-hook": "the OTA publish hook",
   "netmon-deploy": "netmon's deploy script", "mac-install": "the Mac installer",
+  "lab-pull": "print-lab's lab pull",
 };
 const CHIP = {
   live: ["Live", "ok"], behind: ["Behind", ""], ahead: ["Ahead", ""], unknown: ["", ""], drifted: ["Drifted", "warn"],

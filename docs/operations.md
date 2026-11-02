@@ -81,8 +81,8 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 ## Release records (platform step 3, since 2 November 2026)
 
 `release:<target>` is the canonical "what is live where" (baseline spec §4, D1 + D7). Each target's deploy writes it
-when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`, `netmon`, `mac-watch` and
-`x2d-bridge-mac`. Until a target's deploy reports, its record reads "Not publishing yet" (`unknown`). So far `pi-hub`,
+when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`, `netmon`, `mac-watch`,
+`x2d-bridge-mac` and `print-lab` (amendment A3: `lab pull` reports it, mechanism `lab-pull`, with the `mac` key). Until a target's deploy reports, its record reads "Not publishing yet" (`unknown`). So far `pi-hub`,
 `localai` and `firmware` report. The others follow one PR at a time
 ([plan](superpowers/plans/2026-11-02-step-3-release-records.md)).
 

@@ -20,8 +20,8 @@ from . import records
 PREFIX = "release:"
 # target -> label, in the order System › Versions lists them
 TARGETS = {"pi-hub": "Pi Hub", "localai": "Local AI", "firmware": "Display firmware", "netmon": "netmon",
-           "mac-watch": "Mac watchdog", "x2d-bridge-mac": "Mac camera bridge"}
-MECHANISMS = {"pi-hub-release", "safe-deploy", "ota-hook", "netmon-deploy", "mac-install"}
+           "mac-watch": "Mac watchdog", "x2d-bridge-mac": "Mac camera bridge", "print-lab": "Print lab"}
+MECHANISMS = {"pi-hub-release", "safe-deploy", "ota-hook", "netmon-deploy", "mac-install", "lab-pull"}
 RESULTS = {"deployed", "failed", "rolled-back"}
 SEVERITY = {"live": "ok", "behind": "info", "ahead": "info", "unknown": "info", "drifted": "attention"}
 SOURCE = "release"
@@ -33,7 +33,7 @@ VERSION = re.compile(r"[0-9A-Za-z.+-]{1,32}")
 INVALID = "That release report isn't valid."
 # Off-Pi deploys report over HTTPS with a deploy key (X-Hub-Deploy-Key). One key per host, each good for its own targets
 # only; the Pi keeps only each key's SHA-256, made by deploy/deploy-key.sh.
-KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac"}
+KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac", "print-lab": "mac"}
 KEY_DIR = os.environ.get("HUB_DEPLOY_KEY_DIR", "/etc/pi-hub/secrets/deploy_keys")
 MAX_BODY = 4096
 
