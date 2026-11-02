@@ -113,6 +113,8 @@ when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`
   - `live`: running the reported commit.
   - `behind`: `main` was ahead of what runs when the deploy reported. For the firmware: published, but the display
     doesn't run it yet ("Published <commit>; the display runs <commit>").
+  - A deploy from uncommitted changes (netmon's `deploy.sh` copies the working tree) shows its base commit with
+    "+ local changes" until the next clean deploy.
   - `ahead`: the firmware only. The display runs a newer version than the published Stable one (a USB flash, say).
   - `unknown`: not publishing yet.
   - `drifted`: `/opt/pi-hub/current` points at another release than the record says.

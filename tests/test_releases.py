@@ -336,3 +336,14 @@ def test_loop_reads_the_display_heartbeat(monkeypatch):
     monkeypatch.setattr(display_messages, "last_heartbeat", lambda **k: {"sourceSha": A, "version": "12.7.1"})
     releases.loop(T + 20)
     assert records.get("release:firmware")["state"] == "live"
+
+
+def test_dirty_deploy_is_kept_until_the_next_clean_one():
+    r = put(target="netmon", mechanism="netmon-deploy", dirty=True, message="deployed from uncommitted changes")
+    assert (r["state"], r["detail"]["dirty"]) == ("live", True)
+    assert put(target="netmon", now=T + 20, at=T + 5, mechanism="netmon-deploy")["detail"]["dirty"] is False
+
+
+@pytest.mark.parametrize("dirty", ["yes", 1, "true"])
+def test_dirty_must_be_a_bool(dirty):
+    assert releases.valid("netmon", report(mechanism="netmon-deploy", dirty=dirty), T + 10) is None

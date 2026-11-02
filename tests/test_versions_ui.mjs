@@ -66,3 +66,12 @@ test("Settings' Versions card only links to System › Versions", () => {
   assert.match(src, /href: "\/versions"/);
   assert.doesNotMatch(src, /"Go back to this"\)/);
 });
+
+test("a deploy from uncommitted changes says so after its commit", () => {
+  const [r] = versionRows([rec("netmon", "live",
+    { commit: A, dirty: true, deployed_at: 1000, mechanism: "netmon-deploy", last: { commit: A, result: "deployed", at: 1000 } })]);
+  assert.equal(r.dirty, true);
+  assert.equal(versionRows([live()])[0].dirty, false);
+  const src = readFileSync(new URL("../hub/static/js/versions.js", import.meta.url), "utf8");
+  assert.match(src, /v\.dirty \? " \+ local changes"/);
+});
