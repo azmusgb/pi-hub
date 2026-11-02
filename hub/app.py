@@ -917,6 +917,13 @@ def api_shortcut_list(request: Request, list: str = "shopping"):
     return say(f"{len(items)} on the {LISTS[key].lower()} list: " + ", ".join(items[:15]) + ".")
 
 
+# Read-only: the same machines as /api/laundry, for a Shortcut or the family-room panel, which carry a key, not a cookie.
+@app.get("/api/shortcut/laundry")
+def api_shortcut_laundry(request: Request):
+    _shortcut(request)
+    return fresh(laundry.status())
+
+
 @app.post("/api/shortcut/ask")
 async def api_shortcut_ask(request: Request):
     who_name = _shortcut(request)
