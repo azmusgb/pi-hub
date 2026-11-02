@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -770,6 +770,11 @@ def api_home():
         return fresh({"connected": False, "message": str(e), "accessories": [], "favourites": []})
     except OSError:
         return fresh({"connected": False, "message": "Homebridge isn't answering.", "accessories": [], "favourites": []})
+
+
+@app.get("/api/laundry")
+def api_laundry():
+    return fresh(laundry.status())
 
 
 @app.post("/api/home/{uid}")

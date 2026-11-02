@@ -1,6 +1,6 @@
 // Control: lights, plugs and switches from Homebridge. Tap to switch; a device that is not the owner's is asked to sign in once.
 import { api, card, ensure, h, post, toast } from "./core.js";
-import { applianceControls, applianceLabel, groupAppliances } from "./wording.js";
+import { applianceControls, applianceLabel, groupAppliances, laundryLine } from "./wording.js";
 
 export const every = 10;
 
@@ -76,13 +76,24 @@ export function mount(state) {
   state.root.append(state.body);
 }
 
+// Read-only: LG's own API, not Homebridge. Hidden until the ThinQ token is saved on the Pi.
+export function laundryCard(l) {
+  if (!l?.configured) return null;
+  const lines = l.available
+    ? (l.machines.length ? l.machines.map((m) => h("p", { class: "meta" }, laundryLine(m)))
+      : [h("p", { class: "meta" }, "LG lists no washer or dryer on this account.")])
+    : [h("p", { class: "callout callout--warn" }, l.message || "Laundry isn't answering.")];
+  return h("section", { class: "row-section appliance" }, h("h2", { class: "section-title" }, "Laundry"), ...lines);
+}
+
 export async function load(state) {
   if (state.root.querySelector(".tile.busy")) return;
-  const d = await api("/api/home");
+  const [d, l] = await Promise.all([api("/api/home"), api("/api/laundry").catch(() => ({ configured: true, available: false }))]);
+  const laundry = laundryCard(l);
   if (!d.connected) {
     state.body.replaceChildren(card("Lights and plugs", { cls: "wide", pill: "Not connected", tone: "warn" },
       h("p", { class: "callout callout--warn" }, d.message),
-      h("a", { class: "action", href: "/settings", "data-link": true }, "Open Settings")));
+      h("a", { class: "action", href: "/settings", "data-link": true }, "Open Settings")), ...(laundry ? [laundry] : []));
     return;
   }
   const favs = new Set(d.favourites);
@@ -103,7 +114,8 @@ export async function load(state) {
     favouriteItems.length ? h("section", { class: "row-section" }, h("h2", { class: "section-title" }, "Favourites"),
       h("div", { class: "tiles" }, favouriteItems.map(a => tile(a, state, { favourite: true })))) : null,
     ...applianceCards,
-    ...(sections.length || applianceCards.length ? sections
+    laundry,
+    ...(sections.length || applianceCards.length || laundry ? sections
     : favouriteItems.length ? [] : [card("Nothing to control", { cls: "wide" }, h("p", { class: "meta" }, "Homebridge has no lights, plugs or switches the hub can control."))]),
   h("p", { class: "meta" }, "Favourites also appear on Home.")].filter(Boolean));
 }

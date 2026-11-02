@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agoText, applianceControls, applianceLabel, groupAppliances, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
+import { agoText, applianceControls, applianceLabel, groupAppliances, laundryLine, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -159,4 +159,19 @@ test('the wall printer tile: short title, real external Bambuddy link, new HUD w
   assert.match(now, /`Display: \$\{workshopDisplayLabel\(w\.display\)\}`/);  // under the Workshop heading
   assert.match(now, /href: toolUrl\("bambuddy"\), target: "_blank", rel: "noopener" \}, "Open Bambuddy ↗"/);
   assert.doesNotMatch(now, /href: "\/bambuddy"/);
+});
+
+test('laundry lines say what each LG machine is doing, read-only', () => {
+  const clock = (s) => (s === 1000 ? '12:46' : '?');
+  const line = (m) => laundryLine({ name: 'Washer', minutes_left: null, ended_at: null, ...m }, clock);
+  assert.equal(line({ state: 'idle' }), 'Washer: idle');
+  assert.equal(line({ state: 'running', minutes_left: 32 }), 'Washer: running · 32 min left');
+  assert.equal(line({ state: 'running', minutes_left: 65 }), 'Washer: running · 1 h 5 min left');
+  assert.equal(line({ state: 'running' }), 'Washer: running');
+  assert.equal(line({ state: 'paused', minutes_left: 12 }), 'Washer: paused · 12 min left');
+  assert.equal(line({ state: 'scheduled' }), 'Washer: delayed start');
+  assert.equal(line({ state: 'done', ended_at: 1000 }), 'Washer: done at 12:46');
+  assert.equal(line({ state: 'done' }), 'Washer: done');
+  assert.equal(line({ state: 'fault', name: 'Dryer' }), 'Dryer: needs attention');
+  assert.equal(line({ state: 'unknown' }), 'Washer: state unknown');
 });

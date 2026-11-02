@@ -54,6 +54,23 @@ export function groupAppliances(accessories) {
   return { appliances, rest: accessories.filter((a) => !grouped.has(a.id)) };
 }
 
+// One line per LG machine on the Laundry card (hub/laundry.py reduces LG's states to these). The hub only reads them.
+function minutesText(m) {
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+}
+export function laundryLine(m, clock = (s) => new Date(s * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })) {
+  const left = m.minutes_left ? ` · ${minutesText(m.minutes_left)} left` : "";
+  const said = {
+    idle: "idle",
+    running: `running${left}`,
+    paused: `paused${left}`,
+    scheduled: "delayed start",
+    done: m.ended_at ? `done at ${clock(m.ended_at)}` : "done",
+    fault: "needs attention",
+  }[m.state] || "state unknown";
+  return `${m.name}: ${said}`;
+}
+
 // Alert pairs that mean "it dropped out, then came back". Only subjects that have a recovery alert are merged (a
 // stopped print or a Plex crash has none, and stays as it is). Many dropouts in a day become one line, and whether
 // it is back now is judged from that subject's newest alert, even if that came after midnight.
