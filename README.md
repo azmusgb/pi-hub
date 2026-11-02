@@ -12,7 +12,8 @@ Typed, bounded tools for the home systems, served to Claude Code over stdio. Des
 | `pi_health` | Pi temperature, power, memory, services, storage, updates, failing self-checks, open outages, backups |
 | `source_freshness(only_problems=False)` | Each data source's state, age and whether it is stale |
 | `recent_alerts(limit=20, since_hours, tag)` | Alert history, newest first (limit 1-100) |
-| `deploy_state(target, intended)` | Deploy preflight for `pi-hub` or `localai` from each target's own records: `ready`, `blockers`, `warnings` |
+| `releases()` | What is live where: Pi Hub's `release:<target>` records for all six targets, the canonical deployment state |
+| `deploy_state(target, intended)` | Deploy preflight for `pi-hub` or `localai`: `ready`, `blockers`, `warnings`, the target's `record` from Pi Hub, and `live` read from the target as verification (a mismatch is a warning) |
 | `service_logs(service, minutes=60, lines=100, contains)` | Bounded, redacted logs from a fixed list of Pi units and Local AI containers |
 
 Every result carries `ok`, `source` and `as_of`. A failed source appears under `errors` as `unreachable`, `http`

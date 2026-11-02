@@ -56,6 +56,21 @@ def _shaped(data: dict, errors: list[dict], path: str, lists: tuple[str, ...] = 
     return v
 
 
+def _release(r: dict) -> dict[str, Any]:
+    """One release:<target> record (platform step 3), trimmed: what the target's own deploy reported and what Pi Hub
+    derived from it, with the latest verification when a probe has checked it."""
+    d = _obj(r.get("detail"))
+    last, verified = _obj(d.get("last")), _obj(d.get("verified"))
+    return {
+        "target": d.get("target") or str(r.get("id", ""))[len("release:"):],
+        **_pick(r, ("state", "severity", "headline")),
+        "commit": d.get("commit"), "dirty": bool(d.get("dirty")), "mechanism": d.get("mechanism"),
+        "deployed_at": hub.iso(d.get("deployed_at")),
+        "last": {**_pick(last, ("result", "commit", "message")), "at": hub.iso(last.get("at"))} if last else None,
+        "verified": {**_pick(verified, ("commit", "by")), "at": hub.iso(verified.get("at"))} if verified else None,
+    }
+
+
 def _result(source: str, errors: list[dict], **fields) -> dict[str, Any]:
     out = {"ok": not errors, "source": source, "as_of": hub.now_iso(), **fields}
     if errors:
@@ -183,13 +198,41 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
                                for a in alerts[:limit]])
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
+    async def releases() -> dict[str, Any]:
+        """What is live where: Pi Hub's release:<target> records, the canonical deployment state that each target's
+        own deploy writes (pi-hub, localai, firmware, netmon, mac-watch, x2d-bridge-mac). Each has its state (live,
+        behind, ahead, unknown, drifted), commit, the last deploy's result and message, and the latest verification by
+        a probe. Read this first; deploy_state's live readings only verify it."""
+        async with client_factory() as c:
+            data, errors = await hub.gather(c, "/api/records")
+        recs = _list(_shaped(data, errors, "/api/records", ("records",)), "records")
+        return _result("pi-hub /api/records", errors,
+                       releases=[_release(r) for r in recs if str(r.get("id", "")).startswith("release:")])
+
+    @mcp.tool(annotations=READ_ONLY, structured_output=True)
     async def deploy_state(target: str, intended: str | None = None) -> dict[str, Any]:
-        """Deploy preflight for target pi-hub or localai, from each target's own records: the intended commit
+        """Deploy preflight for target pi-hub or localai. record is Pi Hub's release:<target> record, the deployment
+        truth; live is read from the target itself and only verifies it (a mismatch is a warning). Also: the intended commit
         (pi-hub: a ref in the local checkout, default main; localai: an optional SHA), GitHub's heads, what the
         target's repository holds, the running release and its health, and for localai the PC checkout and the
         LocalAI Safe Deploy task. ready is false when blockers is non-empty: another session advanced the target,
         a release is pending or failed, a checkout is dirty, or a source couldn't be read. Never changes anything."""
-        return await deploy.deploy_state(runner, target, intended)
+        out = await deploy.deploy_state(runner, target, intended)
+        # Platform step 4: Pi Hub's release record is the deployment truth; live (read over SSH) only verifies it.
+        async with client_factory() as c:
+            data, errors = await hub.gather(c, "/api/records")
+        recs = _list(_shaped(data, errors, "/api/records", ("records",)), "records")
+        rec = next((r for r in recs if r.get("id") == f"release:{target}"), None)
+        out["record"] = _release(rec) if rec else None
+        out["live_is"] = "verification: read from the target itself and checked against record"
+        running, recorded = _obj(out.get("live")).get("sha"), (out["record"] or {}).get("commit")
+        if errors:
+            out["warnings"].append(f"couldn't read Pi Hub's release:{target} record ({errors[0]['error']})")
+        elif rec is None:
+            out["warnings"].append(f"Pi Hub has no release:{target} record")
+        elif running and recorded and not deploy._same(running, recorded):
+            out["warnings"].append(f"the release record says {recorded[:10]}, but the target runs {running[:10]}")
+        return out
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
     async def service_logs(service: str, minutes: int = 60, lines: int = 100, contains: str | None = None) -> dict[str, Any]:

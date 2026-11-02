@@ -30,6 +30,15 @@ FIXTURES = {
          "headline": "Idle", "disagree": ""},
         {"id": "hub", "state": "disagreement", "severity": "attention", "source": "hub", "stale": False,
          "as_of": NOW, "disagree": "", "detail": {"disagree_since": {"printer": NOW - 3000}}},
+        {"id": "release:pi-hub", "state": "live", "severity": "ok", "source": "pi-hub-release", "stale": False,
+         "as_of": NOW, "headline": "aaaaaaa is live", "disagree": "",
+         "detail": {"target": "pi-hub", "label": "Pi Hub", "commit": "a" * 40, "mechanism": "pi-hub-release",
+                    "deployed_at": NOW - 60, "last": {"commit": "a" * 40, "result": "deployed", "at": NOW - 60,
+                                                      "message": "Tests passed."},
+                    "verified": {"commit": "a" * 10, "at": NOW - 5, "by": "pi-hub current release"}}},
+        {"id": "release:netmon", "state": "unknown", "severity": "info", "source": "release", "stale": False,
+         "as_of": NOW, "headline": "Not publishing yet", "disagree": "",
+         "detail": {"target": "netmon", "label": "netmon", "commit": None}},
     ]},
     "/api/workshop": {
         "printer": {"state": "printing", "headline": "Printing TILE", "progress": 40, "job_name": "TILE",
@@ -103,7 +112,7 @@ async def test_lists_read_only_tools():
     async with Client(build_server(serve())) as client:
         tools = (await client.list_tools()).tools
     assert sorted(t.name for t in tools) == sorted(
-        ["hub_now", "printer_status", "pi_health", "source_freshness", "recent_alerts", "deploy_state", "service_logs"])
+        ["hub_now", "printer_status", "pi_health", "source_freshness", "recent_alerts", "releases", "deploy_state", "service_logs"])
     assert all(t.annotations.read_only_hint for t in tools)
 
 
@@ -260,3 +269,48 @@ async def test_hub_now_keeps_good_sources_beside_a_schema_error():
 async def test_every_tool_reports_a_wrong_shape(tool, path):
     d = await data(build_server(serve(fixtures={**FIXTURES, path: ["unexpected"]})), tool)
     assert d["ok"] is False and any(e["source"] == f"pi-hub {path}" and e["error"] == "bad_shape" for e in d["errors"])
+
+
+async def test_releases_lists_every_release_record_trimmed():
+    d = await data(build_server(serve()), "releases")
+    assert d["ok"] is True and [r["target"] for r in d["releases"]] == ["pi-hub", "netmon"]
+    pi = d["releases"][0]
+    assert (pi["state"], pi["commit"], pi["mechanism"], pi["dirty"]) == ("live", "a" * 40, "pi-hub-release", False)
+    assert pi["last"]["result"] == "deployed" and pi["last"]["message"] == "Tests passed." and pi["last"]["at"]
+    assert pi["verified"]["by"] == "pi-hub current release"
+    assert d["releases"][1]["last"] is None and d["releases"][1]["state"] == "unknown"
+
+
+async def test_releases_hub_down_is_an_error_not_an_empty_list():
+    d = await data(build_server(serve(status={"/api/records": 502})), "releases")
+    assert d["ok"] is False and d["releases"] == [] and d["errors"][0]["source"] == "pi-hub /api/records"
+
+
+def _fixtures_with(commit):
+    recs = [dict(r) for r in FIXTURES["/api/records"]["records"]]
+    for r in recs:
+        if r["id"] == "release:pi-hub":
+            r["detail"] = {**r["detail"], "commit": commit}
+    return {**FIXTURES, "/api/records": {**FIXTURES["/api/records"], "records": recs}}
+
+
+async def test_deploy_state_carries_the_record_and_labels_live_as_verification():
+    from test_deploy_logs import FakeHosts, LIVE
+    d = await data(build_server(serve(_fixtures_with(LIVE)), runner=FakeHosts()), "deploy_state", {"target": "pi-hub"})
+    assert d["record"]["commit"] == LIVE and d["live_is"].startswith("verification")
+    assert not [w for w in d["warnings"] if "release record" in w]
+
+
+async def test_deploy_state_warns_when_the_record_and_the_target_disagree():
+    from test_deploy_logs import FakeHosts
+    d = await data(build_server(serve(_fixtures_with("b" * 40)), runner=FakeHosts()), "deploy_state", {"target": "pi-hub"})
+    assert any(w.startswith("the release record says bbbbbbbbbb, but the target runs") for w in d["warnings"])
+    assert d["ready"] is True, "a disagreement is a warning; the preflight's own blockers decide readiness"
+
+
+async def test_deploy_state_without_a_record_or_the_hub_says_so():
+    from test_deploy_logs import FakeHosts
+    d = await data(build_server(serve(), runner=FakeHosts()), "deploy_state", {"target": "localai"})
+    assert d["record"] is None and "Pi Hub has no release:localai record" in d["warnings"]
+    d = await data(build_server(serve(status={"/api/records": 503}), runner=FakeHosts()), "deploy_state", {"target": "localai"})
+    assert d["record"] is None and any("couldn't read Pi Hub's release:localai record" in w for w in d["warnings"])
