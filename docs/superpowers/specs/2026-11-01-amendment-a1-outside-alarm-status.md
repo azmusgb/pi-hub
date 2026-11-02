@@ -1,6 +1,6 @@
 # Amendment A1: Outside alarm status on System › Health
 
-Date: 2026-11-01 · Status: proposed, for the owner's review · Amends: the platform baseline
+Date: 2026-11-01 · Status: approved, merged in #37 on 1 Nov 2026; not yet implemented · Amends: the platform baseline
 (`2026-11-01-platform-product-architecture-design.md`, merged `2355701`). Documentation only.
 
 ## Why
