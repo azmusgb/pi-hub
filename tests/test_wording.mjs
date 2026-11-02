@@ -97,8 +97,10 @@ test('an appliance switch shown on its own carries the appliance name', () => {
   assert.equal(applianceLabel({ name: 'Heavy', room: 'Bosch' }), 'Dishwasher: Heavy');
   assert.equal(applianceLabel({ name: 'Dishwasher Power', room: 'Bosch' }), 'Dishwasher Power');
   assert.equal(applianceLabel({ name: 'Kitchen Lamp', room: 'TP-Link' }), 'Kitchen Lamp');
-  // The Govee plugin names the lamp by its device id; the page says what it is.
-  assert.equal(applianceLabel({ name: '0EEAC47545E6515C', room: 'Govee' }), 'Master Bedroom Lamp');
+  // The Govee plugin names its devices by device id; the page says what each is.
+  assert.equal(applianceLabel({ name: '0EEAC47545E6515C', room: 'Govee' }), 'Permanent Lights');
+  assert.equal(applianceLabel({ name: '0EFBEA1B882AED13', room: 'Govee' }), 'Wall Light Pro 1');
+  assert.equal(applianceLabel({ name: '0F8CE1F8C532B55B', room: 'Govee' }), 'Wall Light Pro 2');
 });
 
 test('a missing upload speed is left out, not shown as 0', () => {

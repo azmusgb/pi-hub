@@ -94,7 +94,8 @@ DEFAULT_RULES = [
     ("print_finished", "notify", None, "Send a phone alert when a 3D print finishes", 1),
     ("pc_down", "notify", None, "Send a phone alert when Windows PC is down for 5 minutes", 1),
     ("wan_loss", "notify", None, "Send a phone alert when sustained WAN packet loss occurs", 1),
-    ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash Workshop Light when a print finishes", 1),
+    # Kept (seeding counts positions) but off: its light is the master bedroom's Floor Lamp, not a workshop light.
+    ("print_finished", "flash", "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6", "Flash the Floor Lamp when a print finishes", 0),
     ("print_failed", "notify", None, PRINT_FAILED_TEXT, 1),
     ("mirror_stale", "notify", None, "Tell me when the movies haven't been copied from the PC for two days", 1),
     ("paperless_stale", "notify", None, "Tell me when Paperless hasn't been backed up to the Pi for two days", 1),

@@ -66,13 +66,12 @@ test('the desk links to the hub\'s /lab page, and asks to judge a finished print
   assert.deepEqual(deskLab(null), { label: 'Print lab', href: '/lab', judge: false });
 });
 
-test('the workshop light is the one with its id, else a light in the Workshop room, never another room\'s lamp', () => {
-  const shop = { id: '27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6', kind: 'light', name: 'Workshop Light', room: 'Workshop' };
-  const bedroom = { id: 'b1', kind: 'light', name: 'Govee Lamp', room: 'Bedroom' };
+test('the workshop light is a light in the Workshop room, never another room\'s lamp', () => {
+  // The Floor Lamp (the id once pinned as the workshop light) is in the master bedroom: it is never the Workshop switch.
+  const floor = { id: '27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6', kind: 'light', name: 'Floor Lamp', room: 'Master Bedroom' };
   const bench = { id: 'w2', kind: 'light', name: 'Bench', room: 'Workshop' };
-  assert.equal(shopLight([bedroom, shop]), shop);
-  assert.equal(shopLight([bedroom, bench]), bench);  // the id changed: the light in the Workshop room
-  assert.equal(shopLight([bedroom]), null);           // no workshop light: no card, not the bedroom lamp
+  assert.equal(shopLight([floor, bench]), bench);
+  assert.equal(shopLight([floor]), null);             // no workshop light: no card, not the bedroom lamp
   assert.equal(shopLight([{ id: 's', kind: 'switch', room: 'Workshop' }]), null);
   assert.equal(shopLight(undefined), null);
 });
