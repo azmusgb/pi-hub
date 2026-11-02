@@ -275,7 +275,8 @@ async def test_logs_failure_is_structured_and_redacted():
 
 
 async def test_tools_are_served_read_only():
-    async with Client(build_server(runner=FakeHosts())) as client:
+    from test_hub_tools import serve
+    async with Client(build_server(serve(), runner=FakeHosts())) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
         assert {"deploy_state", "service_logs"} <= set(tools)
         assert tools["deploy_state"].annotations.read_only_hint
