@@ -319,3 +319,44 @@ Step 1 of moving the workshop display's household side onto Pi Hub. Built, not y
 **Check.** Pair a display, then `curl -s -H "X-Hub-Display-Key: <display key>" https://home.home.arpa/api/display/feed`: it should show the household cards, and `ai.available: true` once Local AI has the hash.
 
 **Rollback.** Pair the display with Local AI again (its own pairing screen); the display then ignores Pi Hub. Nothing on the Pi needs undoing.
+
+## Family-room panel
+
+The family-room Skylight's page (`~/dev/family-room`, its own local repo; a household display, outside the platform baseline) is served at `https://family.rahe-home.duckdns.org`. It is not in use yet: the Skylight is still stock until its kiosk plan (`~/dev/family-room/docs/`) is approved stage by stage.
+
+**What the Pi serves.** Caddy (`site_family` in `deploy/caddy/Caddyfile`), checks in this order:
+- Only `10.0.0.18` (the Skylight, on the house network) and `100.109.178.34` (the Mac over Tailscale) get in; anything else gets 403.
+- Only GET and HEAD (405 otherwise).
+- `/api/laundry` goes to the hub's read-only `GET /api/shortcut/laundry`. Caddy adds the panel's Shortcut key from `FAMILY_ROOM_HUB_KEY` in `/etc/pi-hub/secrets/family_room.env` (root, 0600, read by systemd for Caddy) and drops cookies and the peer headers, so the hub never takes it for the owner, even from the Mac. The key never reaches the display or the page.
+- Everything else is a file from `/srv/family-room/current`.
+
+**Verified access assumptions (2 Nov 2026).**
+- `family.rahe-home.duckdns.org` resolves to `10.0.0.30` through AdGuard and to the Pi's Tailscale address publicly.
+- AdGuard's query log shows the house's DNS reaching it through the router (`10.0.0.1`), and the Mac as `100.109.178.34`.
+
+**Still to verify on the device:**
+- that the Skylight uses the router's DNS;
+- that the Skylight arrives as `10.0.0.18` (Caddy logs no access lines; check with a one-off request from the Skylight);
+- that it keeps that address, which needs a DHCP reservation (a network change, so ask first).
+
+**Setup, once.**
+1. In Settings → Shortcut keys, make a key named "Family room panel" (one already exists from 2 Nov; reuse it).
+2. Put it on the Pi:
+   ```
+   printf 'FAMILY_ROOM_HUB_KEY=%s\n' "<key>" | ssh pi "sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/family_room.env'"
+   ```
+3. Run `deploy/install.sh` from the Mac. It adds the file to Caddy's environment and creates `/srv/family-room/releases`. This restarts Caddy, so ask first.
+
+Without the file, the panel shows "Pi Hub isn't answering" for the appliances.
+
+**Publish, from the Mac.**
+- `deploy/family-room-release.sh publish` ships the committed `prototype/` of `~/dev/family-room`. Uncommitted changes are refused.
+- Each release is `/srv/family-room/releases/<commit>`, with `version.json` naming the commit. `current` is switched in one rename.
+- The five newest releases are kept; the live and previous ones are never removed.
+- `list` shows them, with `*` on the live one.
+- Check the live one with `curl -s https://family.rahe-home.duckdns.org/version.json` from the Mac.
+
+**Roll back.**
+- To the previous release: `deploy/family-room-release.sh rollback` (run it again to go forward). Nothing on the Skylight changes.
+- To take the site away: remove the `@family` block from the Caddyfile and release. The files and the key can stay.
+- To revoke the key: remove "Family room panel" in Settings → Shortcut keys.

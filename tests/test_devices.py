@@ -235,9 +235,13 @@ def test_caddy_sends_the_peer_and_secret_on_every_way_to_the_hub():
     fa = re.search(r"forward_auth 127\.0\.0\.1:8100 \{(.*?)\n\t\}", text, re.S).group(1)
     assert "header_up X-Hub-Peer {remote_host}" in fa and "header_up X-Hub-Proxy {$HUB_PROXY_SECRET}" in fa
     # Every way to the hub over https (the hub's site, and the display's and lab's paths on the old name) imports
-    # hub_peer; only the plain-http machine paths don't, and they never carry the owner's devices.
+    # hub_peer; only the plain-http machine paths don't, and they never carry the owner's devices, and the family-room
+    # panel's laundry call, which strips both headers so it is never taken for the owner.
     proxies = re.findall(r"reverse_proxy 127\.0\.0\.1:8100( \{\s*import hub_peer\s*\})?", text)
-    assert sum(1 for p in proxies if p) == 4 and sum(1 for p in proxies if not p) == 1
+    assert sum(1 for p in proxies if p) == 4 and sum(1 for p in proxies if not p) == 2
+    family = re.search(r"\(site_family\) \{(.*?)\n\}", text, re.S).group(1)
+    assert "import hub_peer" not in family
+    assert "header_up -X-Hub-Peer" in family and "header_up -X-Hub-Proxy" in family
     plain = text.split("\nhttp:// {", 1)[1]
     assert re.search(r"reverse_proxy 127\.0\.0\.1:8100\n", plain)
     assert "\thandle @hub {\n\t\timport site_hub\n\t}" in text
