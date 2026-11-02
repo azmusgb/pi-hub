@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi Hub outside heartbeat (Healthchecks.io)
+After=network-online.target
+ConditionPathExists=/etc/pi-hub/healthchecks.env
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/pi-hub/healthchecks.env
+ExecStart=/usr/local/lib/pi-hub/pi-hub-heartbeat.sh
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

@@ -247,3 +247,17 @@ def test_the_release_check_expects_signed_in_apis_to_refuse(monkeypatch, capsys)
     except SystemExit as e:
         out = json.loads(capsys.readouterr().out)
         assert e.code == 0, [c for c in out["checks"] if not c["ok"]]
+
+
+def test_heartbeat_timer_starts_after_a_live_release(release):
+    root, helper, run = release
+    assert run().returncode == 0
+    assert 'enable --now pi-hub-heartbeat.timer' in (root.parent / 'calls').read_text().splitlines()
+    assert (root / 'usr/local/lib/pi-hub/pi-hub-heartbeat.sh').exists()
+
+
+def test_heartbeat_timer_does_not_start_after_a_failed_release(release):
+    root, helper, run = release
+    assert run('gate').returncode != 0
+    assert 'enable --now pi-hub-heartbeat.timer' not in (root.parent / 'calls').read_text().splitlines()
+    assert not (root / 'usr/local/lib/pi-hub/pi-hub-heartbeat.sh').exists()  # rolled back with the release

@@ -1,0 +1,11 @@
+[Unit]
+Description=Send the Pi Hub outside heartbeat every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnActiveSec=1min
+OnUnitActiveSec=5min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

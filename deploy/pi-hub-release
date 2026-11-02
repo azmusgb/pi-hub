@@ -94,12 +94,13 @@ fi
 PREV=$(readlink -f "$CUR" 2>/dev/null || true)
 SNAP=$(mktemp -d)
 SUPPORT=(/usr/local/bin/pi-status.py)
-for f in pi-hub-helper.py pi-hub-backup.sh x2d-camera-failover.py pi-hub-selfcheck.py pi-hub-movies-mirror.py pi-hub-release pi-backup-serve pi-paperless-backup.sh; do
+for f in pi-hub-helper.py pi-hub-backup.sh x2d-camera-failover.py pi-hub-selfcheck.py pi-hub-movies-mirror.py pi-hub-release pi-backup-serve pi-paperless-backup.sh pi-hub-heartbeat.sh; do
   SUPPORT+=("/usr/local/lib/pi-hub/$f")
 done
 for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service pi-hub-selfcheck.service pi-hub-selfcheck.timer \
          pi-hub-movies-mount.service pi-hub-movies-mount.timer \
-         pi-hub-movies-mirror.service pi-hub-movies-mirror.timer pi-paperless-backup.service pi-paperless-backup.timer; do
+         pi-hub-movies-mirror.service pi-hub-movies-mirror.timer pi-paperless-backup.service pi-paperless-backup.timer \
+         pi-hub-heartbeat.service pi-hub-heartbeat.timer; do
   SUPPORT+=("/etc/systemd/system/$u")
 done
 SUPPORT+=(/etc/systemd/system/x2d-camera-bridge.service.d/port.conf)
@@ -155,13 +156,14 @@ trap recover EXIT
 D="$NEW/deploy"
 install -d -m 755 /usr/local/lib/pi-hub
 install -m 755 "$D/pi-hub-helper.py" "$D/pi-hub-backup.sh" "$D/x2d-camera-failover.py" "$D/pi-hub-selfcheck.py" "$D/pi-hub-movies-mirror.py" \
-  "$D/pi-backup-serve" "$D/pi-paperless-backup.sh" /usr/local/lib/pi-hub/
+  "$D/pi-backup-serve" "$D/pi-paperless-backup.sh" "$D/pi-hub-heartbeat.sh" /usr/local/lib/pi-hub/
 # Replace the runner atomically: a manual rollback may be executing this file.
 install -m 755 "$D/pi-hub-release" /usr/local/lib/pi-hub/pi-hub-release.new
 mv -f /usr/local/lib/pi-hub/pi-hub-release.new /usr/local/lib/pi-hub/pi-hub-release
 for u in pi-hub.service pi-hub-helper.service pi-hub-backup.service pi-hub-backup.timer x2d-camera-failover.service \
          pi-hub-selfcheck.service pi-hub-selfcheck.timer pi-hub-movies-mount.service pi-hub-movies-mount.timer \
-         pi-hub-movies-mirror.service pi-hub-movies-mirror.timer pi-paperless-backup.service pi-paperless-backup.timer; do
+         pi-hub-movies-mirror.service pi-hub-movies-mirror.timer pi-paperless-backup.service pi-paperless-backup.timer \
+         pi-hub-heartbeat.service pi-hub-heartbeat.timer; do
   install -m 644 "$D/$u" "/etc/systemd/system/$u"
 done
 if [ -f /etc/systemd/system/x2d-camera-bridge.service ]; then
@@ -210,6 +212,10 @@ fi
 
 trap - EXIT
 rm -rf "$SNAP"
+
+# The outside heartbeat (platform baseline D2) starts only once a release is live. It skips itself until
+# /etc/pi-hub/healthchecks.env exists.
+systemctl enable --now pi-hub-heartbeat.timer >/dev/null 2>&1 || say "could not start the heartbeat timer"
 
 # Keep the five newest releases, plus whatever is running.
 ls -1dt "$REL"/*/ 2>/dev/null | tail -n +6 | while read -r d; do

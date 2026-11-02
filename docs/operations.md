@@ -171,6 +171,25 @@ Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server
 
 A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.30:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
 
+## Outside heartbeat (Healthchecks.io)
+
+The one alarm that does not depend on Pi Hub (platform baseline D2). Every 5 minutes `pi-hub-heartbeat.timer` fetches
+`https://hub.rahe-home.duckdns.org/healthz` through Caddy on the Pi, with the real certificate. `/healthz` reads the
+database. Only a `{"ok":true}` answer sends a ping to the Healthchecks.io check `home-platform-alive` (period 5 min,
+grace 5 min). A failed check sends nothing, so Healthchecks.io alerts after about 10 minutes of silence and again
+when pings resume.
+
+- **Secret:** `/etc/pi-hub/healthchecks.env`, owned by root, mode `0600`, one line `HC_PING_URL=<the check's ping URL>`.
+  It is never in the repo. Like the other `/etc/pi-hub` secrets it is in the nightly backup, so a restored Pi keeps
+  its heartbeat. Until the file exists, the service skips itself.
+- **Started by:** each live release (`systemctl enable --now pi-hub-heartbeat.timer`) and `deploy/install.sh`.
+- **Check it:** `ssh pi 'systemctl list-timers pi-hub-heartbeat.timer; journalctl -u pi-hub-heartbeat -n 5 --no-pager'`.
+  A healthy run logs nothing. A failure names its cause and never the URL.
+- **Acceptance test (outage path):**
+  1. Stop the pings with `ssh pi 'sudo systemctl stop pi-hub-heartbeat.timer'`. Pi Hub itself stays up.
+  2. Watch the check go Late (about 5 min), then Down (about 10 min), and confirm the alert arrives.
+  3. Restart with `ssh pi 'sudo systemctl start pi-hub-heartbeat.timer'` and confirm the "up" notice.
+
 ## Homebox (home inventory)
 
 Homebox runs in Docker on the Pi (`/opt/homebox`, port 7745, data on the USB drive at `/mnt/usb1/homebox`), linked from App Suite and More. It is for tools, parts, appliances, manuals and warranties; filament stays in Bambuddy. Sign-up is off; it was open only while the owner made their account. The API-key pepper is in `/opt/homebox/homebox.env` (root only); changing it invalidates Homebox API keys. To let another person sign up: `cd /opt/homebox && sudo HBOX_ALLOW_REGISTRATION=true docker compose up -d`, then run `sudo docker compose up -d` again afterwards.
