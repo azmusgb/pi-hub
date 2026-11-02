@@ -119,7 +119,7 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                               "detail": f"{e['code']}, severity {sev if known else 'unknown'}",
                               "link": i["href"], "ts": now, "thing": key, "record": key})
             continue
-        id = "pi:" + key if key.startswith("source:") else "pi:" + i["what"]
+        id = "pi:" + key if key.startswith(("source:", "release:")) else "pi:" + i["what"]
         item = {"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
                 "detail": i["say"], "link": i["href"], "ts": now, "thing": key, "record": key}
         rec = by_id.get(key) or {}

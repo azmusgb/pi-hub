@@ -261,3 +261,81 @@ def test_heartbeat_timer_does_not_start_after_a_failed_release(release):
     assert run('gate').returncode != 0
     assert 'enable --now pi-hub-heartbeat.timer' not in (root.parent / 'calls').read_text().splitlines()
     assert not (root / 'usr/local/lib/pi-hub/pi-hub-heartbeat.sh').exists()  # rolled back with the release
+
+
+def reports(root):
+    inbox = root / 'var/lib/pi-hub-releases/inbox'
+    return [json.loads(p.read_text()) for p in sorted(inbox.glob('pi-hub-*.json'))] if inbox.exists() else []
+
+
+def test_live_release_writes_a_deployed_report(release):
+    root, _, run = release
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    [r] = reports(root)
+    assert (r['target'], r['commit'], r['result'], r['mechanism']) == ('pi-hub', SHA, 'deployed', 'pi-hub-release')
+    assert r['head'] == SHA and 'running' not in r
+
+
+@pytest.mark.parametrize('failure', ['js'])
+def test_test_failure_writes_a_failed_report(release, failure):
+    root, _, run = release
+    run(failure)
+    [r] = reports(root)
+    assert (r['result'], r['message']) == ('failed', 'JavaScript tests failed; nothing changed.')
+    assert 'running' not in r
+
+
+def test_rollback_records_the_restored_commit(release):
+    root, _, run = release
+    old = root / 'opt/pi-hub/releases/bbbbbbbbbb'
+    (root / 'opt/pi-hub/releases/previous').rename(old)
+    (root / 'opt/pi-hub/current').unlink()
+    (root / 'opt/pi-hub/current').symlink_to(old)
+    result = run('gate')
+    assert result.returncode != 0
+    [r] = reports(root)
+    assert (r['result'], r['commit'], r['running']) == ('rolled-back', SHA, 'bbbbbbbbbb')
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert log[0]['status'] == 'rolled-back' and log[0]['restored'] == 'bbbbbbbbbb'
+
+
+def test_rollback_to_an_unnamed_release_reports_failed(release):
+    root, _, run = release
+    run('gate')
+    [r] = reports(root)
+    assert r['result'] == 'failed' and 'running' not in r
+
+
+def test_reports_are_read_by_the_hub(release, tmp_path, monkeypatch):
+    root, _, run = release
+    run()
+    os.environ['HUB_NO_SAMPLER'] = '1'
+    os.environ['HUB_DB'] = str(tmp_path / 'hub.db')
+    from hub import records, releases
+    records._reset_memory()
+    import time
+    assert releases.read_inbox(time.time(), str(root / 'var/lib/pi-hub-releases/inbox')) == 1
+    assert records.get('release:pi-hub')['state'] == 'live'
+
+
+def test_report_never_fails_the_release(release):
+    root, _, run = release
+    (root / 'var/lib/pi-hub-releases').mkdir(parents=True, exist_ok=True)
+    (root / 'var/lib/pi-hub-releases/inbox').write_text('not a folder')
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "couldn't write the release report" in result.stdout
+    assert (root / 'opt/pi-hub/current').resolve().name == SHA[:10]
+
+
+def test_reports_keep_the_newest_ten(release):
+    root, _, run = release
+    inbox = root / 'var/lib/pi-hub-releases/inbox'
+    inbox.mkdir(parents=True)
+    for i in range(12):
+        p = inbox / f'pi-hub-{i:03d}-1.json'
+        p.write_text('{}')
+        os.utime(p, (1000 + i, 1000 + i))
+    run()
+    assert len(list(inbox.glob('pi-hub-*.json'))) == 10

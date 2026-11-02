@@ -546,6 +546,11 @@ def loop_pass(first, now=None, inputs=None):
         return False
     now = time.time() if now is None else now
     try:
+        from . import releases
+        releases.loop(now)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+    try:
         urgent.check(records.all(), now)
     except Exception:
         traceback.print_exc(file=sys.stderr)

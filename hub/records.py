@@ -239,11 +239,13 @@ def refresh(now=None, inputs=None):
 
 
 def load():
-    """After a restart: what the table remembers, all marked stale, with nothing written to the log."""
+    """After a restart: what the table remembers, all marked stale, with nothing written to the log. Release records
+    (releases.py) are facts about a deploy, not readings, so they load as they were."""
     ready()
     with _lock:
         for r in db.rows("SELECT id, body FROM records"):
-            _records[r["id"]] = {**json.loads(r["body"]), "stale": True}
+            body = json.loads(r["body"])
+            _records[r["id"]] = body if r["id"].startswith("release:") else {**body, "stale": True}
 
 
 def all():

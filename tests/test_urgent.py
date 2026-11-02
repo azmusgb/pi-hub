@@ -356,9 +356,9 @@ def test_restart_with_every_record_stale_and_fine_changes_nothing():
     urgent.check(FAILED, T + 30, send=send)  # an open occurrence from before the restart
     send.calls.clear()
     records._reset_memory()
-    records.load()  # every remembered record comes back stale
+    records.load()  # every remembered reading comes back stale (release records are deploy facts, not readings)
     recs = records.all()
-    assert recs and all(r.get("stale") for r in recs.values())
+    assert recs and all(r.get("stale") for id, r in recs.items() if not id.startswith("release:"))
     assert urgent.check(recs, T + 600, send=send) == []
     assert send.calls == []
     assert db.one("SELECT cleared_at FROM push_occurrences WHERE cause = 'print'")["cleared_at"] is None

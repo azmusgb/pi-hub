@@ -78,6 +78,31 @@ sudo journalctl -u pi-hub -u pi-hub-helper -n 100 --no-pager
 
 For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.service`. Retained recovery snapshots contain installed supporting files; they are not database backups.
 
+## Release records (platform step 3, since 2 November 2026)
+
+`release:<target>` is the canonical "what is live where" (baseline spec §4, D1 + D7). Each target's deploy writes it
+when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`, `netmon`, `mac-watch` and
+`x2d-bridge-mac`. Until a target's deploy reports, its record reads "Not publishing yet" (`unknown`). So far only
+`pi-hub` reports. The others follow one PR at a time
+([plan](superpowers/plans/2026-11-02-step-3-release-records.md)).
+
+- **Pi Hub's own record:** the release runner writes one report per release to `/var/lib/pi-hub-releases/inbox/`:
+  `deployed`, `failed` or `rolled-back` (with the restored release). The newest 10 are kept. The hub reads the folder
+  every 30 s and never writes to it, so a report written while the hub restarts is read when it comes back.
+- **States:**
+  - `live`: running the reported commit.
+  - `behind`: `main` was ahead of what runs when the deploy reported.
+  - `unknown`: not publishing yet.
+  - `drifted`: `/opt/pi-hub/current` points at another release than the record says.
+- **What reaches Needs you:** a failed or rolled-back last deploy, and `drifted`. The next good deploy clears them.
+  `behind` and `unknown` show on Versions only.
+- **Check it:**
+
+  ```sh
+  curl -s http://127.0.0.1:8100/api/records | python3 -c "import json,sys; [print(r['id'], r['state'], r['headline']) for r in json.load(sys.stdin)['records'] if r['id'].startswith('release:')]"
+  ls -t /var/lib/pi-hub-releases/inbox | head
+  ```
+
 ## Data and recovery boundaries
 
 | Item | Pi location |
