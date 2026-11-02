@@ -373,7 +373,7 @@ second identity. LocalAI's `lab:` prefix in `one-needs-you`:70 is superseded.
 
 **New record kinds.**
 
-- `release:<target>`: for pi-hub, localai, netmon, firmware and the Mac agents. It is the **canonical deployment
+- `release:<target>`: for pi-hub, localai, netmon, firmware, print-lab (A3) and the Mac agents. It is the **canonical deployment
   state** (D1, D7). Each target's deploy mechanism writes it when a deploy finishes: target, commit, result, time and
   the mechanism that did it. System › Versions and home-mcp read the same records. Nothing else reconstructs
   deployment truth.
@@ -836,7 +836,7 @@ it depends on are done. Steps on different lines can run in parallel.
    home-mcp on the real name (home-mcp #3).
 2. **The failure-independent outage path (D2).** It comes first, because the later steps make Pi Hub the only sender.
 3. **The `release:` write path and System › Versions (D1, D7).** Pi Hub publishes its own record first. Then
-   LocalAI's ship and Safe Deploy, the firmware OTA host, netmon and the Mac agents, one at a time.
+   LocalAI's ship and Safe Deploy, the firmware OTA host, netmon and the Mac agents (then print-lab, A3), one at a time.
 4. **After 3, per target:** LocalAI's Deployments page becomes a link to Versions. home-mcp reads the records and
    labels its SSH reads as verification. SSH reads go only when every target publishes and drift has another check.
 5. **Pushes onto Pi Hub (D2), after 2 is accepted and after 3** (amendment A2). LocalAI, print-lab and mac-watch
@@ -1013,3 +1013,5 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   `outside_alarm`, phrase key `outside_alarm_quiet` and migration step 2a.
 - **A2. Step 5 waits on an accepted step 2 and on step 3** (`2026-11-02-amendment-a2-step5-dependencies.md`):
   pushes move onto Pi Hub only after the D2 acceptance test is recorded and senders publish `release:` records.
+- **A3. print-lab gets a `release:` record** (`2026-11-02-amendment-a3-print-lab-release.md`): `lab pull` reports
+  `release:print-lab` when its checkout changes, so A2's step 5 gate can be met. Adds the `print-lab` target.
