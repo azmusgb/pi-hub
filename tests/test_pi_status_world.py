@@ -66,3 +66,19 @@ def test_ai_state_tells_ollama_down_from_nothing_loaded(monkeypatch, models, wan
     answers = {"world": {"models": models, "printer": {}, "kiosk": {}}}
     monkeypatch.setattr(pi_status, "cached", lambda key, ttl, fn: answers.get(key))
     assert pi_status.status()["ai_state"] == want
+
+
+def test_localai_release_reads_healthz(files, monkeypatch):
+    opener = _Opener()
+    opener.open = lambda req, timeout=None: (opener.reqs.append(req), io.BytesIO(b'{"status": "ok", "releaseCommit": "' + b"a" * 40 + b'"}'))[1]
+    monkeypatch.setattr(pi_status.ssl, "create_default_context", lambda cafile=None: object())
+    monkeypatch.setattr(pi_status.urllib.request, "build_opener", lambda *h: opener)
+    assert pi_status.localai_release() == "a" * 40
+    assert opener.reqs[0].full_url == "https://10.0.0.21/healthz"
+    assert opener.reqs[0].get_header("X-localai-hub-key") is None  # /healthz is open; the key goes only to /api/world
+
+
+def test_localai_release_without_ca_raises(files):
+    files[1].unlink()
+    with pytest.raises(RuntimeError):
+        pi_status.localai_release()

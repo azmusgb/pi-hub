@@ -195,6 +195,20 @@ def world():
         return json.loads(r.read(512 * 1024))
 
 
+HEALTHZ_URL = WORLD_URL.rsplit("/api/", 1)[0] + "/healthz"
+
+
+def localai_release():
+    """The commit Local AI says it runs (/healthz releaseCommit), verified by its CA; Pi Hub checks it against the
+    release:localai record (platform step 3). An exception when it doesn't answer: the caller caches None."""
+    if not os.path.exists(LOCALAI_CA_FILE):
+        raise RuntimeError("Local AI's CA isn't set up")
+    opener = urllib.request.build_opener(_NoRedirect(), urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=LOCALAI_CA_FILE)))
+    with opener.open(urllib.request.Request(HEALTHZ_URL, headers={"Accept": "application/json"}), timeout=WORLD_TIMEOUT) as r:
+        commit = json.loads(r.read(64 * 1024)).get("releaseCommit")
+    return commit if isinstance(commit, str) and commit else None
+
+
 def status():
     w = cached("world", 15, world)
     p = (w or {}).get("printer") or {}
@@ -246,6 +260,7 @@ def status():
         "display_state": "Unknown" if w is None else ("Online" if k.get("online") else "Offline"),
         "display_firmware": k.get("firmware") or "",
         "ai_state": ai_state,
+        "ai_release": cached("ai_release", 60, localai_release),
         "ai_models": len(loaded),
         "ai_waiting": queue.get("waiting", 0),
         "drive_source": d.get("source", "Pi drive (/mnt/usb1)"),
