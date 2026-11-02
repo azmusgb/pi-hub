@@ -189,6 +189,13 @@ when pings resume.
   1. Stop the pings with `ssh pi 'sudo systemctl stop pi-hub-heartbeat.timer'`. Pi Hub itself stays up.
   2. Watch the check go Late (about 5 min), then Down (about 10 min), and confirm the alert arrives.
   3. Restart with `ssh pi 'sudo systemctl start pi-hub-heartbeat.timer'` and confirm the "up" notice.
+- **Accepted 2 Nov 2026** (platform baseline step 2, D2):
+  - Before: the dashboard showed Up, with the last ping at 02:31:17, the last successful heartbeat run.
+  - 02:31:36: only `pi-hub-heartbeat.timer` was stopped. `pi-hub` and Caddy stayed active, and `/healthz` answered 200.
+  - 02:41:17: Healthchecks.io changed the check to Down and emailed "home-platform-alive is DOWN". That is 10 min after
+    the last ping (period 5 + grace 5). Late was not watched separately; Down after the grace period implies it.
+  - 02:49:32: the timer restarted, and one heartbeat ran straight away. At 02:49:33 the check was Up and the "is UP"
+    email arrived (downtime 8 min 15 s).
 
 ## Homebox (home inventory)
 
