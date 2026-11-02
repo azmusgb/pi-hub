@@ -68,6 +68,11 @@ if ! sudo test -s /etc/pi-hub/secrets/hub_proxy.env; then
   printf 'HUB_PROXY_SECRET=%s\n' "$(python3 -c 'import secrets; print(secrets.token_hex(32))')" | sudo sh -c 'umask 077; cat > /etc/pi-hub/secrets/hub_proxy.env'
 fi
 sudo chown root:pi-hub /etc/pi-hub/secrets/hub_proxy.env && sudo chmod 640 /etc/pi-hub/secrets/hub_proxy.env
+# The family-room panel's pages (deploy/family-room-release.sh publishes them from the Mac as this user; Caddy reads them).
+sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 755 /srv/family-room /srv/family-room/releases
+if sudo test -e /etc/pi-hub/secrets/family_room.env; then
+  sudo chown root:root /etc/pi-hub/secrets/family_room.env && sudo chmod 600 /etc/pi-hub/secrets/family_room.env
+fi
 # The pinned Caddy (above), replaced only when its hash differs. A download that doesn't match leaves the old one.
 caddy_new=0
 if [ "$(sha256sum /usr/local/bin/caddy 2>/dev/null | cut -d' ' -f1)" != "$caddy_sha256" ]; then
@@ -84,7 +89,8 @@ sudo install -d -m 755 /etc/systemd/system/caddy.service.d
 # Fail closed without the secret, keep the admin API in a private socket, and start without --environ (which would
 # write the secret to the journal). The DuckDNS token (the real names' certificate) is optional: without it only the
 # home.arpa names, kept for the Workshop display, work.
-printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nEnvironmentFile=-/etc/pi-hub/secrets/duckdns.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile\nExecReload=\nExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
+# The family-room panel's key (family_room.env) is optional too: without it the panel's laundry call is refused.
+printf '[Service]\nRestart=always\nRestartSec=2\nEnvironmentFile=/etc/pi-hub/secrets/grafana_gate.env\nEnvironmentFile=/etc/pi-hub/secrets/hub_proxy.env\nEnvironmentFile=-/etc/pi-hub/secrets/duckdns.env\nEnvironmentFile=-/etc/pi-hub/secrets/family_room.env\nRuntimeDirectory=caddy\nRuntimeDirectoryMode=0700\nExecStart=\nExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile\nExecReload=\nExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force\n' | sudo tee /etc/systemd/system/caddy.service.d/gate.conf >/dev/null
 sudo systemctl daemon-reload
 # A new binary takes over now, on the Caddyfile already there; a release that ships no new commit wouldn't restart it.
 if [ "$caddy_new" = 1 ] && systemctl is-active --quiet caddy; then

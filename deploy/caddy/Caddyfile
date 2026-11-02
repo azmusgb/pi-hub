@@ -94,6 +94,37 @@
 	}
 }
 
+# The family-room panel (the Skylight; docs/operations.md "Family-room panel"): its pages from /srv/family-room/current,
+# published from the Mac by deploy/family-room-release.sh, and the laundry status from the hub. Caddy adds the panel's
+# Shortcut key (FAMILY_ROOM_HUB_KEY in /etc/pi-hub/secrets/family_room.env), so the key never reaches the display;
+# without the file the hub refuses the call and the panel says Pi Hub isn't answering. Read-only, and only for the
+# Skylight on the house network (10.0.0.18, a DHCP reservation) and the owner's Mac, which reaches the Pi over
+# Tailscale (100.109.178.34). In `route` so the checks run first, in this order.
+(site_family) {
+	route {
+		@outsider not remote_ip 10.0.0.18/32 100.109.178.34/32
+		respond @outsider "Not here." 403
+		@write not method GET HEAD
+		respond @write 405
+		@laundry path /api/laundry
+		handle @laundry {
+			rewrite * /api/shortcut/laundry
+			reverse_proxy 127.0.0.1:8100 {
+				header_up Authorization "Bearer {$FAMILY_ROOM_HUB_KEY}"
+				header_up -Cookie
+				# No hub_peer: the panel is never the owner, even from the owner's Mac; its key is all it carries.
+				header_up -X-Hub-Peer
+				header_up -X-Hub-Proxy
+			}
+		}
+		handle {
+			root * /srv/family-room/current
+			header Cache-Control "no-cache"
+			file_server
+		}
+	}
+}
+
 # A gated tool on a plain upstream: {args[0]}.
 (site_tool) {
 	route {
@@ -192,6 +223,10 @@ home.home.arpa {
 	@scan host scan.rahe-home.duckdns.org
 	handle @scan {
 		import site_tool 127.0.0.1:8095
+	}
+	@family host family.rahe-home.duckdns.org
+	handle @family {
+		import site_family
 	}
 	# Any other name under it: nothing here.
 	handle {

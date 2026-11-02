@@ -60,4 +60,4 @@ def test_every_tool_has_a_real_name():
     caddyfile = open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", caddyfile, re.M))
     assert real == {"hub", "assistant", "bambuddy", "paperless", "homebox", "backups", "network", "status", "adguard",
-                    "devices", "pi", "scan"}
+                    "devices", "pi", "scan", "family"}
