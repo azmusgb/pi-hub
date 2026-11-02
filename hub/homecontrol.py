@@ -13,7 +13,8 @@ HB_URL = os.environ.get("HUB_HOMEBRIDGE_URL", "http://127.0.0.1:8581")
 CONTROLLABLE = {"Lightbulb", "Switch", "Outlet", "Fan", "Fanv2"}
 UID = re.compile(r"^[0-9a-f]{20,80}$")
 ALIASES = {
-    "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6": ("Workshop Light", "Workshop"),
+    # The Govee H6076 "Floor Lamp", in the master bedroom (it was labelled the workshop light until 1 Nov).
+    "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6": ("Floor Lamp", "Master Bedroom"),
 }
 _token = {"value": None, "expires": 0}
 _lock = threading.Lock()

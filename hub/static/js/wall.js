@@ -66,12 +66,12 @@ export function deskLab(p) {
   return { label, href: id ? `/lab?e=${id}${judge ? "&do=judge" : ""}` : "/lab", judge };
 }
 
-// The workshop light on the wall and desk: the one with its id, else a light in the Workshop room. Never "any light",
-// which would quietly put another room's lamp (the bedroom Govee) behind the Workshop switch.
-const SHOP_LIGHT = "27e5e4f8f7746b97a91a0a24384bd30696d4f76a751d582e35a0a4bb767547f6";
+// The workshop light on the wall and desk: a light in the Workshop room, else none. Never "any light", which would
+// quietly put another room's lamp behind the Workshop switch. (The light pinned here by id until 1 Nov was the
+// master bedroom's Floor Lamp; the workshop has no light in Homebridge now, so the card stays away.)
 export function shopLight(accessories) {
   const lights = (accessories || []).filter((a) => a.kind === "light");
-  return lights.find((a) => a.id === SHOP_LIGHT) || lights.find((a) => /^workshop$/i.test(a.room || "")) || null;
+  return lights.find((a) => /^workshop$/i.test(a.room || "")) || null;
 }
 
 // Preset view configurations and modular pane definitions
