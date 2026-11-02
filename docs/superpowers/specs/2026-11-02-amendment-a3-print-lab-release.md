@@ -1,6 +1,6 @@
 # Amendment A3: print-lab gets a `release:` record, so step 5's gate can be met
 
-Date: 2026-11-02 · Status: **proposed**; approved when its PR merges (the merge is the approval) · Amends: the platform
+Date: 2026-11-02 · Status: **approved**, option 1 (#57, merged 2 November 2026) · Amends: the platform
 baseline (`2026-11-01-platform-product-architecture-design.md`, section 4's `release:<target>` list) and amendment A2.
 
 ## Why

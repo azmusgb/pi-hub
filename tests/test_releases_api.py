@@ -53,6 +53,14 @@ def test_key_writes_only_its_own_target():
     assert records.get("release:mac-watch") is None
 
 
+def test_mac_key_reports_print_lab_by_lab_pull():
+    assert post("print-lab", KEYS["localai"], json=body(mechanism="lab-pull")).status_code == 401
+    r = post("print-lab", KEYS["mac"], json=body(mechanism="lab-pull", dirty=True))
+    assert r.status_code == 200, r.text
+    rec = records.get("release:print-lab")
+    assert (rec["state"], rec["source"], rec["detail"]["dirty"]) == ("live", "lab-pull", True)
+
+
 def test_wrong_key_is_401():
     r = post("localai", "not-the-key")
     assert r.status_code == 401 and r.json()["detail"] == "That deploy key is missing or wrong."
