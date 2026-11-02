@@ -161,7 +161,7 @@ test('the wall printer tile: short title, real external Bambuddy link, new HUD w
   assert.doesNotMatch(now, /href: "\/bambuddy"/);
 });
 
-test('laundry lines say what each LG machine is doing, read-only', () => {
+test('laundry lines say what each machine is doing, read-only', () => {
   const clock = (s) => (s === 1000 ? '12:46' : '?');
   const line = (m) => laundryLine({ name: 'Washer', minutes_left: null, ended_at: null, ...m }, clock);
   assert.equal(line({ state: 'idle' }), 'Washer: idle');
@@ -173,5 +173,6 @@ test('laundry lines say what each LG machine is doing, read-only', () => {
   assert.equal(line({ state: 'done', ended_at: 1000 }), 'Washer: done at 12:46');
   assert.equal(line({ state: 'done' }), 'Washer: done');
   assert.equal(line({ state: 'fault', name: 'Dryer' }), 'Dryer: needs attention');
+  assert.equal(line({ state: 'offline', name: 'Dishwasher' }), 'Dishwasher: not connected');
   assert.equal(line({ state: 'unknown' }), 'Washer: state unknown');
 });

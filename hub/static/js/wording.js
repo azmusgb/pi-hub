@@ -54,7 +54,7 @@ export function groupAppliances(accessories) {
   return { appliances, rest: accessories.filter((a) => !grouped.has(a.id)) };
 }
 
-// One line per LG machine on the Laundry card (hub/laundry.py reduces LG's states to these). The hub only reads them.
+// One line per machine on the Laundry card (hub/laundry.py reduces LG, GE and Bosch states to these). The hub only reads them.
 function minutesText(m) {
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 }
@@ -67,6 +67,7 @@ export function laundryLine(m, clock = (s) => new Date(s * 1000).toLocaleTimeStr
     scheduled: "delayed start",
     done: m.ended_at ? `done at ${clock(m.ended_at)}` : "done",
     fault: "needs attention",
+    offline: "not connected",
   }[m.state] || "state unknown";
   return `${m.name}: ${said}`;
 }
