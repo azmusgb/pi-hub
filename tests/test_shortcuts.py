@@ -41,3 +41,14 @@ def test_removed_key_stops_working(c):
 def test_keys_are_stored_only_as_hashes(c):
     key = auth.add_shortcut_key("Phone")
     assert key not in str(db.rows("SELECT * FROM shortcut_keys"))
+
+
+def test_shortcut_key_reads_laundry(c, monkeypatch):
+    from hub import laundry
+    monkeypatch.setattr(laundry, "status", lambda: {"configured": True, "available": True, "machines": [{"name": "Dryer"}]})
+    key = auth.add_shortcut_key("Family room")
+    r = c.get("/api/shortcut/laundry", headers={"Authorization": f"Bearer {key}"})
+    assert r.status_code == 200 and r.json()["machines"] == [{"name": "Dryer"}]
+    assert r.headers["cache-control"] == "no-store"
+    assert c.get("/api/shortcut/laundry", headers={"Authorization": "Bearer hub_nope"}).status_code == 401
+    assert c.get("/api/shortcut/laundry").status_code == 401
