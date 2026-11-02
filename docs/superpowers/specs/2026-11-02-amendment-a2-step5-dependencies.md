@@ -1,7 +1,6 @@
 # Amendment A2: Step 5 waits on an accepted step 2 and on step 3
 
-Date: 2026-11-02 · Status: proposed, for the owner's review. Merging this amendment approves it. · Amends: the
-platform baseline (`2026-11-01-platform-product-architecture-design.md`, section 11, step 5). Documentation only.
+Date: 2026-11-02 · Status: approved when PR #42 merges (the merge is the approval) · Amends: the platform baseline (`2026-11-01-platform-product-architecture-design.md`, section 11, step 5). Documentation only.
 
 ## Why
 
