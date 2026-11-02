@@ -20,6 +20,7 @@ import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
+import * as versionsPage from "./versions.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
@@ -67,6 +68,7 @@ const PAGES = {
   "/documents": { key: "documents", title: "Documents", mod: documentsPage },
   "/network": { key: "network", title: "Home & network", mod: networkPage },
   "/system": { key: "system", title: "System", mod: systemPage },
+  "/versions": { key: "versions", title: "Versions", mod: versionsPage },
 };
 
 // Page-specific subtitles
@@ -88,6 +90,7 @@ const subtitles = {
   "/documents": "Find, scan and print papers",
   "/network": "Devices, internet and blocking",
   "/system": "Backups, alerts and settings",
+  "/versions": "What is live where",
 };
 
 const updateSubtitle = () => {

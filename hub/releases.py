@@ -31,7 +31,7 @@ INVALID = "That release report isn't valid."
 
 for _t, _label in TARGETS.items():
     records.LABELS[PREFIX + _t] = _label + " deploy"
-    now_mod.HREF[PREFIX + _t] = "/settings"  # the Versions card; System › Versions replaces it (step 3, PR 3.2)
+    now_mod.HREF[PREFIX + _t] = "/versions"
 
 _lock = threading.Lock()
 _refused = set()  # inbox files already reported as invalid, so each is logged once
