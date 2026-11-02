@@ -839,8 +839,8 @@ it depends on are done. Steps on different lines can run in parallel.
    LocalAI's ship and Safe Deploy, the firmware OTA host, netmon and the Mac agents, one at a time.
 4. **After 3, per target:** LocalAI's Deployments page becomes a link to Versions. home-mcp reads the records and
    labels its SSH reads as verification. SSH reads go only when every target publishes and drift has another check.
-5. **Pushes onto Pi Hub (D2), after 2.** LocalAI, print-lab and mac-watch post to Pi Hub. LocalAI's Web Push retires
-   once ntfy is seen delivering the Assistant's events.
+5. **Pushes onto Pi Hub (D2), after 2 is accepted and after 3** (amendment A2). LocalAI, print-lab and mac-watch
+   post to Pi Hub. LocalAI's Web Push retires once ntfy is seen delivering the Assistant's events.
 6. **Print lab (D5), independent of 2-5.** `/lab` takes `?p=` and `do=judge`, and the `mac_lab` record exists.
    Then redirect the tab. Then build the caller inventory and gather the log
    evidence. Then remove `/api/lab/*`.
@@ -1011,3 +1011,5 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A1. Outside alarm status on System › Health** (`2026-11-01-amendment-a1-outside-alarm-status.md`): a read-only
   view of the D2 outside alarm, so a silently broken alarm becomes a Needs-you item. Adds record kind
   `outside_alarm`, phrase key `outside_alarm_quiet` and migration step 2a.
+- **A2. Step 5 waits on an accepted step 2 and on step 3** (`2026-11-02-amendment-a2-step5-dependencies.md`):
+  pushes move onto Pi Hub only after the D2 acceptance test is recorded and senders publish `release:` records.
