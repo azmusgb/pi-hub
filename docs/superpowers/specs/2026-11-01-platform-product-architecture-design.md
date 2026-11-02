@@ -1003,3 +1003,11 @@ it block this work.
 - **Restyling third-party tools, a multi-user model and replacing Plex's account** (`one-home`:37).
 - **Firmware changes themselves.** The display's tab rename, phrase keys and removal of the direct Bambuddy call go
   through Workshop OS's own candidate and physical acceptance process.
+
+## Amendments
+
+Changes to this baseline after it was frozen. Each one is reviewed on its own and is part of the baseline once merged.
+
+- **A1. Outside alarm status on System › Health** (`2026-11-01-amendment-a1-outside-alarm-status.md`): a read-only
+  view of the D2 outside alarm, so a silently broken alarm becomes a Needs-you item. Adds record kind
+  `outside_alarm`, phrase key `outside_alarm_quiet` and migration step 2a.
