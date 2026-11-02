@@ -248,6 +248,13 @@ fi
 trap - EXIT
 rm -rf "$SNAP"
 
+# The git hook runs pi-hub-release-incoming, which only install.sh used to refresh, so a change to this runner
+# reached pushes only after an install. Once a release is live it becomes this release's runner (atomically: it may be
+# the file running now).
+{ install -m 755 "$D/pi-hub-release" /usr/local/lib/pi-hub/pi-hub-release-incoming.new &&
+  mv -f /usr/local/lib/pi-hub/pi-hub-release-incoming.new /usr/local/lib/pi-hub/pi-hub-release-incoming; } ||
+  say "couldn't refresh the push runner; run deploy/install.sh from the Mac"
+
 # The outside heartbeat (platform baseline D2) starts only once a release is live. It skips itself until
 # /etc/pi-hub/healthchecks.env exists.
 systemctl enable --now pi-hub-heartbeat.timer >/dev/null 2>&1 || say "could not start the heartbeat timer"
