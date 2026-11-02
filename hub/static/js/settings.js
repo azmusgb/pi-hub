@@ -64,22 +64,12 @@ function shortcutsCard(state, keys, save) {
     steps(shown));
 }
 
-function versionsCard(r, save) {
-  const live = r.log.find((x) => x.sha === r.current);
-  const STATUS = { live: ["Live", "ok"], failed: ["Didn't pass", "bad"], "rolled-back": ["Went back", "warn"] };
-  return card("Versions", { cls: "wide", pill: r.current ? `Running ${r.current.slice(0, 7)}` : "Not set up", tone: "ok" },
-    h("p", { class: "meta" }, "New versions arrive from Claude, run the hub's tests on the Pi, and only go live if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
-    live ? h("p", {}, h("strong", {}, live.subject || "Current version"), h("span", { class: "meta" }, `, live since ${when(live.ts)}`)) : null,
-    ...(r.log.length ? firstFew(r.log.map((x) => {
-      const [label, tone] = STATUS[x.status] || [x.status, "warn"];
-      const canGoBack = x.status === "live" && x.sha !== r.current && r.on_pi.includes(x.sha);
-      return h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone } }),
-        h("span", { class: "log-main" }, h("strong", {}, x.subject || x.sha), h("span", { class: "meta" }, `${label}. ${x.message} ${when(x.ts)}`)),
-        canGoBack ? h("button", { class: "ghost small", onclick: async () => {
-          if (!confirm(`Go back to “${x.subject || x.sha}”? The hub restarts.`)) return;
-          await save("rollback")({ to: x.sha });
-        } }, "Go back to this") : h("span", { class: "log-side" }, x.sha === r.current ? "Running" : ""));
-    }), { n: 3, noun: "versions" }) : [empty("No versions recorded yet.")]));
+// Versions moved to System › Versions (platform step 3), which reads every part's release record and keeps Pi Hub's
+// history and "Go back to this". This card only points there.
+function versionsCard() {
+  return card("Versions", {},
+    h("p", { class: "meta" }, "What is live where, for Pi Hub and every other part, and going back to an earlier Pi Hub version."),
+    h("a", { class: "tool-link", href: "/versions" }, "Open System › Versions"));
 }
 
 export function mount(state) {
@@ -200,7 +190,7 @@ export async function load(state) {
       d.pc_copy ? h("p", {}, h("span", { class: "dot", dataset: { tone: Date.now() / 1000 - d.pc_copy.ts < 50 * 3600 ? "ok" : "warn" }, style: "display:inline-block;margin-right:.5rem" }),
         `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
         : h("p", { class: "note" }, "Not copied to the PC yet.")),
-    versionsCard(d.releases, save),
+    versionsCard(),
     devicesCard(d.devices, save),
     shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },

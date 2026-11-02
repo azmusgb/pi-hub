@@ -11,7 +11,7 @@ import urllib.request
 HUB = "http://127.0.0.1:8100"
 OUT = "/var/lib/pi-hub-selfcheck/last.json"
 TOPIC_FILE = "/etc/pi-status/ntfy_topic"
-PAGES = ["/", "/media", "/documents", "/network", "/system", "/lists", "/workshop", "/print", "/pi", "/rules", "/alerts", "/drives", "/settings", "/more"]
+PAGES = ["/", "/media", "/documents", "/network", "/system", "/lists", "/workshop", "/print", "/pi", "/rules", "/alerts", "/drives", "/versions", "/settings", "/more"]
 APIS = ["/api/needs", "/api/system/backups", "/api/movies/latest", "/api/projects", "/api/movie-night", "/api/freshness", "/api/now", "/api/movies", "/api/workshop", "/api/print", "/api/lists", "/api/pi", "/api/alerts",
         "/api/rules", "/api/outside", "/api/drives", "/api/camera", "/api/home", "/api/me"]
 # Signed out (as this check is), these must refuse: 401 means the API is up and its sign-in holds.

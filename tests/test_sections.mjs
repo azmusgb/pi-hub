@@ -15,7 +15,7 @@ test('every page belongs to a section', () => {
     '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
-    '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system',
+    '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system', '/versions': 'system',
     '/more': 'more', '/nowhere': 'home',
   };
   for (const [path, key] of Object.entries(want)) assert.equal(sectionFor(path), key, path);

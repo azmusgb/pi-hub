@@ -19,6 +19,7 @@ export function mount(state) {
     ),
     displayCard(),
     linkGroup("Look after the hub", [
+      ["/versions", "Versions", "What is live where, for every part"],
       ["/alerts", "Alerts", "Recent events and warnings"],
       ["/rules", "Automations", "Choose what happens automatically"],
       ["/pi", "Help & system", "Solve a problem and check the hub"],

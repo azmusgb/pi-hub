@@ -143,7 +143,7 @@ def test_failed_deploy_raises_one_needs_item():
     items = [i for i in needs.build([], {"cards": []}, T + 10, problems=records.problems())["items"] if "release:" in i["id"]]
     assert len(items) == 1
     assert items[0]["id"] == "pi:release:pi-hub" and items[0]["title"] == "Pi Hub deploy"
-    assert items[0]["link"] == "/settings"
+    assert items[0]["link"] == "/versions"
 
 
 def test_unknown_and_live_raise_no_needs_item():
