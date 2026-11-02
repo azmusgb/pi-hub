@@ -1,0 +1,58 @@
+#!/bin/sh
+# Publish device-update files from main to /srv/bambuhelper-updates/current (served at
+# https://updates.home.arpa/). Each push builds a fresh directory, then swaps the symlink, so the display
+# never reads a half-written manifest. Keeps the previous publish for rollback.
+# The hook of pi:/srv/bambuhelper-smart-display.git, installed by pi-hub (deploy/install.sh, then each live release).
+# It runs as the pushing user; sudo -n only drops the report in the hub's root-owned inbox.
+set -eu
+OUT=/srv/bambuhelper-updates
+# release:firmware (platform step 3): the hub reads each report from here; the newest 10 firmware reports are kept.
+INBOX=/var/lib/pi-hub-releases/inbox
+
+report() {  # dir new: the publish's report for release:firmware; it never fails the push
+  tmp=$(mktemp) || return 0
+  if python3 - "$1/releases/device-update.json" "$2" > "$tmp" <<'PY'
+import json, re, sys
+from datetime import datetime, timezone
+manifest, pushed = sys.argv[1:]
+try:
+    stable = json.load(open(manifest))["channels"]["stable"]
+    commit, version = stable["sourceCommit"], str(stable.get("version") or "")
+except (OSError, ValueError, KeyError, TypeError):
+    sys.exit("no Stable channel in releases/device-update.json")
+if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{7,40}", commit):
+    sys.exit("the Stable channel has no source commit")
+# commit is the firmware's source commit, the one the display's heartbeat reports as sourceSha, not the pushed commit.
+body = {"target": "firmware", "commit": commit, "result": "deployed", "at": datetime.now(timezone.utc).isoformat(),
+        "mechanism": "ota-hook", "message": f"Published Workshop OS {version} (publish {pushed[:7]})"[:200]}
+if re.fullmatch(r"[0-9A-Za-z.+-]{1,32}", version):
+    body["version"] = version
+json.dump(body, sys.stdout)
+PY
+  then
+    name="$INBOX/firmware-$(date +%s)-$$"
+    if sudo -n install -d -m 755 "$INBOX" && sudo -n install -m 644 "$tmp" "$name.json.tmp" && sudo -n mv -f "$name.json.tmp" "$name.json"; then
+      ls -1t "$INBOX"/firmware-*.json 2>/dev/null | tail -n +11 | xargs -r sudo -n rm -f
+    else
+      echo "bambuhelper-updates: couldn't write the release report"
+    fi
+  else
+    echo "bambuhelper-updates: no release report"
+  fi
+  rm -f "$tmp"
+}
+
+while read old new ref; do
+  [ "$ref" = refs/heads/main ] || continue
+  dir="$OUT/publish-$new"
+  rm -rf "$dir.tmp"; mkdir -p "$dir.tmp"
+  git archive "$new" releases firmware \
+    | tar -x -C "$dir.tmp" --wildcards 'releases/*' 'firmware/*.bin'
+  chmod -R a+rX "$dir.tmp"
+  rm -rf "$dir"; mv "$dir.tmp" "$dir"
+  ln -sfn "publish-$new" "$OUT/current.tmp" && mv -T "$OUT/current.tmp" "$OUT/current"
+  # Keep the two newest publishes.
+  ls -1dt "$OUT"/publish-* | tail -n +3 | xargs -r rm -rf
+  echo "bambuhelper-updates: published $(git rev-parse --short "$new")"
+  report "$dir" "$new"
+done

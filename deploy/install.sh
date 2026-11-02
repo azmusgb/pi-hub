@@ -18,7 +18,7 @@ CADDY_DUCKDNS=v0.5.0
 CADDY_SHA256=c7f294f87d4dada6c2322da95da15a07f6ad7897634507cf45ca84a705b21b5a
 CADDY_URL="https://caddyserver.com/api/download?os=linux&arch=arm64&version=$CADDY_VERSION&p=github.com%2Fcaddy-dns%2Fduckdns%40$CADDY_DUCKDNS"
 
-scp -q deploy/pi-hub-release pi:/tmp/pi-hub-release 2>&1 | quiet
+scp -q deploy/pi-hub-release deploy/bambuhelper-post-receive pi:/tmp/ 2>&1 | quiet
 # ssh hands its arguments to the Pi's shell as one line, so the URL (full of &) is quoted for that shell.
 ssh -o BatchMode=yes pi "bash -s -- '$CADDY_URL' '$CADDY_SHA256'" <<'EOF' 2>&1 | quiet
 set -euo pipefail
@@ -34,6 +34,12 @@ fi
 sudo install -m 755 /tmp/pi-hub-release /usr/local/lib/pi-hub/pi-hub-release-incoming.new
 sudo mv -f /usr/local/lib/pi-hub/pi-hub-release-incoming.new /usr/local/lib/pi-hub/pi-hub-release-incoming
 rm -f /tmp/pi-hub-release
+# The display's OTA publish hook (release:firmware); a live release also refreshes it.
+if [ -d /srv/bambuhelper-smart-display.git/hooks ]; then
+  sudo install -m 755 /tmp/bambuhelper-post-receive /srv/bambuhelper-smart-display.git/hooks/post-receive.new
+  sudo mv -f /srv/bambuhelper-smart-display.git/hooks/post-receive.new /srv/bambuhelper-smart-display.git/hooks/post-receive
+fi
+rm -f /tmp/bambuhelper-post-receive
 
 # Plex key: readable by the hub only.
 if [ -s /opt/homepage/secrets/plex_token ] && [ ! -s /etc/pi-hub/secrets/plex_token ]; then

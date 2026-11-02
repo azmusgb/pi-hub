@@ -82,13 +82,20 @@ For an owner-scheduled rollback, also inspect `journalctl -u pi-hub-rollback.ser
 
 `release:<target>` is the canonical "what is live where" (baseline spec §4, D1 + D7). Each target's deploy writes it
 when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`, `netmon`, `mac-watch` and
-`x2d-bridge-mac`. Until a target's deploy reports, its record reads "Not publishing yet" (`unknown`). So far only
-`pi-hub` reports. The others follow one PR at a time
+`x2d-bridge-mac`. Until a target's deploy reports, its record reads "Not publishing yet" (`unknown`). So far `pi-hub`,
+`localai` and `firmware` report. The others follow one PR at a time
 ([plan](superpowers/plans/2026-11-02-step-3-release-records.md)).
 
 - **Pi Hub's own record:** the release runner writes one report per release to `/var/lib/pi-hub-releases/inbox/`:
   `deployed`, `failed` or `rolled-back` (with the restored release). The newest 10 are kept. The hub reads the folder
   every 30 s and never writes to it, so a report written while the hub restarts is read when it comes back.
+- **The display firmware:** the OTA publish hook (`deploy/bambuhelper-post-receive`, the hook of
+  `pi:/srv/bambuhelper-smart-display.git`) drops a report in the same inbox after each publish. A live Pi Hub release
+  installs the hook, and so does `install.sh`. Its commit is the Stable channel's `sourceCommit` from the published
+  `releases/device-update.json`, the commit the display reports as `sourceSha`, not the pushed commit. A publish
+  without one still publishes, with no report. The firmware is `live` only when the display runs it: the hub checks
+  the display's heartbeat (within its 10-minute staleness rule) every pass. With no recent heartbeat the record stays
+  as it was.
 - **Reports from off the Pi** (Local AI on the PC, the Mac's agents): `POST /api/releases/<target>` over HTTPS at
   `hub.rahe-home.duckdns.org`, with a deploy key in `X-Hub-Deploy-Key`. There is one key per host (`localai`, `mac`), and
   each is good only for its own targets. Plain http and owner sessions are refused. Make or replace a key from the Mac:
@@ -104,7 +111,9 @@ when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`
   PC asleep there is no reading, and the record stays as it was.
 - **States:**
   - `live`: running the reported commit.
-  - `behind`: `main` was ahead of what runs when the deploy reported.
+  - `behind`: `main` was ahead of what runs when the deploy reported. For the firmware: published, but the display
+    doesn't run it yet ("Published <commit>; the display runs <commit>").
+  - `ahead`: the firmware only. The display runs a newer version than the published Stable one (a USB flash, say).
   - `unknown`: not publishing yet.
   - `drifted`: `/opt/pi-hub/current` points at another release than the record says.
 - **What reaches Needs you:** a failed or rolled-back last deploy, and `drifted`. The next good deploy clears them.
