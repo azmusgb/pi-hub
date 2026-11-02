@@ -109,6 +109,10 @@ def valid(target, body, now):
             out[key] = body[key]
     if result == "rolled-back" and "running" not in out:
         return None
+    if body.get("dirty") is not None:
+        if not isinstance(body["dirty"], bool):
+            return None
+        out["dirty"] = body["dirty"]
     if body.get("version") is not None:
         if not isinstance(body["version"], str) or not VERSION.fullmatch(body["version"]):
             return None
@@ -201,7 +205,8 @@ def put(target, report, now):
                 detail["previous"], detail["deployed_at"] = running, report["at"]
             running = report["running"]
         if report["result"] == "deployed":
-            detail["version"] = report.get("version")
+            # dirty: deployed from a working tree with uncommitted changes (netmon), so the commit is only its base
+            detail["version"], detail["dirty"] = report.get("version"), report.get("dirty", False)
         detail.update(target=target, label=TARGETS[target], commit=running, mechanism=report["mechanism"],
                       head=report.get("head"),
                       last={k: report[k] for k in ("commit", "result", "at", "message")})

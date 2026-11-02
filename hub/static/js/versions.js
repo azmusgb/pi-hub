@@ -37,7 +37,7 @@ export function versionRows(records = []) {
     const quiet = r.state === "live" && last.result === "deployed";
     return {
       id: r.id, target, label: d.label || target, chip, tone, unknown: false,
-      commit: short(d.commit), href, line: parts.filter(Boolean).join(" "),
+      commit: short(d.commit), href, dirty: !!d.dirty, line: parts.filter(Boolean).join(" "),
       // Anything other than a clean, live deploy says what happened, in the record's own words.
       note: quiet ? "" : [r.headline, last.result !== "deployed" ? r.cause : ""].filter(Boolean).join(". "),
     };
@@ -61,7 +61,7 @@ function rowEl(v) {
       h("strong", {}, v.label),
       h("span", { class: "meta" }, v.unknown ? v.line
         : [v.href ? h("a", { href: v.href, target: "_blank", rel: "noopener" }, h("code", {}, v.commit)) : h("code", {}, v.commit || "—"),
-          v.line ? ` ${v.line}` : ""]),
+          v.dirty ? " + local changes" : "", v.line ? ` ${v.line}` : ""]),
       v.note ? h("span", { class: "meta version-note" }, v.note) : null),
     h("span", { class: "log-side" }, v.chip));
 }
