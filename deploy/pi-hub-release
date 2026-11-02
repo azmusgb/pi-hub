@@ -255,6 +255,14 @@ rm -rf "$SNAP"
   mv -f /usr/local/lib/pi-hub/pi-hub-release-incoming.new /usr/local/lib/pi-hub/pi-hub-release-incoming; } ||
   say "couldn't refresh the push runner; run deploy/install.sh from the Mac"
 
+# The display's OTA publish hook (deploy/bambuhelper-post-receive, release:firmware) lives in this repo too. Once a
+# release is live it becomes the hook of the firmware repo, so the next "git push pi main" there runs it.
+OTA_HOOKS=/srv/bambuhelper-smart-display.git/hooks
+if [ -d "$OTA_HOOKS" ]; then
+  { install -m 755 "$D/bambuhelper-post-receive" "$OTA_HOOKS/post-receive.new" &&
+    mv -f "$OTA_HOOKS/post-receive.new" "$OTA_HOOKS/post-receive"; } || say "couldn't refresh the OTA publish hook"
+fi
+
 # The outside heartbeat (platform baseline D2) starts only once a release is live. It skips itself until
 # /etc/pi-hub/healthchecks.env exists.
 systemctl enable --now pi-hub-heartbeat.timer >/dev/null 2>&1 || say "could not start the heartbeat timer"

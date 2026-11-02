@@ -29,6 +29,7 @@ INBOX = os.environ.get("HUB_RELEASE_INBOX", "/var/lib/pi-hub-releases/inbox")
 CURRENT = os.environ.get("HUB_CURRENT_RELEASE", "/opt/pi-hub/current")
 FUTURE = 300  # seconds a report's time may be ahead of the hub's clock
 HEX = re.compile(r"[0-9a-f]{7,40}")
+VERSION = re.compile(r"[0-9A-Za-z.+-]{1,32}")
 INVALID = "That release report isn't valid."
 # Off-Pi deploys report over HTTPS with a deploy key (X-Hub-Deploy-Key). One key per host, each good for its own targets
 # only; the Pi keeps only each key's SHA-256, made by deploy/deploy-key.sh.
@@ -108,6 +109,10 @@ def valid(target, body, now):
             out[key] = body[key]
     if result == "rolled-back" and "running" not in out:
         return None
+    if body.get("version") is not None:
+        if not isinstance(body["version"], str) or not VERSION.fullmatch(body["version"]):
+            return None
+        out["version"] = body["version"]
     message = body.get("message", "")
     if not isinstance(message, str) or len(message) > 200:
         return None
@@ -125,14 +130,37 @@ def _state(running, head, detail):
     return "live"
 
 
+def _numbers(version):
+    return tuple(int(n) for n in re.findall(r"\d+", version or ""))
+
+
+def _firmware_state(published, detail):
+    """The firmware is `live` only when the display runs what is published (spec §4): until its heartbeat reports the
+    published source commit it is `behind`, or `ahead` when the display runs a newer version than the published one."""
+    if not published:
+        return "unknown"
+    display = detail.get("display") or {}
+    if _same(display.get("commit"), published):
+        return "live"
+    mine, theirs = _numbers(detail.get("version")), _numbers(display.get("version"))
+    return "ahead" if display.get("commit") and mine and theirs and theirs > mine else "behind"
+
+
 def _build(target, detail, prev, now, source):
     """The stored record for `detail`, with severity, headline and since."""
     label, last, running = TARGETS[target], detail.get("last") or {}, detail.get("commit")
-    state = _state(running, detail.get("head"), detail)
+    firmware = target == "firmware"
+    state = _firmware_state(running, detail) if firmware else _state(running, detail.get("head"), detail)
     severity = "attention" if last.get("result") in ("failed", "rolled-back") else SEVERITY[state]
     cause = last.get("message") or ""
+    shown = (detail.get("display") or {}).get("commit")
     if state == "unknown" and not last:
         headline = "Not publishing yet"
+    elif firmware and state == "behind":
+        headline = (f"Published {_short(running)}; the display runs {_short(shown)}" if shown
+                    else f"Published {_short(running)}; the display hasn't reported it yet")
+    elif firmware and state == "ahead":
+        headline = f"The display runs {_short(shown)}, newer than the published {_short(running)}"
     elif state == "drifted":
         severity = "attention"
         headline = f"{label} is running {_short(detail['verified']['commit'])}, not the recorded {_short(running)}"
@@ -172,6 +200,8 @@ def put(target, report, now):
             if not _same(report["running"], running):
                 detail["previous"], detail["deployed_at"] = running, report["at"]
             running = report["running"]
+        if report["result"] == "deployed":
+            detail["version"] = report.get("version")
         detail.update(target=target, label=TARGETS[target], commit=running, mechanism=report["mechanism"],
                       head=report.get("head"),
                       last={k: report[k] for k in ("commit", "result", "at", "message")})
@@ -257,11 +287,39 @@ def verify_localai(now, reading):
     return _verify("localai", running.lower(), "localai healthz", now) if isinstance(running, str) else None
 
 
+def verify_firmware(now, beat):
+    """What the display runs, from its heartbeat (`sourceSha`, `version`), against what the OTA host published. No
+    heartbeat within the display's staleness rule, or no record, changes nothing."""
+    running = (beat or {}).get("sourceSha")
+    running = running.lower() if isinstance(running, str) else None
+    if not running or not HEX.fullmatch(running):
+        return None
+    version = (beat or {}).get("version")
+    shown = {"commit": running, "version": version if isinstance(version, str) else None}
+    with _lock:
+        prev = records.get(PREFIX + "firmware")
+        detail = dict(prev["detail"]) if prev else {}
+        if not detail.get("commit"):
+            return None
+        if {k: (detail.get("display") or {}).get(k) for k in shown} == shown:
+            return prev
+        detail["display"] = {**shown, "at": now}
+        rec = _build("firmware", detail, prev, now, prev["source"])
+        records.store({rec["id"]: rec}, now)
+        return rec
+
+
 def loop(now):
-    """One pass: seed the targets, read the Pi's inbox, check Pi Hub's own release."""
+    """One pass: seed the targets, read the Pi's inbox, check Pi Hub's own release and what the display runs."""
     seed(now)
     read_inbox(now)
     verify_pi_hub(now)
+    from . import display_messages
+    try:
+        beat = display_messages.last_heartbeat(now=now)
+    except Exception:
+        beat = None
+    verify_firmware(now, beat)
     from . import sources
     try:
         reading = sources.pi_status()

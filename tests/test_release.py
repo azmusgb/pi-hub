@@ -357,3 +357,33 @@ def test_failed_release_keeps_the_push_runner(release, failure):
     incoming.write_text('old runner')
     run(failure)
     assert incoming.read_text() == 'old runner'
+
+
+def test_live_release_installs_the_ota_hook(release):
+    root, _, run = release
+    hooks = root / 'srv/bambuhelper-smart-display.git/hooks'
+    hooks.mkdir(parents=True)
+    (hooks / 'post-receive').write_text('old hook')
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    hook = hooks / 'post-receive'
+    assert hook.read_text() == (ROOT / 'deploy/bambuhelper-post-receive').read_text()
+    assert hook.stat().st_mode & 0o777 == 0o755
+
+
+def test_no_firmware_repo_no_ota_hook(release):
+    root, _, run = release
+    result = run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not (root / 'srv/bambuhelper-smart-display.git').exists()
+    assert "OTA publish hook" not in result.stdout
+
+
+@pytest.mark.parametrize('failure', ['js', 'gate'])
+def test_failed_release_keeps_the_ota_hook(release, failure):
+    root, _, run = release
+    hooks = root / 'srv/bambuhelper-smart-display.git/hooks'
+    hooks.mkdir(parents=True)
+    (hooks / 'post-receive').write_text('old hook')
+    run(failure)
+    assert (hooks / 'post-receive').read_text() == 'old hook'

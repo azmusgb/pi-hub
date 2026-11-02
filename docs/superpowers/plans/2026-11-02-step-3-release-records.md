@@ -331,11 +331,14 @@ The OTA hook runs on the Pi from `pi:/srv/bambuhelper-smart-display.git` and is 
 - **Task 1:** move the hook into pi-hub as `deploy/bambuhelper-post-receive`, installed by `install.sh` with no change in
   behaviour. Test it with the stubbed-git harness of `tests/test_release.py`. Commit
   `deploy: the OTA publish hook is in the repo`.
-- **Task 2:** after the `current` swap, the hook writes a spool report for `firmware`: `deployed`, `commit` = the pushed
-  sha, mechanism `ota-hook`.
+- **Task 2:** after the `current` swap, the hook writes a spool report for `firmware`: `deployed`, `commit` = the Stable
+  channel's `sourceCommit` in the published `releases/device-update.json`, mechanism `ota-hook`. *Corrected in PR 3.4:*
+  this said "the pushed sha", but the display's `sourceSha` is the image's source commit, which is never the commit that
+  publishes it, so the two would never match.
   - Firmware is the one target whose record is `live` only when the display runs it (spec §4). `releases.verify_firmware`
     compares the display heartbeat's `sourceSha` (`hub/display_routes.py` `clean_heartbeat`) with the published commit.
-  - Until they match, the state is `behind`, headline "Published <short>; the display runs <short>".
+  - Until they match, the state is `behind`, headline "Published <short>; the display runs <short>"; `ahead` when the
+    display runs a newer version than the published one.
   - A heartbeat older than the display's own staleness rule leaves the state unchanged.
   - Tests: `test_published_not_running_is_behind`, `test_heartbeat_match_is_live`, `test_no_heartbeat_keeps_state`.
 - **Task 3: evidence.** The next firmware publish (`git push pi main` in bambuhelper) shows `firmware` `behind`, then `live`

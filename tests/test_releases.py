@@ -271,3 +271,68 @@ def test_pc_asleep_is_not_drift():
 
 def test_localai_without_record_is_unchanged():
     assert releases.verify_localai(T, {"ai_release": A}) is None
+
+
+# ---- the firmware: published by the OTA hook, live only when the display runs it ----
+
+def publish(commit=A, version="12.7.1", now=T + 10):
+    r = releases.valid("firmware", report(commit=commit, mechanism="ota-hook", version=version), now)
+    assert r is not None
+    return releases.put("firmware", r, now)
+
+
+def test_published_not_running_is_behind():
+    r = publish()
+    assert (r["state"], r["severity"]) == ("behind", "info")
+    assert r["headline"] == "Published aaaaaaa; the display hasn't reported it yet"
+    r = releases.verify_firmware(T + 20, {"sourceSha": B, "version": "12.4.4"})
+    assert (r["state"], r["headline"]) == ("behind", "Published aaaaaaa; the display runs bbbbbbb")
+    assert r["detail"]["display"] == {"commit": B, "version": "12.4.4", "at": T + 20}
+
+
+def test_heartbeat_match_is_live():
+    publish()
+    r = releases.verify_firmware(T + 20, {"sourceSha": A.upper(), "version": "12.7.1"})
+    assert (r["state"], r["severity"], r["headline"]) == ("live", "ok", "aaaaaaa is live")
+    again = releases.verify_firmware(T + 30, {"sourceSha": A, "version": "12.7.1"})
+    assert (again["since"], again["detail"]["display"]["at"]) == (r["since"], T + 20)  # an unchanged beat writes nothing
+
+
+def test_newer_display_is_ahead():
+    publish()
+    r = releases.verify_firmware(T + 20, {"sourceSha": B, "version": "12.8.0"})
+    assert (r["state"], r["headline"]) == ("ahead", "The display runs bbbbbbb, newer than the published aaaaaaa")
+
+
+def test_no_heartbeat_keeps_state():
+    publish()
+    live = releases.verify_firmware(T + 20, {"sourceSha": A, "version": "12.7.1"})
+    for beat in (None, {}, {"sourceSha": None}, {"sourceSha": "not a sha"}):
+        assert releases.verify_firmware(T + 30, beat) is None
+    assert records.get("release:firmware")["state"] == live["state"] == "live"
+
+
+def test_new_publish_is_behind_until_the_display_updates():
+    publish()
+    releases.verify_firmware(T + 20, {"sourceSha": A, "version": "12.7.1"})
+    r = publish(commit=C, version="12.8.0", now=T + 30)
+    assert (r["state"], r["headline"]) == ("behind", "Published ccccccc; the display runs aaaaaaa")
+    assert r["detail"]["previous"] == A
+    assert releases.verify_firmware(T + 40, {"sourceSha": C, "version": "12.8.0"})["state"] == "live"
+
+
+def test_heartbeat_without_record_is_unchanged():
+    assert releases.verify_firmware(T, {"sourceSha": A}) is None
+
+
+@pytest.mark.parametrize("version", ["", "12.7.1 beta", "x" * 33, 12])
+def test_bad_version_is_refused(version):
+    assert releases.valid("firmware", report(mechanism="ota-hook", version=version), T + 10) is None
+
+
+def test_loop_reads_the_display_heartbeat(monkeypatch):
+    from hub import display_messages
+    publish()
+    monkeypatch.setattr(display_messages, "last_heartbeat", lambda **k: {"sourceSha": A, "version": "12.7.1"})
+    releases.loop(T + 20)
+    assert records.get("release:firmware")["state"] == "live"
