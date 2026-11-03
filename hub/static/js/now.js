@@ -1210,8 +1210,8 @@ export async function load(state) {
     settle(api("/api/camera"), 6000, { ok: false }),
   ]);
   
-  state.outside.replaceChildren(...[outsideLine(out), d.setup_left && !isWallMode()
-    ? h("a", { class: "setup-hint", href: "/settings", "data-link": true }, `${d.setup_left} setup step${d.setup_left > 1 ? "s" : ""} remaining →`) : null].filter(Boolean));
+  // Setup steps live in Settings; Home carries no setup nags (control-room: "No setup nags").
+  state.outside.replaceChildren(...[outsideLine(out)].filter(Boolean));
 
   const favs = home.accessories.filter((a) => home.favourites.includes(a.id));
   const sortedAccessories = [...home.accessories].sort((a, b) => {

@@ -181,7 +181,9 @@ def _bambuddy(timeout=1):
             "bambuddy_state": data.get("state"),
             "awaiting_plate_clear": bool(data.get("awaiting_plate_clear")),
             "remaining_time": data.get("remaining_time"),  # minutes; absent or None between prints
-            "hms": [{"code": str(e.get("code")), "severity": _int_or_none(e.get("severity")), "module": e.get("module")}
+            # Bambuddy's own words for the code ("The front door is open."), when it has them
+            "hms": [{"code": str(e.get("code")), "severity": _int_or_none(e.get("severity")), "module": e.get("module"),
+                     "description": str(e.get("description") or "").strip()[:160]}
                     for e in data.get("hms_errors") or [] if isinstance(e, dict)],
         }
     except Exception:

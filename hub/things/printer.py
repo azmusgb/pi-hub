@@ -235,8 +235,14 @@ def hms(b):
         return records.make("hms", "clear", "No printer alerts", "bambuddy", detail={"errors": errors})
     stopping = [e for e in errors if stops(e)]  # any other severity (3, unknown, odd) stays visible as a notice
     first = (stopping or errors)[0]
-    return records.make("hms", "stopped" if stopping else "notice", f"Printer needs attention ({first['code']})",
-                        "bambuddy", detail={"errors": errors})
+    return records.make("hms", "stopped" if stopping else "notice", hms_title(first), "bambuddy", detail={"errors": errors})
+
+
+def hms_title(error):
+    """What an HMS fault says: Bambuddy's description when it has one ("X2D: The front door is open"; the X2D named,
+    since "front door" alone reads as the house's), else the code."""
+    said = str(error.get("description") or "").strip().rstrip(".")
+    return f"X2D: {said}" if said else f"Printer needs attention ({error.get('code')})"
 
 
 def stops(error):
