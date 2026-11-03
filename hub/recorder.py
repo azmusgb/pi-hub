@@ -1,10 +1,11 @@
-"""Every minute: keep a sample for the charts, and note print and drive changes (the print photo from the printer's record)."""
+"""Every minute: keep a sample for the charts, note print and drive changes (the print photo from the printer's record),
+and check the workshop display (hub/display_watch.py)."""
 import os
 import threading
 import time
 import urllib.request
 
-from . import bambuddy, db, records, sources
+from . import bambuddy, db, display_watch, records, sources
 
 KEEP_DAYS = 7
 
@@ -97,6 +98,7 @@ def tick(sampler):
     db.run("INSERT OR REPLACE INTO samples (ts, cpu, mem, temp, drive) VALUES (?, ?, ?, ?, ?)",
            now, last(snap["cpu_series"]), last(snap["mem_series"]), last(snap["temp_series"]), drive)
     db.run("DELETE FROM samples WHERE ts < ?", now - KEEP_DAYS * 86400)
+    display_watch.probe(now)  # last: its 3 s limit never delays the sample
 
 
 def run(sampler, every=60):

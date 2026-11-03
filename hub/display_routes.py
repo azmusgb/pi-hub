@@ -8,8 +8,8 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
-from . import (auth, bambuddy, db, display_ai, display_feed, display_messages, display_pairing, lab, lab_guard, needs,
-               now as now_, printer_control, records, sources)
+from . import (auth, bambuddy, db, display_ai, display_feed, display_messages, display_pairing, display_watch, lab,
+               lab_guard, needs, now as now_, printer_control, records, sources)
 
 router = APIRouter(prefix="/api/display")
 TLS_NAME = "home.home.arpa"
@@ -128,7 +128,7 @@ def clean_heartbeat(body):
     for k in ("version", "sourceSha"):
         if isinstance(body.get(k), (str, int, float)) and not isinstance(body.get(k), bool):
             out[k] = str(body[k])[:64]
-    for k in ("uptimeS", "rssi", "heapFree", "psramFree"):
+    for k in ("uptimeS", "rssi", "heapFree", "psramFree", "heapMin", "heapLargest", "resetReason"):
         n = _int(body.get(k))
         if n is not None:
             out[k] = n
@@ -148,8 +148,16 @@ async def heartbeat(request: Request):
         body = json.loads(raw or b"{}")
     except ValueError:
         body = {}
-    display_messages.store_heartbeat(clean_heartbeat(body if isinstance(body, dict) else {}), time.time())
+    beat, at = clean_heartbeat(body if isinstance(body, dict) else {}), time.time()
+    display_messages.store_heartbeat(beat, at)
+    display_watch.record_beat(beat, at)  # a day of them, for GET /diagnostics
     return {"ok": True}  # not logged: a heartbeat is the display's pulse, not an action
+
+
+@router.get("/diagnostics")
+def diagnostics(hours: int = 24):
+    """Why the display drops out: Pi Hub's own checks of it, its signal and its restarts (hub/display_watch.py)."""
+    return JSONResponse(display_watch.summary(hours), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/feed")
