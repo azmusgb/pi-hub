@@ -1143,97 +1143,6 @@ body:not(.wall) .page-now { display: block; }
   }
 }
 
-/* Hardware Precision HUD Band */
-.hardware-hud-band {
-  display: flex;
-  flex-direction: column;
-  gap: .75rem;
-  padding: 1.15rem 1.25rem;
-  border-radius: var(--r-lg);
-  background: var(--glass-surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 6px 24px -4px rgba(0, 0, 0, 0.08);
-  margin-block: .25rem .75rem;
-  position: relative;
-  overflow: hidden;
-}
-.hud-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: .5rem;
-}
-.hud-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-}
-.hud-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.hud-badge-state {
-  font-size: .8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: .2rem .55rem;
-  border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--warn) 15%, transparent);
-  color: var(--warn);
-}
-.hud-temps {
-  display: flex;
-  align-items: center;
-  gap: .85rem;
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--text-2);
-  font-feature-settings: var(--tabular-numbers);
-}
-.hud-cam-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--r-md);
-  overflow: hidden;
-  border: 1px solid var(--glass-border);
-  background: #000;
-  touch-action: pan-x pan-y pinch-zoom;
-}
-.hud-cam-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transform-origin: center center;
-  transition: transform 0.15s ease-out;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.hud-cam-overlay {
-  position: absolute;
-  bottom: .75rem;
-  left: .75rem;
-  right: .75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
-}
-.hud-cam-controls {
-  position: absolute;
-  top: .75rem;
-  right: .75rem;
-  display: flex;
-  align-items: center;
-  gap: .35rem;
-  z-index: 10;
-}
 .hud-cam-btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1365,34 +1274,6 @@ body:not(.wall) .page-now { display: block; }
   pointer-events: none;
   white-space: nowrap;
 }
-.hud-pill-tag {
-  display: inline-flex;
-  align-items: center;
-  font-size: .8rem;
-  font-weight: 700;
-  padding: .3rem .65rem;
-  border-radius: var(--r-full);
-  background: rgba(26, 29, 28, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  font-feature-settings: var(--tabular-numbers);
-}
-.hud-progress-track {
-  width: 100%;
-  height: 6px;
-  border-radius: var(--r-full);
-  background: var(--surface-3);
-  overflow: hidden;
-}
-.hud-progress-fill {
-  height: 100%;
-  border-radius: var(--r-full);
-  background: linear-gradient(90deg, var(--accent), var(--ok));
-  transition: width .4s var(--ease);
-}
-
 /* Needs Triage Drawer Styling */
 .needs-head-left {
   display: flex;
@@ -1436,45 +1317,7 @@ body:not(.wall) .page-now { display: block; }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Home Quick-Access Tray */
-.home-quick-tray {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-block: .25rem;
-  margin-block: .25rem .75rem;
-  scrollbar-width: none;
-}
-.home-quick-tray::-webkit-scrollbar { display: none; }
-.quick-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  padding: .45rem .85rem;
-  font-size: .875rem;
-  font-weight: 600;
-  white-space: nowrap;
-  border-radius: var(--r-full);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--text);
-  text-decoration: none;
-  flex-shrink: 0;
-  transition: background .15s ease, border-color .15s ease;
-}
-.quick-pill:hover, .quick-pill:active {
-  background: var(--surface-hover);
-  border-color: var(--line-strong);
-  color: var(--text-1);
-}
-.quick-pill:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-/* One home: Home's six cards, Needs you first and full width. */
+/* The house cards: the wall display's house panel (home-cards.js). */
 .home-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-block: 1rem; }
 .home-card {
   display: flex; flex-direction: column; gap: .6rem; padding: 1.15rem 1.25rem; border-radius: var(--r-lg);
@@ -1600,11 +1443,4 @@ body:not(.wall) .page-now { display: block; }
     font-size: clamp(.9rem, 1.25vmin, 1.15rem);
   }
   .wall-board[data-layout="desk"] > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; min-height: auto; }
-}
-
-/* Home (not the wall): the camera is at most half the screen's height, so Home's other cards are reachable without
-   scrolling past a full-width picture (iPad, 1 Nov). The width follows the picture's own shape. */
-:root:not([data-wall]) .home-hud-mount .kiosk-cam-container {
-  width: min(100%, calc(50vh * var(--cam-w, 16) / var(--cam-h, 9)));
-  margin-inline: auto;
 }

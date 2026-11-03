@@ -86,6 +86,38 @@ export function splitNowRecords(records = [], { skipPrinter = false } = {}) {
   return { active, calm };
 }
 
+// A record's actions are `{name, ...}` objects (records.make); the printer buttons and the fix map want the names.
+export function actionNames(actions = []) {
+  return (Array.isArray(actions) ? actions : []).map((a) => (typeof a === "string" ? a : a?.name)).filter(Boolean);
+}
+
+// What Home's Now shows for the printer record: one big readout and the facts under it, from the record's own detail
+// keys (job, progress, minutes_left, layer, total_layers, attempt, lab).
+export function printerNow(r, nowMs = Date.now()) {
+  const d = r?.detail || {};
+  const running = r?.state === "printing" || r?.state === "paused";
+  const pct = running && Number.isFinite(d.progress) ? Math.max(0, Math.min(100, Math.round(d.progress))) : null;
+  const facts = [];
+  if (typeof d.job === "string" && d.job.trim()) facts.push(d.job.trim());
+  if (r?.state === "printing" && Number.isFinite(d.minutes_left) && d.minutes_left > 0) {
+    const done = new Date(nowMs + d.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    facts.push(`${duration(d.minutes_left * 60)} left, done ${done}`);
+  }
+  if (Number.isFinite(d.layer) && d.layer > 0) facts.push(`Layer ${d.layer} of ${Number.isFinite(d.total_layers) && d.total_layers > 0 ? d.total_layers : "?"}`);
+  if (Number.isFinite(d.attempt) && d.attempt >= 2) facts.push(`Attempt ${d.attempt}`);
+  const said = r?.headline || r?.state || "";
+  return {
+    running,
+    readout: pct === null ? said : `${pct}%`,
+    word: pct === null ? "" : (r.state === "paused" ? "Paused" : "Printing"),
+    pct,
+    facts,
+    cause: r?.cause || "",
+    actions: actionNames(r?.actions),
+    lab: d.lab?.exp || d.lab_experiment || "",
+  };
+}
+
 export function calmSummaryText(calm = []) {
   if (!calm.length) return "";
   const names = calm.map((r) => RECORD_LABELS[r.id] || r.id);
@@ -133,7 +165,7 @@ export function mergeProblems(records = [], needs = null) {
       tone: recordTone(r.severity),
       about: r.id,
       since: r.since || null,
-      actions: r.actions || [],
+      actions: actionNames(r.actions),
       fix: FIX_MAP[r.id] || null,
       href: RECORD_PATHS[r.id] || "/system",
     });
@@ -312,26 +344,54 @@ function navigateSpa(href) {
   a.remove();
 }
 
+// Home's printer: the one big thing on the page. The readout, the camera beside it, and the printer's own buttons.
+function renderPrinterHero(r, state, onReload) {
+  const m = printerNow(r);
+  const tone = recordTone(r.severity);
+  const actionsWrap = h("div", { class: "cr-item-actions" });
+  const btns = m.actions.length ? printerButtons({ actions: m.actions, state: r.state }, onReload) : null;
+  if (btns) actionsWrap.append(btns);
+  if (m.lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(m.lab), "data-link": true }, `Print lab: ${m.lab}`));
+  actionsWrap.append(h("a", { class: "action ghost", href: RECORD_PATHS.printer || "/workshop", "data-link": true }, "Open Workshop"));
+
+  const cam = state.cameraOk && m.running
+    ? h("button", { type: "button", class: "cr-hero-cam", "aria-label": "Enlarge the printer camera", onclick: () => state.openCamera?.() },
+      h("img", { class: "cr-hero-cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "", loading: "eager" }))
+    : null;
+
+  return h("li", { class: "cr-hero", dataset: { thing: r.id, tone, cam: cam ? "true" : "false" } },
+    h("div", { class: "cr-hero-main" },
+      h("p", { class: "cr-hero-name" },
+        h("span", { class: "dot", dataset: { tone }, "aria-hidden": "true" }),
+        h("strong", {}, RECORD_LABELS.printer),
+        m.word ? h("span", { class: "meta" }, m.word) : null),
+      h("p", { class: "cr-hero-readout", dataset: { long: m.pct === null ? "true" : "false" } }, m.readout),
+      m.pct !== null
+        ? h("div", { class: "cr-hero-bar", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(m.pct) },
+          h("span", { style: `width:${m.pct}%` }))
+        : null,
+      m.facts.length ? h("ul", { class: "cr-hero-facts" }, m.facts.map((f) => h("li", {}, f))) : null,
+      m.cause ? h("p", { class: "meta" }, m.cause) : null,
+      actionsWrap),
+    cam);
+}
+
 function renderActiveItem(r, state, onReload) {
+  if (r.id === "printer" && state.homeMode) return renderPrinterHero(r, state, onReload);
   const name = RECORD_LABELS[r.id] || r.id;
   const href = RECORD_PATHS[r.id] || "/";
-  const d = r.detail || {};
   const metaParts = [];
-  if (r.id === "printer") {
-    if (Number.isFinite(d.layer) && Number.isFinite(d.layers) && d.layers > 0) metaParts.push(`Layer ${d.layer}/${d.layers}`);
-    if (Number.isFinite(d.remaining_m)) metaParts.push(`${duration(d.remaining_m * 60)} left`);
-    if (Number.isFinite(d.attempt) && d.attempt >= 2) metaParts.push(`Attempt #${d.attempt}`);
-  }
+  if (r.id === "printer") metaParts.push(...printerNow(r).facts);
   if (r.cause) metaParts.push(r.cause);
 
   const actionsWrap = h("div", { class: "cr-item-actions" });
-  if (r.id === "printer" && r.actions?.length) {
-    const btns = printerButtons({ actions: r.actions, state: r.state }, onReload);
+  const names = actionNames(r.actions);
+  if (r.id === "printer" && names.length) {
+    const btns = printerButtons({ actions: names, state: r.state }, onReload);
     if (btns) actionsWrap.append(btns);
   }
-  if (r.id === "printer" && d.lab_experiment) {
-    actionsWrap.append(h("a", { class: "action", href: printLabUrl(d.lab_experiment), "data-link": true }, `Print lab: ${d.lab_experiment}`));
-  }
+  const lab = r.id === "printer" ? printerNow(r).lab : "";
+  if (lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(lab), "data-link": true }, `Print lab: ${lab}`));
   actionsWrap.append(h("a", { class: "action ghost", href, "data-link": true }, `Open ${name}`));
 
   return h("li", { class: "log-row cr-now-row", dataset: { thing: r.id } },
@@ -408,16 +468,20 @@ function renderControlRoom(state) {
   const events = state.events || [];
   const reload = () => loadControlRoom(state, state.needs);
 
-  // 1. NOW
+  // 1. NOW. On Home the printer leads it (renderPrinterHero), so active things come first and the calm rest folds away.
   const home = !!state.homeMode;
-  const { active, calm } = splitNowRecords(records, { skipPrinter: home });
+  const { active, calm } = splitNowRecords(records);
   const calmLine = calmSummaryText(calm);
-  const streamPill = state.streamLive ? "Live stream" : "Checked";
+  const ordered = [...active.filter((r) => r.id === "printer"), ...active.filter((r) => r.id !== "printer")];
   state.nowSec.replaceChildren(
-    card("Now", { cls: "wide", pill: streamPill, tone: "ok" },
-      active.length
-        ? h("ul", { class: "log cr-list" }, active.map((r) => renderActiveItem(r, state, reload)))
-        : h("p", { class: "cr-quiet-lead" }, home ? "Nothing else is running right now." : "Nothing is actively printing or playing right now."),
+    card("Now", { cls: "wide cr-now" },
+      !state.recordsAnswered
+        ? h("p", { class: "cr-quiet-lead", "aria-live": "polite" }, "Checking the house…")
+        : ordered.length
+          ? h("ul", { class: "log cr-list" }, ordered.map((r) => renderActiveItem(r, state, reload)))
+          : h("p", { class: "cr-quiet-lead" }, state.recordsFailed && !records.length
+            ? "The hub's live status didn't answer. It will keep trying."
+            : "Nothing is printing or playing right now."),
       calm.length
         ? h("details", { class: "cr-calm-details" },
           h("summary", { class: "cr-calm-summary" },
@@ -431,10 +495,11 @@ function renderControlRoom(state) {
         : null)
   );
 
-  // 2. PROBLEMS
+  // 2. NEEDS YOU: one list, one name (platform K6). Home hides it when it's empty (platform 5.5).
   const probs = mergeProblems(records, needs);
+  state.probSec.hidden = home && state.recordsAnswered && !probs.length;
   state.probSec.replaceChildren(
-    card("Problems", {
+    card("Needs you", {
       cls: "wide",
       pill: probs.length ? `${probs.length} need${probs.length === 1 ? "s" : ""} you` : "All clear",
       tone: probs.some((p) => p.tone === "bad") ? "bad" : probs.length ? "warn" : "ok",
@@ -458,13 +523,14 @@ function renderControlRoom(state) {
             const isNew = state.lastSeen > 0 && ev.ts > state.lastSeen;
             const tone = recordTone(ev.severity);
             const href = RECORD_PATHS[ev.thing] || "/";
-            return h("li", { class: "log-row", dataset: { new: isNew ? "true" : "false" } },
-              h("span", { class: "dot", dataset: { tone }, "aria-hidden": "true" }),
+            // A timeline: the time first, then what changed, the dot marking anything that went wrong.
+            return h("li", { class: "log-row cr-since-row", dataset: { new: isNew ? "true" : "false", tone } },
+              h("span", { class: "cr-since-when" }, when(ev.ts)),
               h("span", { class: "log-main" },
                 h("a", { href, "data-link": true }, h("strong", {}, ev.label || RECORD_LABELS[ev.thing] || ev.thing)),
                 h("span", { class: "meta" }, ev.headline || `${ev.old ? `${ev.old} → ` : ""}${ev.new}`),
                 ev.cause ? h("span", { class: "meta" }, ev.cause) : null),
-              h("span", { class: "log-side" }, when(ev.ts)));
+              tone === "ok" ? null : h("span", { class: "dot", dataset: { tone }, "aria-label": tone === "bad" ? "Problem" : "Needs a look" }));
           }))
         : empty("No state changes logged yet."),
       h("div", { class: "cr-foot-actions", style: "display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap;" },
@@ -535,7 +601,9 @@ export function mountControlRoom(state, parent, { search = true } = {}) {
   state.probSec = h("div");
   state.sinceSec = h("div");
 
-  parent.append(...(search ? [searchTrigger] : []), state.probSec, state.nowSec, state.sinceSec);
+  state.recordsAnswered = false;
+  // Now → Needs you → Since you last looked (control-room C5, platform 5.5).
+  parent.append(...(search ? [searchTrigger] : []), state.nowSec, state.probSec, state.sinceSec);
 
   // Open SSE stream to /api/records/stream for real-time updates without waiting for poll
   if (typeof EventSource !== "undefined") {
@@ -547,6 +615,7 @@ export function mountControlRoom(state, parent, { search = true } = {}) {
           const data = JSON.parse(ev.data);
           if (Array.isArray(data.records)) {
             state.records = data.records;
+            state.recordsAnswered = true;
             state.streamLive = true;
             renderControlRoom(state);
           }
@@ -599,12 +668,23 @@ export function leave(state) {
 
 // `needs` given (Home already asked for it): only the records are fetched here.
 export async function loadControlRoom(state, needs) {
-  const [recData, needsData] = await Promise.all([
-    api("/api/records"),
-    needs === undefined ? settle(api("/api/needs"), 6000, null) : Promise.resolve(needs),
-  ]);
+  let recData, needsData;
+  try {
+    [recData, needsData] = await Promise.all([
+      api("/api/records"),
+      needs === undefined ? settle(api("/api/needs"), 6000, null) : Promise.resolve(needs),
+    ]);
+  } catch (err) {
+    // Now says so instead of "Checking the house…" for ever; the last records (if any) stay on screen.
+    state.recordsAnswered = true;
+    state.recordsFailed = true;
+    renderControlRoom(state);
+    throw err;
+  }
   if (Array.isArray(recData?.records)) state.records = recData.records;
   if (Array.isArray(recData?.events)) state.events = recData.events;
+  state.recordsAnswered = true;
+  state.recordsFailed = false;
   state.needs = keepNeeds(needs, needsData, state.needs);
   renderControlRoom(state);
 }
