@@ -8,6 +8,7 @@ from datetime import datetime
 from urllib.parse import quote
 
 from .now import issue_items
+from .things.printer import hms_title
 
 ORDER = {"bad": 0, "attention": 1, "warn": 2}
 ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
@@ -25,6 +26,8 @@ LAB_PROJECT = re.compile(r"^[a-z0-9-]{1,40}$")
 # printer or another one ("Brother printer toner low"), which must not turn the X2D's card amber.
 PRINTER_THINGS = {"printer", "obico", "hms", "source:bambuddy"}
 NAMES_X2D = re.compile(r"\b(x2d|bambu)\b", re.I)
+# What an HMS severity means for the print (as things/printer.py stops()).
+HMS_EFFECT = {1: "It stops the print.", 2: "It pauses the print.", 3: "The print carries on."}
 LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Send it to the printer": "warn",
             "Fix the plan": "warn"}
 
@@ -102,9 +105,11 @@ def _one_row(items, about, ours):
     return [i for i in items if i is keep or i not in named]
 
 
-def build(events, feed, now, problems=(), lab=(), printer_done=False):
+def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=frozenset()):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
-    knows when the plate is cleared."""
+    knows when the plate is cleared. `healthy`: ids of the hub's records that are OK and fresh; another source's item
+    about one of those things is out of date (2 Nov: Local AI said the Workshop display wasn't answering while the
+    hub's own record had it online, and Home's "All else OK" listed it)."""
     items = []
     by_id = {r["id"]: r for r in problems}
     for key, i in issue_items(list(problems)):
@@ -113,10 +118,11 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
             for e in errors:
                 sev = e.get("severity")
                 known = isinstance(sev, int) and not isinstance(sev, bool)
+                effect = HMS_EFFECT.get(sev) if known else None
                 items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB,
                               "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
-                              "title": f"Printer needs attention ({e['code']})",
-                              "detail": f"{e['code']}, severity {sev if known else 'unknown'}",
+                              "title": hms_title(e),
+                              "detail": f"{effect} Alert {e['code']}." if effect else f"Alert {e['code']}.",
                               "link": i["href"], "ts": now, "thing": key, "record": key})
             continue
         id = "pi:" + key if key.startswith(("source:", "release:")) else "pi:" + i["what"]
@@ -143,6 +149,8 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False):
                     "link": ASSISTANT, "ts": now}
             if c.get("id") == "watch-mac-disk":
                 _whats_using_it(item)
+            if "workshop_display" in healthy and ABOUT_WORKSHOP_DISPLAY.search(f'{item["title"]} {item["detail"]}'):
+                continue  # the hub is the display's connection (platform K2); its fresh OK record is the truth
             items.append(item)
     seen = {}
     for i in items:  # ids stay unique within a build (cards without their own id fall back to their kind)
@@ -172,5 +180,6 @@ def current(recs=None, *, fetch=True):
     recs = records.all() if recs is None else recs
     printer = recs.get("printer") or {}
     feed = sources.localai_feed() if fetch else sources.localai_feed_cached()
+    healthy = frozenset(k for k, r in recs.items() if isinstance(r, dict) and r.get("severity") == "ok" and not r.get("stale"))
     return build((), feed, int(time.time()), records.problems(recs), lab=lab.stored_needs(),
-                 printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"))
+                 printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"), healthy=healthy)

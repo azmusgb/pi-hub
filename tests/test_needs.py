@@ -153,9 +153,10 @@ def test_each_hms_item_says_its_own_code_and_severity():  # final review M4, I2
     b = _hms(("0500_0200", 2), ("0300_0100", 3), ("0700_0100", None))
     items = needs.build([], {"cards": []}, NOW, problems(b=b))["items"]
     by_id = {i["id"]: i for i in items}
-    assert by_id["pi:source:hms:0500_0200"]["detail"] == "0500_0200, severity 2"
-    assert by_id["pi:source:hms:0300_0100"]["detail"] == "0300_0100, severity 3"
-    assert by_id["pi:source:hms:0700_0100"]["detail"] == "0700_0100, severity unknown"
+    # What the severity does to the print, then the code (2 Nov: "0x30001, severity 3" said nothing to act on)
+    assert by_id["pi:source:hms:0500_0200"]["detail"] == "It pauses the print. Alert 0500_0200."
+    assert by_id["pi:source:hms:0300_0100"]["detail"] == "The print carries on. Alert 0300_0100."
+    assert by_id["pi:source:hms:0700_0100"]["detail"] == "Alert 0700_0100."
     assert by_id["pi:source:hms:0700_0100"]["tone"] == "warn"
 
 
@@ -364,3 +365,38 @@ def test_long_text_is_cut_at_a_word_with_an_ellipsis():
     assert len(out) <= 200 and out.endswith("…")
     assert text.startswith(out[:-1]) and text[len(out) - 1] == " "
     assert needs._clip("short", 200) == "short"
+
+
+# ---- 2 Nov: Home said "All else OK: Workshop display" beside Local AI's "The Workshop display isn't answering" ----
+
+DISPLAY_CARD = {"cards": [{"id": "watch-display-offline", "kind": "watch", "title": "Heads up",
+                           "text": "The Workshop display isn't answering", "tone": "warning"}]}
+
+
+def test_another_sources_display_outage_is_dropped_while_the_hubs_record_is_ok():
+    items = needs.build([], DISPLAY_CARD, NOW, (), healthy=frozenset({"workshop_display"}))["items"]
+    assert items == []
+
+
+def test_another_sources_display_outage_stays_when_the_hub_doesnt_know_better():
+    items = needs.build([], DISPLAY_CARD, NOW, ())["items"]  # no fresh OK record: Local AI may be right
+    assert [i["id"] for i in items] == ["localai:watch-display-offline"]
+
+
+def test_current_counts_only_fresh_ok_records_as_healthy(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(needs, "build", lambda *a, **kw: seen.update(kw) or {"count": 0, "items": [], "unread": []})
+    monkeypatch.setattr(sources, "localai_feed", lambda: {"cards": []})
+    recs = {"workshop_display": {"id": "workshop_display", "severity": "ok", "stale": False, "since": NOW},
+            "pc": {"id": "pc", "severity": "ok", "stale": True, "since": NOW},
+            "adguard": {"id": "adguard", "severity": "attention", "stale": False, "since": NOW}}
+    needs.current(recs)
+    assert seen["healthy"] == frozenset({"workshop_display"})
+
+
+def test_hms_items_say_bambuddys_words_and_what_happens_to_the_print():
+    b = {**bud("RUNNING", progress=29), "hms": [
+        {"code": "0x30001", "severity": 3, "module": 3, "description": "The front door is open."}]}
+    [item] = [i for i in needs.build([], {"cards": []}, NOW, problems(b=b))["items"] if i["id"].startswith("pi:source:hms:")]
+    assert item["title"] == "X2D: The front door is open"
+    assert item["detail"] == "The print carries on. Alert 0x30001."

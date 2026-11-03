@@ -400,6 +400,8 @@ def test_hms_severity_maps_to_state():
     assert r["state"] == "notice" and r["headline"] == "Printer needs attention (0300_0100)"
     assert r["detail"]["errors"] == [err("0300_0100", 3)]
     assert p.hms(None) is None
+    said = p.hms({"hms": [{**err("0x30001", 3), "description": "The front door is open."}]})
+    assert said["headline"] == "X2D: The front door is open"  # Bambuddy's words, the X2D named
 
 
 def test_hms_empty_is_clear():
@@ -411,9 +413,12 @@ def test_hms_empty_is_clear():
 def test_bambuddy_status_carries_hms_errors(monkeypatch):
     from hub import sources
     raw = {"connected": True, "state": "PAUSE", "hms_errors": [
-        {"code": "0500_0200", "module": 5, "severity": 2, "attr": 1, "actions": []}]}
+        {"code": "0500_0200", "module": 5, "severity": 2, "attr": 1, "actions": []},
+        {"code": "0x30001", "module": 3, "severity": 3, "description": " The front door is open. "}]}
     monkeypatch.setattr(sources, "_get_json", lambda *a, **k: raw)
-    assert sources._bambuddy()["hms"] == [{"code": "0500_0200", "severity": 2, "module": 5}]
+    assert sources._bambuddy()["hms"] == [{"code": "0500_0200", "severity": 2, "module": 5, "description": ""},
+                                          {"code": "0x30001", "severity": 3, "module": 3,
+                                           "description": "The front door is open."}]
     monkeypatch.setattr(sources, "_get_json", lambda *a, **k: {"connected": True})
     assert sources._bambuddy()["hms"] == []
 
