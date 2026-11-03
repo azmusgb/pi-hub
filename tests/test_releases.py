@@ -226,10 +226,11 @@ def test_match_is_verified_once(tmp_path):
 
 def test_symlink_change_is_drift(tmp_path):
     put()
-    r = releases.verify_pi_hub(T + 20, release_dirs(tmp_path, B))
+    releases.verify_pi_hub(T + 20, release_dirs(tmp_path, B))
+    r = releases.verify_pi_hub(T + 20 + releases.PROBE_LAG, release_dirs(tmp_path, B))
     assert (r["state"], r["severity"]) == ("drifted", "attention")
     assert r["headline"] == "Pi Hub is running bbbbbbb, not the recorded aaaaaaa"
-    items = [i for i in needs.build([], {"cards": []}, T + 30, problems=records.problems())["items"] if i["id"] == "pi:release:pi-hub"]
+    items = [i for i in needs.build([], {"cards": []}, T + 30 + releases.PROBE_LAG, problems=records.problems())["items"] if i["id"] == "pi:release:pi-hub"]
     assert len(items) == 1
 
 
@@ -255,25 +256,36 @@ def test_no_record_no_drift(tmp_path):
 def test_localai_drift():
     r = releases.valid("localai", {**report(), "mechanism": "safe-deploy"}, T + 10)
     releases.put("localai", r, T + 10)
-    d = releases.verify_localai(T + 20, {"ai_release": B})
+    releases.verify_localai(T + 20, {"ai_release": B})
+    d = releases.verify_localai(T + 20 + releases.PROBE_LAG, {"ai_release": B})
     assert (d["state"], d["severity"]) == ("drifted", "attention")
     assert d["detail"]["verified"]["by"] == "localai healthz"
-    assert releases.verify_localai(T + 30, {"ai_release": A})["state"] == "live"
+    assert releases.verify_localai(T + 30 + releases.PROBE_LAG, {"ai_release": A})["state"] == "live"
 
 
-def test_a_probe_still_showing_the_previous_version_just_after_a_deploy_is_not_drift():
+def test_a_mismatch_is_drift_only_once_it_has_lasted_probe_lag():
     for at, commit in ((T, B), (T + 100, A)):  # B was live; A deploys at T + 100
         releases.put("localai", releases.valid("localai", {**report(commit=commit, at=at), "mechanism": "safe-deploy"}, at + 1), at + 1)
-    assert records.get("release:localai")["detail"]["previous"] == B
-    assert releases.verify_localai(T + 160, {"ai_release": B})["state"] == "live"  # 60 s after: pi-status's cache
-    assert releases.verify_localai(T + 100 + releases.PROBE_LAG + 1, {"ai_release": B})["state"] == "drifted"
-    assert releases.verify_localai(T + 400, {"ai_release": A})["state"] == "live"
+    assert releases.verify_localai(T + 160, {"ai_release": B})["state"] == "live"  # pi-status's cache, 60 s on
+    assert releases.verify_localai(T + 200, {"ai_release": B})["state"] == "live"
+    assert releases.verify_localai(T + 160 + releases.PROBE_LAG, {"ai_release": B})["state"] == "drifted"
+    assert releases.verify_localai(T + 600, {"ai_release": A})["state"] == "live"
 
 
-def test_a_different_commit_just_after_a_deploy_is_still_drift():
-    for at, commit in ((T, B), (T + 100, A)):
-        releases.put("localai", releases.valid("localai", {**report(commit=commit, at=at), "mechanism": "safe-deploy"}, at + 1), at + 1)
-    assert releases.verify_localai(T + 120, {"ai_release": "c" * 40})["state"] == "drifted"
+def test_a_new_release_seen_before_its_report_is_not_drift(tmp_path):
+    put(now=T + 10)  # A is live
+    assert releases.verify_pi_hub(T + 20, release_dirs(tmp_path, B))["state"] == "live"  # the runner switched first
+    rec = put(commit=B, at=T + 50, now=T + 60)  # its report lands
+    assert rec["state"] == "live" and "mismatch" not in rec["detail"]
+    assert releases.verify_pi_hub(T + 400, release_dirs(tmp_path, B))["state"] == "live"
+
+
+def test_a_changing_mismatch_restarts_the_wait():
+    releases.put("localai", releases.valid("localai", {**report(), "mechanism": "safe-deploy"}, T + 1), T + 1)
+    releases.verify_localai(T + 10, {"ai_release": B})
+    releases.verify_localai(T + 100, {"ai_release": "c" * 40})
+    assert releases.verify_localai(T + 10 + releases.PROBE_LAG, {"ai_release": "c" * 40})["state"] == "live"
+    assert releases.verify_localai(T + 100 + releases.PROBE_LAG, {"ai_release": "c" * 40})["state"] == "drifted"
 
 
 def test_pc_asleep_is_not_drift():
