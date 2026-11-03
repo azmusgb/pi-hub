@@ -1126,6 +1126,16 @@ export function mount(state) {
   }
 }
 
+// ?p= picks the project (platform step 6, Decision 1); without it, the first one. A ?p= that names no project returns
+// {missing, names} so the page says so, instead of silently opening another project. null when there are none.
+export function pickProject(projects, wanted) {
+  const named = list(projects).filter((p) => p && typeof p.name === "string" && p.name);
+  if (!named.length) return null;
+  if (wanted === null || wanted === undefined || wanted === "") return { meta: named[0] };
+  const meta = named.find((p) => p.name === wanted);
+  return meta ? { meta } : { missing: String(wanted), names: named.map((p) => p.name) };
+}
+
 // What a refresh fetches. The first attempt after mount may open the sign-in sheet, once, whatever its outcome; every
 // later refresh (main.js repeats load every 15 s) is quiet. Returns null when there is no lab data yet. When the Mac's
 // fingerprint is the one already drawn, the project itself isn't fetched again: `labData` is null and `unchanged` is true.
@@ -1133,8 +1143,10 @@ export async function fetchLab(state) {
   const quiet = { prompt: !state.triedOnce };
   state.triedOnce = true;
   const projects = ((await labFetch("/api/lab/projects", {}, quiet)) || {}).projects;
-  if (!projects || !projects.length) return null;
-  const meta = projects[0], pName = meta.name;
+  const pick = pickProject(projects, state.context?.get("p"));
+  if (!pick) return null;
+  if (pick.missing) return { missing: pick.missing, names: pick.names };
+  const meta = pick.meta, pName = meta.name;
   state.currentProject = pName;
   const unchanged = refreshPlan(meta, state.renderedFp, false) === "quiet";
   const [labData, reqData] = await Promise.all([
@@ -1165,6 +1177,16 @@ export async function load(state) {
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
     state.renderedFp = undefined;
     state.cardSigs = null;
+    return;
+  }
+  if (got.missing) {
+    const links = h("ul", { class: "lab-projects" }, ...got.names.map((name) =>
+      h("li", {}, h("a", { href: `/lab?p=${encodeURIComponent(name)}`, "data-link": true }, name))));
+    state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty(`No project called ${got.missing}.`), links));
+    state.renderedFp = undefined;
+    state.cardSigs = null;
+    state.currentData = null;
+    state.currentProject = ""; // nothing to send requests to until a real project is open
     return;
   }
   const { labData, reqData, meta } = got;
