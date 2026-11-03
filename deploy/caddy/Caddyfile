@@ -36,6 +36,13 @@
 
 # Each tool once, served on both its home.arpa name and its real name (below).
 (site_hub) {
+	# Proxy /ai and /ai/* to Local AI appliance on the PC under the hub's domain
+	handle /ai {
+		redir /ai/ 308
+	}
+	handle_path /ai/* {
+		import site_assistant https://hub.rahe-home.duckdns.org/ai
+	}
 	# Lab uploads are at most 8 MiB; Caddy refuses a bigger body before it reaches the hub.
 	handle /api/lab/* {
 		request_body {
