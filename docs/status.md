@@ -1,5 +1,13 @@
 # Pi Hub status — 24 October 2026
 
+## Amendment A3: print-lab publishes; step 5 can start — 2 November 2026
+
+A3 (option 1, #57) added a seventh target. `release:print-lab` is live `ae2e82f`, reported by `lab pull` when its
+checkout changes (print-lab #15), queued through mac-watch's outbox (LocalAI #463, live `87fd719`), accepted by Pi Hub
+(#58, live `fe0a958`). Only uncommitted code counts as "+ local changes"; the lab's project data doesn't. A2's gate for
+step 5 is met: step 2 accepted (#44) and every sender publishes. Step 5's plan:
+[2026-11-02-step-5-pushes-onto-pi-hub.md](superpowers/plans/2026-11-02-step-5-pushes-onto-pi-hub.md).
+
 ## Platform step 3: every target publishes — 2 November 2026
 
 All six `release:<target>` records are written by their own deploys (D1, D7). Checked on the Pi at 17:35: pi-hub live
