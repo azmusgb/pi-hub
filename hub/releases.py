@@ -59,9 +59,15 @@ def _expected(name):
 
 def key_ok(request, target):
     """True only for a deploy key that verifies for `target`, over HTTPS (Caddy) or straight to the hub."""
+    return host_key_ok(request, KEY_FOR.get(target))
+
+
+def host_key_ok(request, name):
+    """True only for the deploy key of host `name` (`localai`, `mac`), over HTTPS (Caddy) or straight to the hub. Also
+    what lets a host post its phone notices (notify_routes.py)."""
     if request.headers.get("x-forwarded-proto", "").lower() == "http":
         return False
-    key, name = request.headers.get("x-hub-deploy-key"), KEY_FOR.get(target)
+    key = request.headers.get("x-hub-deploy-key")
     expected = _expected(name) if name else b""
     if not key or not expected:
         return False

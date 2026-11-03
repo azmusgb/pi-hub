@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -24,6 +24,7 @@ app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(lab.router)
 app.include_router(uploads.router)
 app.include_router(display_routes.router)
+app.include_router(notify_routes.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
@@ -79,6 +80,12 @@ async def guard(request: Request, call_next):
     if unsafe and request.url.path.startswith("/api/releases/") and "x-hub-deploy-key" in request.headers:
         if not releases.key_ok(request, request.url.path[len("/api/releases/"):]):
             return JSONResponse({"detail": "That deploy key is missing or wrong."}, status_code=401)
+        deploy = True
+    # Another system's phone notice (platform step 5): exempt only with that source's own key, verified.
+    if unsafe and request.url.path.startswith("/api/notify/") and (
+            "x-hub-deploy-key" in request.headers or "x-hub-mac-key" in request.headers):
+        if not notify_routes.key_ok(request, request.url.path[len("/api/notify/"):]):
+            return JSONResponse({"detail": notify_routes.WRONG_KEY}, status_code=401)
         deploy = True
     if unsafe and not shortcut and not webhook and not mac and not display and not deploy:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
@@ -632,7 +639,8 @@ def api_pi(hours: int = 24):
 
 @app.get("/api/alerts")
 def api_alerts():
-    return fresh({"alerts": system.alerts()})
+    both = system.alerts() + notify_routes.history()  # pi-status's file, then the other systems' notices
+    return fresh({"alerts": sorted(both, key=lambda a: a["ts"], reverse=True)[:200]})
 
 
 # ---- Sign-in ----
