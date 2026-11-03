@@ -99,7 +99,7 @@ def summary(found):
 
 # ---- From the records (control room, piece 1): Home, the wall and Needs you read the same records ----
 
-HREF = {"printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/workshop", "local_ai": "/workshop",
+HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/workshop", "local_ai": "/workshop",
         "pc": "/workshop", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
         "adguard": "/network", "backups": "/system", "pc_printing": "/"}
 

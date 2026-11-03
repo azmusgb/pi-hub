@@ -420,8 +420,9 @@ def test_build_all_makes_every_thing_but_the_hub():
     recs = things.build_all(GOOD, {}, T)
     assert set(recs) == set(records.KINDS) - {"hub"}
     silent = things.build_all({k: None for k in GOOD}, {}, T)
-    # pc_printing is the hub's own reading of other records, so it is always there
-    assert all(r is None for id, r in silent.items() if id != "pc_printing") and silent["pc_printing"]["state"] == "fine"
+    # pc_printing and mac_lab are the hub's own readings (other records, its own lab tables), so they are always there
+    assert all(r is None for id, r in silent.items() if id not in ("pc_printing", "mac_lab"))
+    assert silent["pc_printing"]["state"] == "fine" and silent["mac_lab"]["state"] in ("idle", "unknown")
 
 
 def test_local_ai_hears_about_the_new_pc_record():
