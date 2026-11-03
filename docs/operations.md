@@ -220,6 +220,23 @@ Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server
 
 A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.30:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
 
+**Notices from the other systems (platform step 5, D2; since 2 November 2026).** LocalAI, mac-watch and print-lab post
+their phone notices to `POST /api/notify/{source}` instead of sending their own, and Pi Hub sends them through the same
+`push()` as its own alerts ([plan](superpowers/plans/2026-11-02-step-5-pushes-onto-pi-hub.md)).
+- **Keys:** each source takes only its own host's key. `localai` takes LocalAI's deploy key, `mac-watch` the `mac`
+  deploy key (both `X-Hub-Deploy-Key`, from `deploy/deploy-key.sh`), and `print-lab` the lab key (`X-Hub-Mac-Key`).
+- **Body:** `{"kind", "title", "body"?, "click"?, "dedupe"?}`. Each source has a fixed list of kinds
+  (`hub/notify_routes.py`, `SOURCES`). `click` must be https on the hub, `localai.home.arpa` or `10.0.0.21`.
+- **Rules, all in Pi Hub:**
+  - Quiet hours hold every kind except the urgent ones: LocalAI `failed`, `service`, `answer` and mac-watch `outage`.
+    Urgent kinds are sent at high priority.
+  - A repeat of the same `dedupe` from the same source within 10 minutes is dropped.
+  - Past 10 notices per source in 10 minutes, Pi Hub sends one "More from …" push, and the rest get 429.
+- **Answers:** 200 `{"outcome": "sent" | "held" | "duplicate"}`; 400 invalid; 401 wrong key; 413 too big; 429 over
+  the cap; 502 when ntfy didn't take it. The sender keeps a 502 or 429 notice and tries again.
+- **History:** every notice except a duplicate shows in System › Alerts with its source, and says when it was held or
+  not sent. It is kept 30 days in the `inbound_pushes` table.
+
 ## Outside heartbeat (Healthchecks.io)
 
 The one alarm that does not depend on Pi Hub (platform baseline D2). Every 5 minutes `pi-hub-heartbeat.timer` fetches
