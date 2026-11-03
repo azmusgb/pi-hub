@@ -15,6 +15,10 @@ const BY = {
   "netmon-deploy": "netmon's deploy script", "mac-install": "the Mac installer",
   "lab-pull": "print-lab's lab pull",
 };
+// Atlas keeps snapshots of these repositories (LocalAI's Architecture page, platform step 10), one per live commit: a
+// row links to "Architecture at this commit" there. Other targets' repositories aren't snapshotted yet.
+const ATLAS = { "pi-hub": "pi-hub", localai: "localai", "mac-watch": "localai", "print-lab": "print-lab" };
+const LOCALAI = "https://localai.home.arpa";
 const CHIP = {
   live: ["Live", "ok"], behind: ["Behind", ""], ahead: ["Ahead", ""], unknown: ["", ""], drifted: ["Drifted", "warn"],
 };
@@ -35,11 +39,13 @@ export function versionRows(records = []) {
       return { id: r.id, target, label: d.label || target, chip, tone, unknown: true, line: "Not publishing yet", note: "" };
     }
     const href = d.commit && REPO[target] ? `https://github.com/${REPO[target]}/commit/${d.commit}` : "";
+    const atlas = d.commit && ATLAS[target] && /^[0-9a-f]{40}$/.test(d.commit)
+      ? `${LOCALAI}/#architecture?repo=${ATLAS[target]}&commit=${d.commit}` : "";
     const parts = [d.deployed_at ? `deployed ${inLine(d.deployed_at)}` : "", BY[d.mechanism] ? `by ${BY[d.mechanism]}` : ""];
     const quiet = r.state === "live" && last.result === "deployed";
     return {
       id: r.id, target, label: d.label || target, chip, tone, unknown: false,
-      commit: short(d.commit), href, dirty: !!d.dirty, line: parts.filter(Boolean).join(" "),
+      commit: short(d.commit), href, atlas, dirty: !!d.dirty, line: parts.filter(Boolean).join(" "),
       // Anything other than a clean, live deploy says what happened, in the record's own words.
       note: quiet ? "" : [r.headline, last.result !== "deployed" ? r.cause : ""].filter(Boolean).join(". "),
     };
@@ -63,7 +69,8 @@ function rowEl(v) {
       h("strong", {}, v.label),
       h("span", { class: "meta" }, v.unknown ? v.line
         : [v.href ? h("a", { href: v.href, target: "_blank", rel: "noopener" }, h("code", {}, v.commit)) : h("code", {}, v.commit || "—"),
-          v.dirty ? " + local changes" : "", v.line ? ` ${v.line}` : ""]),
+          v.dirty ? " + local changes" : "", v.line ? ` ${v.line}` : "",
+          v.atlas ? [" · ", h("a", { href: v.atlas, target: "_blank", rel: "noopener" }, "Architecture at this commit")] : ""]),
       v.note ? h("span", { class: "meta version-note" }, v.note) : null),
     h("span", { class: "log-side" }, v.chip));
 }
