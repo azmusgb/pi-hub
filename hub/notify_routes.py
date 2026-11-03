@@ -7,6 +7,7 @@ Each source has a fixed list of kinds, and only its own host's key may post for 
 dedupes, caps, and shows in the Alerts history, so "did the sender post?" has an answer on Pi Hub.
 """
 import json
+import re
 import threading
 import time
 from urllib.parse import urlparse
@@ -27,6 +28,7 @@ SOURCES = {
 # ntfy tag per kind: the phone's emoji, and the Alerts page's tone (alerts.js TONE: a check mark is a recovery)
 TAGS = {"finished": "white_check_mark", "back": "white_check_mark", "failed": "warning", "service": "warning",
         "outage": "rotating_light"}
+SAFE_URL = re.compile(r"[A-Za-z0-9\-._~:/?#\[\]!$&'()*+,;=%]+")  # RFC 3986 characters, without "@"
 CLICK_HOSTS = {"hub.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.21"}
 MAX_BODY = 2048
 DEDUPE_WINDOW = 600  # seconds a repeat of the same (source, dedupe) is a duplicate
@@ -64,6 +66,22 @@ def _line(v, limit):
     return v[:limit] or None
 
 
+def _click(v):
+    """The tap link rebuilt from its parsed parts, or None. Plain printable ASCII only (no backslash, space, `@` or
+    control characters), so no parser reads a different host than the one checked; https on a known host, no port."""
+    if not isinstance(v, str) or not 0 < len(v) <= 300 or not SAFE_URL.fullmatch(v):
+        return None
+    try:
+        u = urlparse(v)
+        port = u.port
+    except ValueError:
+        return None
+    if u.scheme != "https" or u.hostname not in CLICK_HOSTS or port is not None or u.username or u.password:
+        return None
+    return f"https://{u.hostname}{u.path or '/'}" + (f"?{u.query}" if u.query else "") + (
+        f"#{u.fragment}" if u.fragment else "")
+
+
 def valid(source, body):
     """The notice, cleaned, or None. kind from the source's list, title 1-120 chars, body up to 500, click an https URL
     on a known host, dedupe up to 80 chars (defaults to kind and title)."""
@@ -77,8 +95,8 @@ def valid(source, body):
         return None
     click = body.get("click")
     if click is not None:
-        u = urlparse(click) if isinstance(click, str) else None
-        if not u or u.scheme != "https" or u.hostname not in CLICK_HOSTS or len(click) > 300:
+        click = _click(click)
+        if click is None:
             return None
     dedupe = body.get("dedupe")
     if dedupe is not None and (not isinstance(dedupe, str) or not 1 <= len(dedupe) <= 80):
