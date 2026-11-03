@@ -1,17 +1,46 @@
-// Home merged with the Control room (31 Oct 2026): Problems / Now / Since on `/`, `/next` redirects to `/`.
+// Home merged with the Control room (31 Oct 2026): Now / Needs you / Since on `/` (2 Nov), `/next` redirects to `/`.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitNowRecords, mergeProblems, problemsBadge } from "../hub/static/js/next.js";
+import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames } from "../hub/static/js/next.js";
 import { homeCards } from "../hub/static/js/home-cards.js";
 import { redirectFor } from "../hub/static/js/sections.js";
 
 const printing = { id: "printer", state: "printing", severity: "ok", headline: "Printing, 40%" };
 const playing = { id: "plex", state: "playing", severity: "ok", headline: "Playing a movie" };
 
-test("on Home, Now leaves the printer to the band above it", () => {
-  const { active } = splitNowRecords([printing, playing], { skipPrinter: true });
-  assert.deepEqual(active.map((r) => r.id), ["plex"]);
-  assert.deepEqual(splitNowRecords([printing, playing]).active.map((r) => r.id), ["printer", "plex"]);  // /next unchanged
+test("Now lists the printer first among active things", () => {
+  assert.deepEqual(splitNowRecords([printing, playing]).active.map((r) => r.id), ["printer", "plex"]);
+});
+
+test("record actions are {name} objects; the printer buttons and Clear the plate get the names", () => {
+  assert.deepEqual(actionNames([{ name: "pause" }, { name: "stop" }, "clear", null, {}]), ["pause", "stop", "clear"]);
+  assert.deepEqual(actionNames(undefined), []);
+  const [p] = mergeProblems([{ id: "printer", state: "finished", severity: "attention", headline: "Finished",
+    actions: [{ name: "clear" }] }], null);
+  assert.ok(p.actions.includes("clear"));
+});
+
+test("Now's printer reads the record's own keys: percent, time left, layer, lab", () => {
+  const at = new Date(2026, 10, 2, 19, 0).getTime();
+  const m = printerNow({ id: "printer", state: "printing", headline: "Printing, 47%",
+    detail: { job: "v72 bracket", progress: 47.4, minutes_left: 100, layer: 88, total_layers: 210, lab: { exp: "E-012" } },
+    actions: [{ name: "pause" }, { name: "stop" }] }, at);
+  assert.equal(m.readout, "47%");
+  assert.equal(m.word, "Printing");
+  assert.equal(m.facts[0], "v72 bracket");
+  assert.match(m.facts[1], /left, done 8:40/);
+  assert.equal(m.facts[2], "Layer 88 of 210");
+  assert.equal(m.lab, "E-012");
+  assert.deepEqual(m.actions, ["pause", "stop"]);
+});
+
+test("a printer that isn't running shows its headline, not 0%", () => {
+  const m = printerNow({ id: "printer", state: "finished", headline: "Finished", detail: { progress: 100 } });
+  assert.equal(m.readout, "Finished");
+  assert.equal(m.pct, null);
+  assert.equal(m.word, "");
+  assert.deepEqual(printerNow({ id: "printer", state: "paused", headline: "Paused", detail: { progress: 12 } }).word, "Paused");
+  assert.equal(printerNow(null).readout, "");
 });
 
 test("a Needs you item and a problem record about the same thing are listed once", () => {

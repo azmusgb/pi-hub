@@ -1,5 +1,5 @@
-// Home: the one-line answer, then six cards (one home, "Home cards"): Needs you, Workshop, Documents, Media,
-// Home & network and System. The wall display keeps its own layout.
+// Home: the one-line answer, then the control room (Now, Needs you, Since you last looked; next.js). The wall
+// display keeps its own layout and the house cards (home-cards.js).
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 import { homeCards, labLink, needsSummary } from "./home-cards.js";
@@ -1152,106 +1152,6 @@ function openCameraModal(p) {
   modal.showModal();
 }
 
-function renderHardwareHUD(p, cam) {
-  if (!p || !["printing", "paused"].includes(p.state)) return null;
-
-  const doneTime = Number.isFinite(p.minutes_left)
-    ? new Date(Date.now() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : "";
-
-  let inlineZoom = 1;
-  const inlineImg = h("img", {
-    class: "hud-cam-img",
-    src: `/api/camera.jpg?t=${Date.now()}`,
-    alt: "Bambu X2D Live Camera",
-    loading: "eager"
-  });
-
-  const btnInlineZoomIn = h("button", {
-    type: "button",
-    class: "hud-cam-btn",
-    title: "Zoom In",
-    onclick: (e) => {
-      e.stopPropagation();
-      inlineZoom = Math.min(3, inlineZoom * 1.3);
-      inlineImg.style.transform = `scale(${inlineZoom})`;
-    }
-  }, "+");
-
-  const btnInlineZoomOut = h("button", {
-    type: "button",
-    class: "hud-cam-btn",
-    title: "Zoom Out",
-    onclick: (e) => {
-      e.stopPropagation();
-      inlineZoom = Math.max(1, inlineZoom * 0.77);
-      inlineImg.style.transform = inlineZoom === 1 ? "none" : `scale(${inlineZoom})`;
-    }
-  }, "-");
-
-  const btnInlineExpand = h("button", {
-    type: "button",
-    class: "hud-cam-btn",
-    title: "Full Screen Inspection",
-    onclick: (e) => {
-      e.stopPropagation();
-      openCameraModal(p);
-    }
-  }, "⛶");
-
-  const camElem = cam?.ok ? h("div", {
-    class: "hud-cam-wrap",
-    style: "cursor: zoom-in;",
-    onclick: () => openCameraModal(p)
-  },
-    inlineImg,
-    h("div", { class: "hud-cam-controls" },
-      btnInlineZoomOut,
-      btnInlineZoomIn,
-      btnInlineExpand
-    ),
-    h("div", { class: "hud-cam-overlay" },
-      h("span", { class: "hud-pill-tag" }, `Layer ${p.layer_num || 0} / ${p.total_layers || 0}`),
-      h("span", { class: "hud-pill-tag hud-pill-time" }, `${p.left || ""}${doneTime ? ` · done ${doneTime}` : ""}`)
-    )
-  ) : null;
-
-  return h("section", { class: "hardware-hud-band", "aria-label": "Live Machinery" },
-    h("div", { class: "hud-header" },
-      h("div", { class: "hud-title-wrap" },
-        h("span", { class: "dot", dataset: { tone: "warn" } }),
-        h("strong", { class: "hud-title" }, "Bambu X2D"),
-        h("span", { class: "hud-badge-state" }, `${p.progress}% · ${String(p.state || "").replace(/^./, (c) => c.toUpperCase())}`)
-      ),
-      h("div", { class: "hud-temps" },
-        h("span", { class: "hud-temp-item" }, `Nozzle: ${p.nozzle_temp || 0}°C`),
-        h("span", { class: "hud-temp-item" }, `Bed: ${p.bed_temp || 0}°C`)
-      )
-    ),
-    camElem,
-    h("div", { class: "hud-progress-track" },
-      h("div", { class: "hud-progress-fill", style: `width: ${p.progress}%;` })
-    )
-  );
-}
-
-function renderQuickTray() {
-  const host = globalThis.location?.hostname || "";
-  const pills = [
-    { label: "🧪 Print Lab", href: "/lab", internal: true },
-    { label: "📦 Homebox", href: toolUrl("homebox", host), internal: false },
-    { label: "🛡️ System & Backups", href: "/system", internal: true },
-    { label: "📊 Network Monitor", href: toolUrl("network", host), internal: false },
-  ];
-  return h("nav", { class: "home-quick-tray", "aria-label": "Quick access" },
-    ...pills.map((p) => h("a", {
-      class: "quick-pill",
-      href: p.href,
-      ...(p.internal ? { "data-link": true } : { target: "_blank", rel: "noopener" })
-    }, p.label))
-  );
-}
-
 export function mount(state) {
   state.summary = h("p", { class: "summary", "aria-live": "polite", dataset: { tone: "none" } }, "Checking the house…");
   state.outside = h("div", { class: "outside-wrap" });
@@ -1275,18 +1175,15 @@ export function mount(state) {
     state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
-    state.hud = h("div", { class: "home-hud-mount" });
-    state.tray = renderQuickTray();
-    state.cards = h("div", { class: "home-cards" });
-    // The control room (Problems, Now, Since you last looked) sits under the printer band; its Problems list holds
-    // every Needs you item, and the Home tab's badge counts that list once Needs you has answered.
+    // Home is the control room: Now (the printer leads it), Needs you, Since you last looked (platform 5.5). The
+    // rail reaches every area, so Home carries no area cards or shortcut chips. The Home tab's badge counts Needs you
+    // once it has answered.
     state.homeMode = true;
     state.control = h("div", { class: "home-control" });
     mountControlRoom(state, state.control, { search: false });
     state.homeNeedsAnswered = false;
     state.onProblems = (probs) => { if (state.homeNeedsAnswered) setNeeds(problemsBadge(state.needs, probs)); };
-    // Problems first, above the printer's camera: what needs you shouldn't sit below the fold (iPad, 1 Nov).
-    state.root.append(state.hero, state.probSec, state.hud, state.control, state.tray, state.cards);
+    state.root.append(state.hero, state.control);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -1296,7 +1193,7 @@ export function mount(state) {
 
   if (state._camTimer) clearInterval(state._camTimer);
   state._camTimer = setInterval(() => {
-    const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img, .kiosk-cam-img");
+    const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img, .kiosk-cam-img, .cr-hero-cam-img");
     if (imgs.length && !document.hidden) {
       const ts = Date.now();
       imgs.forEach(img => { img.src = `/api/camera.jpg?t=${ts}`; });
@@ -1340,6 +1237,10 @@ export async function load(state) {
 
   if (isWallMode()) return loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
 
+  // Now's printer camera opens the full view; the camera answered or not decides whether Now shows it at all.
+  state.cameraOk = !!cam?.ok;
+  state.openCamera = () => openCameraModal(d.printer);
+
   // The line holds the hub's own words until Needs you answers; while the hub counts problems, it waits for Needs you
   // (the card and the badge carry the count), so no count flashes up and goes.
   const line = (text) => {
@@ -1348,26 +1249,13 @@ export async function load(state) {
     if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   };
   line(state.extra ? needsSummary(state.extra.needs, d.summary) : d.issues.length ? "" : d.summary);  // a refresh: the last answer
-  // The cards show now; Needs you, backups and the latest movie fill in as they answer (each gives up after 4 s), so
-  // the page never waits on them.
-  if (state.hud) {
-    const hudElem = renderHardwareHUD(d.printer, cam);
-    state.hud.replaceChildren(...(hudElem ? [hudElem] : []));
-  }
-  const draw = (extra) => state.cards.replaceChildren(
-    ...homeCards({ now: d, home, ...extra, problems: true }).map((c) => homeCard(c, cam, () => load(state))));
-  draw(state.extra || {});
+  // Needs you fills in when it answers (it gives up after 4 s), so the page never waits on it.
   loadControlRoom(state, state.extra ? state.extra.needs : null).catch(() => {});
-  Promise.all([
-    settle(api("/api/needs"), 4000, null),
-    settle(api("/api/system/backups"), 4000, null),
-    settle(api("/api/movies/latest"), 4000, null),
-  ]).then(([needs, backups, latest]) => {
+  settle(api("/api/needs"), 4000, null).then((needs) => {
     state.homeNeedsAnswered = true;
-    setControlNeeds(state, needs);  // renders Problems, which sets the badge
+    setControlNeeds(state, needs);  // renders Needs you, which sets the badge
     if (state.summary.isConnected) line(needsSummary(needs, d.summary));
-    state.extra = { needs, backups, latest };
-    if (state.cards.isConnected) draw(state.extra);
+    state.extra = { needs };
   });
 }
 
