@@ -140,6 +140,10 @@ def test_bambuddy_allow_list():
         assert sorted(re.search(r"\{([^}]*)\}", rule).group(1).replace(" ", "").split(",")) == want
     assert any("tcp dport 8000" in x and "ip6 saddr != ::1" in x for x in rules)
     assert any("ct original proto-dst 8000" in x and "meta nfproto ipv6" in x for x in rules)
+    # The camera failover's :8091 has no sign-in of its own: the same callers, on the Pi's own sockets.
+    cam = next(x for x in rules if "tcp dport 8091" in x and "ip saddr" in x)
+    assert sorted(re.search(r"\{([^}]*)\}", cam).group(1).replace(" ", "").split(",")) == want
+    assert any("tcp dport 8091" in x and "ip6 saddr != ::1" in x for x in rules)
     # Only connections Docker forwarded to a published port (DNAT), not anything else the Pi might ever route.
     assert all("ct status dnat" in x for x in rules if "ct original" in x)
 
