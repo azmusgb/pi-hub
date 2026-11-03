@@ -87,6 +87,12 @@ def test_over_plain_http_through_caddy_the_key_doesnt_count(fresh):
     {"kind": "failed", "title": "x", "click": "http://localai.home.arpa/"},
     {"kind": "failed", "title": "x", "click": "https://evil.example/"},
     {"kind": "failed", "title": "x", "dedupe": ""},
+    {"kind": "failed", "title": "x", "click": "https://evil.example\\@localai.home.arpa/"},
+    {"kind": "failed", "title": "x", "click": "https://user@localai.home.arpa/"},
+    {"kind": "failed", "title": "x", "click": "https://localai.home.arpa:8443/"},
+    {"kind": "failed", "title": "x", "click": "https://localai.home.arpa/ x"},
+    {"kind": "failed", "title": "x", "click": "https://localai.home.arpa/\u00e9"},
+    {"kind": "failed", "title": "x", "click": "https://localai.home.arpa.evil.example/"},
     ["not", "an", "object"],
 ])
 def test_invalid_notices_are_400(fresh, body):
@@ -104,6 +110,8 @@ def test_title_is_one_line_and_click_passes_through(fresh):
     r = post("localai", json={"kind": "failed", "title": "Run\r\nX-Evil: 1", "click": "https://localai.home.arpa/r/1"})
     assert r.status_code == 200
     assert fresh[0]["title"] == "Local AI: Run X-Evil: 1" and fresh[0]["click"] == "https://localai.home.arpa/r/1"
+    post("localai", json={"kind": "failed", "title": "y", "click": "https://LOCALAI.home.arpa?run=1#top"})
+    assert fresh[1]["click"] == "https://localai.home.arpa/?run=1#top"  # rebuilt from its parts
 
 
 def test_quiet_hours_hold_a_non_urgent_kind_and_pass_an_urgent_one(fresh, monkeypatch):
