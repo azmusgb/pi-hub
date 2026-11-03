@@ -28,7 +28,9 @@ test("Now's printer reads the record's own keys: percent, time left, layer, lab"
   assert.equal(m.readout, "47%");
   assert.equal(m.word, "Printing");
   assert.equal(m.facts[0], "v72 bracket");
-  assert.match(m.facts[1], /left, done 8:40/);
+  // The page says the time in the viewer's own clock style (20:40 on the Pi, 8:40 PM on the Mac).
+  const done = new Date(at + 100 * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  assert.equal(m.facts[1], `1 h 40 min left, done ${done}`);
   assert.equal(m.facts[2], "Layer 88 of 210");
   assert.equal(m.lab, "E-012");
   assert.deepEqual(m.actions, ["pause", "stop"]);
