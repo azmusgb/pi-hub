@@ -40,7 +40,7 @@ the PC; bash + curl for the check.
 | 53 | AdGuard DNS | open (the names depend on it) |
 | 80, 443 | Caddy, the gate | open |
 | 8000 | Bambuddy | allow-list: loopback, Docker bridges, 10.0.0.21 (Local AI calls it with an API key), the Mac (print-lab), the Workshop display 10.0.0.124 (clears the plate itself when the PC is off). The Mac needs a DHCP reservation on the Orbi for its address (owner); until then print-lab sets `LAB_BAMBUDDY_URL` itself |
-| 8091 | X2D camera frames | open: the Workshop display (10.0.0.124) reads `http://10.0.0.30:8091/x2d/frame.jpg` (found during Task 3) |
+| 8091 | X2D camera frames | allow-list, the same as 8000 (owner's call, 3 Nov 2026, when the display camera became canonical): the Workshop display (10.0.0.124) reads `http://10.0.0.30:8091/x2d/frame.jpg`, Local AI's server on the PC proxies it for print-lab, the hub reads it on 127.0.0.1. The failover has no sign-in of its own |
 | 32400 | Plex | open (players on the TV and phones need it; not a gated tool) |
 | 51125, 45665 | Homebridge's HomeKit bridges | open (HomeKit needs them); only the UI, 8581, closes |
 | 60000 | ipp-usb (AirPrint) | open |

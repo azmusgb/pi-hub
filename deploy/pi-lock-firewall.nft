@@ -1,9 +1,12 @@
 #!/usr/sbin/nft -f
-# One home, step 6 (lock): Bambuddy's :8000 answers only its machine callers. The browser way in is the gate,
+# One home, step 6 (lock): Bambuddy's :8000 and the camera's :8091 answer only their machine callers. The browser way in is the gate,
 # https://bambuddy.rahe-home.duckdns.org (Caddy reaches it on 127.0.0.1). Its own table, so Docker rebuilding its tables never
 # removes it. Two ways in: Docker's NAT (forward, matched on the port the caller dialled: ct original) and docker-proxy's
 # own sockets on 0.0.0.0/[::] (input). Forward matches only connections Docker NATed to a published port (ct status dnat). IPv6 only from the
 # Pi itself.
+# The X2D camera failover's :8091 (a host service, not Docker, so input only) answers the same callers: it has no
+# sign-in of its own. The display reads its frames, Local AI's server on the PC proxies them, the hub reads them
+# on 127.0.0.1, and the Mac tests them.
 #   127.0.0.0/8, 172.16.0.0/12  the Pi itself and its containers
 #   10.0.0.30                   the Pi by its LAN address (Uptime Kuma, on host networking)
 #   10.0.0.21                   the PC: Local AI's Materials and printer control, with Bambuddy API keys
@@ -23,5 +26,7 @@ table inet pi_lock {
 		type filter hook input priority filter - 1; policy accept;
 		tcp dport 8000 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124, 100.78.96.97, 100.109.178.34 } drop
 		tcp dport 8000 ip6 saddr != ::1 drop
+		tcp dport 8091 ip saddr != { 127.0.0.0/8, 172.16.0.0/12, 10.0.0.30, 10.0.0.21, 10.0.0.16, 10.0.0.124, 100.78.96.97, 100.109.178.34 } drop
+		tcp dport 8091 ip6 saddr != ::1 drop
 	}
 }
