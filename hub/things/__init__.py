@@ -24,7 +24,7 @@ def _lab():
     """The print lab's view, asked only while the printer's current record is printing or paused."""
     from .. import sources
     rec = records.get("printer")
-    return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
+    return sources.lab_printing() if rec and rec["state"] in ("printing", "paused") else None
 
 
 def _homebridge_login():

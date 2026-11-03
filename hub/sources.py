@@ -231,11 +231,6 @@ def localai_feed_cached():
 LAB_EXPERIMENT = re.compile(r"E-\d{1,6}")
 
 
-def _localai_lab_projects():
-    # Local AI's print lab list: each project with `live`, the experiment that is printing (Print lab page, 26 Oct).
-    return display_ai.call("/api/lab/projects")
-
-
 def _stored_lab():
     """The experiment currently printing according to Pi Hub's own lab_projects table, or None."""
     try:
@@ -257,21 +252,10 @@ def _stored_lab():
     return None
 
 
-def _localai_lab():
-    stored = _stored_lab()
-    if stored:
-        return stored
-    projects = (_localai_lab_projects() or {}).get("projects")
-    for p in projects if isinstance(projects, list) else []:
-        exp = ((p or {}).get("live") or {}).get("experiment") if isinstance(p, dict) else None
-        if isinstance(exp, str) and LAB_EXPERIMENT.fullmatch(exp):
-            return {"experiment": exp}
-    return None
-
-
-def localai_lab():
-    """The print lab experiment that is printing, as {"experiment": "E-020"}, or None (none, or Local AI is quiet)."""
-    return cached("localai-lab", 30, _localai_lab)
+def lab_printing():
+    """The print lab experiment that is printing, as {"experiment": "E-020"}, or None. Pi Hub's own lab store only: Local AI's
+    copy stopped receiving syncs on 28 Oct 2026, so it is never asked (platform step 6, PR 6.3)."""
+    return cached("lab-printing", 30, _stored_lab)
 
 
 def _world():

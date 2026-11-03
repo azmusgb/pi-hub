@@ -283,7 +283,7 @@ def test_camera_says_why_when_the_printer_shares_no_video(monkeypatch):
     assert c.get("/api/camera").json()["reason"] is None
 
 
-# ---- Print lab link: the printer card links Local AI's Print lab while a lab experiment is printing ----
+# ---- Print lab link: the printer card links the print lab while a lab experiment is printing ----
 
 def test_lab_link_only_while_a_lab_experiment_prints():
     lab = {"experiment": "E-020"}
@@ -295,42 +295,32 @@ def test_lab_link_only_while_a_lab_experiment_prints():
     assert "lab" not in now.printer(HEALTHY, None, None)
 
 
-def test_localai_lab_reads_the_projects_feed(monkeypatch):
-    monkeypatch.setattr(sources, "_stored_lab", lambda: None)
-    feed = {"projects": [{"name": "other", "live": None}, {"name": "hex-tile", "live": {"experiment": "E-020", "state": "printing"}}]}
-    monkeypatch.setattr(sources, "_localai_lab_projects", lambda: feed)
-    sources._cache.pop("localai-lab", None)
-    assert sources.localai_lab() == {"experiment": "E-020"}
-    for bad in ({"projects": [{"live": {"experiment": "<img src=x>"}}]}, {"projects": [{"live": None}]}, {"projects": "x"}, None):
-        monkeypatch.setattr(sources, "_localai_lab_projects", lambda bad=bad: bad)
-        sources._cache.pop("localai-lab", None)
-        assert sources.localai_lab() is None
-
-    def down():
-        raise OSError("no route")
-    monkeypatch.setattr(sources, "_localai_lab_projects", down)
-    sources._cache.pop("localai-lab", None)
-    assert sources.localai_lab() is None
-
-
-def test_localai_lab_prefers_the_hubs_own_stored_lab(monkeypatch, tmp_path):
+def test_lab_printing_reads_only_the_hubs_own_store(monkeypatch, tmp_path):
     import json
-    from hub import db, lab
+    from hub import db, display_ai, lab
+    asked = []
+    monkeypatch.setattr(display_ai, "call", lambda path, *a, **k: asked.append(path))
     monkeypatch.setenv("HUB_DB", str(tmp_path / "lab-live.db"))
     lab._ready_dbs.clear()
     lab.ready()
+    sources._cache.pop("lab-printing", None)
+    assert sources.lab_printing() is None  # nothing printing: no fallback to Local AI
     db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', ?, 'x')",
            "hex-tile", json.dumps({"experiments": [{"id": "E-021", "status": "answered"}, {"id": "E-022", "status": "printing"}]}))
-    monkeypatch.setattr(sources, "_localai_lab_projects", lambda: (_ for _ in ()).throw(OSError("PC is off")))
-    sources._cache.pop("localai-lab", None)
-    assert sources.localai_lab() == {"experiment": "E-022"}
+    sources._cache.pop("lab-printing", None)
+    assert sources.lab_printing() == {"experiment": "E-022"}
+    db.run("UPDATE lab_projects SET index_json = ?", json.dumps({"experiments": [{"id": "<img src=x>", "status": "printing"}]}))
+    sources._cache.pop("lab-printing", None)
+    assert sources.lab_printing() is None
+    assert not any(p.startswith("/api/lab") for p in asked if p)
+    assert not hasattr(sources, "_localai_lab_projects")
 
 
 def test_now_and_workshop_carry_the_lab_link(monkeypatch):
     hold(monkeypatch, recs(b={**RUNNING, "job_name": "hex-tile_E-020_BLD-020-01.gcode.3mf"}, lab={"experiment": "E-020"}))
     monkeypatch.setattr(sources, "pi_status", lambda: HEALTHY)
     monkeypatch.setattr(sources, "bambuddy_printer", lambda: None)
-    monkeypatch.setattr(sources, "localai_lab", lambda: {"experiment": "E-020"})
+    monkeypatch.setattr(sources, "lab_printing", lambda: {"experiment": "E-020"})
     c = TestClient(hub_app.app)
     assert c.get("/api/now").json()["printer"]["lab"] == {"experiment": "E-020"}
     idle = recs(b=bud("IDLE"), lab={"experiment": "E-020"})
