@@ -1,7 +1,7 @@
 // Home merged with the Control room (31 Oct 2026): Now / Needs you / Since on `/` (2 Nov), `/next` redirects to `/`.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames } from "../hub/static/js/next.js";
+import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames, shortWhen, markNew } from "../hub/static/js/next.js";
 import { homeCards } from "../hub/static/js/home-cards.js";
 import { redirectFor } from "../hub/static/js/sections.js";
 
@@ -104,4 +104,19 @@ test("a need keeps its link and takes since from the record it stands for", () =
   const [p] = mergeProblems([{ id: "pi", severity: "attention", headline: "Pi 66 °C", since: 1_800_000_000 }], needs);
   assert.equal(p.link, "/pi");
   assert.equal(p.since, 1_800_000_000);
+});
+
+test("times today drop \"Today,\"; yesterday stays named, in lower case mid-sentence", () => {
+  const noon = new Date(); noon.setHours(12, 5, 0, 0);
+  assert.doesNotMatch(shortWhen(noon.getTime() / 1000), /Today/);
+  const y = new Date(noon); y.setDate(y.getDate() - 1);
+  assert.match(shortWhen(y.getTime() / 1000), /^yesterday, /);
+  assert.equal(shortWhen(null), "—");
+});
+
+test("new rows are marked only among older ones", () => {
+  assert.deepEqual(markNew([{ ts: 30 }, { ts: 20 }], 10), [false, false]);  // all new: the count says it
+  assert.deepEqual(markNew([{ ts: 30 }, { ts: 5 }], 10), [true, false]);
+  assert.deepEqual(markNew([{ ts: 30 }], 0), [false]);  // never looked: nothing to compare against
+  assert.deepEqual(markNew([], 10), []);
 });
