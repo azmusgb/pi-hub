@@ -28,7 +28,11 @@ def mac_key_ok(request: Request) -> bool:
     expected = _expected()  # read each time, so a new key takes effect without a restart
     if not key or not expected:
         return False
-    return hmac.compare_digest(hashlib.sha256(key.encode()).hexdigest().encode(), expected)
+    ok = hmac.compare_digest(hashlib.sha256(key.encode()).hexdigest().encode(), expected)
+    if ok:
+        from . import mac_lab
+        mac_lab.note_contact()  # the mac_lab record's "last heard from the Mac"
+    return ok
 
 
 def require_mac(request: Request) -> None:
