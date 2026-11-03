@@ -36,6 +36,7 @@ INVALID = "That release report isn't valid."
 KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac", "print-lab": "mac"}
 KEY_DIR = os.environ.get("HUB_DEPLOY_KEY_DIR", "/etc/pi-hub/secrets/deploy_keys")
 MAX_BODY = 4096
+PROBE_LAG = 180  # seconds after a deploy a probe showing the previous version is a lagging probe, not drift
 
 for _t, _label in TARGETS.items():
     records.LABELS[PREFIX + _t] = _label + " deploy"
@@ -269,6 +270,10 @@ def _verify(target, running, by, now):
         if not commit or not HEX.fullmatch(running or ""):
             return None
         drift = None if _same(commit, running) else commit
+        # Just after a deploy a probe can still show the version before it (pi-status caches Local AI's /healthz for
+        # 60 s): that isn't drift yet. The same reading after PROBE_LAG is.
+        if drift and _same(detail.get("previous") or "", running) and now - (detail.get("deployed_at") or 0) < PROBE_LAG:
+            return prev
         if drift == detail.get("drift_from") and (detail.get("verified") or {}).get("commit") == running:
             return prev
         detail["verified"] = {"commit": running, "at": now, "by": by}
