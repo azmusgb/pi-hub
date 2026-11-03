@@ -75,3 +75,14 @@ test("a deploy from uncommitted changes says so after its commit", () => {
   const src = readFileSync(new URL("../hub/static/js/versions.js", import.meta.url), "utf8");
   assert.match(src, /v\.dirty \? " \+ local changes"/);
 });
+
+test("Atlas-kept repos link to Architecture at this commit on Local AI; others don't", () => {
+  const rows = versionRows([live("pi-hub"), live("mac-watch"), live("firmware"), rec("print-lab", "unknown")]);
+  assert.equal(rows[0].atlas, `https://localai.home.arpa/#architecture?repo=pi-hub&commit=${A}`);
+  assert.equal(rows[1].atlas, `https://localai.home.arpa/#architecture?repo=localai&commit=${A}`);
+  assert.equal(rows[2].atlas, "");
+  assert.equal(rows[3].atlas, undefined);
+  const [bad] = versionRows([rec("localai", "live", { commit: "not-a-sha" })]);
+  assert.equal(bad.atlas, "");
+});
+
