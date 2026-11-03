@@ -596,10 +596,16 @@ html {
   .top-assistant { display: inline-flex; }
 }
 
-/* Phone top bar, the same on every page: title and Assistant on one line, the clock under them. */
+/* Phone top bar, the same on every page: title, Search and Assistant on one line, the clock under them. */
 @media (max-width: 860px) {
-  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem 1rem; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .35rem .5rem; }
   .top .clock { grid-column: 1 / -1; justify-self: start; }
+  .top .top-cmd-btn { margin-left: 0; }
+}
+/* Narrow phones: the Assistant keeps its icon and its accessible name, and gives the title the room. */
+@media (max-width: 480px) {
+  .top-assistant { width: 44px; padding: 0; justify-content: center; }
+  .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .rail-assistant[aria-disabled], .top-assistant[aria-disabled] { cursor: not-allowed; }
 

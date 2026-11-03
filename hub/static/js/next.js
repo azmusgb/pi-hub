@@ -118,6 +118,18 @@ export function printerNow(r, nowMs = Date.now()) {
   };
 }
 
+// A time as the page says it: today's times need no "Today,"; other days keep their day ("yesterday, 9:37 PM").
+export function shortWhen(ts) {
+  if (!(Number(ts) > 0)) return "—";  // when() reads null as 1970
+  return when(ts).replace(/^Today, /, "").replace(/^Yesterday,/, "yesterday,");
+}
+
+// Only rows that are new among older ones are marked; when every row is new, the count above already says so.
+export function markNew(events = [], lastSeen = 0) {
+  const fresh = events.map((e) => lastSeen > 0 && (e?.ts || 0) > lastSeen);
+  return fresh.every(Boolean) ? fresh.map(() => false) : fresh;
+}
+
 export function calmSummaryText(calm = []) {
   if (!calm.length) return "";
   const names = calm.map((r) => RECORD_LABELS[r.id] || r.id);
@@ -458,7 +470,7 @@ function renderProblemRow(p, state, onReload) {
     h("div", { class: "log-main" },
       h("strong", {}, p.title),
       p.detail ? h("span", { class: "meta" }, p.detail) : null,
-      p.since ? h("span", { class: "meta" }, `Since ${when(p.since)}`) : null),
+      p.since ? h("span", { class: "meta" }, `Since ${shortWhen(p.since)}`) : null),
     actButtons.length ? h("div", { class: "cr-row-side" }, ...actButtons) : null);
 }
 
@@ -513,19 +525,21 @@ function renderControlRoom(state) {
   const unseen = state.lastSeen > 0 ? events.filter((e) => (e.ts || 0) > state.lastSeen) : events;
   const shownEvents = state.showAllEvents ? events : (unseen.length ? unseen : events.slice(0, 8));
   const pillText = unseen.length
-    ? `${unseen.length} new since ${when(state.lastSeen)}`
+    ? `${unseen.length} new since ${shortWhen(state.lastSeen)}`
     : events.length ? "Up to date" : "Quiet";
 
-  const sinceCard = card("Since you last looked", { cls: "wide", pill: pillText, tone: "ok" },
-      shownEvents.length
+  const listed = shownEvents.slice(0, 20);
+  const fresh = markNew(listed, state.lastSeen);
+  const sinceBody = [
+      listed.length
         ? h("ul", { class: "log cr-list" },
-          shownEvents.slice(0, 20).map((ev) => {
-            const isNew = state.lastSeen > 0 && ev.ts > state.lastSeen;
+          listed.map((ev, i) => {
+            const isNew = fresh[i];
             const tone = recordTone(ev.severity);
             const href = RECORD_PATHS[ev.thing] || "/";
             // A timeline: the time first, then what changed, the dot marking anything that went wrong.
             return h("li", { class: "log-row cr-since-row", dataset: { new: isNew ? "true" : "false", tone } },
-              h("span", { class: "cr-since-when" }, when(ev.ts)),
+              h("span", { class: "cr-since-when" }, shortWhen(ev.ts)),
               h("span", { class: "log-main" },
                 h("a", { href, "data-link": true }, h("strong", {}, ev.label || RECORD_LABELS[ev.thing] || ev.thing)),
                 h("span", { class: "meta" }, ev.headline || `${ev.old ? `${ev.old} → ` : ""}${ev.new}`),
@@ -556,17 +570,18 @@ function renderControlRoom(state) {
             },
           }, state.showAllEvents ? "Show fewer" : `Show all (${Math.min(events.length, 20)})`)
           : null,
-        h("a", { class: "action ghost", href: "/alerts", "data-link": true }, "Full alert history")));
-  // On Home it starts collapsed to one line with its count; it keeps whatever the owner last chose until they leave.
+        h("a", { class: "action ghost", href: "/alerts", "data-link": true }, "Full alert history"))];
+  // On Home it starts collapsed to one line with its count, and the line is its only heading; it keeps whatever the
+  // owner last chose until they leave.
   if (home) {
     const box = h("details", { class: "cr-since-details" },
-      h("summary", { class: "cr-since-summary" }, h("strong", {}, "Since you last looked"), h("span", { class: "meta" }, ` · ${pillText}`)),
-      sinceCard);
+      h("summary", { class: "cr-since-summary" }, h("strong", {}, "Since you last looked"), h("span", { class: "meta" }, pillText)),
+      h("section", { class: "card wide cr-since-card", "aria-label": "Since you last looked" }, ...sinceBody));
     box.open = !!state.sinceOpen;
     box.addEventListener("toggle", () => { state.sinceOpen = box.open; });
     state.sinceSec.replaceChildren(box);
   } else {
-    state.sinceSec.replaceChildren(sinceCard);
+    state.sinceSec.replaceChildren(card("Since you last looked", { cls: "wide", pill: pillText, tone: "ok" }, ...sinceBody));
   }
   if (typeof state.onProblems === "function") state.onProblems(probs);
 
