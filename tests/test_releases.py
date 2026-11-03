@@ -261,6 +261,21 @@ def test_localai_drift():
     assert releases.verify_localai(T + 30, {"ai_release": A})["state"] == "live"
 
 
+def test_a_probe_still_showing_the_previous_version_just_after_a_deploy_is_not_drift():
+    for at, commit in ((T, B), (T + 100, A)):  # B was live; A deploys at T + 100
+        releases.put("localai", releases.valid("localai", {**report(commit=commit, at=at), "mechanism": "safe-deploy"}, at + 1), at + 1)
+    assert records.get("release:localai")["detail"]["previous"] == B
+    assert releases.verify_localai(T + 160, {"ai_release": B})["state"] == "live"  # 60 s after: pi-status's cache
+    assert releases.verify_localai(T + 100 + releases.PROBE_LAG + 1, {"ai_release": B})["state"] == "drifted"
+    assert releases.verify_localai(T + 400, {"ai_release": A})["state"] == "live"
+
+
+def test_a_different_commit_just_after_a_deploy_is_still_drift():
+    for at, commit in ((T, B), (T + 100, A)):
+        releases.put("localai", releases.valid("localai", {**report(commit=commit, at=at), "mechanism": "safe-deploy"}, at + 1), at + 1)
+    assert releases.verify_localai(T + 120, {"ai_release": "c" * 40})["state"] == "drifted"
+
+
 def test_pc_asleep_is_not_drift():
     r = releases.valid("localai", {**report(), "mechanism": "safe-deploy"}, T + 10)
     releases.put("localai", r, T + 10)
