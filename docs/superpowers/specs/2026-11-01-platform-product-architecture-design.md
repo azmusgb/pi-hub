@@ -1022,5 +1022,5 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   navigation are specified. Adds route `/assistant` and migration step 7a.
 - **A5. C1's off-site copy goes to Google Drive** (`2026-11-04-amendment-a5-c1-google-drive.md`): restic's rclone
   backend writes to a `drive.file`-scoped folder in the owner's existing Google One plan instead of a new B2 bucket.
-  The done criteria and the `offsite-backup` heartbeat are unchanged. Carries the owner decision on whether
-  HealthData leaves the house.
+  The done criteria and the `offsite-backup` heartbeat are unchanged. HealthData stays in the house in its own
+  USB-only repo (owner, 4 Nov 2026).

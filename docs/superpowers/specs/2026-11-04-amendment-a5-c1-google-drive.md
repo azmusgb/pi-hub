@@ -1,6 +1,6 @@
 # Amendment A5: C1's off-site copy goes to Google Drive, not Backblaze B2
 
-Date: 2026-11-04 · Status: **proposed** (approved when the owner merges this PR) · Amends: the platform baseline
+Date: 2026-11-04 · Status: **proposed** (approved when the owner merges this PR; the HealthData choice below is already the owner's, 4 Nov 2026) · Amends: the platform baseline
 (`2026-11-01-platform-product-architecture-design.md`, section 12 C1, D2's `offsite-backup` check and section 10's
 "The Pi lost" row).
 
@@ -66,17 +66,20 @@ Drive completes successfully". Nothing else in D2 changes.
   image drops it, the backup fails loudly, the ping is withheld and the alarm fires. The plan records the versions in
   use.
 
-## Decision for the owner: what the Mac repo sends off site
+## HealthData stays in the house (owner's decision, 4 November 2026)
 
-The Mac's restic repo (`mac`) includes `~/HealthData` and `~/.ssh` (`~/.config/restic/mac-backup.sh:16`). C1 copies
-that repo off site. The owner's standing preference is that health data stays local only.
+The Mac's restic repo (`mac`) included `~/HealthData` and `~/.ssh` (`~/.config/restic/mac-backup.sh:16`), and C1 copies
+that repo off site. The owner's standing preference is that health data stays local only. Even though Google would hold
+only ciphertext, the owner chose to keep it out of the off-site copy altogether:
 
-1. **Send the Mac repo as it is.** Google holds only ciphertext and the passwords stay off Google, so nothing readable
-   leaves the house. It is the simplest option.
-2. **Split HealthData into its own Mac repo that stays on the USB only (recommended).** The off-site `mac` repo then
-   carries `~/dev`, `~/PycharmProjects`, `~/.ssh` and `~/.claude/projects`. `~/.ssh` stays in, because keys lost with
-   the house are what an off-site copy is for. This matches the local-only ruling literally: health data never leaves
-   the house, even encrypted. Cost: one more Mac repo and one more line in the Mac's nightly script.
+- `~/HealthData` moves to its own Mac repo, `mac-health`, at `/mnt/usb1/backups/restic/mac-health` on the Pi's USB drive.
+  No off-site plan ever includes it.
+- Every existing `mac` snapshot is rewritten without `~/HealthData` and pruned, so no older snapshot still carries it.
+- Everything else in `mac` goes off site, `~/.ssh` included, because keys lost with the house are what an off-site copy is
+  for.
+- **Gate:** the first off-site upload doesn't start until a `restic ls` of every `mac` snapshot shows no HealthData path.
+
+The C1 plan (step C1.1b) carries the procedure and its evidence.
 
 ## Not changed
 
@@ -87,4 +90,4 @@ the USB repos (`pi-nightly`, the Mac's 01:30 backup) and their retention.
 ## Acceptance (for this amendment)
 
 - `## Amendments` in the baseline names A5. When this PR is merged, C1, D2 and section 10 read as above.
-- The C1 plan (pi-hub #71) targets Google Drive, depends on A5, and carries the HealthData decision.
+- The C1 plan (pi-hub #71) targets Google Drive, depends on A5, and gates the first upload on the HealthData split.
