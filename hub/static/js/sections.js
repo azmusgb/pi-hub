@@ -45,11 +45,12 @@ export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-var
 // A tool's address with a path kept (a deeper page of the tool): null for an id that isn't in the registry.
 export const toolPath = (name, path = "") => registryUrl(name, path);
 
-// A movie's page in Plex, or Plex's front page: the registry's address (behind the gate), never a port on the Pi.
+// A movie's page in Plex's own web app (the registry's address, app.plex.tv), or Plex's front door when the hub doesn't know
+// the server's id or the movie's key. Never a port on the Pi: the household reaches the library through Plex's own app.
 export function plexUrl(machine, key) {
   return machine && key
-    ? toolPath("plex", `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}`)
-    : toolPath("plex", "/web");
+    ? toolPath("plex", `#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}`)
+    : toolPath("plex");
 }
 
 // The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
