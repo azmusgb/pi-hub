@@ -65,9 +65,46 @@ function shortcutsCard(state, keys, save) {
     steps(shown));
 }
 
+// The six groups, one per screen (A6, decision settings): a strip of their names, and the group the address (#group-…)
+// or the last tap chose. A refresh redraws the page every minute, so the choice lives on `state`, not in the DOM.
+export const GROUPS = [
+  ["general", "General", ["Appearance"]],
+  ["home", "Home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
+  ["outside", "Weather and calendar", ["Weather", "Calendar"]],
+  ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
+  ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
+  ["pi", "The Pi", ["Backups", "Activity"]],
+];
+
+const groupFromHash = () => {
+  const id = String(globalThis.location?.hash || "").replace(/^#group-/, "");
+  return GROUPS.some(([key]) => key === id) ? id : null;
+};
+
+function showGroup(state) {
+  for (const g of state.root.querySelectorAll(".settings-group")) g.hidden = g.id !== `group-${state.group}`;
+  for (const a of state.root.querySelectorAll(".settings-tabs a")) {
+    if (a.getAttribute("href") === `#group-${state.group}`) a.setAttribute("aria-current", "true");
+    else a.removeAttribute("aria-current");
+  }
+}
+
 export function mount(state) {
+  state.group = groupFromHash() || GROUPS[0][0];
+  // A tap on a tab, or a step's link, changes the address: show the group it names. An unknown name changes nothing.
+  state.onHash = () => {
+    const id = groupFromHash();
+    if (!id) return;
+    state.group = id;
+    showGroup(state);
+  };
+  window.addEventListener("hashchange", state.onHash);
   state.body = h("div", { class: "stack" });
   state.root.append(state.body);
+}
+
+export function leave(state) {
+  window.removeEventListener("hashchange", state.onHash);
 }
 
 function setup(state) {
@@ -204,14 +241,6 @@ export async function load(state) {
   );
   parts.unshift(appearanceCard);
 const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
-  const GROUPS = [
-    ["general", "General", ["Appearance"]],
-    ["home", "Home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
-    ["outside", "Weather and calendar", ["Weather", "Calendar"]],
-    ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
-    ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
-    ["pi", "The Pi", ["Backups", "Activity"]],
-  ];
   const steps = [
     ["Connect Homebridge", d.homebridge.connected, "home", "so lights and plugs work from the hub"],
     ["Set your town", !!d.place, "outside", "for the weather and the wall's day and night"],
@@ -227,10 +256,12 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
         h("span", { class: "dot", dataset: { tone: done ? "ok" : "warn" } }),
         done ? h("span", {}, h("s", {}, label)) : h("a", { href: `#group-${group}` }, label),
         h("span", { class: "meta" }, done ? "Done" : why))))) : null,
-    h("nav", { class: "jump", "aria-label": "Settings sections" }, GROUPS.map(([id, title]) => h("a", { class: "chip", href: `#group-${id}` }, title))),
+    h("nav", { class: "tabs page-strip settings-tabs", "aria-label": "Settings sections" },
+      GROUPS.map(([id, title]) => h("a", { href: `#group-${id}` }, title))),
     ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
       h("h2", { class: "group-title", id: `group-${id}-title` }, title),
       h("div", { class: "cards" }, names.map((n) => byTitle[n]).filter(Boolean)))),
     h("button", { class: "ghost", onclick: async () => { await post("/api/signout"); forgetMe(); toast("Signed out on this device."); load(state); } }, "Sign out on this device"),
   );
+  showGroup(state);
 }
