@@ -277,7 +277,9 @@ def execute(rule, kind, detail=""):
             a = items.get(rule["target"])
             if not a or not a["control"]:
                 return {"status": "blocked", "message": "That accessory isn't in Homebridge any more."}
-            was_on = a.get("on", False)
+            was_on = a.get("on")
+            if was_on is None:  # nothing true to restore: a lamp that was really on would be left off
+                return {"status": "blocked", "message": f"{a['name']}'s state isn't known, so it wasn't flashed."}
             homecontrol.set_value(a["id"], a["control"], not was_on)
             time.sleep(1.2)
             homecontrol.set_value(a["id"], a["control"], was_on)
