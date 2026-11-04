@@ -150,3 +150,9 @@ def test_api_freshness_reads_the_records(monkeypatch):
     monkeypatch.setattr(sources, 'pi_status', lambda: pytest.fail('Freshness must not poll'))
     rows = TestClient(hub_app.app).get('/api/freshness').json()['readings']
     assert {r['key'] for r in rows} >= {'pi', 'movies_drive', 'devices', 'calendar'}
+
+
+def test_unmounted_movies_drive_points_at_the_drives_page(monkeypatch):
+    monkeypatch.setattr(system, 'movies_mounted', lambda: False)
+    step = actions.verify('remount:movies')['next_step']
+    assert 'open Drives' in step and 'movie storage' not in step

@@ -120,7 +120,7 @@ test('Storage is three names today and Drives, Movies drive and Pi disks after A
   const dom = install();
   try {
     const c = driveCard({ state: 'Connected', count: 3 }, []);
-    assert.equal(text(c.querySelector('h2, h3')), 'Movies drive');
+    assert.equal(text(c.querySelector('h2, h3')), 'Movies drive status');
   } finally { dom.uninstall(); }
   const health = read('hub/static/js/health.js');
   assert.match(health, /function storageCard[\s\S]{0,200}"Pi disks"/);
@@ -186,4 +186,22 @@ test('the Site map lists every page and every registry tool, built from routes.j
   for (const t of TOOLS) assert.ok(listed.includes(t.id), `tool ${t.id}`);
   for (const g of map) for (const p of g.pages) assert.ok(p.label && !p.label.startsWith('/'), `${p.href} has a name`);
   assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
+});
+
+test('no card or description still says Storage once the page is Drives (A6 N2 review)', async () => {
+  const health = read('hub/static/js/health.js');
+  assert.ok(!/"Storage"/.test(health) && !/Storage information/.test(health) && !/`\$\{storageItem\?\.name \|\| "Storage"\}/.test(health));
+  assert.ok(!/\bstorage\b/i.test(read('hub/static/js/wall.js')), 'wall descriptions say drives, not storage');
+});
+
+test('Media\'s drive card is not named like the Drives page card', async () => {
+  const { driveCard } = await import('../hub/static/js/movies.js');
+  const dom = install();
+  try {
+    const c = driveCard({ state: 'Connected', count: 3 }, []);
+    const title = text(c.querySelector('h2, h3'));
+    assert.equal(title, 'Movies drive status');
+    assert.notEqual(title, 'Movies drive');
+  } finally { dom.uninstall(); }
+  assert.match(read('hub/static/js/drives.js'), /x\.is_movies \? "Movies drive"/);
 });
