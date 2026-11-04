@@ -21,15 +21,15 @@ import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
 import * as versionsPage from "./versions.js";
+import * as assistantPage from "./assistant.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
-// The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
-// (set as the person reaches for it, so they are the ones on screen).
+// The Assistant button goes to Local AI inside Pi Hub
 for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-  a.href = toolUrl("assistant");
+  a.href = "/assistant";
+  a.setAttribute("data-link", "");
   const fill = () => { if (current && !a.hasAttribute("aria-disabled")) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
-  for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
-  a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
+  for (const ev of ["pointerdown", "focus"]) a.addEventListener(ev, fill);
 }
 // "The PC is off" while the Pi's status service says Local AI is down; checked now, every minute, and when the page
 // comes back into view (a phone wakes with an hour-old answer otherwise).
@@ -72,6 +72,7 @@ const notFoundPage = {
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
+  "/assistant": { key: "assistant", title: "Assistant", mod: assistantPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },

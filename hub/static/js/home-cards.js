@@ -116,7 +116,7 @@ export function assistantCard(ai, host, needs) {
     title: "Local AI",
     status,
     tone: withNeeds(tone, needs),
-    action: { label: down ? "Open Local AI ↗" : "Ask Assistant ↗", href: toolUrl("assistant", host) },
+    action: { label: down ? "Open Assistant" : "Ask Assistant", href: "/assistant" },
     link: { label: "Health", href: "/system" },
   };
 }

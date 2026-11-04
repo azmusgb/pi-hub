@@ -5,6 +5,7 @@ export const ASSISTANT_URL = "https://assistant.rahe-home.duckdns.org/";
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
+  { key: "assistant", title: "Assistant", path: "/assistant", pages: ["/assistant"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
@@ -13,7 +14,7 @@ export const SECTIONS = [
 ];
 
 // On the phone, Home & network and System sit under More.
-const PHONE = ["home", "workshop", "documents", "media", "more"];
+const PHONE = ["home", "assistant", "workshop", "documents", "media", "more"];
 
 const REDIRECTS = {
   "/next": "/",  // the control room is on Home since 31 Oct 2026
@@ -71,7 +72,7 @@ export function assistantHref(host, title, facts) {
     if (/[\uD800-\uDBFF]/.test(text[cut - 1])) cut -= 1;  // never half an emoji: encodeURIComponent throws on one
     text = text.slice(0, cut) + "…";
   }
-  return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
+  return `/assistant?context=${encodeURIComponent(text)}`;
 }
 
 // When the Pi's status service says Local AI is down, the button says so and can't be pressed. "Unknown" isn't "off".

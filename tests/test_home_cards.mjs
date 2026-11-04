@@ -34,7 +34,7 @@ test('each card has a status line and one main action in task words', () => {
   assert.deepEqual(c.workshop.action, { label: 'Open Bambuddy ↗', href: 'https://bambuddy.rahe-home.duckdns.org/' });
   assert.equal(c.assistant.title, 'Local AI');
   assert.equal(c.assistant.status, 'Checking Local AI status…');
-  assert.deepEqual(c.assistant.action, { label: 'Ask Assistant ↗', href: 'https://assistant.rahe-home.duckdns.org/' });
+  assert.deepEqual(c.assistant.action, { label: 'Ask Assistant', href: '/assistant' });
   assert.deepEqual(c.documents.action, { label: 'Find a document', href: '/documents' });
   assert.deepEqual(c.documents.link, { label: 'Scan ↗', href: 'https://scan.rahe-home.duckdns.org/' });
   assert.equal(c.media.status, 'Now playing: Arrival · Latest: Dune');
