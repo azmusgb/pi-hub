@@ -6,7 +6,7 @@
 set -uo pipefail
 CA=/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt  # the old name's CA (home.home.arpa, the display)
 R=rahe-home.duckdns.org
-NAMES=(assistant bambuddy paperless homebox backups network status adguard devices pi scan)
+NAMES=(assistant bambuddy paperless homebox backups network status adguard devices pi scan plex)
 fail=0
 say() { printf '%-34s %s\n' "$1" "$2"; [ "$2" = ok ] || fail=1; }
 get() { curl -s --max-time 10 --resolve "$1.$R:443:127.0.0.1" -o /dev/null -w '%{http_code} %{redirect_url}' "${@:2}" "https://$1.$R/"; }

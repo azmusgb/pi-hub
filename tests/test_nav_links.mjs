@@ -11,15 +11,12 @@ const JS = new URL('../hub/static/js/', import.meta.url);
 const files = readdirSync(JS).filter((f) => f.endsWith('.js'));
 const read = (f) => readFileSync(new URL(f, JS), 'utf8');
 
-// Plex is the one port link left until N4 puts it behind the gate; N4 deletes this list.
-const PORT_LINK_ALLOWED = { 'movies.js': [32400], 'movie-night.js': [32400] };
-
 test('no page builds a raw :port link with piLink()', () => {
   const bad = [];
   for (const f of files) {
     if (f === 'core.js') continue;  // defines piLink
     for (const m of read(f).matchAll(/piLink\(\s*(\d+)/g)) {
-      if (!(PORT_LINK_ALLOWED[f] || []).includes(Number(m[1]))) bad.push(`${f}: piLink(${m[1]}`);
+      bad.push(`${f}: piLink(${m[1]}`);
     }
   }
   assert.deepEqual(bad, []);
@@ -29,7 +26,7 @@ test('no page builds http(s)://<host>:<port> from the page address or a bare IP'
   const bad = [];
   for (const f of files) {
     const src = read(f);
-    if (/\$\{[^}]*(hostname|host)[^}]*\}:\d+/.test(src) && !PORT_LINK_ALLOWED[f]) bad.push(`${f}: host:port template`);
+    if (/\$\{[^}]*(hostname|host)[^}]*\}:\d+/.test(src)) bad.push(`${f}: host:port template`);
     for (const m of src.matchAll(/["'`]https?:\/\/(\d{1,3}(?:\.\d{1,3}){3})\b[^"'`]*/g)) bad.push(`${f}: ${m[0]}`);
   }
   assert.deepEqual(bad, []);

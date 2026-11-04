@@ -1,8 +1,7 @@
-import { api, card, ensure, h, piLink, post, toast } from './core.js';
+import { api, card, ensure, h, post, toast } from './core.js';
+import { plexUrl } from './sections.js';
 
-function watchUrl(machine, key) {
-  return piLink(32400, machine ? `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}` : '/web');
-}
+export const watchUrl = (machine, key) => plexUrl(machine, key);
 const art = item => item.thumb
   ? h('img', {src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`, alt:'', loading:'lazy'})
   : h('div', {class:'night-art-placeholder', 'aria-hidden':'true'}, '▶');
