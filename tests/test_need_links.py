@@ -86,4 +86,3 @@ def test_local_ai_items_open_the_assistant_page_they_are_about():
     assert links["localai:disk-C"] == "tool:assistant/#status"
     assert links["localai:watch-x"] == "tool:assistant/#inbox"
     assert links["localai:odd-1"] == "tool:assistant"
-
