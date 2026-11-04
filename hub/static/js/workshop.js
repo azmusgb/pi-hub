@@ -1,24 +1,79 @@
-// Workshop › Printer: the X2D now, its camera, filament, projects and print history. The touchscreen's pairing is in
-// Settings and its state, with the assistant's, on Health (workshop flow W.1).
-import { api, card, duration, empty, h, settle, when } from "./core.js";
+// Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Materials,
+// This week, More in the workshop (filament, history, projects, the lab queue) and one "Open in" row. The touchscreen's
+// pairing is in Settings and its state, with the assistant's, on Health (W.1).
+import { api, card, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { band } from "./now.js";
 import { printLabUrl, sourceDown } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
-import { printerButtons } from "./printer-actions.js";
+import { printerButtons, runPrinterAction } from "./printer-actions.js";
 
 export const every = 15;
 
+// The sections under "More in the workshop": native <details>, closed until this viewer opens one.
+export const MORE = [
+  ["filament", "Filament"],
+  ["history", "Print history"],
+  ["projects", "Projects"],
+  ["lab", "Print lab & queue"],
+];
+
+// Which of them this viewer keeps open, in this browser. Storage can be missing, blocked or hold junk: then all are
+// closed and nothing breaks.
+const OPEN_KEY = "hub-workshop-more";
+function storage() {
+  try { return globalThis.localStorage; } catch { return undefined; }
+}
+
+export function readOpen(store = storage()) {
+  try {
+    const v = JSON.parse(store?.getItem(OPEN_KEY) || "{}");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeOpen(key, open, store = storage()) {
+  try {
+    store?.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(store), [key]: !!open }));
+  } catch { /* not remembered this time */ }
+}
+
 export function mount(state) {
-  state.band = h("div");
-  state.cam = h("div");
-  state.info = h("div", { class: "now-col-right" });
-  state.body = h("div", { class: "cards" });
-  // One line when Bambuddy is down, instead of the same sentence on every card that reads from it.
+  // One line when Bambuddy is down, instead of the same sentence on every section that reads from it.
   state.sources = h("div", { role: "status" });
-  
-  const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
-  state.root.append(state.sources, h("div", { class: "now-layout" }, leftCol, state.info), state.body, openInRow("workshop"));
+  // Loading: a band and a camera of their final size, so nothing jumps when the first answer lands.
+  state.bandBox = h("div", { class: "ws-band" },
+    h("div", { class: "band ws-skeleton", "aria-busy": "true" },
+      h("span", { class: "sr" }, "Loading the printer…"),
+      h("div", { class: "skeleton ws-skel-line", style: "width: 30%" }),
+      h("div", { class: "skeleton ws-skel-head" }),
+      h("div", { class: "skeleton ws-skel-line" })));
+  state.cam = h("div", { class: "ws-cam" }, h("section", { class: "card wide", "aria-hidden": "true" },
+    h("div", { class: "skeleton ws-skel-head", style: "width: 30%" }), h("div", { class: "skeleton ws-skel-line", style: "width: 25%" }),
+    h("div", { class: "ws-cam-placeholder" })));
+  const now = h("div", { class: "ws-now" }, state.bandBox, state.cam);
+  state.now = now;
+  state.needs = section("needs", "Needs you here");
+  state.needs.hidden = true;
+  state.materials = section("materials", "Materials", h("div", { class: "skeleton ws-skel-line" }));
+  state.week = section("week", "This week", h("div", { class: "skeleton ws-skel-line" }));
+  state.more = {};
+  const opened = readOpen();
+  const more = h("section", { class: "ws-section ws-more", "aria-labelledby": "ws-more-title" },
+    h("h2", { class: "section-title", id: "ws-more-title" }, "More in the workshop"),
+    ...MORE.map(([key, title]) => {
+      const pill = h("span", { class: "pill", hidden: true });
+      const body = h("div", { class: "ws-more-body" });
+      const el = h("details", { class: "ws-more-item", id: `ws-${key}` },
+        h("summary", {}, h("span", { class: "ws-more-title" }, title), pill), body);
+      el.open = opened[key] === true;
+      el.addEventListener("toggle", () => writeOpen(key, el.open));
+      state.more[key] = { el, pill, body };
+      return el;
+    }));
+  state.root.append(state.sources, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");
@@ -46,21 +101,27 @@ export function leave(state) {
   }
 }
 
+function section(key, title, ...body) {
+  return h("section", { class: `ws-section ws-${key}`, "aria-labelledby": `ws-${key}-title` },
+    h("h2", { class: "section-title", id: `ws-${key}-title` }, title), ...body);
+}
+
 function camera(c) {
   const src = c.source === "Pi" ? "From the Pi" : c.source === "MacBook" ? "From the MacBook (backup)" : null;
   if (!c.ok) {
-    // The printer's own state says the most: its video switched off (common after it restarts) or not answering at all.
+    // The camera's own reason says the most: its video switched off (common after the printer restarts) or the
+    // printer not answering. Either way it is the camera that's unavailable; the band says what the printer is doing.
     const why = c.reason === "liveview_off"
       ? ["The X2D isn't sharing its camera on the network. On the printer's screen, turn on ", h("strong", {}, "LAN Only Liveview"),
         " (Settings › Network). The picture comes back here within a minute."]
-      : c.reason === "printer_unreachable" ? ["The printer isn't answering on the network. It may be off or restarting."]
+      : c.reason === "printer_unreachable" ? ["The camera isn't answering on the network. The printer may be restarting."]
       : null;
     const tips = [];
     if (c.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't getting pictures");
     if (c.sources?.MacBook && !c.sources.MacBook.fresh) tips.push("the MacBook is asleep or Bambu Studio's live view is closed");
-    return card("Camera", { cls: "wide", pill: "No picture", tone: "warn" },
+    return card("Camera", { cls: "wide", pill: "Camera unavailable", tone: "warn" },
       why ? h("p", {}, ...why) : null,
-      h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the printer right now."));
+      h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the camera right now."));
   }
   const hint = c.source === "MacBook"
     ? h("p", { class: "meta", style: "margin-top: .5rem;" }, "Streaming via MacBook bridge. For direct streaming without the Mac, enable LAN Only Liveview on the printer screen.")
@@ -126,30 +187,104 @@ export function nextSourceNotice(prev, down) {
   return { state: "up", text: "", changed: prev === "recovered" };
 }
 
-// While Bambuddy is down the notice says so once; its cards carry no pill of their own.
+// While Bambuddy is down the notice says so once; its sections carry no pill of their own.
 export function cardPills(d) {
   const down = bambuddyDown(d);
   return { history: down ? null : weekPill(d.week), filament: down ? null : undefined };
 }
 
-function shelf(spools, amsTrays = [], printer = null) {
-  if (spools === null) {
-    return card("Filament", { cls: "wide" }, h("p", { class: "meta" }, WAITING));
+// What the page shows, from /api/workshop, the viewer's role and what this page last saw from Bambuddy (`last`, kept
+// while it answers, so its sections can show the last known with its age when it doesn't). Null until the first answer.
+export function workshopView(d, { role = "none", last = null } = {}) {
+  if (!d || !d.printer) return null;
+  const p = d.printer;
+  const owner = role === "owner";
+  const down = bambuddyDown(d);
+  const actions = Array.isArray(p.actions) ? p.actions : [];
+  const labNeeds = Array.isArray(d.lab?.needs) ? d.lab.needs : [];
+  const needs = [];
+  // Clear the plate has one control: here, first, for the owner. The band keeps pause and resume.
+  if (actions.includes("clear")) {
+    needs.push({ kind: "clear", title: ["stopped", "finished"].includes(p.state) ? "Done: clear the plate" : "Clear the plate",
+      detail: "Check the plate is empty: Bambuddy may start the next print in the queue.", action: owner ? "clear" : null });
   }
-  const trays = Array.isArray(amsTrays) ? amsTrays : [];
+  for (const n of labNeeds.slice(0, 3)) {
+    const judge = n.action === "Judge the print";
+    needs.push({ kind: "lab", id: n.id, title: `${n.id}: ${n.action}`,
+      detail: n.judge_on ? `Look at: ${n.judge_on}` : n.question_text || "",
+      href: owner ? printLabUrl(n.id, n.project, judge ? "judge" : "") : null, label: judge ? `Judge ${n.id}` : "Open" });
+  }
+  const prints = Array.isArray(d.prints) ? d.prints : [];
+  const latest = prints.find((x) => x.status !== "printing");
+  const spools = Array.isArray(d.spools) ? d.spools : null;
+  const age = down && last ? last.at : null;
+  return {
+    down,
+    owner,
+    needs,
+    signIn: !owner && (actions.length > 0 || labNeeds.length > 0),
+    bandActions: owner ? actions.filter((a) => a !== "clear") : [],
+    camFirst: ["printing", "paused"].includes(p.state),
+    lastPrint: p.state === "idle" && latest ? `Last print: ${latest.name}, ${printWords(latest)[0]}, ${when(latest.started)}` : null,
+    materials: down ? null : { trays: Array.isArray(d.ams_trays) ? d.ams_trays : [], low: (spools || []).filter((s) => s.low) },
+    week: down || !d.week ? null : `${weekPill(d.week).pill} · ${d.week.hours} h printing`,
+    quiet: down ? "No answer from Bambuddy for spools and this week’s prints." : null,
+    history: { prints: d.prints_available === false ? last?.prints ?? null : prints, asOf: d.prints_available === false ? age : null },
+    spools: { list: spools ?? last?.spools ?? null, asOf: spools ? null : age },
+  };
+}
+
+function lastKnown(asOf) {
+  return asOf ? h("p", { class: "note" }, `Last known, from ${when(asOf)}.`) : null;
+}
+
+function needsList(state, v) {
+  const rows = v.needs.map((n) => h("li", { class: "log-row lab-need" },
+    h("span", { class: "dot", dataset: { tone: "warn" }, "aria-hidden": "true" }),
+    h("span", { class: "log-main" },
+      h("strong", {}, n.title),
+      // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab).
+      n.detail ? h("span", { class: "meta clamp-2", title: n.detail }, n.detail) : null,
+      n.kind === "clear" && n.action ? clearButton(state)
+        : n.href ? h("a", { class: "btn btn--primary lab-need-act", href: n.href, "data-link": true }, n.label) : null)));
+  return [h("ul", { class: "log" }, rows),
+    v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
+      h("button", { type: "button", class: "ghost small", onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
+}
+
+function clearButton(state) {
+  const b = h("button", { type: "button", class: "btn btn--primary lab-need-act" }, "Clear the plate");
+  b.addEventListener("click", () => runPrinterAction("clear", [b], () => load(state)));
+  return b;
+}
+
+function openMore(state, key) {
+  const m = state.more[key];
+  if (!m) return;
+  m.el.open = true;
+  m.el.querySelector("summary")?.focus();
+  m.el.scrollIntoView?.({ block: "start" });
+}
+
+function setPill(m, text, tone) {
+  m.pill.hidden = !text;
+  m.pill.textContent = text || "";
+  m.pill.dataset.tone = tone || "";
+}
+
+function trayPill(t) {
+  return h("span", { class: "pill ws-tray" },
+    h("span", { class: "swatch", style: `background:${t.color || "#888"}`, "aria-hidden": "true" }),
+    `AMS ${t.slot}: ${t.type}${Number.isFinite(t.remain) && t.remain >= 0 ? ` (${t.remain}%)` : ""}`);
+}
+
+function shelf(spools, printer = null) {
+  if (spools === null) return [h("p", { class: "meta" }, WAITING)];
   const low = spools.filter((s) => s.low);
   const activePrint = printer && ["printing", "paused"].includes(printer.state);
-  const shortfallBanner = low.length
+  const shortfallBanner = low.length && activePrint
     ? h("div", { class: "callout callout--warn", style: "margin-bottom: .75rem;" },
-      h("span", {}, activePrint
-        ? `Spool shortfall check: ${low.map((s) => `${s.colour} (${s.grams_left} g)`).join(", ")} running low while the X2D is active.`
-        : `Low filament warning: ${low.map((s) => `${s.colour} (${s.grams_left} g left)`).join(", ")}.`))
-    : null;
-  const amsRow = trays.length
-    ? h("div", { class: "ws-ams-strip", style: "display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem;" },
-      trays.map((t) => h("span", { class: "pill", style: "display: inline-flex; align-items: center; gap: .35rem;" },
-        h("span", { class: "swatch", style: `width: 10px; height: 10px; border-radius: 50%; background:${t.color || "#888"}`, "aria-hidden": "true" }),
-        `AMS ${t.slot}: ${t.type}${Number.isFinite(t.remain) && t.remain >= 0 ? ` (${t.remain}%)` : ""}`)))
+      h("span", {}, `Spool shortfall check: ${low.map((s) => `${s.colour} (${s.grams_left} g)`).join(", ")} running low while the X2D is active.`))
     : null;
   const rows = spools.map((s) => {
     const pct = s.grams_total ? Math.round((s.grams_left / s.grams_total) * 100) : 0;
@@ -160,95 +295,121 @@ function shelf(spools, amsTrays = [], printer = null) {
       h("span", { class: "spool-left" }, s.measured ? h("span", { class: "meter" }, h("i", { style: `width:${pct}%`, dataset: { tone: s.low ? "bad" : pct < 35 ? "warn" : "ok" } })) : null,
         h("span", { class: "grams" }, s.measured ? `${s.grams_left} g` : "not weighed")));
   });
-  return card("Filament", { cls: "wide", pill: low.length ? `${low.length} running low` : spools.length ? `${spools.length} spools` : null, tone: low.length ? "bad" : "ok" },
-    shortfallBanner,
-    amsRow,
+  return [shortfallBanner,
     rows.length ? h("ul", { class: "spools" }, rows) : empty("No spools in Bambuddy yet."),
     h("p", { class: "meta" }, "From Bambuddy, which takes each print's filament off its spool. You get a phone alert when one runs low."),
-    h("a", { class: "action", href: bambuddyUrl("/inventory"), target: "_blank", rel: "noopener" }, "Add or change spools in Bambuddy ↗"));
+    h("a", { class: "action", href: bambuddyUrl("/inventory"), target: "_blank", rel: "noopener" }, "Add or change spools in Bambuddy ↗")];
 }
 
-function labWorkshopCard(labData) {
+// The lab queue: what is running and the open questions. Anything waiting on you is already in Needs you here.
+function labQueue(labData) {
+  const open = h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab");
   if (!labData) {
-    return card("Print lab & queue", { pill: "Bambuddy", tone: "ok" },
-      h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."),
-      h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"));
+    return [h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."), open];
   }
   const needs = Array.isArray(labData.needs) ? labData.needs : [];
   const active = Array.isArray(labData.active) ? labData.active : [];
   const questions = Array.isArray(labData.questions) ? labData.questions : [];
-  const pill = needs.length ? `${needs.length} need${needs.length === 1 ? "s" : ""} you`
-    : active.length ? `${active.length} active` : "Ready";
-  const tone = needs.length ? "warn" : "ok";
-
-  return card("Print lab & queue", { pill, tone },
-    needs.length
-      ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
-        // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab), and the
-        // button under the title, not floating beside the paragraph's middle (iPad, 1 Nov).
-        needs.slice(0, 3).map((n) => h("li", { class: "log-row lab-need" },
-          h("span", { class: "dot", dataset: { tone: "warn" }, "aria-hidden": "true" }),
-          h("span", { class: "log-main" },
-            h("strong", {}, `${n.id}: ${n.action}`),
-            n.question_text ? h("span", { class: "meta clamp-2", title: n.question_text }, n.question_text) : null,
-            n.judge_on ? h("span", { class: "meta clamp-2", title: n.judge_on }, `Look at: ${n.judge_on}`) : null,
-            h("a", { class: "btn btn--primary lab-need-act", href: n.href || `/lab?e=${n.id}`, "data-link": true },
-              n.action === "Judge the print" ? `Judge ${n.id}` : "Open")))))
-      : active.length
-        ? h("ul", { class: "log", style: "margin-bottom: .5rem;" },
-          active.slice(0, 2).map((e) => h("li", { class: "log-row" },
-            h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
-            h("span", { class: "log-main" },
-              h("strong", {}, `${e.id} · ${e.status}`),
-              e.question_text ? h("span", { class: "meta" }, e.question_text) : null))))
-        : questions.length
-          ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
-          : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
-    h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"));
+  return [
+    needs.length ? h("p", { class: "meta" }, `${needs.length} waiting on you, in Needs you here above.`) : null,
+    active.length
+      ? h("ul", { class: "log" }, active.slice(0, 2).map((e) => h("li", { class: "log-row" },
+        h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
+        h("span", { class: "log-main" },
+          h("strong", {}, `${e.id} · ${e.status}`),
+          e.question_text ? h("span", { class: "meta" }, e.question_text) : null))))
+      : questions.length
+        ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
+        : needs.length ? null : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
+    open];
 }
 
-function projectsCard(projects) {
-  if (projects === null) return null;
-  return card("Projects", { cls: "wide", pill: projects.length ? `${projects.length} active` : null, tone: "ok" },
-    projects.length
-      ? h("ul", { class: "log" }, projects.map((p) => h("li", { class: "log-row" },
-        h("span", { class: "dot", dataset: { tone: "ok" } }),
-        h("span", { class: "log-main" },
-          h("a", { href: bambuddyUrl(`/projects/${p.id}`), target: "_blank", rel: "noopener" }, h("strong", {}, p.name)),
-          p.description ? h("span", { class: "meta" }, p.description) : null),
-        h("span", { class: "log-side" }, p.prints ? `${p.prints} print${p.prints === 1 ? "" : "s"}` : "No prints yet"))))
-      : empty("No projects in Bambuddy yet."),
-    h("a", { class: "action", href: bambuddyUrl("/projects"), target: "_blank", rel: "noopener" }, "Plan projects in Bambuddy ↗"));
+function labPill(labData) {
+  const needs = Array.isArray(labData?.needs) ? labData.needs.length : 0;
+  const active = Array.isArray(labData?.active) ? labData.active.length : 0;
+  return needs ? [`${needs} need${needs === 1 ? "s" : ""} you`, "warn"] : active ? [`${active} active`, "ok"] : [null];
+}
+
+function projectsBody(projects) {
+  if (projects === null) return [h("p", { class: "meta" }, WAITING)];
+  return [projects.length
+    ? h("ul", { class: "log" }, projects.map((p) => h("li", { class: "log-row" },
+      h("span", { class: "dot", dataset: { tone: "ok" } }),
+      h("span", { class: "log-main" },
+        h("a", { href: bambuddyUrl(`/projects/${p.id}`), target: "_blank", rel: "noopener" }, h("strong", {}, p.name)),
+        p.description ? h("span", { class: "meta" }, p.description) : null),
+      h("span", { class: "log-side" }, p.prints ? `${p.prints} print${p.prints === 1 ? "" : "s"}` : "No prints yet"))))
+    : empty("No projects in Bambuddy yet."),
+  h("a", { class: "action", href: bambuddyUrl("/projects"), target: "_blank", rel: "noopener" }, "Plan projects in Bambuddy ↗")];
 }
 
 export async function load(state) {
-  // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each.
-  const [d, cam, pr] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
-    settle(api("/api/projects"), 6000, { available: false })]);
-  // The printer's buttons sit inside its card, under the readings they act on.
+  // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
+  // read-only.
+  const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
+    settle(api("/api/projects"), 6000, { available: false }), settle(whoami(), 6000, { role: "none" })]);
+  const v = workshopView(d, { role: me?.role, last: state.last });
+  if (!v) throw new Error("The workshop status came back empty.");
+  if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
+
+  // Now: the band (with pause or resume for the owner, under the readings they act on) and the camera.
   const printerBand = band(d.printer);
-  const buttons = printerButtons(d.printer, () => load(state));
-  if (buttons) printerBand.querySelector(".band-info")?.append(buttons);
-  state.band.replaceChildren(printerBand);
+  const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));
+  const info = printerBand.querySelector(".band-info") || printerBand;
+  if (v.lastPrint) info.append(h("p", { class: "meta ws-last-print" }, v.lastPrint));
+  if (buttons) info.append(buttons);
+  state.bandBox.replaceChildren(printerBand);
   state.facts = d.printer.headline;
+  state.now.dataset.camFirst = String(v.camFirst);
   if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
   }
-  const notice = nextSourceNotice(state.notice, bambuddyDown(d));
+  const notice = nextSourceNotice(state.notice, v.down);
   state.notice = notice.state;
   if (notice.changed) state.sources.replaceChildren(...(notice.text ? [h("p", {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
-  const prints = d.prints.map((p) => printRow(p));
-  const m = d.filament_month;
-  state.info.replaceChildren(labWorkshopCard(d.lab));
-  state.body.replaceChildren(...[
-    card("Print history", { ...(cardPills(d).history || {}), cls: "wide" },
-      ...(d.prints_available === false ? [h("p", { class: "meta" }, WAITING)]
-        : prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
-      d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
-        (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null),
-    projectsCard(pr.available ? pr.projects : null),
-    shelf(d.spools, d.ams_trays, d.printer),
+
+  // Needs you here: only when something waits, never an empty section.
+  state.needs.hidden = !v.needs.length;
+  state.needs.replaceChildren(state.needs.firstChild, ...(v.needs.length ? needsList(state, v).filter(Boolean) : []));
+
+  // Materials and This week: one line each, or one "No answer" line for both while Bambuddy is down.
+  const heading = (el) => el.firstChild;
+  if (v.quiet) {
+    state.materials.replaceChildren(heading(state.materials), h("p", { class: "meta ws-line" }, v.quiet));
+    state.week.hidden = true;
+  } else {
+    const all = h("button", { type: "button", class: "ghost small", onclick: () => openMore(state, "filament") }, "All spools");
+    state.materials.replaceChildren(heading(state.materials), h("div", { class: "ws-line" },
+      ...v.materials.trays.map(trayPill),
+      ...v.materials.low.map((s) => h("span", { class: "pill", dataset: { tone: "bad" } }, `${s.colour} ${s.material || ""}: ${s.grams_left} g left`.replace(" :", ":"))),
+      v.materials.trays.length || v.materials.low.length ? null : h("span", { class: "meta" }, "No spool running low."),
+      all));
+    state.week.hidden = false;
+    state.week.replaceChildren(heading(state.week), h("div", { class: "ws-line" },
+      h("span", {}, v.week || "No prints logged this week."),
+      h("button", { type: "button", class: "ghost small", onclick: () => openMore(state, "history") }, "Print history")));
+  }
+
+  // More in the workshop.
+  const m = d.filament_month || {};
+  const { filament, history, projects, lab } = state.more;
+  setPill(filament, v.down ? null : v.materials.low.length ? `${v.materials.low.length} running low` : null, "bad");
+  filament.body.replaceChildren(...[lastKnown(v.spools.asOf), ...shelf(v.spools.list, d.printer)].filter(Boolean));
+  const pills = cardPills(d);
+  setPill(history, pills.history?.pill, pills.history?.tone);
+  const rows = (v.history.prints || []).map((p) => printRow(p));
+  history.body.replaceChildren(...[
+    lastKnown(v.history.asOf),
+    ...(v.history.prints === null ? [h("p", { class: "meta" }, WAITING)]
+      : rows.length ? firstFew(rows, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
+    d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
+      (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null,
   ].filter(Boolean));
+  const list = pr.available ? pr.projects || [] : null;
+  setPill(projects, list?.length ? `${list.length} active` : null, "ok");
+  projects.body.replaceChildren(...projectsBody(list));
+  setPill(lab, ...labPill(d.lab));
+  lab.body.replaceChildren(...labQueue(d.lab).filter(Boolean));
 }

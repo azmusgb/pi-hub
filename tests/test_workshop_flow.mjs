@@ -36,7 +36,7 @@ test('loading: no view until the first answer; the page draws a band skeleton an
   assert.equal(workshopView(null, owner), null);
   const src = read('hub/static/js/workshop.js');
   assert.match(src, /class: "band ws-skeleton", "aria-busy": "true"/);
-  assert.match(src, /class: "ws-cam-placeholder"/);
+  assert.match(src, /h\("div", \{ class: "ws-cam-placeholder" \}\)/);
   const css = read('hub/static/workshop-pi-rich.css');
   assert.match(css, /\.ws-cam-placeholder \{[^}]*aspect-ratio: 16 \/ 9/);
 });
@@ -54,7 +54,9 @@ test('printing: progress stays in the band, the camera comes first on a phone, N
 });
 
 test('finished: Clear the plate comes first in Needs you, with the one Clear button there and not in the band', () => {
-  const v = workshopView(base({ printer: printer('finished', { actions: ['clear'] }), lab: { needs: [judge], active: [], questions: [] } }), owner);
+  // /api/workshop calls a finished print "stopped" (now.PRINTER_STATE); a failed one is "error".
+  assert.equal(workshopView(base({ printer: printer('error', { actions: ['clear'] }) }), owner).needs[0].title, 'Clear the plate');
+  const v = workshopView(base({ printer: printer('stopped', { actions: ['clear'] }), lab: { needs: [judge], active: [], questions: [] } }), owner);
   assert.deepEqual(v.needs.map((n) => n.kind), ['clear', 'lab']);
   assert.equal(v.needs[0].title, 'Done: clear the plate');
   assert.equal(v.needs[0].action, 'clear');
@@ -68,6 +70,10 @@ test('idle: the band says Idle with the last print, and Needs you is empty (so h
   assert.match(v.lastPrint, /^Last print: Cable clip x4, Finished/);
   const src = read('hub/static/js/workshop.js');
   assert.match(src, /state\.needs\.hidden = !v\.needs\.length/);
+  // An empty slot is left out, not drawn as the word "null" (screenshot, W.2).
+  assert.match(src, /needsList\(state, v\)\.filter\(Boolean\)/);
+  // A pill with nothing to say is hidden, whatever display the kit gives .pill.
+  assert.match(read('hub/static/workshop-pi-rich.css'), /\.ws-more-item \.pill\[hidden\] \{ display: none; \}/);
 });
 
 test('materials: AMS trays and only the low spools, in one row; this week: one line from weekPill', () => {
@@ -97,7 +103,7 @@ test('Bambuddy down: one "No answer" line for Materials and This week, lab items
 });
 
 test('signed out: a read-only band, no Clear button, and lab items with no action', () => {
-  const v = workshopView(base({ printer: printer('finished', { actions: ['clear'] }), lab: { needs: [judge], active: [], questions: [] } }), { role: 'none', now: T });
+  const v = workshopView(base({ printer: printer('stopped', { actions: ['clear'] }), lab: { needs: [judge], active: [], questions: [] } }), { role: 'none', now: T });
   assert.deepEqual(v.bandActions, []);
   assert.equal(v.needs[0].kind, 'clear');
   assert.equal(v.needs[0].action, null);
