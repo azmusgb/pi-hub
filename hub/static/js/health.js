@@ -73,7 +73,7 @@ function helpGuidance() {
       "movies",
       "Movies won’t play",
       "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.",
-      "/movies",
+      "/media",
       "Check Movies",
     ],
 
@@ -81,7 +81,7 @@ function helpGuidance() {
       "devices",
       "Lights aren’t responding",
       "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, check Homebridge under Services on this page.",
-      "/control",
+      "/network",
       "Check Devices",
     ],
 
