@@ -54,7 +54,7 @@ export function mount(state) {
       h("a", { class: "tool-link", href: toolUrl("paperless"), target: "_blank", rel: "noopener" }, "Open Paperless ↗")),
     linkGroup("More with papers", [
       [toolUrl("scan"), "Scan a document ↗", "From the HP or the Epson, straight into Paperless"],
-      ["/print", "Print", "Print a file and check the queue"],
+      ["/print", "Print a document", "Print a file and check the queue"],
       ["/lists", "Lists", "Shopping, to-dos and notes"],
     ]));
 }

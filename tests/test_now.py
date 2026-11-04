@@ -259,10 +259,13 @@ def test_no_clear_while_a_new_print_runs_even_if_bambuddy_still_flags_the_plate(
 
 def test_assistant_state_follows_the_status_service(monkeypatch):
     c = TestClient(hub_app.app)
+    monkeypatch.setattr(records, "get", lambda id: None)
     monkeypatch.setattr(sources, "pi_status", lambda: {"ai_state": "Down"})
-    assert c.get("/api/assistant").json() == {"state": "Down"}
+    assert c.get("/api/assistant").json() == {"state": "Down", "pc": "unknown"}
     monkeypatch.setattr(sources, "pi_status", lambda: None)
-    assert c.get("/api/assistant").json() == {"state": "Unknown"}
+    assert c.get("/api/assistant").json() == {"state": "Unknown", "pc": "unknown"}
+    monkeypatch.setattr(records, "get", lambda id: {"id": "pc", "state": "off"} if id == "pc" else None)
+    assert c.get("/api/assistant").json() == {"state": "Unknown", "pc": "off"}
 
 
 def test_camera_says_why_when_the_printer_shares_no_video(monkeypatch):

@@ -53,7 +53,7 @@ export async function load(state) {
 
   const filters = [
     ["all", "All", collapsed.length],
-    ["problems", "Problems", problemCount],
+    ["problems", "Needs you", problemCount],
     ["recovery", "Recovery", recoveryCount],
   ];
   state.tabs.replaceChildren(...filters.map(([key, label, count]) => h("button", {

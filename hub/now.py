@@ -49,7 +49,7 @@ def issues(s):
     """Things that need a person, most urgent first."""
     if s is None:
         return [{"tone": "bad", "what": "Home status unavailable",
-                 "say": "The hub can’t check your devices right now. Open Help & system to check the hub and find recovery options.",
+                 "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
                  "href": "/pi", "link_label": "Check the hub"}]
     out = []
     svc = s.get("services") or {}
@@ -104,7 +104,7 @@ HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico
         "adguard": "/network", "backups": "/system", "pc_printing": "/"}
 
 UNAVAILABLE = {"tone": "bad", "what": "Home status unavailable",
-               "say": "The hub can’t check your devices right now. Open Help & system to check the hub and find recovery options.",
+               "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
                "href": "/pi", "link_label": "Check the hub"}
 
 

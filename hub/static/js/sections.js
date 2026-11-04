@@ -73,7 +73,11 @@ export function assistantHref(host, title, facts) {
   return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
 }
 
-// When the Pi's status service says Local AI is down, the button says so and can't be pressed. "Unknown" isn't "off".
-export function assistantButton(state) {
-  return state === "Down" ? { label: "The PC is off", disabled: true } : { label: "Assistant", disabled: false };
+// The phrase table's two unavailable states (section 9): `pc_off` when the `pc` record is off, `assistant_down` when
+// Local AI is down but the PC isn't known to be off. Either disables the button. "Unknown" isn't "off": it stays enabled.
+export const PHRASES = { pc_off: "The PC is off or asleep", assistant_down: "The Assistant isn't answering" };
+export function assistantButton(state, pc) {
+  if (pc === "off") return { label: PHRASES.pc_off, phrase: "pc_off", disabled: true };
+  if (state === "Down") return { label: PHRASES.assistant_down, phrase: "assistant_down", disabled: true };
+  return { label: "Assistant", phrase: "", disabled: false };
 }
