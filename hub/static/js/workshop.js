@@ -2,7 +2,7 @@
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
 import { printLabUrl, toolUrl } from "./sections.js";
-import { firstFew } from "./section-links.js";
+import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
 
@@ -15,7 +15,7 @@ export function mount(state) {
   state.body = h("div", { class: "cards" });
   
   const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
-  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body);
+  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body, openInRow("workshop"));
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");

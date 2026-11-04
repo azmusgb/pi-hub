@@ -49,7 +49,7 @@ test("Health holds every /pi card, System's services and the display", () => {
   const src = read('hub/static/js/health.js');
   for (const fn of ['selfcheckCard(', 'outagesCard(', 'servicesCard(', 'fixCard(', 'storageCard(', 'updatesCard(',
     'networkCard(', 'healthCard(', 'displayCard()', 'helpGuidance()']) assert.ok(src.includes(fn), fn);
-  assert.match(src, /toolUrl\("pi"\)/);  // Open in Cockpit ↗
+  assert.match(src, /openInRow\("system"\)/);  // Open in Backrest ↗ · Cockpit ↗, from the registry (PR 7.6)
   assert.match(read('hub/static/js/freshness.js'), /const SOURCES = \{ health: true \}/);  // Source responses
 });
 

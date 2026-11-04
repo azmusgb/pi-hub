@@ -1,7 +1,7 @@
 // Documents: find a paper in Paperless, scan one, print one, and the household lists.
 import { ensure, h, whoami } from "./core.js";
 import { resolveLink, toolUrl } from "./sections.js";
-import { linkGroup } from "./section-links.js";
+import { linkGroup, openInRow } from "./section-links.js";
 
 export const every = 600;
 
@@ -56,7 +56,8 @@ export function mount(state) {
       [toolUrl("scan"), "Scan a document ↗", "From the HP or the Epson, straight into Paperless"],
       ["/print", "Print a document", "Print a file and check the queue"],
       ["/lists", "Lists", "Shopping, to-dos and notes"],
-    ]));
+    ]),
+    openInRow("documents"));
 }
 
 export async function load(state) {

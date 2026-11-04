@@ -421,8 +421,7 @@ function mediaHeroConsole(d) {
         h("p", { class: "kiosk-pct", style: "font-size: clamp(1.4rem, 3.5vw, 2.5rem); margin: .2em 0;" }, titleText),
         h("p", { class: "kiosk-sub" }, ...subText)),
       h("div", { class: "kiosk-links" },
-        h("a", { class: "chip", href: "/media", "data-link": true }, "Watch a movie"),
-        h("a", { class: "chip", href: toolUrl("plex"), target: "_blank", rel: "noopener" }, "Open Plex ↗"))),
+        h("a", { class: "chip", href: "/media", "data-link": true }, "Watch a movie"))),
     h("div", { class: "kiosk-cam-slot", style: "display: grid; place-items: center; background: color-mix(in srgb, var(--surface-2) 60%, transparent); border-radius: var(--r-md); padding: 1.5rem; text-align: center; border: 1px dashed var(--line);" },
       isPlaying
         ? h("div", { style: "display: flex; flex-direction: column; align-items: center; gap: .75rem;" },
