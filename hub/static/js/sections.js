@@ -70,7 +70,10 @@ export function assistantHref(host, title, facts) {
 
 // The phrase table's two unavailable states (section 9): `pc_off` when the `pc` record is off, `assistant_down` when
 // Local AI is down but the PC isn't known to be off. Either disables the button. "Unknown" isn't "off": it stays enabled.
-export const PHRASES = { pc_off: "The PC is off or asleep", assistant_down: "The Assistant isn't answering" };
+export const PHRASES = { pc_off: "The PC is off or asleep", assistant_down: "The Assistant isn't answering",
+  source_down: "{name} isn't answering" };
+// The kit's `source_down` phrase (appliance-ui needs.js), for a source a page reads from that didn't answer.
+export const sourceDown = (name) => PHRASES.source_down.replace("{name}", name);
 export function assistantButton(state, pc) {
   // A live answer from Local AI wins over a stale "off" from the network monitor.
   if (pc === "off" && state !== "Ready" && state !== "Busy") return { label: PHRASES.pc_off, phrase: "pc_off", disabled: true };

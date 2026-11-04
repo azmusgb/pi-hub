@@ -1,7 +1,7 @@
 // Workshop: the X2D now and its print history, the touchscreen, and Local AI.
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
-import { printLabUrl, toolUrl } from "./sections.js";
+import { printLabUrl, sourceDown, toolUrl } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
@@ -13,9 +13,11 @@ export function mount(state) {
   state.cam = h("div");
   state.info = h("div", { class: "now-col-right" });
   state.body = h("div", { class: "cards" });
+  // One line when Bambuddy is down, instead of the same sentence on every card that reads from it.
+  state.sources = h("div", { role: "status" });
   
   const leftCol = h("div", { class: "now-col-left" }, state.band, state.cam);
-  state.root.append(h("div", { class: "now-layout" }, leftCol, state.info), state.body, openInRow("workshop"));
+  state.root.append(state.sources, h("div", { class: "now-layout" }, leftCol, state.info), state.body, openInRow("workshop"));
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");
@@ -106,11 +108,27 @@ function printRow(p) {
 // the hub only shows them and links there to change anything.
 const bambuddyUrl = (path) => `http://${location.hostname}:8000${path}`;
 
+// Bambuddy didn't answer the hub: its print log or its spools are missing from /api/workshop.
+export const bambuddyDown = (d) => d?.prints_available === false || d?.spools === null;
+const WAITING = "Shown again when Bambuddy answers.";
+
+// The one Bambuddy notice, as a small state machine so a live region speaks only on a change: going down is said once,
+// coming back is said once ("answering again"), and the render after that clears it without a word.
+export function nextSourceNotice(prev, down) {
+  if (down) return { state: "down", text: `${sourceDown("Bambuddy")}. Print history and spools show again when it answers.`, changed: prev !== "down" };
+  if (prev === "down") return { state: "recovered", text: "Bambuddy is answering again.", changed: true };
+  return { state: "up", text: "", changed: prev === "recovered" };
+}
+
+// While Bambuddy is down the notice says so once; its cards carry no pill of their own.
+export function cardPills(d) {
+  const down = bambuddyDown(d);
+  return { history: down ? null : weekPill(d.week), filament: down ? null : undefined };
+}
+
 function shelf(spools, amsTrays = [], printer = null) {
   if (spools === null) {
-    return card("Filament", { cls: "wide", pill: "No answer", tone: "warn" },
-      h("p", { class: "meta" }, "Bambuddy isn't answering, so the spools can't be shown right now."),
-      h("a", { class: "action", href: bambuddyUrl("/inventory"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗"));
+    return card("Filament", { cls: "wide" }, h("p", { class: "meta" }, WAITING));
   }
   const trays = Array.isArray(amsTrays) ? amsTrays : [];
   const low = spools.filter((s) => s.low);
@@ -148,9 +166,7 @@ function labWorkshopCard(labData) {
   if (!labData) {
     return card("Print lab & queue", { pill: "Bambuddy", tone: "ok" },
       h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."),
-      h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
-        h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"),
-        h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
+      h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"));
   }
   const needs = Array.isArray(labData.needs) ? labData.needs : [];
   const active = Array.isArray(labData.active) ? labData.active : [];
@@ -182,9 +198,7 @@ function labWorkshopCard(labData) {
         : questions.length
           ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
           : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
-    h("div", { style: "display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap;" },
-      h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"),
-      h("a", { class: "action", href: toolUrl("bambuddy"), target: "_blank", rel: "noopener" }, "Open Bambuddy ↗")));
+    h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab"));
 }
 
 function projectsCard(projects) {
@@ -215,6 +229,10 @@ export async function load(state) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
   }
+  const notice = nextSourceNotice(state.notice, bambuddyDown(d));
+  state.notice = notice.state;
+  if (notice.changed) state.sources.replaceChildren(...(notice.text ? [h("p", {
+    class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;
   state.info.replaceChildren(
@@ -235,8 +253,8 @@ export async function load(state) {
       h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );
   state.body.replaceChildren(...[
-    card("Print history", { ...weekPill(d.week), cls: "wide" },
-      ...(d.prints_available === false ? [h("p", { class: "meta" }, "Bambuddy isn't answering, so the print history can't be shown right now.")]
+    card("Print history", { ...(cardPills(d).history || {}), cls: "wide" },
+      ...(d.prints_available === false ? [h("p", { class: "meta" }, WAITING)]
         : prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
       d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
         (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null),
