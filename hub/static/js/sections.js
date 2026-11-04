@@ -19,6 +19,7 @@ const REDIRECTS = {
   "/next": "/",  // the control room is on Home since 31 Oct 2026
   "/movies": "/media",
   "/control": "/network",
+  "/pi": "/system",
   "/apps": "/",
   "/apps/bambuddy": "/workshop",
   "/bambuddy": "/workshop",

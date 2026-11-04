@@ -48,17 +48,35 @@ checkAssistant();
 setInterval(checkAssistant, 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
+const notFoundPage = {
+  key: "404",
+  title: "Page not found",
+  mod: {
+    mount(state) {
+      state.root.replaceChildren(
+        h("section", { class: "card not-found-card", style: "max-width: 32rem; margin: 2rem auto; text-align: center; padding: 2.5rem 1.5rem;" },
+          h("h2", { style: "margin: 0 0 .5rem; font-size: 1.5rem;" }, "Page not found"),
+          h("p", { style: "color: var(--text-2); margin: 0 0 1.5rem;" }, "The address you opened doesn’t exist on Pi Hub."),
+          h("div", { class: "actions", style: "display: flex; justify-content: center; gap: .75rem;" },
+            h("a", { class: "btn-primary", href: "/", "data-link": true }, "Open Home"),
+            h("a", { class: "btn-outline", href: "/system", "data-link": true }, "System")
+          )
+        )
+      );
+    },
+    failed() {},
+    leave() {},
+  }
+};
+
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
-  "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
@@ -75,14 +93,11 @@ const PAGES = {
 const subtitles = {
   "/": "Your home at a glance",
   "/wall": "Glanceable ambient display",
-  "/movies": "Plex library and playback",
-  "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
   "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
-  "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub",
@@ -91,6 +106,7 @@ const subtitles = {
   "/network": "Devices, internet and blocking",
   "/system": "Backups, alerts and settings",
   "/versions": "What is live where",
+  "404": "That address doesn’t exist",
 };
 
 const updateSubtitle = () => {
@@ -215,7 +231,7 @@ async function refresh() {
 async function show(path, { focus = false } = {}) {
   const moved = redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
-  const page = PAGES[path] || PAGES["/"];
+  const page = PAGES[path] || notFoundPage;
   const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
