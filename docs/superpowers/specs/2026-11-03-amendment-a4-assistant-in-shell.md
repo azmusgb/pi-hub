@@ -1,6 +1,6 @@
 # Amendment A4: The Assistant opens inside Pi Hub's shell
 
-Date: 2026-11-03 · Status: proposed; approved when this PR merges (the merge is the approval) · Amends: the platform
+Date: 2026-11-03 · Status: **approved**, option 1 with the recommended phone bar and Atlas choices (owner, "do it all", 3 Nov 2026; merged in #78) · Amends: the platform
 baseline (`2026-11-01-platform-product-architecture-design.md`, section 5.1's level 0, section 5.2's surfaces, section
 5.6's route table, section 10's "PC asleep" row) and adds migration step 7a.
 
