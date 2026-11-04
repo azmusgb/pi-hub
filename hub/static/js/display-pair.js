@@ -1,4 +1,4 @@
-// Workshop display card (System page): pair the display with a 6-digit code, and show when it was paired.
+// Workshop display card (System › Settings, workshop flow W.1): pair the display with a 6-digit code, and show when it was paired.
 import { api, card, h, post, toast } from "./core.js";
 
 export function minutesText(m) {

@@ -716,9 +716,9 @@ html {
 }
 
 
-/* System's page strip (step 7, PR 7.3): one row of System's pages above each of them. On a phone it scrolls sideways
-   rather than wrapping, so the row keeps one line and the page below doesn't jump. */
-.system-strip {
+/* An area's page strip (System's from step 7, PR 7.3; Workshop's from workshop flow W.1): one row of the area's pages
+   above each of them. It scrolls sideways rather than wrapping, so the row keeps one line and the page below doesn't jump. */
+.page-strip {
   display: flex;
   width: fit-content;
   max-width: 100%;
@@ -726,12 +726,13 @@ html {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.system-strip::-webkit-scrollbar { display: none; }
+.page-strip::-webkit-scrollbar { display: none; }
 /* Inside a scrolling row an outside outline is clipped; draw it inside. */
-.system-strip > a:focus-visible { outline-offset: -2px; }
+.page-strip > a:focus-visible { outline-offset: -2px; }
 /* components.css loads after this file and sets .tabs to wrap, so the strip's rule names both classes. */
-.tabs.system-strip { flex-wrap: nowrap; }
-/* On a phone all six fit as two rows of three: nothing hides off the edge, so nothing needs a scroll hint. */
+.tabs.page-strip { flex-wrap: nowrap; }
+/* On a phone System's six fit as two rows of three: nothing hides off the edge, so nothing needs a scroll hint.
+   Workshop's two fit on one row as they are. */
 @media (max-width: 560px) {
   .tabs.system-strip { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; overflow: visible; }
   .tabs.system-strip > a { text-align: center; }

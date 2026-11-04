@@ -1,6 +1,7 @@
 // Settings: first-time setup, owner sign-in, and the owner's controls.
 import { firstFew } from "./section-links.js";
 import { api, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
+import { displayCard } from "./display-pair.js";
 
 export const every = 60;
 
@@ -183,6 +184,8 @@ export async function load(state) {
         `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
         : h("p", { class: "note" }, "Not copied to the PC yet.")),
     devicesCard(d.devices, save),
+    // Made once: a refresh every minute would otherwise drop a pairing code off the screen.
+    state.display ??= displayCard(),
     shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },
       d.log.length
@@ -203,7 +206,7 @@ export async function load(state) {
 const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
   const GROUPS = [
     ["general", "General", ["Appearance"]],
-    ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
+    ["home", "Home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
     ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],

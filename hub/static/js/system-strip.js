@@ -1,4 +1,5 @@
-// System's page strip (§5.6 `/system`, platform step 7, PR 7.3): one row of System's pages, shown on each of them.
+// An area's page strip: one row of the area's pages, shown on each of them. System's (§5.6 `/system`, platform step 7,
+// PR 7.3) came first; Workshop's Printer | Print lab (§5.1, workshop flow W.1) is the same component.
 import { h } from "./core.js";
 
 export const STRIP = [
@@ -10,23 +11,40 @@ export const STRIP = [
   ["/settings", "Settings"],
 ];
 
-// The strip's entries for a page, or null when the page isn't one of System's strip pages.
+// Each strip names its area: the pages' heading and the strip's accessible name.
+export const STRIPS = {
+  system: { label: "System", entries: STRIP },
+  workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"]] },
+};
+
+// The strip a page belongs to, with its entries, or null when the page isn't on one.
+export function stripFor(path) {
+  for (const [key, { label, entries }] of Object.entries(STRIPS)) {
+    if (entries.some(([href]) => href === path)) {
+      return { key, label, items: entries.map(([href, name]) => ({ href, label: name, current: href === path })) };
+    }
+  }
+  return null;
+}
+
 export function stripItems(path) {
-  if (!STRIP.some(([href]) => href === path)) return null;
-  return STRIP.map(([href, label]) => ({ href, label, current: href === path }));
+  return stripFor(path)?.items ?? null;
 }
 
-// System's strip pages are headed "System", the rail's word for them; the strip marks the page and the browser tab
-// names it. Any other page is headed by its own title.
+// A strip page is headed by its area, the rail's word for it; the strip marks the page and the browser tab names it by
+// its strip entry. Any other page is headed by its own title.
 export function pageHeading(path, title) {
-  return stripItems(path) ? { heading: "System", title: `${title} · System` } : { heading: title, title };
+  const strip = stripFor(path);
+  if (!strip) return { heading: title, title };
+  const here = strip.items.find((i) => i.current);
+  return { heading: strip.label, title: `${here.label} · ${strip.label}` };
 }
 
-export function systemStrip(path) {
-  const items = stripItems(path);
-  if (!items) return null;
-  return h("nav", { class: "tabs system-strip", "aria-label": "System" },
-    ...items.map(({ href, label, current }) =>
+export function pageStrip(path) {
+  const strip = stripFor(path);
+  if (!strip) return null;
+  return h("nav", { class: `tabs page-strip ${strip.key}-strip`, "aria-label": strip.label },
+    ...strip.items.map(({ href, label, current }) =>
       h("a", { href, "data-link": true, "aria-current": current ? "page" : null }, label)));
 }
 

@@ -1,5 +1,5 @@
 // System › Health (platform step 7, PR 7.3): the hub and the Pi in one page. It took over /pi's cards and System's
-// services and display: self-check, outages, services, fix it, storage, updates, network, history and the help guides.
+// services: self-check, outages, services, fix it, storage, updates, network, history and the help guides.
 import {
   api,
   card,
@@ -13,7 +13,6 @@ import {
   when,
 } from "./core.js";
 import { openInRow } from "./section-links.js";
-import { displayCard } from "./display-pair.js";
 
 export const every = 20;
 
@@ -67,7 +66,7 @@ function safeWhen(value) {
   return value ? when(value) : "—";
 }
 
-function helpGuidance() {
+export function helpGuidance() {
   return [
     [
       "movies",
@@ -96,7 +95,7 @@ function helpGuidance() {
     [
       "workshop",
       "3D printer or workshop problem",
-      "Check the Bambu printer’s screen for errors. Workshop shows the camera, print status and local AI connection.",
+      "Check the Bambu printer’s screen for errors. Workshop shows the camera and print status; Local AI and the workshop display are under Other systems on this page.",
       "/workshop",
       "Check Workshop",
     ],
@@ -110,6 +109,9 @@ export function mount(state) {
   state.body = h("div", {
     class: "cards",
   });
+
+  // Other systems has its own slot: it reads the records, so it stays when the Pi's diagnostics fail.
+  state.others = h("div", { class: "pi-bottom-grid" });
 
   state.diagnostic = h(
     "p",
@@ -219,7 +221,7 @@ export function mount(state) {
     topic ? help : null,
     state.diagnostic,
     state.body,
-    displayCard(),
+    state.others,
     openInRow("system"),
     topic ? null : help,
   ].filter(Boolean));
@@ -995,6 +997,49 @@ function serviceRow({ service, restart }) {
   );
 }
 
+// The systems Health watches beyond the Pi: Local AI and the PC it runs on, and the workshop touchscreen (their cards
+// left Workshop, workshop flow W.1). Read from their records; a record not read yet, unknown or stale is never "off".
+const OTHER_SYSTEMS = [
+  ["local_ai", "Local AI"],
+  ["workshop_display", "Workshop display"],
+  ["pc", "Windows PC"],
+];
+const SEVERITY_TONE = { ok: "ok", info: "ok", attention: "warn", problem: "bad" };
+
+export function otherSystemRows(records) {
+  const byId = new Map(asArray(records).filter((r) => r && r.id).map((r) => [r.id, r]));
+  return OTHER_SYSTEMS.map(([id, label]) => {
+    const r = byId.get(id);
+    if (!r) return { id, label, text: "Not checked yet", tone: "warn", meta: "" };
+    const tone = r.state === "unknown" || r.stale ? "warn" : SEVERITY_TONE[r.severity] || "warn";
+    const d = asObject(r.detail);
+    const models = asArray(d.models).filter(Boolean);
+    const meta = r.cause
+      || (id === "local_ai" && models.length ? `Models loaded: ${models.join(", ")}` : "")
+      || (id === "workshop_display" && d.firmware ? `Firmware ${d.firmware}` : "");
+    return { id, label, text: r.headline || "No reading", tone, meta };
+  });
+}
+
+function otherSystemsCard(records) {
+  return card(
+    "Other systems",
+    {},
+    h(
+      "ul",
+      { class: "log" },
+      otherSystemRows(records).map(({ id, label, text, tone, meta }) =>
+        h(
+          "li",
+          { class: "log-row", dataset: { system: id } },
+          h("span", { class: "dot", dataset: { tone }, "aria-hidden": "true" }),
+          h("span", { class: "log-main" }, h("strong", {}, label), h("span", { class: "meta" }, text), meta ? h("span", { class: "meta" }, meta) : null),
+        )),
+    ),
+    h("p", { class: "meta" }, "Pair the workshop touchscreen in ", h("a", { href: "/settings", "data-link": true }, "Settings"), "."),
+  );
+}
+
 function servicesCard(
   services,
   actions,
@@ -1360,6 +1405,28 @@ async function loadDiagnostics(
       api("/api/records"),
     ]);
 
+  // Records only colour the restartable services; without them those rows say nothing about health.
+  const recordsValue =
+    recordsResult.status ===
+    "fulfilled"
+      ? recordsResult.value
+      : null;
+
+  const records =
+    asArray(
+      recordsValue?.records ||
+        recordsValue,
+    );
+
+  state.others.replaceChildren(
+    otherSystemsCard(
+      recordsResult.status ===
+        "fulfilled"
+        ? records
+        : null,
+    ),
+  );
+
   if (
     diagnosticsResult.status !==
     "fulfilled"
@@ -1388,19 +1455,6 @@ async function loadDiagnostics(
           log: [],
           updates: {},
         };
-
-  // Records only colour the restartable services; without them those rows say nothing about health.
-  const recordsValue =
-    recordsResult.status ===
-    "fulfilled"
-      ? recordsResult.value
-      : null;
-
-  const records =
-    asArray(
-      recordsValue?.records ||
-        recordsValue,
-    );
 
   // Health's order (step 7 plan, Decision 3): self-check, outages, services, fix it, storage, updates, network, history.
   state.body.replaceChildren(
@@ -1456,6 +1510,7 @@ async function loadDiagnostics(
       networkCard(
         data.network,
       ),
+
     ),
 
     healthCard(state, data),

@@ -72,10 +72,10 @@ def issues(s):
     if s.get("ai_state") == "Down":
         out.append({"tone": "bad", "what": "Windows PC",
                     "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped.",
-                    "href": "/workshop", "link_label": "Check the workshop"})
+                    "href": "/system", "link_label": "Check Health"})
     if s.get("display_state") == "Offline":
         out.append({"tone": "warn", "what": "Workshop display", "say": "The touchscreen is offline.",
-                    "href": "/workshop", "link_label": "Check the workshop"})
+                    "href": "/system", "link_label": "Check Health"})
     if (s.get("pi_temp") or 0) >= 80:
         out.append({"tone": "warn", "what": "Raspberry Pi", "say": f"Running hot at {s['pi_temp']:.0f} °C."})
     if s.get("pi_power") not in (None, "Good"):
@@ -99,8 +99,8 @@ def summary(found):
 
 # ---- From the records (control room, piece 1): Home, the wall and Needs you read the same records ----
 
-HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/workshop", "local_ai": "/workshop",
-        "pc": "/workshop", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
+HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/system", "local_ai": "/system",
+        "pc": "/system", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
         "adguard": "/network", "backups": "/backups", "pc_printing": "/workshop", "pi": "/system", "plex": "/media",
         "devices": "/network", "paper_printer": "/print", "weather": "/weather", "hub": "/system"}
 

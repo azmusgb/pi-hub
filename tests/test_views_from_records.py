@@ -46,7 +46,7 @@ def test_pc_answering_with_local_ai_down_blames_local_ai_not_the_pc(client):
     issue = next(i for i in client.get("/api/now").json()["issues"] if i["what"] == "Local AI")
     assert "Local AI isn't answering" in issue["say"]
     assert "may be off" not in issue["say"].lower()
-    assert issue["href"] == "/workshop" and issue["tone"] == "bad"
+    assert issue["href"] == "/system" and issue["tone"] == "bad"
     item = next(i for i in client.get("/api/needs").json()["items"] if i["title"] == "Local AI")
     assert item["detail"] == issue["say"]
 

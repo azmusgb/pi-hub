@@ -13,18 +13,18 @@ test('the strip has six entries, in the spec order', () => {
   assert.deepEqual(STRIP.map(([href]) => href), ['/system', '/backups', '/versions', '/alerts', '/rules', '/settings']);
 });
 
-test('the page you are on is the one marked current, and only on strip pages', () => {
+test('the page you are on is the one marked current, and only on strip pages (Workshop has its own strip, W.1)', () => {
   for (const [href] of STRIP) {
     const items = stripItems(href);
     assert.deepEqual(items.filter((i) => i.current).map((i) => i.href), [href], href);
   }
-  for (const path of ['/', '/workshop', '/drives', '/more', '/pi']) assert.equal(stripItems(path), null, path);
+  for (const path of ['/', '/drives', '/more', '/pi']) assert.equal(stripItems(path), null, path);
 });
 
 test('the strip renders aria-current only on the current entry', () => {
   const src = read('hub/static/js/system-strip.js');
   assert.match(src, /"aria-current": current \? "page" : null/);
-  assert.match(src, /"aria-label": "System"/);
+  assert.match(src, /"aria-label": strip\.label/);
 });
 
 test('every strip entry is a page of the System section the router knows', () => {
@@ -45,10 +45,10 @@ test('/pi is only a redirect to Health, and keeps ?help=', () => {
   assert.match(read('hub/static/js/health.js'), /state\.context\?\.get\("help"\)/);
 });
 
-test("Health holds every /pi card, System's services and the display", () => {
+test("Health holds every /pi card and System's services; the display's pairing moved to Settings (W.1)", () => {
   const src = read('hub/static/js/health.js');
   for (const fn of ['selfcheckCard(', 'outagesCard(', 'servicesCard(', 'fixCard(', 'storageCard(', 'updatesCard(',
-    'networkCard(', 'healthCard(', 'displayCard()', 'helpGuidance()']) assert.ok(src.includes(fn), fn);
+    'networkCard(', 'healthCard(', 'otherSystemsCard(', 'helpGuidance()']) assert.ok(src.includes(fn), fn);
   assert.match(src, /openInRow\("system"\)/);  // Open in Backrest ↗ · Cockpit ↗, from the registry (PR 7.6)
   assert.match(read('hub/static/js/freshness.js'), /const SOURCES = \{ health: true \}/);  // Source responses
 });
