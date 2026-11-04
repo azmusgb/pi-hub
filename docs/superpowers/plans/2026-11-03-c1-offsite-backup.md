@@ -143,9 +143,10 @@ owner's accounts and can't be done by an agent.
   4. **Gate check: `restic ls` on every snapshot.** With `R=sftp:pi:/mnt/usb1/backups/restic/mac`:
      ```sh
      for id in $(restic -r "$R" snapshots --json | jq -r '.[].id'); do
-       restic -r "$R" ls "$id" | grep -c '/HealthData' ; done
+       restic -r "$R" ls --json "$id" | jq -r 'select(.struct_type == "node") | .path' | grep -c '/HealthData' ; done
      ```
-     Every count must be `0`. One non-zero count, or a failed `ls`, means stop: no off-site upload.
+     Count file entries only. A plain `restic ls | grep` also matches the snapshot header line, which lists the
+     snapshot's original paths, so it reports 1 for a clean snapshot (corrected 4 Nov 2026). Every count must be `0`. One non-zero count, or a failed `ls`, means stop: no off-site upload.
   - **Pi:** `pi-offsite` backs up `/repos/mac` only. `/repos/mac-health` is never in an off-site plan, and C1.2's agent
     check confirms that from the plan's paths.
   - **Evidence:**
