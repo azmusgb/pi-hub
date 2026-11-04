@@ -1024,3 +1024,6 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   backend writes to a `drive.file`-scoped folder in the owner's existing Google One plan instead of a new B2 bucket.
   The done criteria and the `offsite-backup` heartbeat are unchanged. HealthData stays in the house in its own
   USB-only repo (owner, 4 Nov 2026).
+- **A6. Navigation cleanup** (`2026-11-04-amendment-a6-navigation-cleanup.md`): every area gets a page strip, Home & network
+  splits into Devices and Network with Weather, pages cap at six sections, names settle (Drives, Pi disks, product names for
+  tools), System gains a generated Site map, and Plex gets a gated address. Approved by the owner on 4 Nov 2026 ("fix all").
