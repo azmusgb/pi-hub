@@ -731,12 +731,12 @@ html {
 .page-strip > a:focus-visible { outline-offset: -2px; }
 /* components.css loads after this file and sets .tabs to wrap, so the strip's rule names both classes. */
 .tabs.page-strip { flex-wrap: nowrap; }
-/* On a phone System's six fit as two rows of three: nothing hides off the edge, so nothing needs a scroll hint.
-   Workshop's two fit on one row as they are. */
+/* On a phone an area's pages fit as rows of up to three (System's seven: three rows): nothing hides off the edge, so
+   nothing needs a scroll hint. Workshop's and Media's two share one row. */
 @media (max-width: 560px) {
-  .tabs.system-strip { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; overflow: visible; }
-  .tabs.system-strip > a { text-align: center; }
-  .system-strip > a:focus-visible { outline-offset: 2px; }
+  .tabs.page-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr)); width: 100%; overflow: visible; }
+  .tabs.page-strip > a { text-align: center; padding-inline: .4rem; }
+  .page-strip > a:focus-visible { outline-offset: 2px; }
 }
 
 /* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */

@@ -8,22 +8,24 @@ import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
 const PAGES = [
   { label: "Home", href: "/", area: "Home", keywords: "home overview now needs you" },
-  { label: "Weather", href: "/weather", area: "Home", keywords: "weather forecast rain sun temperature" },
   { label: "Wall display", href: "/wall", area: "Home", keywords: "wall display kiosk ambient" },
-  { label: "Workshop", href: "/workshop", area: "Workshop", keywords: "workshop printer bambu x2d camera spools ams" },
+  { label: "Printer", href: "/workshop", area: "Workshop", keywords: "workshop printer bambu x2d camera spools ams" },
   { label: "Print lab", href: "/lab", area: "Workshop", keywords: "print lab experiments coupons verdicts judge" },
-  { label: "Documents", href: "/documents", area: "Documents", keywords: "documents paperless scan pdf tax" },
-  { label: "Print a document", href: "/print", area: "Documents", keywords: "print paper hp deskjet cups ink" },
+  { label: "Papers", href: "/documents", area: "Documents", keywords: "documents papers paperless scan pdf tax" },
+  { label: "Print", href: "/print", area: "Documents", keywords: "print a document paper hp deskjet cups ink" },
   { label: "Lists", href: "/lists", area: "Documents", keywords: "lists shopping todo notes groceries" },
-  { label: "Media", href: "/media", area: "Media", keywords: "media movies plex watch movie night" },
-  { label: "Storage", href: "/drives", area: "Media", keywords: "drives storage usb disk movies" },
-  { label: "Home & network", href: "/network", area: "Home & network", keywords: "network lights devices wifi adguard dns" },
+  { label: "Movies", href: "/media", area: "Media", keywords: "media movies plex watch movie night" },
+  { label: "Drives", href: "/drives", area: "Media", keywords: "drives storage usb disk movies copy" },
+  { label: "Devices", href: "/devices", area: "Home & network", keywords: "home network devices lights plugs switches fans homebridge" },
+  { label: "Network", href: "/network", area: "Home & network", keywords: "home network internet wifi adguard dns" },
+  { label: "Weather", href: "/weather", area: "Home & network", keywords: "weather forecast rain sun temperature" },
   { label: "Health", href: "/system", area: "System", keywords: "health system services diagnostics pi help fix" },
   { label: "Backups", href: "/backups", area: "System", keywords: "backups backrest restore" },
   { label: "Versions", href: "/versions", area: "System", keywords: "versions releases deploys live commit" },
   { label: "Alerts", href: "/alerts", area: "System", keywords: "alerts events history log" },
   { label: "Automations", href: "/rules", area: "System", keywords: "automations rules triggers" },
   { label: "Settings", href: "/settings", area: "System", keywords: "settings password devices access" },
+  { label: "Site map", href: "/map", area: "System", keywords: "site map every page tool menu where" },
 ];
 
 const FIXES = [

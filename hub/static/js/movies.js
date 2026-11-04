@@ -1587,7 +1587,7 @@ function mirrorSay(m) {
   return { tone: m.state === "ok" ? "ok" : "warn", say: `Copied ${when(m.last_ok)}` };
 }
 
-function driveCard(drive, driveEvents) {
+export function driveCard(drive, driveEvents) {
   const drv = drive || {};
   const events = asArray(driveEvents);
   const drops = events.filter((event) => event.kind === "dropped").length;
@@ -1599,7 +1599,7 @@ function driveCard(drive, driveEvents) {
   const fact = (k, v, tone) => h("div", {}, h("dt", {}, k), h("dd", tone ? { dataset: { tone } } : {}, v));
 
   return card(
-    "Storage",
+    "Movies drive",
     {
       pill: connected ? "Connected" : drv.state || "Unknown",
       tone: connected ? (hasErrors || drops || copy.tone !== "ok" ? "warn" : "ok") : "bad",
@@ -1978,17 +1978,6 @@ export async function load(
           {
             class: "row",
           },
-
-          h(
-            "a",
-            {
-              class: "btn",
-              href: "/drives",
-              "data-link":
-                true,
-            },
-            "Drive health and the copy from the PC",
-          ),
 
           h(
             "a",
