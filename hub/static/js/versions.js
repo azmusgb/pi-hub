@@ -2,6 +2,7 @@
 // each target's deploy writes. Read-only for every target; going back is Pi Hub's alone, and needs the owner.
 import { api, card, empty, h, post, toast, when, whoami } from "./core.js";
 import { firstFew } from "./section-links.js";
+import { ASSISTANT_URL } from "./sections.js";
 
 export const every = 60;
 
@@ -18,7 +19,7 @@ const BY = {
 // Atlas keeps snapshots of these repositories (LocalAI's Architecture page, platform step 10), one per live commit: a
 // row links to "Architecture at this commit" there. Other targets' repositories aren't snapshotted yet.
 const ATLAS = { "pi-hub": "pi-hub", localai: "localai", "mac-watch": "localai", "print-lab": "print-lab" };
-const LOCALAI = "https://localai.home.arpa";
+const LOCALAI = ASSISTANT_URL.replace(/\/$/, "");
 const CHIP = {
   live: ["Live", "ok"], behind: ["Behind", ""], ahead: ["Ahead", ""], unknown: ["", ""], drifted: ["Drifted", "warn"],
 };

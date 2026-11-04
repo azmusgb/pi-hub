@@ -10,8 +10,8 @@ export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
-  { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies", "/drives"] },
-  { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
+  { key: "media", title: "Media", path: "/media", pages: ["/media", "/drives"] },
+  { key: "network", title: "Home & network", path: "/network", pages: ["/network"] },
   { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings"] },
 ];
 
@@ -41,6 +41,9 @@ export { REAL, TOOLS, toolsFor } from "../ui/tools.js";
 export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
   return registryUrl(name);
 }
+
+// A tool's address with a path kept (a deeper page of the tool): null for an id that isn't in the registry.
+export const toolPath = (name, path = "") => registryUrl(name, path);
 
 // The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
 // project name that isn't a lab project name is left out rather than put in the address; so is an action /lab doesn't

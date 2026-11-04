@@ -3,7 +3,7 @@
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
 import { api, card, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { band } from "./now.js";
-import { printLabUrl, sourceDown } from "./sections.js";
+import { printLabUrl, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerActionList, printerBusy, printerButtons, runPrinterAction } from "./printer-actions.js";
@@ -171,9 +171,9 @@ function printRow(p) {
   return row;
 }
 
-// Bambuddy (port 8000 on the Pi) holds the spools and projects and takes each print's filament off by itself;
+// Bambuddy (its registry address) holds the spools and projects and takes each print's filament off by itself;
 // the hub only shows them and links there to change anything.
-const bambuddyUrl = (path) => `http://${location.hostname}:8000${path}`;
+export const bambuddyUrl = (path) => toolPath("bambuddy", path);
 
 // Bambuddy didn't answer the hub: its print log or its spools are missing from /api/workshop.
 export const bambuddyDown = (d) => d?.prints_available === false || d?.spools === null;

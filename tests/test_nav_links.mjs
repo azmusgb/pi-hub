@@ -58,11 +58,12 @@ const hrefs = (root) => root.querySelectorAll('a').map((a) => a.getAttribute('hr
 const toolHosts = TOOLS.filter((t) => !t.boundary).map((t) => t.host);
 const toolLinks = (root) => hrefs(root).filter((u) => toolHosts.some((h) => u.startsWith(`https://${h}`)));
 
-function assertOnce(root, label) {
+function assertOnce(root, label, { rowOnly = true } = {}) {
   const links = toolLinks(root);
   const seen = new Map();
   for (const u of links) seen.set(u, (seen.get(u) || 0) + 1);
   assert.deepEqual([...seen].filter(([, n]) => n > 1).map(([u]) => u), [], `${label}: a tool URL appears twice`);
+  if (!rowOnly) return;
   // A tool's front door is linked only from the "Open in ↗" row; anything else on the page is a deeper path.
   const row = root.querySelector('.open-in');
   const inRow = new Set(row ? row.querySelectorAll('a').map((a) => a.getAttribute('href')) : []);
@@ -109,7 +110,7 @@ test("Health's Cockpit links are the registry address, never port 9090", async (
     assert.ok(state.root.textContent.includes('More in Cockpit'), 'the services card (with its Cockpit link) drew');
     assert.deepEqual(all.filter((u) => /:\d{2,5}(\/|$)/.test(u.replace(/^https?:\/\//, ''))), []);
     assert.ok(all.includes('https://pi.rahe-home.duckdns.org/system/services'), 'the services deep link is the registry address, path kept');
-    assertOnce(state.root, 'health');
+    assertOnce(state.root, 'health', { rowOnly: false });  // its Network card reaches Grafana and Uptime Kuma, which aren't in System's row
   } finally { dom.uninstall(); }
 });
 

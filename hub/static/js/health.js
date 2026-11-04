@@ -8,11 +8,11 @@ import {
   fix,
   verifyFix,
   h,
-  piLink,
   spark,
   when,
 } from "./core.js";
 import { openInRow } from "./section-links.js";
+import { toolPath } from "./sections.js";
 
 export const every = 20;
 
@@ -1079,11 +1079,7 @@ function servicesCard(
       "a",
       {
         class: "action",
-        href: piLink(
-          9090,
-          "/system/services",
-          "https",
-        ),
+        href: toolPath("pi", "/system/services"),
         target: "_blank",
         rel:
           "noopener noreferrer",
