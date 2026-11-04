@@ -243,6 +243,7 @@ async function show(path, { focus = false } = {}) {
     delete document.documentElement.dataset.wall;
     document.body.classList.remove("wall");
   }
+  document.body.dataset.page = page.key;
   applyTheme();
   shownPath = location.pathname + location.search;
   clearInterval(timer);

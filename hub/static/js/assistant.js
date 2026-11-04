@@ -5,7 +5,7 @@ export const every = 0; // The embedded app manages its own polling/events
 
 export function mount(state) {
   state.frame = h("iframe", {
-    src: "https://assistant.rahe-home.duckdns.org/",
+    src: "https://assistant.rahe-home.duckdns.org/#ask",
     class: "assistant-frame",
     title: "Local AI Assistant",
     allow: "clipboard-read; clipboard-write",
