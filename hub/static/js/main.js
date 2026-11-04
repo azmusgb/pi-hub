@@ -20,7 +20,7 @@ import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as versionsPage from "./versions.js";
-import { pageHeading, systemStrip, revealCurrent } from "./system-strip.js";
+import { pageHeading, pageStrip, revealCurrent } from "./system-strip.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
@@ -247,8 +247,8 @@ async function show(path, { focus = false } = {}) {
   const context = new URLSearchParams(location.search);
   const state = { root, context };
   const home = SECTIONS.find((x) => x.key === section);
-  // System's pages carry their strip instead of a breadcrumb: the strip already says where you are.
-  const strip = systemStrip(path);
+  // System's and Workshop's pages carry their strip instead of a breadcrumb: the strip already says where you are.
+  const strip = pageStrip(path);
   if (strip) { view.prepend(strip); revealCurrent(strip); }
   const parents = strip ? [] : page.key === "drives" ? [["/media", "Media"]]
     : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]

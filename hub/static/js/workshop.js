@@ -1,7 +1,8 @@
-// Workshop: the X2D now and its print history, the touchscreen, and Local AI.
+// Workshop › Printer: the X2D now, its camera, filament, projects and print history. The touchscreen's pairing is in
+// Settings and its state, with the assistant's, on Health (workshop flow W.1).
 import { api, card, duration, empty, h, settle, when } from "./core.js";
 import { band } from "./now.js";
-import { printLabUrl, sourceDown, toolUrl } from "./sections.js";
+import { printLabUrl, sourceDown } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerButtons } from "./printer-actions.js";
@@ -240,23 +241,7 @@ export async function load(state) {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;
-  state.info.replaceChildren(
-    labWorkshopCard(d.lab),
-    card("Workshop display", { pill: d.display.state, tone: d.display.state === "Online" ? "ok" : d.display.state === "Unknown" ? "warn" : "bad" },
-      h("dl", { class: "facts" },
-        h("div", {}, h("dt", {}, "Firmware"), h("dd", {}, d.display.firmware || "—"))),
-      h("a", { class: "action", href: "http://10.0.0.124", target: "_blank", rel: "noopener" }, "Open the display's page ↗")),
-    card("Local AI", { pill: d.ai.state, tone: d.ai.state === "Down" ? "bad" : ["Ready", "Busy"].includes(d.ai.state) ? "ok" : "warn" },
-      d.ai.state === "Unknown" ? h("p", { class: "meta" }, "The hub couldn’t check Local AI. Its current state is unconfirmed.")
-      : d.ai.state === "Can't answer"
-        ? h("p", { class: "meta" }, "Local AI is up, but its model service (Ollama) on the PC isn't answering, so it can't answer questions.")
-      : d.ai.state === "Down"
-        ? h("p", { class: "meta" }, "The Windows PC isn't answering. It may be off, or the room's breaker tripped.")
-        : h("dl", { class: "facts" },
-          h("div", {}, h("dt", {}, "Models loaded"), h("dd", {}, d.ai.models.length ? d.ai.models.join(", ") : "None yet (loaded on first use)")),
-          h("div", {}, h("dt", {}, "Jobs waiting"), h("dd", {}, String(d.ai.waiting ?? 0)))),
-      h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
-  );
+  state.info.replaceChildren(labWorkshopCard(d.lab));
   state.body.replaceChildren(...[
     card("Print history", { ...(cardPills(d).history || {}), cls: "wide" },
       ...(d.prints_available === false ? [h("p", { class: "meta" }, WAITING)]
