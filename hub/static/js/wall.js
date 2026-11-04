@@ -80,7 +80,7 @@ export const WALL_VIEWS = [
   { id: "ambient", label: "🏠 Ambient Home", hero: "printer", side: ["needs", "extra", "home_cards"], desc: "Glanceable overview cards for the house" },
   { id: "media", label: "🎬 Media & Entertainment", hero: "media", side: ["needs", "extra", "controls"], desc: "Plex now playing, library, and room controls" },
   { id: "agenda", label: "📅 Family & Agenda", hero: "calendar", side: ["needs", "extra", "controls", "network"], desc: "Today's calendar events, agenda, and weather" },
-  { id: "ops", label: "🖥️ System & Ops", hero: "ops", side: ["needs", "controls", "printer_mini"], desc: "Network latency waterfall, Pi health, and storage" },
+  { id: "ops", label: "🖥️ System & Ops", hero: "ops", side: ["needs", "controls", "printer_mini"], desc: "Network latency waterfall, Pi health, and drives" },
   { id: "custom", label: "⚙️ Custom Layout", hero: "custom", side: ["custom"], desc: "Personalized pane and widget selection" },
 ];
 
@@ -93,7 +93,7 @@ export const HERO_OPTIONS = [
   { id: "printer", label: "🖨️ Bambu 3D Printer & Camera", desc: "Live camera stream, telemetry HUD, and print progress" },
   { id: "media", label: "🎬 Media & Plex", desc: "Now playing, movie library stats, and theater controls" },
   { id: "calendar", label: "📅 Family & Agenda", desc: "Daily schedule, upcoming appointments, and weather summary" },
-  { id: "ops", label: "🖥️ System & Network Ops", desc: "Network latency breakdown, Pi thermals, and storage health" },
+  { id: "ops", label: "🖥️ System & Network Ops", desc: "Network latency breakdown, Pi thermals, and drive health" },
   { id: "weather", label: "⛅ Weather & Forecast", desc: "Current conditions, temperature trends, and forecast" },
 ];
 
@@ -104,7 +104,7 @@ export const SIDE_OPTIONS = [
   { id: "network", label: "Network status", desc: "Internet health and latency breakdown", defaultChecked: true },
   { id: "calendar", label: "Upcoming events", desc: "Next appointments and calendar reminders", defaultChecked: false },
   { id: "media", label: "Media card", desc: "Now playing or latest movie", defaultChecked: false },
-  { id: "system", label: "System & backups", desc: "Storage disk capacity and backup status", defaultChecked: false },
+  { id: "system", label: "System & backups", desc: "Disk capacity and backup status", defaultChecked: false },
   { id: "printer_mini", label: "3D printer mini", desc: "Compact print progress and temperatures", defaultChecked: false },
   { id: "home_cards", label: "Home cards", desc: "Ambient overview cards for the house", defaultChecked: false },
 ];

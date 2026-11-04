@@ -1599,7 +1599,7 @@ export function driveCard(drive, driveEvents) {
   const fact = (k, v, tone) => h("div", {}, h("dt", {}, k), h("dd", tone ? { dataset: { tone } } : {}, v));
 
   return card(
-    "Movies drive",
+    "Movies drive status",
     {
       pill: connected ? "Connected" : drv.state || "Unknown",
       tone: connected ? (hasErrors || drops || copy.tone !== "ok" ? "warn" : "ok") : "bad",

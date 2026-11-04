@@ -1129,7 +1129,7 @@ function storageCard(storage) {
                   "strong",
                   {},
                   storageItem?.name ||
-                    "Storage",
+                    "Disk",
                 ),
 
                 h(
@@ -1154,7 +1154,7 @@ function storageCard(storage) {
                         "progressbar",
 
                       "aria-label":
-                        `${storageItem?.name || "Storage"} used`,
+                        `${storageItem?.name || "Disk"} used`,
 
                       "aria-valuemin":
                         "0",
@@ -1184,7 +1184,7 @@ function storageCard(storage) {
           },
         )
       : empty(
-          "Storage information is unavailable.",
+          "Disk information is unavailable.",
         ),
   );
 }
