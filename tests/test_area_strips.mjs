@@ -103,7 +103,7 @@ test("More lists the two areas the bottom bar leaves out, by their first page; W
     const root = dom.root();
     mount({ root });
     const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
-    assert.deepEqual(links, ['/devices', '/system']);
+    assert.deepEqual(links, ['/devices', '/system', '/map']);
   } finally { dom.uninstall(); }
 });
 
@@ -204,4 +204,22 @@ test('Media\'s drive card is not named like the Drives page card', async () => {
     assert.notEqual(title, 'Movies drive');
   } finally { dom.uninstall(); }
   assert.match(read('hub/static/js/drives.js'), /x\.is_movies \? "Movies drive"/);
+});
+
+test('the Site map is easy to find: a footer link on every page, and a row on the phone More page', async () => {
+  const shell = read('hub/static/index.html');
+  const footer = shell.match(/<footer[\s\S]*?<\/footer>/)?.[0] || '';
+  assert.match(footer, /href="\/map"[\s\S]{0,80}data-link="true"|data-link="true"[\s\S]{0,80}href="\/map"/, 'a /map link in the footer');
+  assert.match(footer, /Site map/);
+  assert.ok(footer.indexOf('href="/wall"') > -1 && footer.indexOf('/map') > -1, 'beside the Wall display link');
+  assert.ok(shell.match(/<footer/g).length === 1, 'one shell, so one footer for every page');
+  const { mount } = await import('../hub/static/js/more.js');
+  const dom = install();
+  try {
+    const root = dom.root();
+    mount({ root });
+    const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
+    assert.ok(links.includes('/map'), 'More lists /map');
+    assert.ok(links.includes('/devices') && links.includes('/system'));
+  } finally { dom.uninstall(); }
 });
