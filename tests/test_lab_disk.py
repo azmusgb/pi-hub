@@ -162,6 +162,6 @@ def test_backup_script_includes_the_caddy_local_ca():
 def test_workshop_print_lab_links_open_the_hubs_lab_page():
     root = os.path.join(os.path.dirname(__file__), "..", "hub/static/js")
     w = open(os.path.join(root, "workshop.js")).read()
-    assert "printLabUrl(p.lab.exp)" in w and 'href: "/lab", "data-link": true' in w
+    assert "printLabUrl(p.lab.exp, p.lab.project)" in w and 'href: "/lab", "data-link": true' in w
     assert "#projects" not in w and "#printLab" not in w
     assert "localLabUrl" not in open(os.path.join(root, "sections.js")).read()

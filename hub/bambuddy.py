@@ -94,7 +94,7 @@ def _print(e):
             "status": e.get("status"), "word": status_word(e.get("status")),
             "started": _epoch(e.get("started_at")), "ended": _epoch(e.get("completed_at")),
             "seconds": e.get("duration_seconds"), "grams": e.get("filament_used_grams"), "cost": e.get("cost"),
-            "error": e.get("failure_reason"), "lab": {"exp": m["exp"], "build": m["build"]} if m else None}
+            "error": e.get("failure_reason"), "lab": {"project": m["project"], "exp": m["exp"], "build": m["build"]} if m else None}
 
 
 def _prints():
