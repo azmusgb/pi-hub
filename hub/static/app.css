@@ -741,23 +741,29 @@ html {
   background: transparent;
 }
 
-/* Hide Pi Hub outer chrome when viewing Assistant to prevent double headers/footers */
+/* Hide Pi Hub outer chrome when viewing Assistant or Architecture to prevent double headers/footers */
 body[data-page="assistant"] .foot,
-body[data-page="assistant"] .page-notice {
+body[data-page="assistant"] .page-notice,
+body[data-page="architecture"] .foot,
+body[data-page="architecture"] .page-notice {
   display: none !important;
 }
-body[data-page="assistant"] #view {
+body[data-page="assistant"] #view,
+body[data-page="architecture"] #view {
   padding: 0;
   max-width: none;
 }
-body[data-page="assistant"] .stage {
+body[data-page="assistant"] .stage,
+body[data-page="architecture"] .stage {
   min-height: 100dvh;
 }
 @media (max-width: 860px) {
-  body[data-page="assistant"] .top {
+  body[data-page="assistant"] .top,
+  body[data-page="architecture"] .top {
     display: none !important;
   }
-  body[data-page="assistant"] .shell {
+  body[data-page="assistant"] .shell,
+  body[data-page="architecture"] .shell {
     padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
 }

@@ -10,7 +10,7 @@ export const SECTIONS = [
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/versions", "/pi", "/alerts", "/rules", "/settings", "/drives"] },
+  { key: "system", title: "System", path: "/system", pages: ["/system", "/versions", "/architecture", "/pi", "/alerts", "/rules", "/settings", "/drives"] },
 ];
 
 // On the phone, Home & network and System sit under More.

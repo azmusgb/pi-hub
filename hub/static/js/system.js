@@ -11,6 +11,7 @@ export function systemStrip(activePath = "/system") {
   const items = [
     ["/system", "Health"],
     ["/versions", "Versions"],
+    ["/architecture", "Architecture"],
     ["/alerts", "Alerts"],
     ["/rules", "Automations"],
     ["/settings", "Settings"],

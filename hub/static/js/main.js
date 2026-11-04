@@ -22,6 +22,7 @@ import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
 import * as versionsPage from "./versions.js";
 import * as assistantPage from "./assistant.js";
+import * as architecturePage from "./architecture.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI inside Pi Hub
@@ -88,6 +89,7 @@ const PAGES = {
   "/network": { key: "network", title: "Home & network", mod: networkPage },
   "/system": { key: "system", title: "System", mod: systemPage },
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
+  "/architecture": { key: "architecture", title: "Architecture", mod: architecturePage },
 };
 
 // Page-specific subtitles
@@ -107,6 +109,7 @@ const subtitles = {
   "/network": "Devices, internet and blocking",
   "/system": "Backups, alerts and settings",
   "/versions": "What is live where",
+  "/architecture": "System Atlas: codebase topology and evidence",
   "404": "That address doesn’t exist",
 };
 
