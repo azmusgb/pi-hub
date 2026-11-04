@@ -52,7 +52,7 @@ test("System's strip pages are headed System; the strip and the tab title say wh
   const { pageHeading } = await import('../hub/static/js/system-strip.js');
   assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'System', title: 'Health · System' });
   assert.deepEqual(pageHeading('/backups', 'Backups'), { heading: 'System', title: 'Backups · System' });
-  assert.deepEqual(pageHeading('/workshop', 'Workshop'), { heading: 'Workshop', title: 'Workshop' });
+  assert.deepEqual(pageHeading('/media', 'Media'), { heading: 'Media', title: 'Media' });
   assert.match(read('hub/static/js/main.js'), /pageHeading\(path, page\.title\)/);
 });
 

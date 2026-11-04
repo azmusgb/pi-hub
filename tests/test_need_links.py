@@ -114,3 +114,14 @@ def test_local_ai_items_open_the_assistant_page_they_are_about():
     assert links["localai:disk-C"] == "tool:assistant/#status"
     assert links["localai:watch-x"] == "tool:assistant/#inbox"
     assert links["localai:odd-1"] == "tool:assistant"
+
+
+def test_local_ai_the_display_and_the_pc_open_health_where_they_are_shown():
+    """Workshop flow W.1: their cards left Workshop; Health shows their state."""
+    for key in ("local_ai", "workshop_display", "pc"):
+        assert now.HREF[key] == "/system", key
+    assert now.HREF["pc_printing"] == "/workshop"
+    found = now.issues({"services": {}, "drive_state": None, "ai_state": "Down", "display_state": "Offline"})
+    links = {i["what"]: (i.get("href"), i.get("link_label")) for i in found}
+    assert links["Windows PC"] == ("/system", "Check Health")
+    assert links["Workshop display"] == ("/system", "Check Health")
