@@ -87,7 +87,7 @@ def test_records_with_their_own_page_link_there_not_to_health():
     assert now.HREF["backups"] == "/backups"
     assert now.HREF["paper_printer"] == "/print"
     assert now.HREF["plex"] == "/media"
-    assert now.HREF["devices"] == "/network"
+    assert now.HREF["devices"] == "/devices"  # A6: Home & network split; internet and AdGuard stay on /network
 
 
 def test_the_hubs_live_issues_never_link_a_retired_path():

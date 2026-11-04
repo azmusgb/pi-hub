@@ -26,7 +26,7 @@ test('on each Workshop page the strip marks that page current, and only that one
   assert.equal(stripFor('/lab').key, 'workshop');
   assert.equal(stripFor('/lab').label, 'Workshop');
   assert.equal(stripFor('/settings').key, 'system');
-  for (const path of ['/', '/drives', '/more', '/pi', '/media']) assert.equal(stripFor(path), null, path);
+  for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripFor(path), null, path);  // A6: every other page is on a strip
 });
 
 test('every Workshop strip entry is a page of the Workshop section the router knows', () => {
@@ -41,7 +41,7 @@ test('Workshop pages are headed Workshop; the strip and the tab title say which 
   assert.deepEqual(pageHeading('/workshop', 'Workshop'), { heading: 'Workshop', title: 'Printer · Workshop' });
   assert.deepEqual(pageHeading('/lab', 'Print lab'), { heading: 'Workshop', title: 'Print lab · Workshop' });
   assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'System', title: 'Health · System' });
-  assert.deepEqual(pageHeading('/media', 'Media'), { heading: 'Media', title: 'Media' });
+  assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
 });
 
 test('the shell draws one strip component for both areas, labelled by its area, with aria-current on the page', () => {
