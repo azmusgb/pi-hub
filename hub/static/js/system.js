@@ -1,4 +1,4 @@
-// System: strip (Health, Backups, Versions, Alerts, Automations, Settings), backups first, then the Pi's services.
+// System: backups first, then the Pi's services, alerts, automations, help and settings.
 import { api, fix, h } from "./core.js";
 import { toolUrl } from "./sections.js";
 import { agoText } from "./wording.js";
@@ -7,32 +7,10 @@ import { displayCard } from "./display-pair.js";
 
 export const every = 300;
 
-export function systemStrip(activePath = "/system") {
-  const items = [
-    ["/system", "Health"],
-    ["/versions", "Versions"],
-    ["/architecture", "Architecture"],
-    ["/alerts", "Alerts"],
-    ["/rules", "Automations"],
-    ["/settings", "Settings"],
-  ];
-  return h("nav", { class: "tabs system-strip", "aria-label": "System areas", style: "margin-bottom: 1.5rem;" },
-    ...items.map(([path, label]) => {
-      const isCurrent = path === activePath || (path === "/system" && activePath === "/pi");
-      return h("a", {
-        href: path,
-        "data-link": true,
-        ...(isCurrent ? { "aria-current": "page" } : {})
-      }, label);
-    })
-  );
-}
-
 export function mount(state) {
   state.backups = h("div");
   state.containers = h("div", { class: "system-containers" });
   state.root.append(
-    systemStrip("/system"),
     h("section", { class: "more-group" }, h("h2", {}, "Backups"), state.backups,
       h("a", { class: "tool-link", href: toolUrl("backups"), target: "_blank", rel: "noopener" }, "Restore a file in Backrest ↗")),
     h("section", { class: "more-group" },
@@ -44,6 +22,7 @@ export function mount(state) {
       ["/versions", "Versions", "What is live where, for every part"],
       ["/alerts", "Alerts", "Recent events and warnings"],
       ["/rules", "Automations", "Choose what happens automatically"],
+      ["/pi", "Help & system", "Solve a problem and check the hub"],
       ["/drives", "Movie storage", "The movies drive and its health"],
       ["/settings", "Settings", "Your devices, access, connections and backups"],
       [toolUrl("pi"), "The Pi's admin ↗", "Services, updates and logs, in Cockpit"],

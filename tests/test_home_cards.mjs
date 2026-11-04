@@ -17,8 +17,8 @@ const all = (over = {}) => homeCards({ now: NOW, needs: NEEDS, backups: BACKUPS,
 const by = (cards) => Object.fromEntries(cards.map((c) => [c.key, c]));
 
 test('Needs you comes first, and only when something needs you', () => {
-  assert.deepEqual(all().map((c) => c.key), ['needs', 'workshop', 'assistant', 'documents', 'media', 'network', 'system']);
-  assert.deepEqual(all({ needs: { count: 0, items: [], unread: [] } }).map((c) => c.key), ['workshop', 'assistant', 'documents', 'media', 'network', 'system']);
+  assert.deepEqual(all().map((c) => c.key), ['needs', 'workshop', 'documents', 'media', 'network', 'system']);
+  assert.deepEqual(all({ needs: { count: 0, items: [], unread: [] } }).map((c) => c.key), ['workshop', 'documents', 'media', 'network', 'system']);
   const n = by(all()).needs;
   assert.equal(n.title, 'Needs you');
   assert.equal(n.tone, 'attention');
@@ -32,9 +32,6 @@ test('each card has a status line and one main action in task words', () => {
   assert.equal(c.workshop.title, 'Bambu X2D');
   assert.match(c.workshop.status, /^Printing, 94% · done (2|14):20/);
   assert.deepEqual(c.workshop.action, { label: 'Open Bambuddy ↗', href: 'https://bambuddy.rahe-home.duckdns.org/' });
-  assert.equal(c.assistant.title, 'Local AI');
-  assert.equal(c.assistant.status, 'Checking Local AI status…');
-  assert.deepEqual(c.assistant.action, { label: 'Ask Assistant', href: '/assistant' });
   assert.deepEqual(c.documents.action, { label: 'Find a document', href: '/documents' });
   assert.deepEqual(c.documents.link, { label: 'Scan ↗', href: 'https://scan.rahe-home.duckdns.org/' });
   assert.equal(c.media.status, 'Now playing: Arrival · Latest: Dune');
