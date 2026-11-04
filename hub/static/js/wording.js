@@ -20,6 +20,14 @@ const DEVICE_NAMES = {
 };
 
 // An appliance's switch shown on its own (a favourite) says which appliance it belongs to.
+// A light, plug, switch or fan's state line. An on/off Homebridge didn't report is "No answer" and not known, so the
+// tile can't be toggled from an assumed state (unknown is never Off).
+export function tileState(a) {
+  if (a?.on !== true && a?.on !== false) return { text: "No answer", known: false, on: null };
+  if (!a.on) return { text: "Off", known: true, on: false };
+  return { text: a.brightness != null ? `On, ${a.brightness}%` : "On", known: true, on: true };
+}
+
 export function applianceLabel(a) {
   if (DEVICE_NAMES[a.name]) return DEVICE_NAMES[a.name];
   const name = APPLIANCE_NAMES[a.room];
@@ -46,7 +54,7 @@ export function groupAppliances(accessories) {
     const running = list.find((a) => /\bactive\b/i.test(a.name)) || null;
     const programs = list.filter((a) => a !== power && a !== running);
     const chosen = programs.find((p) => p.on);
-    const status = [power ? (power.on ? "On" : "Off") : null, running?.on ? "Running" : null,
+    const status = [power ? (power.on === true ? "On" : power.on === false ? "Off" : "No answer") : null, running?.on ? "Running" : null,
       chosen ? `${chosen.name} selected` : null].filter(Boolean).join(" · ");
     appliances.push({ name, room, power, running, programs, status });
     list.forEach((a) => grouped.add(a.id));
