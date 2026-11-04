@@ -2,7 +2,7 @@
 import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
 import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
-import { rememberOpen } from "./section-links.js";
+import { moreList, rememberOpen } from "./section-links.js";
 
 export const every = 30;
 
@@ -391,6 +391,14 @@ export function mount(state) {
   });
 
   state.night = mountMovieNight(state);
+  // Six sections in view; the rest are under More (A6): closed until opened, and remembered.
+  state.more = moreList({
+    storeKey: "hub-media-more",
+    title: "More",
+    cls: "media-more",
+    items: [["surprise", "Surprise pick"], ["drive", "Movies drive"], ["requests", "Requests"], ["watched", "What's been watched"]],
+  });
+  for (const key of ["surprise", "drive", "requests", "watched"]) state.more.fill(key, []);
 
   state.body = h("div", {
     class: "stack",
@@ -1842,7 +1850,7 @@ function catalogSection(state, allMovies, genres) {
     h(
       "div",
       { class: "eyebrow-section" },
-      h("h2", { id: "movie-catalog-heading" }, "Browse Library"),
+      h("h2", { id: "movie-catalog-heading" }, "Library"),
     ),
     toolbar,
     gridContainer,
@@ -1914,6 +1922,11 @@ export async function load(
         ? "Nothing new lately."
         : "The movies drive is missing, so Plex can't list new movies.";
 
+    state.more.fill("surprise", [movieNight(state, genres)]);
+    state.more.fill("drive", [driveCard(drive, driveEvents)]);
+    state.more.fill("requests", [requestsCard(state, data?.requests)]);
+    state.more.fill("watched", [statsCard(data, activeTitle)]);
+
     state.body.replaceChildren(
       ...[
         librarySwitcher(
@@ -1959,19 +1972,7 @@ export async function load(
 
         state.night,
 
-        movieNight(state, genres),
-
-        driveCard(
-          drive,
-          driveEvents,
-        ),
-
-        requestsCard(
-          state,
-          data?.requests,
-        ),
-
-        rememberOpen(h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)), "movies-stats"),
+        state.more.root,
 
         h(
           "div",

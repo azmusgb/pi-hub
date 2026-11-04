@@ -38,3 +38,45 @@ export function openInRow(area, only = null) {
   return h("p", { class: "open-in" }, "Open in ", ...tools.flatMap((t, i) => [i ? " · " : "",
     h("a", { class: "tool-link", href: toolPath(t.id, FRONT_DOOR[t.id] || ""), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)]));
 }
+
+// A "More" list (A6): a heading and one native <details> per item, closed until this viewer opens one. Which are open is
+// kept in this browser under `storeKey`; storage can be missing, blocked or hold junk, and then every item starts closed.
+// `fill(key, nodes)` puts an item's content in; an item with nothing in it is hidden, so a source that didn't answer
+// leaves no empty row.
+function openMap(storeKey) {
+  try {
+    const v = JSON.parse(globalThis.localStorage?.getItem(storeKey) || "{}");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch { return {}; }
+}
+
+function rememberItem(storeKey, key, open) {
+  try { globalThis.localStorage?.setItem(storeKey, JSON.stringify({ ...openMap(storeKey), [key]: !!open })); } catch { /* not remembered this time */ }
+}
+
+export function moreList({ storeKey, title, cls = "", items }) {
+  const opened = openMap(storeKey);
+  const titleId = `${storeKey}-title`;
+  const slots = {};
+  const root = h("section", { class: ["more-list", cls].filter(Boolean).join(" "), "aria-labelledby": titleId },
+    h("h2", { class: "section-title", id: titleId }, title),
+    ...items.map(([key, label]) => {
+      const body = h("div", { class: "more-list-body" });
+      const el = h("details", { class: "more-list-item", dataset: { key } }, h("summary", {}, label), body);
+      el.open = opened[key] === true;
+      el.addEventListener("toggle", () => rememberItem(storeKey, key, el.open));
+      slots[key] = { el, body };
+      return el;
+    }));
+  return {
+    root,
+    items: slots,
+    fill(key, nodes) {
+      const slot = slots[key];
+      if (!slot) return;
+      const kids = (Array.isArray(nodes) ? nodes : [nodes]).filter(Boolean);
+      slot.body.replaceChildren(...kids);
+      slot.el.hidden = kids.length === 0;
+    },
+  };
+}

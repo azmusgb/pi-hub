@@ -739,5 +739,24 @@ html {
   .page-strip > a:focus-visible { outline-offset: 2px; }
 }
 
+/* Settings' group names are longer than a page name: they wrap inside their cell on a phone. */
+.tabs.settings-tabs > a { white-space: normal; }
+@media (min-width: 561px) { .tabs.settings-tabs > a { white-space: nowrap; } }
+
+/* A "More" list (A6): a heading, then one closed row per item. The card inside an item loses its box and its visible
+   heading, because the row's summary already names it; the heading stays for screen readers, and so does the pill. */
+.more-list { margin-top: 1.25rem; }
+.more-list-item { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.more-list-item[hidden] { display: none; }
+.more-list-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .75rem 1.1rem; cursor: pointer; font-weight: 600; }
+.more-list-item > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.more-list-item[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.more-list-body { padding: 1rem 1.1rem; }
+.more-list-body > :first-child { margin-top: 0; }
+.more-list-body > .card { border: 0; box-shadow: none; background: none; padding: 0; margin: 0; }
+.more-list-body > .card > .card-head > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.more-list-body > .card > .card-head { justify-content: flex-end; }
+.more-list-body .help-topics { margin-top: .5rem; }
+
 /* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */
 .open-in { margin: .75rem 0 0; }

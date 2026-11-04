@@ -102,6 +102,8 @@ afterEach(() => { while (LIVE.length) { const [m, state] = LIVE.pop(); try { m.l
 async function page(mod, routes = {}) {
   const dom = install({ fetch: { '/api/me': { role: 'owner' }, ...routes } });
   dom.document.createElementNS ||= (ns, tag) => dom.document.createElement(tag);  // charts draw SVG
+  globalThis.window.addEventListener ||= () => {};  // Settings listens for hashchange
+  globalThis.window.removeEventListener ||= () => {};
   try {
     const m = await import(`../hub/static/js/${mod}.js`);
     const state = { root: dom.root(), context: new URLSearchParams('') };
