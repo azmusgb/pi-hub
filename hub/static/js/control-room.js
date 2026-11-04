@@ -112,7 +112,10 @@ export function printerNow(r, nowMs = Date.now()) {
     facts,
     cause: r?.cause || "",
     actions: actionNames(r?.actions),
-    lab: d.lab?.exp || d.lab_experiment || "",
+    // The printer record carries the lab print as {experiment, project} (sources.lab_printing, since 6.3); a record
+    // kept from before then has {exp}, and records.load() brings it back at start.
+    lab: d.lab?.experiment || d.lab?.exp || d.lab_experiment || "",
+    labProject: d.lab?.project || "",
   };
 }
 
@@ -222,7 +225,7 @@ function renderPrinterHero(r, state, onReload) {
   const actionsWrap = h("div", { class: "cr-item-actions" });
   const btns = m.actions.length ? printerButtons({ actions: m.actions, state: r.state }, onReload) : null;
   if (btns) actionsWrap.append(btns);
-  if (m.lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(m.lab), "data-link": true }, `Print lab: ${m.lab}`));
+  if (m.lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(m.lab, m.labProject), "data-link": true }, `Print lab: ${m.lab}`));
   actionsWrap.append(h("a", { class: "action ghost", href: RECORD_PATHS.printer || "/workshop", "data-link": true }, "Open Workshop"));
 
   const cam = state.cameraOk && m.running
@@ -261,8 +264,9 @@ function renderActiveItem(r, state, onReload) {
     const btns = printerButtons({ actions: names, state: r.state }, onReload);
     if (btns) actionsWrap.append(btns);
   }
-  const lab = r.id === "printer" ? printerNow(r).lab : "";
-  if (lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(lab), "data-link": true }, `Print lab: ${lab}`));
+  const pn = r.id === "printer" ? printerNow(r) : null;
+  const lab = pn?.lab || "";
+  if (lab) actionsWrap.append(h("a", { class: "action", href: printLabUrl(lab, pn.labProject), "data-link": true }, `Print lab: ${lab}`));
   actionsWrap.append(h("a", { class: "action ghost", href, "data-link": true }, `Open ${name}`));
 
   return h("li", { class: "log-row cr-now-row", dataset: { thing: r.id } },

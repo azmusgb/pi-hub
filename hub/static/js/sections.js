@@ -42,9 +42,11 @@ export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-var
   return registryUrl(name);
 }
 
-// The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).
-export function printLabUrl(exp) {
-  return `/lab?e=${exp}`;
+// The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
+// project name that isn't a lab project name is left out rather than put in the address.
+export function printLabUrl(exp, project = "") {
+  const p = typeof project === "string" && /^[a-z0-9-]{1,40}$/.test(project) ? `p=${project}&` : "";
+  return `/lab?${p}e=${exp}`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).

@@ -45,7 +45,7 @@ export function labLink(p) {
   const id = p?.lab?.experiment;
   if (typeof id !== "string" || !/^E-\d{1,6}$/.test(id)) return null;
   const project = p.lab.project;
-  const p_ = typeof project === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(project) ? `p=${project}&` : "";
+  const p_ = typeof project === "string" && /^[a-z0-9-]{1,40}$/.test(project) ? `p=${project}&` : "";
   return { label: `Print lab: ${id}`, href: `/lab?${p_}e=${id}` };
 }
 
