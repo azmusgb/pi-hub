@@ -9,7 +9,7 @@ SCRIPT = ROOT / "deploy/pi-hub-heartbeat.sh"
 PING = "https://hc-ping.com/00000000-0000-4000-8000-000000000000"
 
 
-def run(tmp_path, health='{"ok":true}', ping="ok", url=PING):
+def run(tmp_path, health='{"ok":true}', ping="ok", url=PING, down_for=0):
     tools = tmp_path / "bin"
     tools.mkdir(exist_ok=True)
     calls = tmp_path / "calls"
@@ -23,14 +23,17 @@ if "-K" in args:
     with open(os.environ["CALLS"], "a") as f: f.write("PING " + config.strip() + "\n")
     sys.exit(0 if os.environ["PING"] == "ok" else 6)
 if args[-1].endswith("/healthz"):
-    if os.environ["HEALTH"] == "fail":
+    with open(os.environ["CALLS"] + ".health", "a+") as f:
+        f.seek(0); attempt = len(f.read()); f.write(".")
+    if os.environ["HEALTH"] == "fail" or attempt < int(os.environ.get("DOWN_FOR", "0")):
         print("curl: (22) The requested URL returned error: 503", file=sys.stderr); sys.exit(22)
     sys.stdout.write(os.environ["HEALTH"])
 else:
     sys.exit(0 if os.environ["PING"] == "ok" else 6)
 ''')
     stub.chmod(0o755)
-    env = {**os.environ, "PATH": f"{tools}:{os.environ['PATH']}", "CALLS": str(calls), "HEALTH": health, "PING": ping}
+    env = {**os.environ, "PATH": f"{tools}:{os.environ['PATH']}", "CALLS": str(calls), "HEALTH": health, "PING": ping,
+           "DOWN_FOR": str(down_for), "HEARTBEAT_RETRY_DELAY": "0"}
     if url is None:
         env.pop("HC_PING_URL", None)
     else:
@@ -60,6 +63,26 @@ def test_an_unhealthy_hub_sends_nothing(tmp_path):
     assert result.returncode == 1
     assert pings(lines) == []
     assert "no heartbeat sent" in result.stderr
+
+
+def health_checks(lines):
+    return [line for line in lines if line.endswith("/healthz")]
+
+
+def test_a_deploy_restart_is_not_an_outage(tmp_path):
+    # A release restarts Caddy and Pi Hub for a few seconds. A heartbeat that lands in that gap must try again rather
+    # than skip its ping: one missed ping is ten minutes and a second past the last, which is Down (period 5 + grace 5).
+    result, lines = run(tmp_path, down_for=2)
+    assert result.returncode == 0, result.stderr
+    assert len(health_checks(lines)) == 3
+    assert len(pings(lines)) == 1
+
+
+def test_a_hub_that_stays_down_is_tried_four_times_then_sends_nothing(tmp_path):
+    result, lines = run(tmp_path, health="fail")
+    assert result.returncode == 1
+    assert len(health_checks(lines)) == 4
+    assert pings(lines) == []
 
 
 def test_an_unexpected_health_body_sends_nothing(tmp_path):

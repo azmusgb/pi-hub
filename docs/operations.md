@@ -244,8 +244,9 @@ their phone notices to `POST /api/notify/{source}` instead of sending their own,
 The one alarm that does not depend on Pi Hub (platform baseline D2). Every 5 minutes `pi-hub-heartbeat.timer` fetches
 `https://hub.rahe-home.duckdns.org/healthz` through Caddy on the Pi, with the real certificate. `/healthz` reads the
 database. Only a `{"ok":true}` answer sends a ping to the Healthchecks.io check `home-platform-alive` (period 5 min,
-grace 5 min). A failed check sends nothing, so Healthchecks.io alerts after about 10 minutes of silence and again
-when pings resume.
+grace 5 min). A failed check is tried four times over 15 seconds, so the few seconds a release spends restarting
+Caddy and Pi Hub don't skip a ping (one skipped ping was enough to flap the check Down and Up, 2-4 Nov 2026). If every
+try fails it sends nothing, so Healthchecks.io alerts after about 10 minutes of silence and again when pings resume.
 
 - **Secret:** `/etc/pi-hub/healthchecks.env`, owned by root, mode `0600`, one line `HC_PING_URL=<the check's ping URL>`.
   It is never in the repo. Like the other `/etc/pi-hub` secrets it is in the nightly backup, so a restored Pi keeps
