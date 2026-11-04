@@ -714,8 +714,9 @@ def api_gate(request: Request):
 
 @app.get("/api/assistant")
 def api_assistant():
-    """Whether Local AI answers, for the Assistant button (the same fact /api/now shows)."""
-    return fresh({"state": (sources.pi_status() or {}).get("ai_state") or "Unknown"})
+    """Whether Local AI answers and whether the PC is on, for the Assistant button's `assistant_down` and `pc_off`."""
+    pc = (records.get("pc") or {}).get("state") or "unknown"
+    return fresh({"state": (sources.pi_status() or {}).get("ai_state") or "Unknown", "pc": pc})
 
 
 @app.get("/api/me")

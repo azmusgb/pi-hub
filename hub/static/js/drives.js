@@ -52,7 +52,7 @@ export async function load(state) {
   if (!state.force && state.root.contains(document.activeElement) && ["INPUT", "SELECT"].includes(document.activeElement.tagName)) return;
   state.force = false;
   if (!["household", "owner"].includes((await whoami())?.role)) {
-    state.body.replaceChildren(card("Movie storage", {},
+    state.body.replaceChildren(card("Storage", {},
       h("p", { class: "meta" }, "Drive health is for the owner. Sign in to see it."),
       h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("household")) { state.force = true; load(state); } } }, "Sign in")));
     return;

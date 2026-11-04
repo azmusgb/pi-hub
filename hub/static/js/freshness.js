@@ -1,6 +1,6 @@
 import { api, h } from "./core.js";
 
-// Checking detail, not something to act on: it lives on Help & system only (25 Oct critique). Other pages say
+// Checking detail, not something to act on: it lives on System › Health only (25 Oct critique). Other pages say
 // "<App> isn't answering" in the card that needs it. The rows are the hub's records (one per thing), then the
 // calendar and any source not set up: all of them show.
 const SOURCES = { pi: true };

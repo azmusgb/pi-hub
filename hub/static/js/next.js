@@ -237,7 +237,7 @@ export function buildCommandItems(query = "", { records = [], needs = null, host
 
   // 3. Pages & Views
   const pages = [
-    { label: "Control room (Now / Problems / Recent)", href: "/next", badge: "Page", keywords: "control room next now problems timeline stream" },
+    { label: "Control room (Now / Needs you / Recent)", href: "/next", badge: "Page", keywords: "control room next now problems timeline stream" },
     { label: "Home", href: "/", badge: "Page", keywords: "home overview dashboard" },
     { label: "Workshop (Bambu X2D & Filament)", href: "/workshop", badge: "Page", keywords: "workshop printer bambu x2d camera spools ams" },
     { label: "Print lab (Experiments & Verdicts)", href: "/lab", badge: "Page", keywords: "print lab experiments coupons verdicts judge" },
@@ -252,7 +252,7 @@ export function buildCommandItems(query = "", { records = [], needs = null, host
     { label: "Automations & Rules", href: "/rules", badge: "Page", keywords: "automations rules triggers alerts" },
     { label: "Alerts & Event log", href: "/alerts", badge: "Page", keywords: "alerts events history log" },
     { label: "Help & Diagnostics", href: "/pi", badge: "Page", keywords: "help diagnostics pi temperature cpu memory" },
-    { label: "Movie storage & Drives", href: "/drives", badge: "Page", keywords: "drives storage usb disk movies" },
+    { label: "Storage & Drives", href: "/drives", badge: "Page", keywords: "drives storage usb disk movies" },
     { label: "Versions", href: "/versions", badge: "Page", keywords: "versions releases deploys live commit rollback" },
     { label: "Settings", href: "/settings", badge: "Page", keywords: "settings password devices wifi homebridge" },
   ];

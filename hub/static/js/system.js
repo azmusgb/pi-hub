@@ -22,8 +22,8 @@ export function mount(state) {
       ["/versions", "Versions", "What is live where, for every part"],
       ["/alerts", "Alerts", "Recent events and warnings"],
       ["/rules", "Automations", "Choose what happens automatically"],
-      ["/pi", "Help & system", "Solve a problem and check the hub"],
-      ["/drives", "Movie storage", "The movies drive and its health"],
+      ["/pi", "Health", "Solve a problem and check the hub"],
+      ["/drives", "Storage", "The movies drive and its health"],
       ["/settings", "Settings", "Your devices, access, connections and backups"],
       [toolUrl("pi"), "The Pi's admin ↗", "Services, updates and logs, in Cockpit"],
     ]));

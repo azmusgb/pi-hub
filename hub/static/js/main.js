@@ -31,11 +31,11 @@ for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
   for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
   a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
-// "The PC is off" while the Pi's status service says Local AI is down; checked now, every minute, and when the page
+// `pc_off` or `assistant_down` while the PC is off or Local AI is down; checked now, every minute, and when the page
 // comes back into view (a phone wakes with an hour-old answer otherwise).
 async function checkAssistant() {
   const r = await api("/api/assistant").catch(() => null);
-  const { label, disabled } = assistantButton(r?.state);
+  const { label, disabled } = assistantButton(r?.state, r?.pc);
   for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
     a.querySelector("span").textContent = label;
     a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
@@ -54,15 +54,15 @@ const PAGES = {
   "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
-  "/print": { key: "print", title: "Print", mod: printPage },
+  "/print": { key: "print", title: "Print a document", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/pi": { key: "pi", title: "Help & system", mod: piPage },
+  "/pi": { key: "pi", title: "Health", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
   "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
-  "/drives": { key: "drives", title: "Movie storage", mod: drivesPage },
+  "/drives": { key: "drives", title: "Storage", mod: drivesPage },
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
   "/media": { key: "movies", title: "Media", mod: moviesPage },
   "/documents": { key: "documents", title: "Documents", mod: documentsPage },
@@ -176,7 +176,7 @@ function tick() {
 }
 
 // Short enough that a hung request can't leave a page on "Loading…" for good (refresh() won't start again while a
-// load is still running). A page with a known slow source sets its own `loadDeadline` (Movie storage).
+// load is still running). A page with a known slow source sets its own `loadDeadline` (Storage).
 const LOAD_DEADLINE_MS = 45_000;
 
 async function refresh() {

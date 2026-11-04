@@ -72,11 +72,16 @@ test('assistantHref never sends "undefined" and collapses whitespace', () => {
   assert.equal(decodeURIComponent(assistantHref('hub.rahe-home.duckdns.org', 'Home', ' Two\n things  ').split('context=')[1]), 'Pi Hub › Home: Two things');
 });
 
-test('assistantButton says the PC is off only when Local AI is down', () => {
-  assert.deepEqual(assistantButton('Down'), { label: 'The PC is off', disabled: true });
-  assert.deepEqual(assistantButton('Unknown'), { label: 'Assistant', disabled: false });
-  assert.deepEqual(assistantButton('Ready'), { label: 'Assistant', disabled: false });
-  assert.deepEqual(assistantButton(undefined), { label: 'Assistant', disabled: false });
+test('assistantButton: pc_off when the PC is off, assistant_down when only Local AI is down, unknown stays enabled', () => {
+  const on = { label: 'Assistant', phrase: '', disabled: false };
+  assert.deepEqual(assistantButton('Down', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Unknown', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Down', 'on'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Down', 'unknown'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Down'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Unknown', 'unknown'), on);
+  assert.deepEqual(assistantButton('Ready', 'on'), on);
+  assert.deepEqual(assistantButton(undefined), on);
 });
 
 test('assistantHref never cuts an emoji in half', () => {
@@ -106,4 +111,10 @@ test('tool links follow a hub opened on the real name', () => {
   assert.equal(toolUrl('bambuddy', 'hub.rahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
   assert.equal(toolUrl('scan', 'hub.rahe-home.duckdns.org:443'), 'https://scan.rahe-home.duckdns.org/');
   assert.equal(toolUrl('bambuddy', 'evilrahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
+});
+
+test("a PC record of off doesn't disable an Assistant that answers", () => {
+  assert.equal(assistantButton("Ready", "off").disabled, false);
+  assert.equal(assistantButton("Busy", "off").disabled, false);
+  assert.equal(assistantButton("Unknown", "off").phrase, "pc_off");
 });
