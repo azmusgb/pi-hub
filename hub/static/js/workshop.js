@@ -112,9 +112,23 @@ const bambuddyUrl = (path) => `http://${location.hostname}:8000${path}`;
 export const bambuddyDown = (d) => d?.prints_available === false || d?.spools === null;
 const WAITING = "Shown again when Bambuddy answers.";
 
+// The one Bambuddy notice, as a small state machine so a live region speaks only on a change: going down is said once,
+// coming back is said once ("answering again"), and the render after that clears it without a word.
+export function nextSourceNotice(prev, down) {
+  if (down) return { state: "down", text: `${sourceDown("Bambuddy")}. Print history and spools show again when it answers.`, changed: prev !== "down" };
+  if (prev === "down") return { state: "recovered", text: "Bambuddy is answering again.", changed: true };
+  return { state: "up", text: "", changed: prev === "recovered" };
+}
+
+// While Bambuddy is down the notice says so once; its cards carry no pill of their own.
+export function cardPills(d) {
+  const down = bambuddyDown(d);
+  return { history: down ? null : weekPill(d.week), filament: down ? null : undefined };
+}
+
 function shelf(spools, amsTrays = [], printer = null) {
   if (spools === null) {
-    return card("Filament", { cls: "wide", pill: "No answer", tone: "warn" }, h("p", { class: "meta" }, WAITING));
+    return card("Filament", { cls: "wide" }, h("p", { class: "meta" }, WAITING));
   }
   const trays = Array.isArray(amsTrays) ? amsTrays : [];
   const low = spools.filter((s) => s.low);
@@ -215,13 +229,10 @@ export async function load(state) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
   }
-  // Only when it changes: the region is a live status, and a refresh every 15 s mustn't announce it again.
-  const down = bambuddyDown(d);
-  if (state.down !== down) {
-    state.down = down;
-    state.sources.replaceChildren(...(down ? [h("p", { class: "callout callout--warn source-down" },
-      `${sourceDown("Bambuddy")}. Print history and spools show again when it answers.`)] : []));
-  }
+  const notice = nextSourceNotice(state.notice, bambuddyDown(d));
+  state.notice = notice.state;
+  if (notice.changed) state.sources.replaceChildren(...(notice.text ? [h("p", {
+    class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
   const prints = d.prints.map((p) => printRow(p));
   const m = d.filament_month;
   state.info.replaceChildren(
@@ -242,7 +253,7 @@ export async function load(state) {
       h("a", { class: "action", href: toolUrl("assistant"), target: "_blank", rel: "noopener" }, "Open Local AI ↗"))
   );
   state.body.replaceChildren(...[
-    card("Print history", { ...weekPill(d.week), cls: "wide" },
+    card("Print history", { ...(cardPills(d).history || {}), cls: "wide" },
       ...(d.prints_available === false ? [h("p", { class: "meta" }, WAITING)]
         : prints.length ? firstFew(prints, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
       d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +

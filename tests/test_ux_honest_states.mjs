@@ -9,6 +9,10 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 test("no telemetry source is \"No answer\", never \"Offline\"", async () => {
   const { telemetryLabel } = await import('../hub/static/js/now.js');
   assert.equal(telemetryLabel({ telemetry: { status: 'offline', source: 'No source' } }).label, 'No answer');
+  // Bambuddy answered and reported the printer offline (connected: false): that is an observation, so Offline.
+  assert.deepEqual(
+    (({ state, label }) => ({ state, label }))(telemetryLabel({ state: 'offline', telemetry: { status: 'offline', source: 'Bambuddy' } })),
+    { state: 'offline', label: 'Offline' });
   assert.equal(telemetryLabel({ telemetry: { status: 'offline', source: 'No source' } }).state, 'none');
   assert.equal(telemetryLabel({}).label, 'No answer');
   assert.equal(telemetryLabel({ telemetry: { status: 'live' } }).label, 'Live');
@@ -19,7 +23,7 @@ test("no telemetry source is \"No answer\", never \"Offline\"", async () => {
 
 test('the chip for no answer is neutral, not the error colour', () => {
   const css = read('hub/static/app.css');
-  assert.doesNotMatch(css, /\.printer-source\[data-state="offline"\]/);
+  assert.match(css, /\.printer-source\[data-state="offline"\] \.printer-source__dot \{ background: var\(--state-error\)/);
   assert.match(css, /\.printer-source\[data-state="none"\] \.printer-source__dot \{ background: var\(--state-unknown/);
 });
 
@@ -31,7 +35,6 @@ test('a source that isn\'t answering is named once, in the kit\'s source_down wo
   assert.equal(bambuddyDown({ prints_available: true, spools: [] }), false);
   const src = read('hub/static/js/workshop.js');
   assert.equal(src.match(/Bambuddy isn't answering/g), null, 'cards no longer repeat the outage');
-  assert.match(src, /if \(state\.down !== down\)/, 'the live notice changes only when the outage does');
 });
 
 test('Workshop links to Bambuddy once, in its "Open in" row', () => {
@@ -56,4 +59,27 @@ test("System's strip pages are headed System; the strip and the tab title say wh
 test('on a phone the strip shows all six entries, in two rows of three', () => {
   const css = read('hub/static/app.css');
   assert.match(css, /@media \(max-width: 560px\) \{\s*\.tabs\.system-strip \{[^}]*grid-template-columns: repeat\(3, 1fr\)/);
+});
+
+test('the Bambuddy notice: said once when it goes down, recovery said once, then cleared without a word', async () => {
+  const { nextSourceNotice } = await import('../hub/static/js/workshop.js');
+  let s = nextSourceNotice(undefined, false);
+  assert.deepEqual(s, { state: 'up', text: '', changed: false });
+  s = nextSourceNotice(s.state, true);
+  assert.equal(s.changed, true);
+  assert.equal(s.text, "Bambuddy isn't answering. Print history and spools show again when it answers.");
+  s = nextSourceNotice(s.state, true);
+  assert.equal(s.changed, false, 'a refresh while still down announces nothing');
+  s = nextSourceNotice(s.state, false);
+  assert.deepEqual(s, { state: 'recovered', text: 'Bambuddy is answering again.', changed: true });
+  s = nextSourceNotice(s.state, false);
+  assert.deepEqual(s, { state: 'up', text: '', changed: true }, 'the next render clears it');
+  s = nextSourceNotice(s.state, false);
+  assert.equal(s.changed, false);
+});
+
+test("while Bambuddy is down its cards carry no pill of their own: the one notice says it", async () => {
+  const { cardPills } = await import('../hub/static/js/workshop.js');
+  assert.deepEqual(cardPills({ prints_available: false, spools: null, week: null }), { history: null, filament: null });
+  assert.equal(cardPills({ prints_available: true, spools: [], week: { finished: 2 } }).history.pill, '2 finished this week');
 });
