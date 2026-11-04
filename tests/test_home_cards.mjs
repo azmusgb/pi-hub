@@ -186,3 +186,11 @@ test("a print's file name reads as a title", async () => {
   assert.equal(jobTitle(""), "");
   assert.equal(jobTitle(null), "");
 });
+
+test('the printing experiment links its own project in the lab, and Restore a file opens Backups', () => {
+  assert.deepEqual(labLink({ lab: { experiment: 'E-30', project: 'vase-mode' } }),
+    { label: 'Print lab: E-30', href: '/lab?p=vase-mode&e=E-30' });
+  assert.deepEqual(labLink({ lab: { experiment: 'E-30', project: 'bad name"><' } }),
+    { label: 'Print lab: E-30', href: '/lab?e=E-30' });
+  assert.equal(by(all()).system.action.href, '/backups');
+});

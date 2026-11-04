@@ -23,7 +23,7 @@ test("record actions are {name} objects; the printer buttons and Clear the plate
 test("Now's printer reads the record's own keys: percent, time left, layer, lab", () => {
   const at = new Date(2026, 10, 2, 19, 0).getTime();
   const m = printerNow({ id: "printer", state: "printing", headline: "Printing, 47%",
-    detail: { job: "v72 bracket", progress: 47.4, minutes_left: 100, layer: 88, total_layers: 210, lab: { exp: "E-012" } },
+    detail: { job: "v72 bracket", progress: 47.4, minutes_left: 100, layer: 88, total_layers: 210, lab: { experiment: "E-012" } },
     actions: [{ name: "pause" }, { name: "stop" }] }, at);
   assert.equal(m.readout, "47%");
   assert.equal(m.word, "Printing");

@@ -97,7 +97,7 @@ def test_api_now_and_pages(monkeypatch):
 def test_missing_status_does_not_claim_devices_are_offline():
     d = now.build({}, None, {}, None)
     assert d["status_available"] is False
-    assert d["issues"][0]["href"] == "/pi"
+    assert d["issues"][0]["href"] == "/system"
     assert "Restart" not in d["issues"][0]["say"]
     assert now.build(recs(), [], {}, 12)["status_available"] is True
 
@@ -311,7 +311,7 @@ def test_lab_printing_reads_only_the_hubs_own_store(monkeypatch, tmp_path):
     db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, '{}', ?, 'x')",
            "hex-tile", json.dumps({"experiments": [{"id": "E-021", "status": "answered"}, {"id": "E-022", "status": "printing"}]}))
     sources._cache.pop("lab-printing", None)
-    assert sources.lab_printing() == {"experiment": "E-022"}
+    assert sources.lab_printing() == {"experiment": "E-022", "project": "hex-tile"}
     db.run("UPDATE lab_projects SET index_json = ?", json.dumps({"experiments": [{"id": "<img src=x>", "status": "printing"}]}))
     sources._cache.pop("lab-printing", None)
     assert sources.lab_printing() is None

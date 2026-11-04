@@ -32,3 +32,23 @@ test("mergeProblems combines Needs you and uncovered record problems without dup
   assert.equal(merged[1].recordId, "movies_drive");
   assert.equal(merged[1].fix.name, "remount:movies");
 });
+
+test("the printer's lab print links its experiment in its own project", async () => {
+  const { printerNow } = await import("../hub/static/js/control-room.js");
+  const { printLabUrl } = await import("../hub/static/js/sections.js");
+  const r = { id: "printer", state: "printing", detail: { lab: { experiment: "E-30", project: "vase-mode" } } };
+  const m = printerNow(r);
+  assert.equal(m.lab, "E-30");
+  assert.equal(printLabUrl(m.lab, m.labProject), "/lab?p=vase-mode&e=E-30");
+  assert.equal(printLabUrl("E-30", 'x"><img'), "/lab?e=E-30");
+  assert.equal(printLabUrl("E-30"), "/lab?e=E-30");
+});
+
+test("a record's page: its own, a release record's Versions, and System for one the browser doesn't know", async () => {
+  const { recordPath } = await import("../hub/static/js/control-room.js");
+  assert.equal(recordPath("backups"), "/backups");
+  assert.equal(recordPath("mac_lab"), "/lab");
+  assert.equal(recordPath("release:localai"), "/versions");
+  assert.equal(recordPath("something_new"), "/system");
+  assert.equal(recordPath(undefined), "/system");
+});

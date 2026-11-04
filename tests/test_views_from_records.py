@@ -89,13 +89,13 @@ def test_a_quiet_source_is_one_issue_not_one_per_thing(client):
     client.held.update(_quiet_pi())
     issues = client.get("/api/now").json()["issues"]
     since = time.strftime("%H:%M", time.localtime(T))
-    assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/pi",
+    assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/system",
                        "say": f"Isn't answering since {since}. Last readings for Local AI, Workshop display, "
                               "Raspberry Pi, Movies drive, Movie copy from the PC, Movies, Smart-home controls "
                               "are shown as they were."}]
     items = client.get("/api/needs").json()["items"]
     assert [(i["id"], i["title"], i["tone"], i["link"]) for i in items] == [
-        ("pi:source:pi_status", "The Pi's status service", "warn", "/pi")]
+        ("pi:source:pi_status", "The Pi's status service", "warn", "/system")]
     assert items[0]["detail"] == issues[0]["say"]
 
 

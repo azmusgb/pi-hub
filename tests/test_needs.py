@@ -34,7 +34,7 @@ def test_needs_merges_the_three_sources():
     assert n["count"] == len(n["items"]) == 4
     local = [i for i in n["items"] if i["source"] == "Local AI"]
     assert {i["title"] for i in local} == {"Needs you", "Disk"}
-    assert all(i["link"] == "tool:assistant" for i in local)
+    assert {i["title"]: i["link"] for i in local} == {"Needs you": "tool:assistant/#inbox", "Disk": "tool:assistant/#inbox"}
     hub = {i["title"]: i for i in n["items"] if i["source"] == "Pi Hub"}
     assert hub["Movies drive"]["link"] == "/drives"
     # the printer's finished record says "clear the plate" (it was a print event before the records)
@@ -77,7 +77,7 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
 def test_the_hubs_own_live_issues_need_you_too():
     n = needs.build([], {"cards": []}, NOW, problems({"services": {"plex": False, "homebridge": True}}))
     assert n["items"][0] == {"id": "pi:Movies", "source": "Pi Hub", "tone": "bad", "title": "Movies",
-                             "detail": "The movie service has stopped", "link": "/pi", "record": "plex"}
+                             "detail": "The movie service has stopped", "link": "/media", "record": "plex"}
 
 
 def test_the_alert_history_is_not_needs():
@@ -180,8 +180,8 @@ def test_lab_kinds_tone_title_link_as_of():
     assert got["pi:lab:hex-tile:E-001"]["tone"] == "attention"
     assert got["pi:lab:hex-tile:E-001"]["title"] == "E-001: Judge the print"
     assert got["pi:lab:hex-tile:E-001"]["detail"] == "Look at the face."
-    assert got["pi:lab:hex-tile:E-001"]["link"] == "/lab?e=E-001&do=judge"
-    assert got["pi:lab:hex-tile:E-002"]["tone"] == "attention" and got["pi:lab:hex-tile:E-002"]["link"] == "/lab?e=E-002"
+    assert got["pi:lab:hex-tile:E-001"]["link"] == "/lab?p=hex-tile&e=E-001&do=judge"
+    assert got["pi:lab:hex-tile:E-002"]["tone"] == "attention" and got["pi:lab:hex-tile:E-002"]["link"] == "/lab?p=hex-tile&e=E-002"
     assert got["pi:lab:hex-tile:E-003"]["tone"] == "warn"
     assert got["pi:lab:hex-tile:E-004"]["tone"] == "warn"
     assert all(i["as_of"] == "2026-10-28T10:00:00+00:00" for i in got.values())
@@ -328,7 +328,7 @@ def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk
     assert mac["detail"] == "Mac disk is 95% full · What's using it"
     assert mac["link"].startswith("tool:assistant/#ask?context=")
     assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
-    assert by_id["localai:watch-disk"]["link"] == "tool:assistant"  # other cards keep the plain Assistant link
+    assert by_id["localai:watch-disk"]["link"] == "tool:assistant/#inbox"  # other watch cards open the Inbox
 
 
 def test_a_local_ai_item_about_another_printer_is_not_about_the_x2d():  # review: "printer" alone isn't the X2D

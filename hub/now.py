@@ -50,13 +50,13 @@ def issues(s):
     if s is None:
         return [{"tone": "bad", "what": "Home status unavailable",
                  "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
-                 "href": "/pi", "link_label": "Check the hub"}]
+                 "href": "/system", "link_label": "Check the hub"}]
     out = []
     svc = s.get("services") or {}
     if s.get("drive_state") not in ("Connected", "Missing", "Not mounted") or any(not isinstance(svc.get(key), bool) for key in ("plex", "homebridge")):
         out.append({"tone": "warn", "what": "Some device status unavailable",
                     "say": "Some checks returned no reading. This does not confirm that those devices are offline.",
-                    "href": "/pi", "link_label": "Check source responses"})
+                    "href": "/system", "link_label": "Check source responses"})
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
                     "say": "Movies may not play because the storage drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
@@ -101,11 +101,12 @@ def summary(found):
 
 HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/workshop", "local_ai": "/workshop",
         "pc": "/workshop", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
-        "adguard": "/network", "backups": "/system", "pc_printing": "/"}
+        "adguard": "/network", "backups": "/backups", "pc_printing": "/workshop", "pi": "/system", "plex": "/media",
+        "devices": "/network", "paper_printer": "/print", "weather": "/weather", "hub": "/system"}
 
 UNAVAILABLE = {"tone": "bad", "what": "Home status unavailable",
                "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
-               "href": "/pi", "link_label": "Check the hub"}
+               "href": "/system", "link_label": "Check the hub"}
 
 
 def _say(rec):
@@ -128,7 +129,7 @@ def issue_from(rec):
     """One record that needs a look, as an issue on Home and a row in Needs you."""
     from .records import LABELS
     out = {"tone": "bad" if rec["severity"] == "problem" else "warn", "what": LABELS.get(rec["id"], rec["id"]),
-           "say": _say(rec), "href": HREF.get(rec["id"], "/pi")}
+           "say": _say(rec), "href": HREF.get(rec["id"], "/system")}
     fix = next((a for a in rec.get("actions") or [] if ":" in a.get("name", "")), None)
     if fix:
         out.update(fix=fix["name"], fix_label=fix.get("label") or "")
@@ -140,7 +141,7 @@ def quiet_source(source, recs):
     from .records import LABELS, SOURCE_NAMES
     since = time.strftime("%H:%M", time.localtime(max(r["as_of"] for r in recs)))
     labels = ", ".join(LABELS.get(r["id"], r["id"]) for r in recs)
-    return {"tone": "warn", "what": SOURCE_NAMES.get(source, source), "href": "/pi",
+    return {"tone": "warn", "what": SOURCE_NAMES.get(source, source), "href": "/system",
             "say": f"Isn't answering since {since}. Last readings for {labels} are shown as they were."}
 
 

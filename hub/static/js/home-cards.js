@@ -44,7 +44,9 @@ export function needsSummary(needs, fallback) {
 export function labLink(p) {
   const id = p?.lab?.experiment;
   if (typeof id !== "string" || !/^E-\d{1,6}$/.test(id)) return null;
-  return { label: `Print lab: ${id}`, href: `/lab?e=${id}` };
+  const project = p.lab.project;
+  const p_ = typeof project === "string" && /^[a-z0-9-]{1,40}$/.test(project) ? `p=${project}&` : "";
+  return { label: `Print lab: ${id}`, href: `/lab?${p_}e=${id}` };
 }
 
 // The printer card's tone with Needs you: red for a bad item about the printer, amber (warn) for any other, so the
@@ -98,7 +100,7 @@ function systemCard(backups, pi) {
   return { key: "system", title: "System",
     status: (backups === undefined ? "Checking backups…" : worst === null ? "Backups unknown" : `Backed up ${agoText(worst)}`) + temp,
     tone: backups === undefined ? "none" : worst === null || worst > STALE_HOURS ? "warn" : "ok",
-    action: { label: "Restore a file", href: "/system" }, link: null };
+    action: { label: "Restore a file", href: "/backups" }, link: null };
 }
 
 // `undefined` for needs, backups or latest means "not answered yet": Home shows its cards at once and fills these in.
