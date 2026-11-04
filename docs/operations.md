@@ -287,11 +287,11 @@ One menu by task (design: one home, step 2). The phone shows Home, Workshop, Doc
 | Section | Path | Inside |
 |---|---|---|
 | Home | `/` | Needs you (`/api/needs`: the hub's own live issues, Local AI's warnings, the printer) and one card per section |
-| Workshop | `/workshop` | The X2D, camera, filament and projects (Bambuddy), Print lab, the workshop display |
+| Workshop | `/workshop` | The X2D, camera, filament and projects (Bambuddy), Print lab (`/lab`) |
 | Documents | `/documents` | Find a document (owner only, Paperless user `hub`), Scan, `/print`, `/lists` |
 | Media | `/media` | Movies (`/movies` redirects here), `/drives` |
 | Home & network | `/network` | Devices (`/control` redirects here), Internet, Ad blocking (AdGuard via the root helper), Guest Wi-Fi |
-| System | `/system` | Backup ages (restic snapshots via the root helper), `/alerts`, `/rules`, `/pi`, `/settings`, Cockpit |
+| System | `/system` | Health (Local AI, the workshop display and the PC under Other systems), backup ages (restic snapshots via the root helper), `/alerts`, `/rules`, `/settings` (workshop display pairing), Cockpit |
 
 Old App Suite addresses (`/apps/...`, `/bambuddy`, `/grafana`, `/status`) redirect to the section that now holds the tool. Links to tools use the `*.home.arpa` names when the hub is opened by one, and the old `IP:port` otherwise. Browser check from the Mac: `cd tests/browser && npm install && node structure.mjs http://10.0.0.30`.
 

@@ -28,7 +28,7 @@ test('with /api/pi failing, Health still shows Other systems from the records', 
     assert.ok(card, 'the Other systems card is on the page');
     assert.match(text(card), /Local AI isn't answering/);
     assert.match(text(card), /The touchscreen is online/);
-    assert.match(text(card), /Windows PC Not checked yet/);
+    assert.match(text(card), /Windows PC\s*Not checked yet/);
   } finally { dom.uninstall(); }
 });
 

@@ -66,7 +66,7 @@ function safeWhen(value) {
   return value ? when(value) : "—";
 }
 
-function helpGuidance() {
+export function helpGuidance() {
   return [
     [
       "movies",
@@ -95,7 +95,7 @@ function helpGuidance() {
     [
       "workshop",
       "3D printer or workshop problem",
-      "Check the Bambu printer’s screen for errors. Workshop shows the camera, print status and local AI connection.",
+      "Check the Bambu printer’s screen for errors. Workshop shows the camera and print status; Local AI and the workshop display are under Other systems on this page.",
       "/workshop",
       "Check Workshop",
     ],
@@ -109,6 +109,9 @@ export function mount(state) {
   state.body = h("div", {
     class: "cards",
   });
+
+  // Other systems has its own slot: it reads the records, so it stays when the Pi's diagnostics fail.
+  state.others = h("div", { class: "pi-bottom-grid" });
 
   state.diagnostic = h(
     "p",
@@ -218,6 +221,7 @@ export function mount(state) {
     topic ? help : null,
     state.diagnostic,
     state.body,
+    state.others,
     openInRow("system"),
     topic ? null : help,
   ].filter(Boolean));
@@ -1401,6 +1405,28 @@ async function loadDiagnostics(
       api("/api/records"),
     ]);
 
+  // Records only colour the restartable services; without them those rows say nothing about health.
+  const recordsValue =
+    recordsResult.status ===
+    "fulfilled"
+      ? recordsResult.value
+      : null;
+
+  const records =
+    asArray(
+      recordsValue?.records ||
+        recordsValue,
+    );
+
+  state.others.replaceChildren(
+    otherSystemsCard(
+      recordsResult.status ===
+        "fulfilled"
+        ? records
+        : null,
+    ),
+  );
+
   if (
     diagnosticsResult.status !==
     "fulfilled"
@@ -1429,19 +1455,6 @@ async function loadDiagnostics(
           log: [],
           updates: {},
         };
-
-  // Records only colour the restartable services; without them those rows say nothing about health.
-  const recordsValue =
-    recordsResult.status ===
-    "fulfilled"
-      ? recordsResult.value
-      : null;
-
-  const records =
-    asArray(
-      recordsValue?.records ||
-        recordsValue,
-    );
 
   // Health's order (step 7 plan, Decision 3): self-check, outages, services, fix it, storage, updates, network, history.
   state.body.replaceChildren(
@@ -1498,12 +1511,6 @@ async function loadDiagnostics(
         data.network,
       ),
 
-      otherSystemsCard(
-        recordsResult.status ===
-          "fulfilled"
-          ? records
-          : null,
-      ),
     ),
 
     healthCard(state, data),
