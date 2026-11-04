@@ -53,7 +53,7 @@
   --shadow-1: 0 1px 2px rgb(var(--shade-rgb) / .05), 0 2px 6px rgb(var(--shade-rgb) / .05);
   --shadow-2: 0 18px 40px -18px rgb(var(--shade-rgb) / .28);
   --glow: 0 0 0 1px var(--accent-soft), 0 10px 30px -12px var(--accent-soft);
-  --ring: 0 0 0 3px var(--accent-soft);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);  /* solid, so focus shows on any surface (CSS review 4 Nov) */
   --shell-blur: saturate(140%) blur(14px);
 }
 
