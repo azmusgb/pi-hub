@@ -31,8 +31,9 @@ export function firstFew(items, { n = 6, cls = "log", noun = "entries", key = ""
 const FRONT_DOOR = { status: "status/home" };
 
 // Every area page ends with its tools (§5.3): one "Open in …↗" row of the area's gated tools, from the registry.
-export function openInRow(area) {
-  const tools = toolsFor(area);
+// `only` narrows it to some of the area's tools, for an area whose pages split them (Home & network: Devices | Network).
+export function openInRow(area, only = null) {
+  const tools = toolsFor(area).filter((t) => !only || only.includes(t.id));
   if (!tools.length) return null;
   return h("p", { class: "open-in" }, "Open in ", ...tools.flatMap((t, i) => [i ? " · " : "",
     h("a", { class: "tool-link", href: toolPath(t.id, FRONT_DOOR[t.id] || ""), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)]));

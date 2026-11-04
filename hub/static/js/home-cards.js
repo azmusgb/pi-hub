@@ -90,7 +90,7 @@ function networkCard(net, home) {
   const devices = home?.connected ? ` · ${plural(on, "device")} on` : "";
   return { key: "network", title: "Home & network",
     status: internet ? internet[0] + devices : "Network checks aren't answering", tone: internet ? internet[1] : "warn",
-    action: { label: "Control devices", href: "/network" }, link: null };
+    action: { label: "Control devices", href: "/devices" }, link: null };
 }
 
 function systemCard(backups, pi) {

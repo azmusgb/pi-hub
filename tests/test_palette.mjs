@@ -39,7 +39,8 @@ test("each area page ends with its registry tools (§5.3)", () => {
   for (const area of ["workshop", "documents", "network", "system"]) assert.ok(toolsFor(area).length, area);
   assert.match(read("workshop.js"), /openInRow\("workshop"\)/);
   assert.match(read("documents.js"), /openInRow\("documents"\)/);
-  assert.match(read("network.js"), /openInRow\("network"\)/);
+  assert.match(read("network.js"), /openInRow\("network", \["adguard", "network", "status"\]\)/);  // A6: Devices and Network split the area's tools
+  assert.match(read("devices.js"), /openInRow\("network", \["devices"\]\)/);
   assert.match(read("health.js"), /openInRow\("system"\)/);
   assert.ok(!toolsFor("workshop").some((t) => t.boundary), "the display's D4 hosts are not for people");
 });

@@ -1,7 +1,7 @@
 // Documents: find a paper in Paperless, scan one, print one, and the household lists.
 import { ensure, h, whoami } from "./core.js";
 import { resolveLink } from "./sections.js";
-import { linkGroup, openInRow } from "./section-links.js";
+import { openInRow } from "./section-links.js";
 
 export const every = 600;
 
@@ -51,10 +51,6 @@ export function mount(state) {
     state.query, h("button", { type: "submit", class: "btn" }, "Find"));
   state.root.append(
     h("section", { class: "more-group" }, h("h2", {}, "Find a document"), form, state.results),
-    linkGroup("More with papers", [
-      ["/print", "Print a document", "Print a file and check the queue"],
-      ["/lists", "Lists", "Shopping, to-dos and notes"],
-    ]),
     openInRow("documents"));
 }
 
