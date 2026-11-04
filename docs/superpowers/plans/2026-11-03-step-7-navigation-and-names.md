@@ -120,6 +120,8 @@ Kept from them: the strip's `aria-current` approach, and the idea of a not-found
 
 ## Decisions this plan makes (for the owner's review)
 
+**Approved:** the owner approved all ten decisions as recommended, and the seven "Done means" criteria ("do it all", 3 Nov 2026).
+
 None changes the spec. If the owner disagrees with one, it changes here.
 
 1. **The "Done means" list above is step 7's completion criteria.** The spec lists step 7's contents but gives no
