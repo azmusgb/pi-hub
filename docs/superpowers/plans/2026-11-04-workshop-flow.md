@@ -1,6 +1,6 @@
 # Workshop page flow — Plan
 
-Date: 2026-11-04 · Status: proposed (docs PR) · Baseline: `2026-11-01-platform-product-architecture-design.md`
+Date: 2026-11-04 · Status: approved; all four decisions as recommended (owner, "do these", 4 Nov 2026) · Baseline: `2026-11-01-platform-product-architecture-design.md`
 
 **Goal:** `/workshop` answers "what is the printer doing, and does anything need me?" in the first screen, on the
 phone and on the desktop. Everything else on the page is reachable but secondary.
