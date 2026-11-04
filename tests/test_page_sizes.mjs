@@ -89,10 +89,11 @@ test('Health shows six sections in order and folds the rest into a collapsed Mor
       const outside = state.root.querySelectorAll('[data-health]').filter((n) => !more.contains(n));
       assert.deepEqual(outside.map((n) => n.dataset.health), ['selfcheck', 'services', 'disks', 'updates', 'others', 'fix']);
       assert.ok(outside.length <= 6);
-      const items = more.querySelectorAll('details');
+      const items = more.querySelectorAll('.more-list-item');
       assert.deepEqual(items.map((d) => d.dataset.key), ['outages', 'network', 'history', 'help']);
       assert.ok(items.every((d) => !d.open), 'More is collapsed');
       assert.match(text(more.querySelector('h2')), /^More/);
+      assert.doesNotMatch(text(state.root), /\bnull\b|undefined/, 'no stray null or undefined on the page');
       // the order on the page: sections, More, then the Open in row
       const order = state.root.querySelectorAll('[data-health], .health-more, .open-in').filter((n) => n.dataset.health !== undefined ? !more.contains(n) : true);
       assert.deepEqual(order.map((n) => n.dataset.health || (n.classList.contains('health-more') ? 'more' : 'open-in')),
@@ -119,11 +120,11 @@ test('an item the viewer opened in More is still open after Health refreshes', a
   await withStorage(store, async () => {
     const { dom, state } = await health(ROUTES_OK);
     try {
-      state.root.querySelector('.health-more details[data-key="network"]').open = true;
+      state.root.querySelector('.health-more .more-list-item[data-key="network"]').open = true;
       const m = await import('../hub/static/js/health.js');
       await m.load(state);
-      assert.ok(state.root.querySelector('.health-more details[data-key="network"]').open);
-      assert.ok(!state.root.querySelector('.health-more details[data-key="help"]').open);
+      assert.ok(state.root.querySelector('.health-more .more-list-item[data-key="network"]').open);
+      assert.ok(!state.root.querySelector('.health-more .more-list-item[data-key="help"]').open);
     } finally { dom.uninstall(); }
   });
 });
@@ -134,7 +135,7 @@ test('with the diagnostics down, Health still shows Other systems and the help g
     try {
       assert.ok(state.root.querySelector('[data-health="others"]'));
       const more = state.root.querySelector('.health-more');
-      const shown = more.querySelectorAll('details').filter((d) => !d.hidden).map((d) => d.dataset.key);
+      const shown = more.querySelectorAll('.more-list-item').filter((d) => !d.hidden).map((d) => d.dataset.key);
       assert.deepEqual(shown, ['help']);
     } finally { dom.uninstall(); }
   });
@@ -148,7 +149,7 @@ test('/system?help=movies puts the guide first and open, as it always has', asyn
       assert.ok(first);
       assert.ok(first.querySelector('#help-movies').open);
       const more = state.root.querySelector('.health-more');
-      assert.ok(!more.querySelector('details[data-key="help"]') || more.querySelector('details[data-key="help"]').hidden);
+      assert.ok(!more.querySelector('.more-list-item[data-key="help"]') || more.querySelector('.more-list-item[data-key="help"]').hidden);
     } finally { dom.uninstall(); }
   });
 });
@@ -177,9 +178,9 @@ test('Media shows at most six sections and folds the drive, requests, surprise p
       await m.load(state);
       const more = state.root.querySelector('.media-more');
       assert.ok(more, 'a More section');
-      const outside = state.body.children.filter((n) => n !== more && !n.matches('.movie-libraries, .row'));
-      assert.ok(outside.length >= 4 && outside.length <= 6, `${outside.length} sections outside More`);
-      const items = more.querySelectorAll('details');
+      const outside = state.body.children.filter((n) => n !== more && !n.matches('.movie-libraries') && !n.matches('.row'));
+      assert.ok(outside.length >= 4 && outside.length <= 6, `${outside.length} sections outside More: ${outside.map((n) => n.className).join(' | ')}`);
+      const items = more.querySelectorAll('.more-list-item');
       assert.deepEqual(items.map((d) => d.dataset.key), ['surprise', 'drive', 'requests', 'watched']);
       assert.ok(items.every((d) => !d.open), 'More is collapsed');
       assert.match(text(more.querySelector('[data-key="drive"]')), /Movies drive/);
@@ -191,6 +192,7 @@ test('Media shows at most six sections and folds the drive, requests, surprise p
 
 const SETTINGS = {
   '/api/me': { role: 'owner' },
+  '/api/display/pair/status': { paired: false },
   '/api/settings': {
     homebridge: { connected: false }, wifi: null, digest: { on: false, at: '07:00' }, quiet: { on: false, from: '22:00', to: '07:00' },
     place: '', units: 'F', calendar_set: false, backups: [], pc_copy: null, alerts_ready: true,
@@ -209,6 +211,7 @@ async function settings(hash = '') {
   m.mount(state);
   await m.load(state);
   const go = (h) => { globalThis.location.hash = h; (listeners.hashchange || []).forEach((f) => f()); };
+  await new Promise((r) => setTimeout(r, 20));   // the display card's own status poll settles before the DOM is taken away
   return { dom, state, m, go, listeners };
 }
 const visibleGroups = (root) => root.querySelectorAll('.settings-group').filter((g) => !g.hidden).map((g) => g.id);
