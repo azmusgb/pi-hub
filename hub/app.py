@@ -1205,6 +1205,31 @@ p{margin:0 0 16px;color:var(--ui-muted)}nav{display:flex;flex-wrap:wrap;gap:12px
 </main></body></html>"""
 
 
+# The privacy note Google's consent screen links to for pi-offsite, the owner's own OAuth app that writes the off-site
+# backup to Google Drive (amendment A5). Standalone, like the 404 page.
+PRIVACY_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Pi Hub</title>
+<script src="/static/js/saved-theme.js"></script>
+<link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
+<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
+main{max-width:36rem;margin:10vh auto 0}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}
+p{margin:0 0 16px;color:var(--ui-muted)}</style>
+</head><body><main>
+<h1>Privacy</h1>
+<p>Pi Hub and its “pi-offsite” Google app are a personal system used by one household. They have no other users.</p>
+<p>The app asks Google only for <code>drive.file</code>: it can see and change only the files it created itself, never
+anything else in the Drive. It stores the household’s own backups there, encrypted on the household’s computer before
+upload, so Google holds only data it cannot read. Nothing is shared, sold or sent anywhere else.</p>
+<p>Access can be removed at any time from the Google account’s “Third-party apps &amp; services” page.</p>
+</main></body></html>"""
+
+
+@app.get("/privacy")
+def privacy():
+    return Response(PRIVACY_PAGE, media_type="text/html", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/{page:path}")
 def index(page: str):
     # Every page is the same shell; the browser picks the view from the address. Paths it doesn't have get a 404.
