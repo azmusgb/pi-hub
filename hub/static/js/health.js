@@ -12,7 +12,7 @@ import {
   spark,
   when,
 } from "./core.js";
-import { toolUrl } from "./sections.js";
+import { openInRow } from "./section-links.js";
 import { displayCard } from "./display-pair.js";
 
 export const every = 20;
@@ -220,22 +220,7 @@ export function mount(state) {
     state.diagnostic,
     state.body,
     displayCard(),
-    h(
-      "p",
-      {
-        class: "open-in",
-      },
-      h(
-        "a",
-        {
-          class: "tool-link",
-          href: toolUrl("pi"),
-          target: "_blank",
-          rel: "noopener",
-        },
-        "Open in Cockpit ↗",
-      ),
-    ),
+    openInRow("system"),
     topic ? null : help,
   ].filter(Boolean));
 }

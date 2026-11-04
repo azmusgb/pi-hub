@@ -27,32 +27,15 @@
 
   // 3. Focus trap: inert the shell while any overlay is open.
   const shell = $(".shell");
-  let paletteOpen = false;
+  // The palette is a native modal <dialog> (the kit), which makes the page behind inert by itself.
   let shortcutsOpen = false;
-  const applyInert = () => { if (shell) shell.inert = paletteOpen || shortcutsOpen; };
+  const applyInert = () => { if (shell) shell.inert = shortcutsOpen; };
   const watch = (id, set) => {
     const el = document.getElementById(id);
     if (!el) return;
     new MutationObserver(() => set(!el.hidden))
       .observe(el, { attributes: true, attributeFilter: ["hidden"] });
   };
-  watch("palette",   (v) => { paletteOpen = v; applyInert(); });
   watch("shortcuts", (v) => { shortcutsOpen = v; applyInert(); });
 
-  // 4. aria-activedescendant on the palette input.
-  const results = document.getElementById("palette-results");
-  const input   = document.getElementById("palette-input");
-  if (results && input) {
-    const sync = () => {
-      $$(".palette-item", results).forEach((li, i) => { li.id = "palette-opt-" + i; });
-      const active = $(".palette-item.is-active", results);
-      if (active) input.setAttribute("aria-activedescendant", active.id);
-      else input.removeAttribute("aria-activedescendant");
-    };
-    new MutationObserver(sync).observe(results, {
-      childList: true, subtree: true,
-      attributes: true, attributeFilter: ["class"],
-    });
-    sync();
-  }
 })();

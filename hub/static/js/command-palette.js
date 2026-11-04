@@ -1,260 +1,170 @@
-// The ⌘K command palette (upgrades #palette in index.html): records, needs, fixes and pages. Moved out of next.js in
-// platform step 7, PR 7.4; the kit palette replaces it in PR 7.6.
-import { api, fix, h } from "./core.js";
-import { runPrinterAction } from "./printer-actions.js";
-import { assistantHref, toolUrl } from "./sections.js";
-import { navigateSpa, RECORD_LABELS, RECORD_PATHS, recordTone } from "./control-room.js";
+// The ⌘K palette: the kit's one component (appliance-ui palette.js, platform step 7 Decision 7) with Pi Hub's
+// providers: Go (pages, tools, the Assistant's door), Do (printer actions and fixes, each asking first as it always
+// has), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
+import { api, fix } from "./core.js";
+import { runPrinterAction, PRINTER_ACTIONS } from "./printer-actions.js";
+import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
+import { navigateSpa, RECORD_LABELS, RECORD_PATHS } from "./control-room.js";
 
-export function buildCommandItems(query = "", { records = [], needs = null, host = globalThis.location?.hostname || "" } = {}) {
-  const q = String(query || "").trim().toLowerCase();
-  const all = [];
+const PAGES = [
+  { label: "Home", href: "/", area: "Home", keywords: "home overview now needs you" },
+  { label: "Weather", href: "/weather", area: "Home", keywords: "weather forecast rain sun temperature" },
+  { label: "Wall display", href: "/wall", area: "Home", keywords: "wall display kiosk ambient" },
+  { label: "Workshop", href: "/workshop", area: "Workshop", keywords: "workshop printer bambu x2d camera spools ams" },
+  { label: "Print lab", href: "/lab", area: "Workshop", keywords: "print lab experiments coupons verdicts judge" },
+  { label: "Documents", href: "/documents", area: "Documents", keywords: "documents paperless scan pdf tax" },
+  { label: "Print a document", href: "/print", area: "Documents", keywords: "print paper hp deskjet cups ink" },
+  { label: "Lists", href: "/lists", area: "Documents", keywords: "lists shopping todo notes groceries" },
+  { label: "Media", href: "/media", area: "Media", keywords: "media movies plex watch movie night" },
+  { label: "Storage", href: "/drives", area: "Media", keywords: "drives storage usb disk movies" },
+  { label: "Home & network", href: "/network", area: "Home & network", keywords: "network lights devices wifi adguard dns" },
+  { label: "Health", href: "/system", area: "System", keywords: "health system services diagnostics pi help fix" },
+  { label: "Backups", href: "/backups", area: "System", keywords: "backups backrest restore" },
+  { label: "Versions", href: "/versions", area: "System", keywords: "versions releases deploys live commit" },
+  { label: "Alerts", href: "/alerts", area: "System", keywords: "alerts events history log" },
+  { label: "Automations", href: "/rules", area: "System", keywords: "automations rules triggers" },
+  { label: "Settings", href: "/settings", area: "System", keywords: "settings password devices access" },
+];
 
-  // 1. Live actions from current printer / needs state
-  const printer = records.find((r) => r.id === "printer");
-  if (printer?.actions?.includes("clear")) {
-    all.push({ id: "act:printer:clear", label: "Clear the X2D plate", badge: "Action", kind: "printer", action: "clear", keywords: "clear plate printer x2d bambu finished" });
-  }
-  if (printer?.actions?.includes("pause")) {
-    all.push({ id: "act:printer:pause", label: "Pause the X2D print", badge: "Action", kind: "printer", action: "pause", keywords: "pause print printer x2d bambu" });
-  }
-  if (printer?.actions?.includes("resume")) {
-    all.push({ id: "act:printer:resume", label: "Resume the X2D print", badge: "Action", kind: "printer", action: "resume", keywords: "resume print printer x2d bambu" });
-  }
-  for (const item of needs?.items || []) {
-    if (item?.act?.href && item.id?.startsWith("pi:lab:")) {
-      all.push({
-        id: `act:${item.id}`,
-        label: item.title,
-        sub: item.detail || "Print Lab",
-        badge: "Print Lab",
-        kind: "nav",
-        href: item.act.href,
-        keywords: `judge print lab verdict ${item.title} ${item.detail || ""}`.toLowerCase(),
-      });
-    }
-  }
+const FIXES = [
+  { name: "selfcheck:run", label: "Run a hub self-check", keywords: "selfcheck check diagnostic test health" },
+  { name: "restart:plex", label: "Restart Plex", keywords: "restart plex movies media" },
+  { name: "rescan:plex", label: "Rescan the Plex movie library", keywords: "rescan plex library movies" },
+  { name: "remount:movies", label: "Remount the movies drive", keywords: "remount usb drive movies storage" },
+  { name: "mirror:movies", label: "Copy new movies from the PC", keywords: "copy mirror sync movies pc" },
+  { name: "restart:homebridge", label: "Restart Homebridge", keywords: "restart homebridge lights devices smart home" },
+];
 
-  // 2. Fix-it actions
-  const fixes = [
-    { name: "selfcheck:run", label: "Run a hub self-check", keywords: "selfcheck check diagnostic test health" },
-    { name: "restart:plex", label: "Restart Plex", keywords: "restart plex movies media" },
-    { name: "rescan:plex", label: "Rescan the Plex movie library", keywords: "rescan plex library movies" },
-    { name: "remount:movies", label: "Remount the movies drive", keywords: "remount usb drive movies storage" },
-    { name: "mirror:movies", label: "Copy new movies from the PC", keywords: "copy mirror sync movies pc" },
-    { name: "restart:homebridge", label: "Restart Homebridge (smart-home controls)", keywords: "restart homebridge lights devices" },
-  ];
-  for (const f of fixes) {
-    all.push({ id: `fix:${f.name}`, label: f.label, badge: "Fix it", kind: "fix", fixName: f.name, keywords: f.keywords });
-  }
+const matches = (q, ...texts) => !q || texts.some((t) => String(t || "").toLowerCase().includes(q));
+const norm = (query) => String(query || "").trim().toLowerCase();
 
-  // 3. Pages & Views
-  const pages = [
-    { label: "Home", href: "/", badge: "Page", keywords: "home overview dashboard" },
-    { label: "Workshop (Bambu X2D & Filament)", href: "/workshop", badge: "Page", keywords: "workshop printer bambu x2d camera spools ams" },
-    { label: "Print lab (Experiments & Verdicts)", href: "/lab", badge: "Page", keywords: "print lab experiments coupons verdicts judge" },
-    { label: "Documents (Paperless & Scanner)", href: "/documents", badge: "Page", keywords: "documents paperless scan pdf tax" },
-    { label: "Media (Movies & Movie night)", href: "/media", badge: "Page", keywords: "media movies plex watch movie night" },
-    { label: "Home & network (Lights, Wi-Fi, AdGuard)", href: "/network", badge: "Page", keywords: "network home lights devices wifi adguard dns" },
-    { label: "System (Backups, Alerts, Settings)", href: "/system", badge: "Page", keywords: "system backups backrest alerts rules settings" },
-    { label: "Wall display (Kiosk & Hybrid presets)", href: "/wall", badge: "View", keywords: "wall display kiosk ambient preset" },
-    { label: "Weather & Forecast", href: "/weather", badge: "Page", keywords: "weather forecast rain sun temperature" },
-    { label: "Lists (Shopping, To-do, Notes)", href: "/lists", badge: "Page", keywords: "lists shopping todo notes groceries" },
-    { label: "Document printer (HP DeskJet)", href: "/print", badge: "Page", keywords: "print paper hp deskjet cups ink" },
-    { label: "Automations & Rules", href: "/rules", badge: "Page", keywords: "automations rules triggers alerts" },
-    { label: "Alerts & Event log", href: "/alerts", badge: "Page", keywords: "alerts events history log" },
-    { label: "Help & Diagnostics", href: "/pi", badge: "Page", keywords: "help diagnostics pi temperature cpu memory" },
-    { label: "Storage & Drives", href: "/drives", badge: "Page", keywords: "drives storage usb disk movies" },
-    { label: "Versions", href: "/versions", badge: "Page", keywords: "versions releases deploys live commit rollback" },
-    { label: "Settings", href: "/settings", badge: "Page", keywords: "settings password devices wifi homebridge" },
-  ];
-  for (const p of pages) {
-    all.push({ id: `page:${p.href}`, label: p.label, badge: p.badge, kind: "nav", href: p.href, keywords: p.keywords });
-  }
-
-  // 4. Live Records (searchable by thing name, state, or headline)
-  for (const r of records) {
-    if (!r || !r.id) continue;
-    const name = RECORD_LABELS[r.id] || r.id;
-    const href = RECORD_PATHS[r.id] || "/";
-    all.push({
-      id: `rec:${r.id}`,
-      label: `${name}: ${r.headline || r.state}`,
-      sub: r.cause || "",
-      badge: r.severity === "problem" ? "Problem" : r.severity === "attention" ? "Check" : "Live",
-      tone: recordTone(r.severity),
-      kind: "nav",
-      href,
-      keywords: `${name} ${r.id} ${r.state} ${r.headline || ""} ${r.cause || ""}`.toLowerCase(),
-    });
-  }
-
-  // 5. External tools
-  const tools = [
-    { name: "bambuddy", label: "Open Bambuddy ↗", keywords: "bambuddy spools queue printer archive" },
-    { name: "paperless", label: "Open Paperless ↗", keywords: "paperless documents archive" },
-    { name: "backups", label: "Open Backrest (Backups) ↗", keywords: "backrest restic backups restore" },
-    { name: "adguard", label: "Open AdGuard Home ↗", keywords: "adguard dns blocking ads" },
-    { name: "network", label: "Open Grafana ↗", keywords: "grafana metrics charts network" },
-    { name: "status", label: "Open Uptime Kuma ↗", keywords: "uptime kuma status monitors" },
-  ];
-  for (const t of tools) {
-    all.push({
-      id: `tool:${t.name}`,
-      label: t.label,
-      badge: "Tool",
-      kind: "external",
-      href: toolUrl(t.name, host),
-      keywords: t.keywords,
-    });
-  }
-
-  const matched = q
-    ? all.filter((it) => it.label.toLowerCase().includes(q) || (it.sub && it.sub.toLowerCase().includes(q)) || (it.keywords && it.keywords.includes(q)))
-    : all.slice(0, 14);
-
-  // 6. Direct query hand-offs when the user types a search term or question
-  if (q.length >= 2) {
-    const raw = String(query).trim();
-    matched.push(
-      {
-        id: "query:docs",
-        label: `Search Documents for “${raw}”`,
-        badge: "Search",
-        kind: "nav",
-        href: `/documents?q=${encodeURIComponent(raw)}`,
-      },
-      {
-        id: "query:media",
-        label: `Search Movies for “${raw}”`,
-        badge: "Search",
-        kind: "nav",
-        href: `/media?q=${encodeURIComponent(raw)}`,
-      },
-      {
-        id: "query:assistant",
-        label: `Ask Assistant: “${raw}” ↗`,
-        badge: "Assistant",
-        kind: "external",
-        href: assistantHref(host, "Command bar", raw),
-      }
-    );
-  }
-
-  return matched.slice(0, 18);
+// Go: Pi Hub's pages, each gated tool on its real name (from the registry), and the Assistant's door.
+export function goResults(query) {
+  const q = norm(query);
+  const pages = PAGES.filter((p) => matches(q, p.label, p.area, p.keywords))
+    .map(({ label, href, area }) => ({ kind: "go", label, href, area }));
+  const tools = TOOLS.filter((t) => !t.boundary && t.id !== "hub" && matches(q, t.name, t.purpose, t.id))
+    .map((t) => ({ kind: "go", label: `Open ${t.name}`, hint: t.purpose, href: toolUrl(t.id), area: "Tools" }));
+  return [...pages, ...tools];
 }
 
-// Global ⌘K Command Palette controller (upgrades #palette in index.html)
+// Do: the printer's current actions and the hub's fixes. Each asks first itself (printer-actions.js, core.js fix),
+// so no `confirm` here: the question is asked once, in the words the rest of the hub uses.
+export function doResults(query, records = [], { onDone = () => {} } = {}) {
+  const q = norm(query);
+  const printer = records.find((r) => r?.id === "printer");
+  const actions = (printer?.actions || []).filter((a) => PRINTER_ACTIONS[a])
+    .map((a) => ({ kind: "do", label: `${PRINTER_ACTIONS[a].label} on the X2D`, area: "Workshop",
+      keywords: `${a} printer x2d bambu plate print`, run: () => runPrinterAction(a, [], onDone) }));
+  const fixes = FIXES.map((f) => ({ kind: "do", label: f.label, area: "Health", keywords: f.keywords,
+    run: () => fix(f.name, f.label, { onResult: onDone }) }));
+  return [...actions, ...fixes].filter((r) => matches(q, r.label, r.keywords)).map(({ keywords, ...r }) => r);  // eslint-disable-line no-unused-vars
+}
+
+// Find: live records and the Needs you list (only with a query: an empty palette shows pages and recents).
+export function findResults(query, records = [], needs = null) {
+  const q = norm(query);
+  if (!q) return [];
+  const recs = records.filter((r) => r?.id).map((r) => {
+    const name = RECORD_LABELS[r.id] || r.id;
+    return { kind: "find", label: `${name}: ${r.headline || r.state}`, hint: r.cause || "", href: RECORD_PATHS[r.id] || "/",
+      area: "Now", at: r.as_of || r.at || undefined, text: `${name} ${r.id} ${r.state} ${r.headline || ""} ${r.cause || ""}` };
+  });
+  const items = (needs?.items || []).filter((n) => n?.title).map((n) => ({
+    kind: "find", label: n.title, hint: n.detail || "", href: resolveLink(n.act?.href || n.link) || "/", area: "Needs you",
+    at: n.as_of || undefined, text: `${n.title} ${n.detail || ""} ${n.source || ""}`,
+  }));
+  return [...items, ...recs].filter((r) => matches(q, r.text)).map(({ text, ...r }) => r);  // eslint-disable-line no-unused-vars
+}
+
+// Find: documents, through the Documents page's own search. They are the owner's: signed out gives none; Paperless
+// off is "down".
+export async function documentResults(query, { signal, get = api } = {}) {
+  const q = String(query || "").trim();
+  if (q.length < 2) return [];
+  let r;
+  try {
+    r = await get(`/api/documents?q=${encodeURIComponent(q)}`, { signal });
+  } catch (e) {
+    if (e?.status === 401 || e?.status === 403) return [];  // documents are the owner's: not signed in isn't "down"
+    throw e;
+  }
+  if (!r?.available) throw new Error("Paperless isn't answering");
+  return (r.results || []).slice(0, 5).map((d) => ({ kind: "find", label: d.title, hint: d.created || "",
+    href: `/documents?q=${encodeURIComponent(q)}`, area: "Documents" }));
+}
+
+// Ask: the hand-off to the Assistant. With the PC off (or Local AI down) the provider says so, in the phrase table's
+// words, as its one line: `askProvider.down` is set before it throws.
+export function askResult(query, assistant, host = globalThis.location?.hostname || "") {
+  const raw = String(query || "").trim();
+  const { disabled, label } = assistantButton(assistant?.state, assistant?.pc);
+  if (disabled) {
+    const e = new Error(label);
+    e.phrase = label;
+    throw e;
+  }
+  if (raw.length < 2) return [];
+  return [{ kind: "ask", label: `Ask the Assistant: “${raw}”`, href: assistantHref(host, "Search", raw), area: "Assistant" }];
+}
+
+// Search: the area pages' own searches, prefilled.
+export function searchResults(query) {
+  const raw = String(query || "").trim();
+  if (raw.length < 2) return [];
+  return [
+    { kind: "search", label: `Search Documents for “${raw}”`, href: `/documents?q=${encodeURIComponent(raw)}`, area: "Documents" },
+    { kind: "search", label: `Search Movies for “${raw}”`, href: `/media?q=${encodeURIComponent(raw)}`, area: "Media" },
+  ];
+}
+
+// What the providers read, fetched at most every 15 s (a palette search runs on every keystroke).
+function cached(load, ttl = 15_000) {
+  let at = 0, value = null, pending = null;
+  return async () => {
+    if (value && Date.now() - at < ttl) return value;
+    if (!pending) pending = load().then((v) => { value = v; at = Date.now(); return v; }).finally(() => { pending = null; });
+    return pending;
+  };
+}
+
+export function hubProviders({ get = api } = {}) {
+  const state = cached(async () => {
+    const [r, n] = await Promise.all([get("/api/records").catch(() => null), get("/api/needs").catch(() => null)]);
+    return { records: Array.isArray(r?.records) ? r.records : [], needs: n };
+  });
+  const assistant = cached(() => get("/api/assistant").catch(() => null), 30_000);
+  const ask = { name: "Assistant", down: "The Assistant isn't answering", timeout: 3000,
+    async find(q) {
+      try { return askResult(q, await assistant()); }
+      catch (e) { if (e?.phrase) ask.down = e.phrase; throw e; }
+    } };
+  return [
+    { name: "Pages", find: (q) => goResults(q) },
+    { name: "Pi Hub", down: "Pi Hub isn't answering", find: async (q) => {
+      const { records, needs } = await state();
+      return [...doResults(q, records), ...findResults(q, records, needs)];
+    } },
+    { name: "Documents", down: "Paperless isn't answering", timeout: 5000,
+      find: (q, { signal } = {}) => documentResults(q, { signal, get }) },
+    ask,
+    { name: "Search", find: (q) => searchResults(q) },
+  ];
+}
+
+// The one palette (index.html loads the kit's palette.js as a classic script before this module).
 export function initCommandPalette() {
-  if (typeof document === "undefined") return;
-  const palette = document.getElementById("palette");
-  const input = document.getElementById("palette-input");
-  const results = document.getElementById("palette-results");
-  if (!palette || !input || !results || palette.dataset.upgraded === "1") return;
-  palette.dataset.upgraded = "1";
-  input.placeholder = "Search records, jump to a page, run a fix, or ask Assistant…";
-
-  let cachedRecords = [];
-  let cachedNeeds = null;
-  let activeIdx = 0;
-  let filtered = [];
-
-  async function refreshPaletteContext() {
-    const [r, n] = await Promise.all([
-      api("/api/records").catch(() => null),
-      api("/api/needs").catch(() => null),
-    ]);
-    if (Array.isArray(r?.records)) cachedRecords = r.records;
-    if (n) cachedNeeds = n;
-    if (!palette.hidden) updateList();
-  }
-
-  function closePalette() {
-    palette.hidden = true;
-    input.setAttribute("aria-expanded", "false");
-  }
-
-  function runItem(it) {
-    if (!it) return;
-    closePalette();
-    if (it.kind === "nav" && it.href) {
-      navigateSpa(it.href);
-    } else if (it.kind === "external" && it.href) {
-      window.open(it.href, "_blank", "noopener");
-    } else if (it.kind === "printer" && it.action) {
-      runPrinterAction(it.action, [], () => refreshPaletteContext());
-    } else if (it.kind === "fix" && it.fixName) {
-      fix(it.fixName, it.label, { onResult: () => refreshPaletteContext() });
-    }
-  }
-
-  function renderList() {
-    results.replaceChildren();
-    if (!filtered.length) {
-      results.append(h("li", { class: "palette-empty" }, "Nothing matches"));
-      return;
-    }
-    filtered.forEach((it, i) => {
-      const li = h("li", {
-        class: "palette-item" + (i === activeIdx ? " is-active" : ""),
-        role: "option",
-        id: `palette-opt-${i}`,
-        onmouseenter: () => { activeIdx = i; renderList(); },
-        onclick: (e) => { e.preventDefault(); e.stopPropagation(); runItem(it); },
-      },
-        it.tone ? h("span", { class: "dot", dataset: { tone: it.tone }, "aria-hidden": "true" }) : null,
-        h("span", { class: "palette-label" },
-          it.label,
-          it.sub ? h("span", { class: "meta", style: "display:block; font-size:.75rem;" }, it.sub) : null),
-        h("span", { class: "palette-page" }, it.badge || ""));
-      results.append(li);
-    });
-  }
-
-  function updateList() {
-    filtered = buildCommandItems(input.value, { records: cachedRecords, needs: cachedNeeds });
-    activeIdx = Math.min(activeIdx, Math.max(filtered.length - 1, 0));
-    renderList();
-  }
-
-  function openPalette() {
-    palette.hidden = false;
-    input.setAttribute("aria-expanded", "true");
-    input.value = "";
-    activeIdx = 0;
-    updateList();
-    refreshPaletteContext();
-    requestAnimationFrame(() => input.focus());
-  }
-
-  window.openHubCommandPalette = openPalette;
-
-  // Capture-phase listeners on input so our upgraded handler takes precedence over enhance.js's static list
-  input.addEventListener("input", (e) => {
-    e.stopImmediatePropagation();
-    activeIdx = 0;
-    updateList();
-  }, true);
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      activeIdx = Math.min(activeIdx + 1, Math.max(filtered.length - 1, 0));
-      renderList();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      activeIdx = Math.max(activeIdx - 1, 0);
-      renderList();
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      runItem(filtered[activeIdx]);
-    } else if (e.key === "Escape") {
-      e.stopImmediatePropagation();
-      closePalette();
-    }
-  }, true);
-
-  document.getElementById("top-cmd-btn")?.addEventListener("click", openPalette);
+  if (typeof document === "undefined" || window.hubPalette) return;
+  const Palette = window.AppliancePalette;
+  if (!Palette?.create) return;
+  const palette = Palette.create({
+    providers: hubProviders(),
+    navigate: navigateSpa,
+    recentKey: "pihub.palette.recent",
+    label: "Search and go",
+    placeholder: "Search, go to a page, run a fix, or ask the Assistant…",
+  });
+  window.hubPalette = palette;
+  window.openHubCommandPalette = (query) => palette.open(query);
+  document.getElementById("top-cmd-btn")?.addEventListener("click", () => palette.open());
 }

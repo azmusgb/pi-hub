@@ -3,6 +3,7 @@ import { api, ensure, h } from "./core.js";
 import * as devices from "./control.js";
 import { networkPanel } from "./now.js";
 import { toolUrl } from "./sections.js";
+import { openInRow } from "./section-links.js";
 import { plainInternet } from "./wording.js";
 
 export const every = devices.every;
@@ -15,7 +16,8 @@ export function mount(state) {
   state.root.append(
     h("section", { class: "more-group" }, h("h2", {}, "Devices"), state.devices.root),
     h("section", { class: "more-group" }, h("h2", {}, "Internet"), state.internet),
-    state.extras);
+    state.extras,
+    openInRow("network"));
 }
 
 // Paused protection still answers lookups and blocks none, so it is said plainly, not as a count (iPad, 1 Nov).

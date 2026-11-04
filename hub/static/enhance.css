@@ -1,6 +1,6 @@
 /* ============================================================
    Pi Hub — enhance.css
-   Richer primitives, motion, ambient, command palette.
+   Richer primitives, motion, ambient.
    Loaded after app.css + pages.css. Fully additive.
    ============================================================ */
 
@@ -413,73 +413,8 @@ kbd {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
 }
 
-/* ---------- Command palette ---------- */
-.palette {
-  position: fixed; inset: 0; z-index: var(--z-palette);
-  display: grid; place-items: start center;
-  padding: clamp(3rem, 12vh, 8rem) 1.5rem 1.5rem;
-}
-.palette[hidden] { display: none; }
-.palette-backdrop {
-  position: absolute; inset: 0;
-  background: rgb(var(--shade-rgb) / .48);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: fade-in .2s var(--smooth);
-}
+/* The ⌘K palette is the kit's (/static/ui/palette.css). */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-.palette-panel {
-  position: relative; width: 100%; max-width: 560px;
-  background: var(--surface); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-3);
-  overflow: hidden;
-  animation: pop-in .24s var(--spring) both;
-}
-.palette-search {
-  display: flex; align-items: center; gap: .65rem;
-  padding: .8rem 1rem;
-  border-bottom: 1px solid var(--line);
-  color: var(--text-3);
-}
-.palette-search svg { flex: none; }
-.palette-search input {
-  flex: 1; border: 0; background: transparent;
-  font: inherit; font-size: .9375rem; color: var(--text);
-  padding: .25rem 0; outline: none;
-}
-.palette-search input::placeholder { color: var(--text-3); }
-.palette-results {
-  list-style: none; margin: 0; padding: .35rem 0;
-  max-height: 55vh; overflow-y: auto;
-}
-.palette-item {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .55rem 1rem; cursor: pointer;
-  color: var(--text-2); font-size: .875rem; font-weight: 500;
-  transition: background .1s var(--smooth), color .1s var(--smooth);
-}
-.palette-item.is-active {
-  background: var(--accent-soft); color: var(--accent-strong);
-  border-left: 3px solid var(--accent);
-  padding-left: calc(1rem - 3px);
-}
-.palette-label { flex: 1; }
-.palette-page {
-  font-family: var(--font-mono); font-size: .6875rem;
-  color: var(--text-3); text-transform: uppercase; letter-spacing: .06em;
-  padding: .1rem .45rem; border-radius: 4px;
-  background: var(--surface-3); border: 1px solid var(--line);
-}
-.palette-empty { padding: 1rem; text-align: center; color: var(--text-3); font-size: .875rem; }
-.palette-hint {
-  display: flex; align-items: center; gap: .35rem;
-  padding: .6rem 1rem; margin: 0;
-  border-top: 1px solid var(--line);
-  background: var(--surface-2);
-  font-size: .6875rem; color: var(--text-3);
-}
-.palette-hint kbd { font-size: .7rem; }
 
 /* ---------- Shortcuts dialog ---------- */
 .shortcuts {
@@ -522,7 +457,7 @@ kbd {
   body::after, body::before { display: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .rail, .clock, .toast, .palette-backdrop, .shortcuts-backdrop,
+  .rail, .clock, .toast, .shortcuts-backdrop,
   .modal-backdrop {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -532,7 +467,7 @@ kbd {
 /* ---------- Print ---------- */
 @media print {
   .rail, .foot, .skip, .toast, .progress-top, .offline-banner,
-  .palette, .shortcuts, .modal, #wall-link, #theme-btn { display: none !important; }
+  .ui-palette, .shortcuts, .modal, #wall-link, #theme-btn { display: none !important; }
   .shell { display: block; }
   .stage { min-height: 0; }
   #view { max-width: none; padding: 0; }
@@ -583,7 +518,7 @@ kbd {
 /* enhance-audit.css — audit fixes, additive, loaded last. */
 
 /* 1. Wall mode strips ALL interactive chrome */
-[data-wall] .palette,
+[data-wall] .ui-palette,
 [data-wall] .shortcuts,
 [data-wall] .progress-top,
 [data-wall] .toast,
@@ -619,13 +554,6 @@ body::after {
 
 /* 5. Tab bar height: room for iOS safe-area so labels don't clip */
 :root { --tabbar-h: 76px; }
-
-/* 6. Focus ring on the palette input itself */
-#palette-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 4px;
-}
 
 /* Explicit feedback remains readable when a page or service is unavailable. */
 .page-notice { padding: 1rem 1.25rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface-2); }

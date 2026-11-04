@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { splitNowRecords, calmSummaryText, mergeProblems } from "../hub/static/js/control-room.js";
-import { buildCommandItems } from "../hub/static/js/command-palette.js";
 
 test("splitNowRecords separates active printing/playing items from calm OK items", () => {
   const recs = [
@@ -32,22 +31,4 @@ test("mergeProblems combines Needs you and uncovered record problems without dup
   assert.equal(merged[0].id, "record:printer");
   assert.equal(merged[1].recordId, "movies_drive");
   assert.equal(merged[1].fix.name, "remount:movies");
-});
-
-test("buildCommandItems surfaces printer actions, Print Lab needs, pages, live records, and query hand-offs", () => {
-  const recs = [
-    { id: "printer", state: "finished", severity: "attention", headline: "Finished E-022", actions: ["clear"] },
-  ];
-  const needs = {
-    items: [
-      { id: "pi:lab:hex-tile:E-022", title: "E-022: Judge the print", detail: "Look at seam face", act: { label: "Judge", href: "/lab?p=hex-tile&e=E-022&do=judge" } },
-    ],
-  };
-  const top = buildCommandItems("", { records: recs, needs, host: "10.0.0.30" });
-  assert.ok(top.some((i) => i.id === "act:printer:clear"), "includes Clear the X2D plate action");
-  assert.ok(top.some((i) => i.id === "act:pi:lab:hex-tile:E-022"), "includes Print Lab judge action");
-
-  const searched = buildCommandItems("tax 2025", { records: recs, needs, host: "10.0.0.30" });
-  assert.ok(searched.some((i) => i.id === "query:docs" && i.href === "/documents?q=tax%202025"));
-  assert.ok(searched.some((i) => i.id === "query:assistant" && i.href.includes("context=")));
 });

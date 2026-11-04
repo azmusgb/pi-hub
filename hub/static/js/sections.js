@@ -2,8 +2,9 @@
 // these in this order; the router, the active tab and old bookmarks all read from here.
 
 import ROUTES from "./routes.js";
+import { toolUrl as registryUrl } from "../ui/tools.js";
 
-export const ASSISTANT_URL = "https://assistant.rahe-home.duckdns.org/";
+export const ASSISTANT_URL = registryUrl("assistant");
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
@@ -32,12 +33,13 @@ export function redirectFor(path) {
 export const railItems = () => SECTIONS.map((s) => s.key);
 export const phoneTabs = () => [...PHONE];
 
-// The house's real name (docs/superpowers/specs/2026-11-01-real-names-design.md).
-export const REAL = "rahe-home.duckdns.org";
+// The house's tools come from the kit's one registry (appliance-ui tools.json, platform step 7 Decision 6).
+export { REAL, TOOLS, toolsFor } from "../ui/tools.js";
 
-// Each tool by its gate name, whatever address the page was opened on; `host` stays for resolveLink's callers.
+// A tool's link by its registry id, whatever address the page was opened on; `host` stays for resolveLink's callers.
+// An id that isn't in the registry gives null, so a caller can't build a link to a host nobody serves.
 export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-vars
-  return `https://${name}.${REAL}/`;
+  return registryUrl(name);
 }
 
 // The hub's own Print lab page, opened on one experiment (an internal link: give it data-link).
@@ -48,7 +50,9 @@ export function printLabUrl(exp) {
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).
 export function resolveLink(href, host = globalThis.location?.hostname || "") {
   const m = /^tool:([a-z]+)\/?(.*)$/.exec(href || "");
-  return m ? toolUrl(m[1], host) + m[2] : href;
+  if (!m) return href;
+  const base = toolUrl(m[1], host);
+  return base ? base + m[2] : "";
 }
 
 // The Assistant button hands Local AI the page and its key facts (one home, step 4): Local AI shows them over its
