@@ -714,3 +714,22 @@ html {
   }
 }
 
+
+/* System's page strip (step 7, PR 7.3): one row of System's pages above each of them. On a phone it scrolls sideways
+   rather than wrapping, so the row keeps one line and the page below doesn't jump. */
+.system-strip {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.system-strip::-webkit-scrollbar { display: none; }
+/* Inside a scrolling row an outside outline is clipped; draw it inside. */
+.system-strip > a:focus-visible { outline-offset: -2px; }
+/* components.css loads after this file and sets .tabs to wrap, so the strip's rule names both classes. */
+.tabs.system-strip { flex-wrap: nowrap; }
+
+/* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */
+.open-in { margin: .75rem 0 0; }

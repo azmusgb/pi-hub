@@ -61,9 +61,9 @@ test("only Pi Hub's retained, earlier live versions can be gone back to", () => 
   assert.deepEqual(historyRows(null), []);
 });
 
-test("Settings' Versions card only links to System › Versions", () => {
+test("Settings has no Versions card: System's strip opens Versions (step 7, PR 7.3)", () => {
   const src = readFileSync(new URL("../hub/static/js/settings.js", import.meta.url), "utf8");
-  assert.match(src, /href: "\/versions"/);
+  assert.doesNotMatch(src, /versionsCard|"Versions"/);
   assert.doesNotMatch(src, /"Go back to this"\)/);
 });
 

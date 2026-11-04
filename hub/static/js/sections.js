@@ -11,7 +11,7 @@ export const SECTIONS = [
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies", "/drives"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/versions", "/pi", "/alerts", "/rules", "/settings"] },
+  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings"] },
 ];
 
 // On the phone, Home & network and System sit under More.

@@ -15,7 +15,7 @@ test('every page belongs to a section', () => {
     '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
-    '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
+    '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
     '/more': 'more', '/nowhere': 'home',
   };
   for (const [path, key] of Object.entries(want)) assert.equal(sectionFor(path), key, path);
@@ -23,7 +23,7 @@ test('every page belongs to a section', () => {
 
 test('old bookmarks land in the section where the tool now lives', () => {
   const want = {
-    '/movies': '/media', '/control': '/network', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
+    '/movies': '/media', '/control': '/network', '/pi': '/system', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
     '/apps/grafana': '/network', '/grafana': '/network', '/apps/status': '/network', '/status': '/network',
     '/apps/scan': '/documents', '/workshop': null, '/': null, '/print': null,
   };
