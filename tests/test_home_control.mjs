@@ -1,7 +1,7 @@
 // Home merged with the Control room (31 Oct 2026): Now / Needs you / Since on `/` (2 Nov), `/next` redirects to `/`.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames, shortWhen, markNew } from "../hub/static/js/next.js";
+import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames, shortWhen, markNew } from "../hub/static/js/control-room.js";
 import { homeCards } from "../hub/static/js/home-cards.js";
 import { redirectFor } from "../hub/static/js/sections.js";
 
@@ -87,7 +87,7 @@ test("System lists each service with its record's health, and no health where no
 });
 
 test("records answering after Home's Needs you hand-over don't wipe it", async () => {
-  const { keepNeeds } = await import("../hub/static/js/next.js");
+  const { keepNeeds } = await import("../hub/static/js/control-room.js");
   const handed = { count: 1, items: [{ id: "pi:lab:x:E-025" }] };
   assert.equal(keepNeeds(null, null, handed), handed);      // Home passed "not yet"; its hand-over stands
   assert.equal(keepNeeds(null, null, null), null);          // nothing handed over yet
@@ -96,7 +96,7 @@ test("records answering after Home's Needs you hand-over don't wipe it", async (
 });
 
 test("a record whose headline already names it isn't titled twice", async () => {
-  const { recordTitle } = await import("../hub/static/js/next.js");
+  const { recordTitle } = await import("../hub/static/js/control-room.js");
   assert.equal(recordTitle({ id: "adguard", headline: "Ad blocking is off" }), "Ad blocking is off");
   assert.equal(recordTitle({ id: "pi", headline: "Pi 66 °C" }), "Raspberry Pi: Pi 66 °C");
 });

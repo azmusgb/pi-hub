@@ -1,33 +1,24 @@
 // The hub's menu, by task (docs/superpowers/specs/2026-10-24-one-home-design.md, D2). The rail in index.html lists
 // these in this order; the router, the active tab and old bookmarks all read from here.
 
+import ROUTES from "./routes.js";
+
 export const ASSISTANT_URL = "https://assistant.rahe-home.duckdns.org/";
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
-  { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies"] },
+  { key: "media", title: "Media", path: "/media", pages: ["/media", "/movies", "/drives"] },
   { key: "network", title: "Home & network", path: "/network", pages: ["/network", "/control"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/versions", "/pi", "/alerts", "/rules", "/settings", "/drives"] },
+  { key: "system", title: "System", path: "/system", pages: ["/system", "/versions", "/pi", "/alerts", "/rules", "/settings"] },
 ];
 
 // On the phone, Home & network and System sit under More.
 const PHONE = ["home", "workshop", "documents", "media", "more"];
 
-const REDIRECTS = {
-  "/next": "/",  // the control room is on Home since 31 Oct 2026
-  "/movies": "/media",
-  "/control": "/network",
-  "/apps": "/",
-  "/apps/bambuddy": "/workshop",
-  "/bambuddy": "/workshop",
-  "/apps/grafana": "/network",
-  "/grafana": "/network",
-  "/apps/status": "/network",
-  "/status": "/network",
-  "/apps/scan": "/documents",
-};
+// Old paths, kept so bookmarks still land (the list is in routes.js; /next: the control room is on Home since 31 Oct).
+const REDIRECTS = ROUTES.redirects;
 
 export function sectionFor(path) {
   if (path === "/more") return "more";
