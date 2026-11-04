@@ -28,8 +28,8 @@ test("every toolUrl in the hub's pages names a tool in the registry", () => {
 });
 
 test("a tool link is the registry's host, and an unknown tool gives no link", () => {
-  for (const t of TOOLS) assert.equal(toolUrl(t.id), `https://${t.host}/`);
-  assert.equal(toolUrl("plex"), null);
+  for (const t of TOOLS) assert.equal(toolUrl(t.id), t.external ? `https://${t.host}${t.base || ""}` : `https://${t.host}/`);
+  assert.equal(toolUrl("nope"), null);  // an id that is not in the registry (Plex was the example until A6 N4 added it)
   assert.equal(resolveLink("tool:bambuddy/archive"), "https://bambuddy.rahe-home.duckdns.org/archive");
   assert.equal(resolveLink("tool:nope/x"), "");
   assert.equal(resolveLink("/lab?p=hex-tile"), "/lab?p=hex-tile");
@@ -39,7 +39,8 @@ test("each area page ends with its registry tools (§5.3)", () => {
   for (const area of ["workshop", "documents", "network", "system"]) assert.ok(toolsFor(area).length, area);
   assert.match(read("workshop.js"), /openInRow\("workshop"\)/);
   assert.match(read("documents.js"), /openInRow\("documents"\)/);
-  assert.match(read("network.js"), /openInRow\("network"\)/);
+  assert.match(read("network.js"), /openInRow\("network", \["adguard", "network", "status"\]\)/);  // A6: Devices and Network split the area's tools
+  assert.match(read("devices.js"), /openInRow\("network", \["devices"\]\)/);
   assert.match(read("health.js"), /openInRow\("system"\)/);
   assert.ok(!toolsFor("workshop").some((t) => t.boundary), "the display's D4 hosts are not for people");
 });

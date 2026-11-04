@@ -8,9 +8,9 @@ import { mergeServices, serviceRows } from '../hub/static/js/health.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('the strip has six entries, in the spec order', () => {
-  assert.deepEqual(STRIP.map(([, label]) => label), ['Health', 'Backups', 'Versions', 'Alerts', 'Automations', 'Settings']);
-  assert.deepEqual(STRIP.map(([href]) => href), ['/system', '/backups', '/versions', '/alerts', '/rules', '/settings']);
+test("the strip has the spec's six entries in order, then A6's Site map", () => {
+  assert.deepEqual(STRIP.map(([, label]) => label), ['Health', 'Backups', 'Versions', 'Alerts', 'Automations', 'Settings', 'Site map']);
+  assert.deepEqual(STRIP.map(([href]) => href), ['/system', '/backups', '/versions', '/alerts', '/rules', '/settings', '/map']);
 });
 
 test('the page you are on is the one marked current, and only on strip pages (Workshop has its own strip, W.1)', () => {
@@ -18,7 +18,7 @@ test('the page you are on is the one marked current, and only on strip pages (Wo
     const items = stripItems(href);
     assert.deepEqual(items.filter((i) => i.current).map((i) => i.href), [href], href);
   }
-  for (const path of ['/', '/drives', '/more', '/pi']) assert.equal(stripItems(path), null, path);
+  for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripItems(path), null, path);  // A6: /drives is on Media's strip
 });
 
 test('the strip renders aria-current only on the current entry', () => {

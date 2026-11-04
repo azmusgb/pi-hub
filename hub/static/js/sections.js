@@ -7,12 +7,12 @@ import { toolUrl as registryUrl } from "../ui/tools.js";
 export const ASSISTANT_URL = registryUrl("assistant");
 
 export const SECTIONS = [
-  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
+  { key: "home", title: "Home", path: "/", pages: ["/", "/wall"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/drives"] },
-  { key: "network", title: "Home & network", path: "/network", pages: ["/network"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings"] },
+  { key: "network", title: "Home & network", path: "/devices", pages: ["/devices", "/network", "/weather"] },
+  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map"] },
 ];
 
 // On the phone, Home & network and System sit under More.
@@ -44,6 +44,14 @@ export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-var
 
 // A tool's address with a path kept (a deeper page of the tool): null for an id that isn't in the registry.
 export const toolPath = (name, path = "") => registryUrl(name, path);
+
+// A movie's page in Plex's own web app (the registry's address, app.plex.tv), or Plex's front door when the hub doesn't know
+// the server's id or the movie's key. Never a port on the Pi: the household reaches the library through Plex's own app.
+export function plexUrl(machine, key) {
+  return machine && key
+    ? toolPath("plex", `#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}`)
+    : toolPath("plex");
+}
 
 // The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
 // project name that isn't a lab project name is left out rather than put in the address; so is an action /lab doesn't

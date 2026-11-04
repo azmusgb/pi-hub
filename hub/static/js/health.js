@@ -1,5 +1,6 @@
 // System › Health (platform step 7, PR 7.3): the hub and the Pi in one page. It took over /pi's cards and System's
-// services: self-check, outages, services, fix it, storage, updates, network, history and the help guides.
+// services. A6 keeps six sections in view (self-check, services, Pi disks, updates, other systems, fix it) and folds
+// outages, network, history and the help guides into a collapsed More.
 import {
   api,
   card,
@@ -11,10 +12,13 @@ import {
   spark,
   when,
 } from "./core.js";
-import { openInRow } from "./section-links.js";
+import { moreList, openInRow } from "./section-links.js";
 import { toolPath } from "./sections.js";
 
 export const every = 20;
+
+// One of Health's six sections (A6): marked so the page, and its test, can tell them from what is under More.
+const section = (node, name) => { node.dataset.health = name; return node; };
 
 const STATE = {
   active: ["Running", "ok"],
@@ -71,7 +75,7 @@ export function helpGuidance() {
     [
       "movies",
       "Movies won’t play",
-      "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.",
+      "Check the TV’s connection and try Plex again. If movies are missing, check the movies drive before restarting anything.",
       "/media",
       "Check Movies",
     ],
@@ -80,7 +84,7 @@ export function helpGuidance() {
       "devices",
       "Lights aren’t responding",
       "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, check Homebridge under Services on this page.",
-      "/network",
+      "/devices",
       "Check Devices",
     ],
 
@@ -139,91 +143,40 @@ export function mount(state) {
       Number(a[0] === topic),
   );
 
-  // The guides are last, as the plan orders Health; opened with ?help=, they come first.
-  const help =
-    h(
-      "section",
-      {
-        class: "help-start",
-        "aria-labelledby": "help-title",
-      },
+  // The guides are under More; opened with ?help=, they come first.
+  const helpBody = () => [
+    h("p", { class: "meta" }, "Start with the problem. These checks won’t restart or change anything."),
+    h("div", { class: "help-topics" },
+      guidance.map(([key, title, advice, href, label]) =>
+        h("details", { class: "help-topic", id: `help-${key}`, open: topic === key },
+          h("summary", {}, title),
+          h("p", {}, advice),
+          h("a", { class: "action", href, "data-link": true }, label)))),
+    h("a", { class: "action", href: "/drives", "data-link": true }, "Check the movies drive"),
+  ];
 
-      h(
-        "h2",
-        {
-          id: "help-title",
-        },
-        "What isn’t working?",
-      ),
-
-      h(
-        "p",
-        {
-          class: "meta",
-        },
-        "Start with the problem. These checks won’t restart or change anything.",
-      ),
-
-      h(
-        "div",
-        {
-          class: "help-topics",
-        },
-
-        guidance.map(
-          ([key, title, advice, href, label]) =>
-            h(
-              "details",
-              {
-                class: "help-topic",
-                id: `help-${key}`,
-                open: topic === key,
-              },
-
-              h(
-                "summary",
-                {},
-                title,
-              ),
-
-              h(
-                "p",
-                {},
-                advice,
-              ),
-
-              h(
-                "a",
-                {
-                  class: "action",
-                  href,
-                  "data-link": true,
-                },
-                label,
-              ),
-            ),
-        ),
-      ),
-
-      h(
-        "a",
-        {
-          class: "action",
-          href: "/drives",
-          "data-link": true,
-        },
-        "Check movie storage",
-      ),
-    );
+  state.fix = h("div");
+  state.more = moreList({
+    storeKey: "hub-health-more",
+    title: "More",
+    cls: "health-more",
+    alerts: ["outages", "network"],
+    items: [["outages", "Outages"], ["network", "Network"], ["history", "Health history"], ["help", "What isn’t working?"]],
+  });
+  for (const key of ["outages", "network", "history"]) state.more.fill(key, []);  // until the diagnostics answer
+  state.more.fill("help", topic ? [] : helpBody());
+  const first = !topic ? null : h("section", { class: "help-start", "aria-labelledby": "help-title" },
+    h("h2", { id: "help-title" }, "What isn’t working?"), ...helpBody());
 
   state.root.append(...[
     state.result,
-    topic ? help : null,
+    first,
     state.diagnostic,
     state.body,
     state.others,
+    state.fix,
+    state.more.root,
     openInRow("system"),
-    topic ? null : help,
   ].filter(Boolean));
 }
 
@@ -1022,7 +975,7 @@ export function otherSystemRows(records) {
 }
 
 function otherSystemsCard(records) {
-  return card(
+  return section(card(
     "Other systems",
     {},
     h(
@@ -1036,8 +989,8 @@ function otherSystemsCard(records) {
           h("span", { class: "log-main" }, h("strong", {}, label), h("span", { class: "meta" }, text), meta ? h("span", { class: "meta" }, meta) : null),
         )),
     ),
-    h("p", { class: "meta" }, "Pair the workshop touchscreen in ", h("a", { href: "/settings", "data-link": true }, "Settings"), "."),
-  );
+    h("p", { class: "meta" }, "Pair the workshop touchscreen in ", h("a", { href: "/settings#group-home", "data-link": true }, "Settings"), "."),
+  ), "others");
 }
 
 function servicesCard(
@@ -1094,7 +1047,7 @@ function storageCard(storage) {
     asArray(storage);
 
   return card(
-    "Storage",
+    "Pi disks",
     {},
 
     list.length
@@ -1129,7 +1082,7 @@ function storageCard(storage) {
                   "strong",
                   {},
                   storageItem?.name ||
-                    "Storage",
+                    "Disk",
                 ),
 
                 h(
@@ -1154,7 +1107,7 @@ function storageCard(storage) {
                         "progressbar",
 
                       "aria-label":
-                        `${storageItem?.name || "Storage"} used`,
+                        `${storageItem?.name || "Disk"} used`,
 
                       "aria-valuemin":
                         "0",
@@ -1184,7 +1137,7 @@ function storageCard(storage) {
           },
         )
       : empty(
-          "Storage information is unavailable.",
+          "Disk information is unavailable.",
         ),
   );
 }
@@ -1341,9 +1294,15 @@ function networkCard(network) {
     );
   }
 
+  // A hop that doesn't answer (its reading is null) is what a person opening this card is looking for.
+  const silent = ["orbi_ms", "att_ms", "wan_ms", "dns_ms"].filter((k) => m[k] === null);
+  const trouble = silent.length
+    ? { pill: `${silent.length} not answering`, tone: silent.includes("wan_ms") ? "bad" : "warn" }
+    : {};
+
   return card(
     "Network",
-    {},
+    trouble,
     h(
       "dl",
       {
@@ -1452,87 +1411,32 @@ async function loadDiagnostics(
           updates: {},
         };
 
-  // Health's order (step 7 plan, Decision 3): self-check, outages, services, fix it, storage, updates, network, history.
+  // Six sections in view (A6, decision health): self-check, services, Pi disks, updates, other systems (its own slot,
+  // above) and fix it. Outages, network and history are under More.
   state.body.replaceChildren(
-    selfcheckCard(
-      data.selfcheck,
-    ),
+    section(selfcheckCard(data.selfcheck), "selfcheck"),
 
-    h(
-      "div",
-      {
-        class:
-          "pi-bottom-grid",
-      },
-
-      outagesCard(
-        data.outages,
-      ),
-
-      servicesCard(
+    h("div", { class: "pi-bottom-grid" },
+      section(servicesCard(
         data.services,
-        actionsResult.status ===
-          "fulfilled"
-          ? asArray(
-              actionsData.actions,
-            )
-          : null,
+        actionsResult.status === "fulfilled" ? asArray(actionsData.actions) : null,
         records,
-      ),
-    ),
-
-    fixCard(
-      state,
-      actionsData,
-    ),
-
-    h(
-      "div",
-      {
-        class:
-          "pi-bottom-grid",
-      },
-
-      storageCard(
-        data.storage,
-      ),
-
-      updatesCard(
-        state,
-        data,
-        actionsData,
-      ),
-
-      networkCard(
-        data.network,
-      ),
-
-    ),
-
-    healthCard(state, data),
+      ), "services"),
+      section(storageCard(data.storage), "disks"),
+      section(updatesCard(state, data, actionsData), "updates")),
   );
 
-  if (
-    actionsResult.status !==
-    "fulfilled"
-  ) {
-    state.body.prepend(
-      card(
-        "Maintenance actions unavailable",
-        {
-          tone: "warn",
-        },
+  state.fix.replaceChildren(...[
+    actionsResult.status !== "fulfilled"
+      ? card("Maintenance actions unavailable", { tone: "warn" },
+        h("p", { class: "meta" }, "Health checks loaded, but restart and update controls aren't available right now."))
+      : null,
+    section(fixCard(state, actionsData), "fix"),
+  ].filter(Boolean));
 
-        h(
-          "p",
-          {
-            class: "meta",
-          },
-          "Health checks loaded, but restart and update controls aren't available right now.",
-        ),
-      ),
-    );
-  }
+  state.more.fill("outages", [outagesCard(data.outages)]);
+  state.more.fill("network", [networkCard(data.network)]);
+  state.more.fill("history", [healthCard(state, data)]);
 }
 
 // Household guides stay available even when the diagnostic service is down.
@@ -1577,6 +1481,8 @@ export async function load(
     state.diagnostic.textContent =
       "System checks unavailable. The help guides on this page still work.";
 
+    state.fix.replaceChildren();
+    for (const key of ["outages", "network", "history"]) state.more.fill(key, []);
     state.body.replaceChildren(
       card(
         "Couldn’t check the system",

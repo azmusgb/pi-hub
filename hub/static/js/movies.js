@@ -1,8 +1,9 @@
 // Movies: what's playing, continue watching, recently added, search, requests, and drive health.
-import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
+import { api, card, empty, h, post, toast, when } from "./core.js";
 import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
-import { rememberOpen } from "./section-links.js";
+import { moreList, openInRow, rememberOpen } from "./section-links.js";
+import { plexUrl } from "./sections.js";
 
 export const every = 30;
 
@@ -45,17 +46,6 @@ function remainingMinutes(item) {
   }
 
   return Math.max(0, Math.round(minutes * (1 - progress / 100)));
-}
-
-function plexUrl(machine, key) {
-  return machine && key
-    ? piLink(
-        32400,
-        `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(
-          `/library/metadata/${key}`,
-        )}`,
-      )
-    : piLink(32400, "/web");
 }
 
 function poster(item, machine) {
@@ -391,6 +381,16 @@ export function mount(state) {
   });
 
   state.night = mountMovieNight(state);
+  // Six sections in view; the rest are under More (A6): closed until opened, and remembered.
+  state.more = moreList({
+    storeKey: "hub-media-more",
+    title: "More",
+    cls: "media-more",
+    items: [["surprise", "Surprise pick"], ["drive", "Movies drive"], ["requests", "Requests"], ["watched", "What's been watched"]],
+    alerts: ["drive"],
+    legacy: { watched: "movies-stats" },   // where "What's been watched" kept its open state before it moved under More
+  });
+  for (const key of ["surprise", "drive", "requests", "watched"]) state.more.fill(key, []);
 
   state.body = h("div", {
     class: "stack",
@@ -1587,7 +1587,7 @@ function mirrorSay(m) {
   return { tone: m.state === "ok" ? "ok" : "warn", say: `Copied ${when(m.last_ok)}` };
 }
 
-function driveCard(drive, driveEvents) {
+export function driveCard(drive, driveEvents) {
   const drv = drive || {};
   const events = asArray(driveEvents);
   const drops = events.filter((event) => event.kind === "dropped").length;
@@ -1599,7 +1599,7 @@ function driveCard(drive, driveEvents) {
   const fact = (k, v, tone) => h("div", {}, h("dt", {}, k), h("dd", tone ? { dataset: { tone } } : {}, v));
 
   return card(
-    "Storage",
+    "Movies drive status",
     {
       pill: connected ? "Connected" : drv.state || "Unknown",
       tone: connected ? (hasErrors || drops || copy.tone !== "ok" ? "warn" : "ok") : "bad",
@@ -1842,7 +1842,7 @@ function catalogSection(state, allMovies, genres) {
     h(
       "div",
       { class: "eyebrow-section" },
-      h("h2", { id: "movie-catalog-heading" }, "Browse Library"),
+      h("h2", { id: "movie-catalog-heading" }, "Library"),
     ),
     toolbar,
     gridContainer,
@@ -1914,7 +1914,13 @@ export async function load(
         ? "Nothing new lately."
         : "The movies drive is missing, so Plex can't list new movies.";
 
-    state.body.replaceChildren(
+    state.more.fill("surprise", [movieNight(state, genres)]);
+    state.more.fill("drive", [driveCard(drive, driveEvents)]);
+    state.more.fill("requests", [requestsCard(state, data?.requests)]);
+    state.more.fill("watched", [statsCard(data, activeTitle)]);
+
+    // The body is redrawn around More, which holds the Requests field: keep the keyboard where it was.
+    state.more.keepFocus(() => state.body.replaceChildren(
       ...[
         librarySwitcher(
           data?.sections,
@@ -1959,58 +1965,11 @@ export async function load(
 
         state.night,
 
-        movieNight(state, genres),
+        state.more.root,
 
-        driveCard(
-          drive,
-          driveEvents,
-        ),
-
-        requestsCard(
-          state,
-          data?.requests,
-        ),
-
-        rememberOpen(h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)), "movies-stats"),
-
-        h(
-          "div",
-          {
-            class: "row",
-          },
-
-          h(
-            "a",
-            {
-              class: "btn",
-              href: "/drives",
-              "data-link":
-                true,
-            },
-            "Drive health and the copy from the PC",
-          ),
-
-          h(
-            "a",
-            {
-              class: "btn",
-
-              href: piLink(
-                32400,
-                "/web",
-              ),
-
-              target:
-                "_blank",
-
-              rel:
-                "noopener noreferrer",
-            },
-            "Open Plex",
-          ),
-        ),
+        openInRow("media"),
       ].filter(Boolean),
-    );
+    ));
     refreshMovieNight(state);
   } catch (error) {
     state.body.replaceChildren(

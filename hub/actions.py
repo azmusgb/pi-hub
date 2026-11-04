@@ -106,7 +106,7 @@ def verify(name):
                     "next_step": "Try the light or plug again; this check does not switch a device."}
         if not system.movies_mounted():
             return {"state": "needs_attention", "message": "The movies drive is still not mounted.",
-                    "next_step": "Check its cable and power, then open movie storage before trying another fix."}
+                    "next_step": "Check its cable and power, then open Drives before trying another fix."}
         sessions = freshness.observe("plex", 15, sources._plex_sessions)
         if sessions is None:
             raise OSError("No Plex response")

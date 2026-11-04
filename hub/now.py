@@ -59,8 +59,8 @@ def issues(s):
                     "href": "/system", "link_label": "Check source responses"})
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
-                    "say": "Movies may not play because the storage drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
-                    "href": "/drives", "link_label": "Check movie storage"})
+                    "say": "Movies may not play because the movies drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
+                    "href": "/drives", "link_label": "Check the movies drive"})
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",
                     "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
@@ -102,7 +102,7 @@ def summary(found):
 HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/system", "local_ai": "/system",
         "pc": "/system", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
         "adguard": "/network", "backups": "/backups", "pc_printing": "/workshop", "pi": "/system", "plex": "/media",
-        "devices": "/network", "paper_printer": "/print", "weather": "/weather", "hub": "/system"}
+        "devices": "/devices", "paper_printer": "/print", "weather": "/weather", "hub": "/system"}
 
 UNAVAILABLE = {"tone": "bad", "what": "Home status unavailable",
                "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",

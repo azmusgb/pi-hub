@@ -41,7 +41,7 @@ export const RECORD_PATHS = {
   adguard: "/network",
   backups: "/backups",
   plex: "/media",
-  devices: "/network",
+  devices: "/devices",
   paper_printer: "/print",
   weather: "/weather",
   hub: "/system",

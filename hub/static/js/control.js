@@ -97,7 +97,7 @@ export async function load(state) {
   if (!d.connected) {
     state.body.replaceChildren(card("Lights and plugs", { cls: "wide", pill: "Not connected", tone: "warn" },
       h("p", { class: "callout callout--warn" }, d.message),
-      h("a", { class: "action", href: "/settings", "data-link": true }, "Open Settings")), ...(laundry ? [laundry] : []));
+      h("a", { class: "action", href: "/settings#group-home", "data-link": true }, "Open Settings")), ...(laundry ? [laundry] : []));
     return;
   }
   const favs = new Set(d.favourites);
