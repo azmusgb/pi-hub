@@ -54,7 +54,64 @@ function rememberItem(storeKey, key, open) {
   try { globalThis.localStorage?.setItem(storeKey, JSON.stringify({ ...openMap(storeKey), [key]: !!open })); } catch { /* not remembered this time */ }
 }
 
-export function moreList({ storeKey, title, cls = "", items }) {
+// A page that redraws itself on a timer (Media's Requests every 30 s, Health's range buttons every 20 s) must not drop the
+// keyboard out from under someone using it: note which control inside `container` has focus (by its place in the tree,
+// and the caret), run `redraw`, and give the control at the same place focus back.
+export function keepFocus(container, redraw) {
+  const active = globalThis.document?.activeElement;
+  let path = null;
+  let caret = null;
+  if (active && active !== container && container.contains(active)) {
+    path = [];
+    for (let n = active; n && n !== container; n = n.parentNode) {
+      const up = n.parentNode;
+      if (!up) { path = null; break; }
+      path.unshift(Array.from(up.children).indexOf(n));
+    }
+    try { if (active.selectionStart != null) caret = [active.selectionStart, active.selectionEnd]; } catch { /* a control with no caret */ }
+  }
+  redraw();
+  if (!path || path.includes(-1)) return;
+  let target = container;
+  for (const i of path) target = target?.children?.[i];
+  if (!target?.focus || target === globalThis.document.activeElement) return;
+  target.focus();
+  try { if (caret && target.setSelectionRange) target.setSelectionRange(caret[0], caret[1]); } catch { /* not a text control */ }
+}
+
+// An item named in `alerts` whose content is warn or bad (a card's pill says so) shows a badge on its summary and opens by itself, once,
+// when it starts to be one: the viewer can close it again and it stays closed until it changes.
+const ALERT_RANK = { warn: 1, bad: 2 };
+const ALERT_SAY = { warn: "Check", bad: "Needs a look" };
+
+function alertOf(nodes) {
+  let worst = null;
+  for (const node of nodes) {
+    const pills = [node, ...(node?.querySelectorAll?.(".pill") || [])];
+    for (const p of pills) {
+      const tone = p?.classList?.contains("pill") ? p.dataset?.tone : null;
+      if ((ALERT_RANK[tone] || 0) > (ALERT_RANK[worst] || 0)) worst = tone;
+    }
+  }
+  return worst;
+}
+
+// Open-state keys an earlier version used, moved once into the list's own: { item: "old key" }. The old state could be a
+// browser key or the page's in-memory set of open lists; an answer already stored under the new key wins.
+function migrate(storeKey, legacy) {
+  for (const [key, old] of Object.entries(legacy)) {
+    let was = openLists.has(old);
+    try {
+      const v = globalThis.localStorage?.getItem(old);
+      if (v != null) { was = was || v === "1" || v === "true"; globalThis.localStorage.removeItem(old); }
+    } catch { /* storage is blocked; nothing to move */ }
+    openLists.delete(old);
+    if (was && openMap(storeKey)[key] === undefined) rememberItem(storeKey, key, true);
+  }
+}
+
+export function moreList({ storeKey, title, cls = "", items, legacy = {}, alerts = [] }) {
+  migrate(storeKey, legacy);
   const opened = openMap(storeKey);
   const titleId = `${storeKey}-title`;
   const slots = {};
@@ -62,21 +119,35 @@ export function moreList({ storeKey, title, cls = "", items }) {
     h("h2", { class: "section-title", id: titleId }, title),
     ...items.map(([key, label]) => {
       const body = h("div", { class: "more-list-body" });
-      const el = h("details", { class: "more-list-item", dataset: { key } }, h("summary", {}, label), body);
+      const summary = h("summary", {}, label);
+      const el = h("details", { class: "more-list-item", dataset: { key } }, summary, body);
       el.open = opened[key] === true;
-      el.addEventListener("toggle", () => rememberItem(storeKey, key, el.open));
-      slots[key] = { el, body };
+      const slot = { el, body, summary, alert: null, auto: false, badge: null };
+      el.addEventListener("toggle", () => {
+        if (slot.auto) { slot.auto = false; return; }   // opened for the viewer, not by them: not remembered
+        rememberItem(storeKey, key, el.open);
+      });
+      slots[key] = slot;
       return el;
     }));
   return {
     root,
     items: slots,
+    keepFocus: (redraw) => keepFocus(root, redraw),
     fill(key, nodes) {
       const slot = slots[key];
       if (!slot) return;
       const kids = (Array.isArray(nodes) ? nodes : [nodes]).filter(Boolean);
-      slot.body.replaceChildren(...kids);
+      keepFocus(slot.body, () => slot.body.replaceChildren(...kids));
       slot.el.hidden = kids.length === 0;
+      const alert = kids.length && alerts.includes(key) ? alertOf(kids) : null;
+      if (alert !== slot.alert) {
+        slot.badge?.remove();
+        slot.badge = alert ? h("span", { class: "more-badge", dataset: { tone: alert } }, ALERT_SAY[alert]) : null;
+        if (slot.badge) slot.summary.append(slot.badge);
+        if (alert && !slot.alert && !slot.el.open) { slot.auto = true; slot.el.open = true; }
+        slot.alert = alert;
+      }
     },
   };
 }

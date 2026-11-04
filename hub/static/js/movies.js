@@ -397,6 +397,8 @@ export function mount(state) {
     title: "More",
     cls: "media-more",
     items: [["surprise", "Surprise pick"], ["drive", "Movies drive"], ["requests", "Requests"], ["watched", "What's been watched"]],
+    alerts: ["drive"],
+    legacy: { watched: "movies-stats" },   // where "What's been watched" kept its open state before it moved under More
   });
   for (const key of ["surprise", "drive", "requests", "watched"]) state.more.fill(key, []);
 
@@ -1927,7 +1929,8 @@ export async function load(
     state.more.fill("requests", [requestsCard(state, data?.requests)]);
     state.more.fill("watched", [statsCard(data, activeTitle)]);
 
-    state.body.replaceChildren(
+    // The body is redrawn around More, which holds the Requests field: keep the keyboard where it was.
+    state.more.keepFocus(() => state.body.replaceChildren(
       ...[
         librarySwitcher(
           data?.sections,
@@ -2000,7 +2003,7 @@ export async function load(
           ),
         ),
       ].filter(Boolean),
-    );
+    ));
     refreshMovieNight(state);
   } catch (error) {
     state.body.replaceChildren(

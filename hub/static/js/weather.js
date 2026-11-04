@@ -16,7 +16,7 @@ export async function load(state) {
   if (!w) {
     state.body.replaceChildren(card("Set your town", { cls: "wide" },
       h("p", {}, o.place_set ? "The weather service isn't answering right now. It will try again in a few minutes." : "The hub needs your town to show the weather."),
-      o.place_set ? null : h("a", { class: "action", href: "/settings", "data-link": true }, "Set it in Settings")));
+      o.place_set ? null : h("a", { class: "action", href: "/settings#group-outside", "data-link": true }, "Set it in Settings")));
     return;
   }
   const u = `°${w.units}`;

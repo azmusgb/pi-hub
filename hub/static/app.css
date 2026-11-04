@@ -760,3 +760,6 @@ html {
 
 /* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */
 .open-in { margin: .75rem 0 0; }
+.more-badge { margin-left: auto; padding: .1rem .6rem; border-radius: 999px; border: 1px solid currentColor; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.more-badge[data-tone="warn"] { color: var(--warn, #9a6700); }
+.more-badge[data-tone="bad"] { color: var(--bad, #b42318); }

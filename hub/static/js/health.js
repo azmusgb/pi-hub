@@ -160,6 +160,7 @@ export function mount(state) {
     storeKey: "hub-health-more",
     title: "More",
     cls: "health-more",
+    alerts: ["outages", "network"],
     items: [["outages", "Outages"], ["network", "Network"], ["history", "Health history"], ["help", "What isn’t working?"]],
   });
   for (const key of ["outages", "network", "history"]) state.more.fill(key, []);  // until the diagnostics answer
@@ -988,7 +989,7 @@ function otherSystemsCard(records) {
           h("span", { class: "log-main" }, h("strong", {}, label), h("span", { class: "meta" }, text), meta ? h("span", { class: "meta" }, meta) : null),
         )),
     ),
-    h("p", { class: "meta" }, "Pair the workshop touchscreen in ", h("a", { href: "/settings", "data-link": true }, "Settings"), "."),
+    h("p", { class: "meta" }, "Pair the workshop touchscreen in ", h("a", { href: "/settings#group-home", "data-link": true }, "Settings"), "."),
   ), "others");
 }
 
@@ -1293,9 +1294,15 @@ function networkCard(network) {
     );
   }
 
+  // A hop that doesn't answer (its reading is null) is what a person opening this card is looking for.
+  const silent = ["orbi_ms", "att_ms", "wan_ms", "dns_ms"].filter((k) => m[k] === null);
+  const trouble = silent.length
+    ? { pill: `${silent.length} not answering`, tone: silent.includes("wan_ms") ? "bad" : "warn" }
+    : {};
+
   return card(
     "Network",
-    {},
+    trouble,
     h(
       "dl",
       {

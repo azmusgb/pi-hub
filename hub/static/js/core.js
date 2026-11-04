@@ -906,7 +906,7 @@ export async function ensure(
     setTimeout(
       () => {
         location.assign(
-          "/settings",
+          "/settings#group-people",
         );
       },
       1200,
@@ -919,7 +919,7 @@ export async function ensure(
     role === "owner"
   ) {
     location.assign(
-      "/settings",
+      "/settings#group-people",
     );
 
     return false;
