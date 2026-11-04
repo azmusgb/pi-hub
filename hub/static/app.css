@@ -643,6 +643,7 @@ html {
 .printer-source[data-state="live"] .printer-source__dot { background: var(--state-ok); }
 .printer-source[data-state="degraded"] .printer-source__dot { background: var(--state-warn); }
 .printer-source[data-state="offline"] .printer-source__dot { background: var(--state-error); }
+.printer-source[data-state="none"] .printer-source__dot { background: var(--state-unknown); }
 
 .printer-job {
   max-width: 54ch;
@@ -730,6 +731,12 @@ html {
 .system-strip > a:focus-visible { outline-offset: -2px; }
 /* components.css loads after this file and sets .tabs to wrap, so the strip's rule names both classes. */
 .tabs.system-strip { flex-wrap: nowrap; }
+/* On a phone all six fit as two rows of three: nothing hides off the edge, so nothing needs a scroll hint. */
+@media (max-width: 560px) {
+  .tabs.system-strip { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; overflow: visible; }
+  .tabs.system-strip > a { text-align: center; }
+  .system-strip > a:focus-visible { outline-offset: 2px; }
+}
 
 /* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */
 .open-in { margin: .75rem 0 0; }
