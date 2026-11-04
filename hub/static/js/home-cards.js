@@ -101,26 +101,6 @@ function systemCard(backups, pi) {
     action: { label: "Restore a file", href: "/system" }, link: null };
 }
 
-export function assistantCard(ai, host, needs) {
-  const state = ai?.state || "Unknown";
-  const down = state === "Down";
-  const busy = state === "Busy";
-  const ready = state === "Ready";
-  const status = down ? "Local AI is down · PC may be off"
-    : busy ? "Local AI is busy with a task"
-    : ready ? "Local AI is ready"
-    : "Checking Local AI status…";
-  const tone = down ? "warn" : ready || busy ? "ok" : "warn";
-  return {
-    key: "assistant",
-    title: "Local AI",
-    status,
-    tone: withNeeds(tone, needs),
-    action: { label: down ? "Open Assistant" : "Ask Assistant", href: "/assistant" },
-    link: { label: "Health", href: "/system" },
-  };
-}
-
 // `undefined` for needs, backups or latest means "not answered yet": Home shows its cards at once and fills these in.
 // Every card but Needs you has one main action; Needs you's items are its actions.
 // `problems`: Home shows the control room's Problems list, which already holds every Needs you item, so no Needs you card.
@@ -128,7 +108,6 @@ export function homeCards({ now, needs, backups, home, latest, at = new Date(), 
   return [
     problems ? null : needsCard(needs),
     workshopCard(now?.printer, at, host, needs),
-    assistantCard(now?.workshop?.ai || now?.ai, host, needs),
     { key: "documents", title: "Documents", status: "Search Paperless or scan a page", tone: "ok",
       action: { label: "Find a document", href: "/documents" }, link: { label: "Scan ↗", href: toolUrl("scan", host) } },
     mediaCard(now?.movies, latest),

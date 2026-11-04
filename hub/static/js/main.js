@@ -21,16 +21,15 @@ import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as systemPage from "./system.js";
 import * as versionsPage from "./versions.js";
-import * as assistantPage from "./assistant.js";
-import * as architecturePage from "./architecture.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
-// The Assistant button goes to Local AI inside Pi Hub
+// The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
+// (set as the person reaches for it, so they are the ones on screen).
 for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-  a.href = "/assistant";
-  a.setAttribute("data-link", "");
+  a.href = toolUrl("assistant");
   const fill = () => { if (current && !a.hasAttribute("aria-disabled")) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
-  for (const ev of ["pointerdown", "focus"]) a.addEventListener(ev, fill);
+  for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
+  a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
 // "The PC is off" while the Pi's status service says Local AI is down; checked now, every minute, and when the page
 // comes back into view (a phone wakes with an hour-old answer otherwise).
@@ -49,36 +48,17 @@ checkAssistant();
 setInterval(checkAssistant, 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
-const notFoundPage = {
-  key: "404",
-  title: "Page not found",
-  mod: {
-    mount(state) {
-      state.root.replaceChildren(
-        h("section", { class: "card not-found-card", style: "max-width: 32rem; margin: 2rem auto; text-align: center; padding: 2.5rem 1.5rem;" },
-          h("h2", { style: "margin: 0 0 .5rem; font-size: 1.5rem;" }, "Page not found"),
-          h("p", { style: "color: var(--text-2); margin: 0 0 1.5rem;" }, "The address you opened doesn’t exist on Pi Hub."),
-          h("div", { class: "actions", style: "display: flex; justify-content: center; gap: .75rem;" },
-            h("a", { class: "btn-primary", href: "/", "data-link": true }, "Open Home"),
-            h("a", { class: "btn-outline", href: "/system", "data-link": true }, "System")
-          )
-        )
-      );
-    },
-    failed() {},
-    leave() {},
-  }
-};
-
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
-  "/assistant": { key: "assistant", title: "Assistant", mod: assistantPage },
+  "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
+  "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
+  "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
@@ -89,18 +69,20 @@ const PAGES = {
   "/network": { key: "network", title: "Home & network", mod: networkPage },
   "/system": { key: "system", title: "System", mod: systemPage },
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
-  "/architecture": { key: "architecture", title: "Architecture", mod: architecturePage },
 };
 
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
   "/wall": "Glanceable ambient display",
+  "/movies": "Plex library and playback",
+  "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
   "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
+  "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub",
@@ -109,8 +91,6 @@ const subtitles = {
   "/network": "Devices, internet and blocking",
   "/system": "Backups, alerts and settings",
   "/versions": "What is live where",
-  "/architecture": "System Atlas: codebase topology and evidence",
-  "404": "That address doesn’t exist",
 };
 
 const updateSubtitle = () => {
@@ -235,7 +215,7 @@ async function refresh() {
 async function show(path, { focus = false } = {}) {
   const moved = redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
-  const page = PAGES[path] || notFoundPage;
+  const page = PAGES[path] || PAGES["/"];
   const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
@@ -246,7 +226,6 @@ async function show(path, { focus = false } = {}) {
     delete document.documentElement.dataset.wall;
     document.body.classList.remove("wall");
   }
-  document.body.dataset.page = page.key;
   applyTheme();
   shownPath = location.pathname + location.search;
   clearInterval(timer);

@@ -4,15 +4,15 @@ import { readFileSync } from 'node:fs';
 import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink, assistantHref, assistantButton } from '../hub/static/js/sections.js';
 
 test('one menu by task, in the design order', () => {
-  assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Assistant', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
-  assert.deepEqual(railItems(), ['home', 'assistant', 'workshop', 'documents', 'media', 'network', 'system']);
-  assert.deepEqual(phoneTabs(), ['home', 'assistant', 'workshop', 'documents', 'media', 'more']);
+  assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
+  assert.deepEqual(railItems(), ['home', 'workshop', 'documents', 'media', 'network', 'system']);
+  assert.deepEqual(phoneTabs(), ['home', 'workshop', 'documents', 'media', 'more']);
   assert.equal(ASSISTANT_URL, 'https://assistant.rahe-home.duckdns.org/');
 });
 
 test('every page belongs to a section', () => {
   const want = {
-    '/': 'home', '/wall': 'home', '/weather': 'home', '/assistant': 'assistant', '/workshop': 'workshop',
+    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
     '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system', '/versions': 'system',
@@ -57,8 +57,8 @@ test('server links name a tool, and the page resolves it to the gate', () => {
 
 test('assistantHref carries the page and its facts', () => {
   assert.equal(assistantHref('hub.rahe-home.duckdns.org', 'Workshop', 'Printing, 40% · done 3:10 PM'),
-    '/assistant?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
-  assert.equal(assistantHref('10.0.0.30', 'Home'), '/assistant?context=' + encodeURIComponent('Pi Hub › Home'));
+    'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
+  assert.equal(assistantHref('10.0.0.30', 'Home'), 'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Home'));
 });
 
 test('assistantHref keeps the context to 300 characters', () => {
