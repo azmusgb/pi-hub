@@ -15,7 +15,11 @@ ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 NOT_X2D = re.compile(r"\b(document|brother|toner|paper|deskjet|laserjet|inkjet)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
-BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
+BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"
+# Each Local AI card kind opens the Assistant page it is about (LocalAI view-registry.js ids): approvals are in the
+# Inbox with the alerts a watch raises, runs in Work, disk in Assistant status.
+ASSISTANT_VIEW = {"needs": f"{ASSISTANT}/#inbox", "running": f"{ASSISTANT}/#work", "done": f"{ASSISTANT}/#work",
+                  "disk": f"{ASSISTANT}/#status", "watch": f"{ASSISTANT}/#inbox"}  # Bambuddy's own Failure detection settings tab
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
@@ -77,7 +81,7 @@ def _lab_items(lab, now, printer_done):
                 continue  # not yet due (or an unreadable time): the verdict waits for the print
             out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
                         "title": f"{eid}: {action}"[:80], "detail": _clip(n.get("why"), 200),
-                        "link": f"/lab?e={eid}&do=judge" if judge else f"/lab?e={eid}",
+                        "link": f"/lab?p={project}&e={eid}&do=judge" if judge else f"/lab?p={project}&e={eid}",
                         "as_of": str(as_of or ""), "ts": now})
     return out
 
@@ -146,7 +150,7 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
                 continue
             item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
                     "title": _clip(c.get("title", ""), 80), "detail": _clip(c.get("text", ""), 200),
-                    "link": ASSISTANT, "ts": now}
+                    "link": ASSISTANT_VIEW.get(c.get("kind"), ASSISTANT), "ts": now}
             if c.get("id") == "watch-mac-disk":
                 _whats_using_it(item)
             if "workshop_display" in healthy and ABOUT_WORKSHOP_DISPLAY.search(f'{item["title"]} {item["detail"]}'):

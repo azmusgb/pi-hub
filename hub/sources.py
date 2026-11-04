@@ -236,7 +236,7 @@ def _stored_lab():
     try:
         from . import db, lab
         lab.ready()
-        rows = db.rows("SELECT index_json FROM lab_projects ORDER BY project")
+        rows = db.rows("SELECT project, index_json FROM lab_projects ORDER BY project")
     except Exception:
         return None
     for r in rows:
@@ -248,7 +248,7 @@ def _stored_lab():
             if isinstance(e, dict) and e.get("status") == "printing":
                 exp = e.get("id")
                 if isinstance(exp, str) and LAB_EXPERIMENT.fullmatch(exp):
-                    return {"experiment": exp}
+                    return {"experiment": exp, "project": r["project"]}
     return None
 
 
