@@ -29,7 +29,7 @@ test("every toolUrl in the hub's pages names a tool in the registry", () => {
 
 test("a tool link is the registry's host, and an unknown tool gives no link", () => {
   for (const t of TOOLS) assert.equal(toolUrl(t.id), `https://${t.host}/`);
-  assert.equal(toolUrl("plex"), null);
+  assert.equal(toolUrl("nope"), null);  // an id that is not in the registry (Plex was the example until A6 N4 added it)
   assert.equal(resolveLink("tool:bambuddy/archive"), "https://bambuddy.rahe-home.duckdns.org/archive");
   assert.equal(resolveLink("tool:nope/x"), "");
   assert.equal(resolveLink("/lab?p=hex-tile"), "/lab?p=hex-tile");
