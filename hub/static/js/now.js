@@ -101,19 +101,23 @@ export function jobTitle(name) {
   return lower[0].toUpperCase() + lower.slice(1);
 }
 
-function telemetryBadge(p) {
-  const telemetry = p.telemetry || {};
-  let state = telemetry.status || "offline";
-  // If the printer is actively printing or paused, it is physically active:
-  // prevent an alarming "Offline" dot when telemetry reports via backup bridge or polling.
-  if ((state === "offline" || !state) && (p.state === "printing" || p.state === "paused")) {
-    state = "degraded";
-  }
+// The readings' source, as a chip. No source answering says nothing about the printer itself, so it is "No answer"
+// in the neutral colour, never "Offline" (spec section 9: unknown is not off).
+export function telemetryLabel(p) {
+  const telemetry = p?.telemetry || {};
+  let state = ["live", "degraded"].includes(telemetry.status) ? telemetry.status : "none";
+  // A printer that is printing or paused is physically there, whatever the telemetry says.
+  if (state === "none" && (p?.state === "printing" || p?.state === "paused")) state = "degraded";
   // "Fallback" said nothing (iPad, 1 Nov): degraded means Bambuddy isn't connected and the Pi's status is read instead.
-  const label = state === "live" ? "Live" : state === "degraded" ? "Backup readings" : "Offline";
+  const label = state === "live" ? "Live" : state === "degraded" ? "Backup readings" : "No answer";
   const why = state === "degraded"
     ? "Bambuddy isn't connected to the printer, so these readings come from the Pi's status service and update less often."
-    : telemetry.source || "Printer telemetry";
+    : state === "none" ? "No source has answered with the printer's state." : telemetry.source || "Printer telemetry";
+  return { state, label, why };
+}
+
+function telemetryBadge(p) {
+  const { state, label, why } = telemetryLabel(p);
   return h("span", {
     class: "printer-source",
     dataset: { state },

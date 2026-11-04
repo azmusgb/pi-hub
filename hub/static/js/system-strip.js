@@ -16,6 +16,12 @@ export function stripItems(path) {
   return STRIP.map(([href, label]) => ({ href, label, current: href === path }));
 }
 
+// System's strip pages are headed "System", the rail's word for them; the strip marks the page and the browser tab
+// names it. Any other page is headed by its own title.
+export function pageHeading(path, title) {
+  return stripItems(path) ? { heading: "System", title: `${title} · System` } : { heading: title, title };
+}
+
 export function systemStrip(path) {
   const items = stripItems(path);
   if (!items) return null;

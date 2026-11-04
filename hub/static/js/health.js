@@ -1497,6 +1497,7 @@ export async function load(
 
   state.loading = true;
 
+  state.diagnostic.classList.toggle("sr", false);
   state.diagnostic.textContent =
     "Checking system details…";
 
@@ -1520,6 +1521,8 @@ export async function load(
       return;
     }
 
+    // The card below says it for everyone who can see it; the status line still tells a screen reader.
+    state.diagnostic.classList.toggle("sr", true);
     state.diagnostic.textContent =
       "System checks unavailable. The help guides on this page still work.";
 
@@ -1535,7 +1538,7 @@ export async function load(
           {
             class: "meta",
           },
-          "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically.",
+          "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically. The help guides below still work.",
         ),
 
         h(

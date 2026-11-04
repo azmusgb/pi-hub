@@ -20,7 +20,7 @@ import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
 import * as versionsPage from "./versions.js";
-import { systemStrip, revealCurrent } from "./system-strip.js";
+import { pageHeading, systemStrip, revealCurrent } from "./system-strip.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
@@ -259,8 +259,9 @@ async function show(path, { focus = false } = {}) {
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
-  document.title = `${wallMode ? "Wall" : page.title} · Pi Hub`;
-  document.getElementById("page-title").textContent = page.title;
+  const { heading, title } = pageHeading(path, page.title);
+  document.title = `${wallMode ? "Wall" : title} · Pi Hub`;
+  document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
     const here = a.dataset.page === section || (a.dataset.page === "more" && ["network", "system", "more"].includes(section));
