@@ -147,14 +147,15 @@ export function install({ fetch: routes = {} } = {}) {
     querySelectorAll: (s) => documentElement.querySelectorAll(s),
     addEventListener() {}, removeEventListener() {},
   };
-  const saved = { document: globalThis.document, Node: globalThis.Node, fetch: globalThis.fetch, location: globalThis.location };
+  const saved = { document: globalThis.document, Node: globalThis.Node, fetch: globalThis.fetch, location: globalThis.location, window: globalThis.window };
+  globalThis.window = { confirm: () => true };
   globalThis.document = doc;
   globalThis.Node = Node;
   globalThis.location = { hostname: "hub.test", protocol: "http:", host: "hub.test", pathname: "/", search: "" };
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, opts = {}) => {
     const path = String(url).split("?")[0];
-    const r = typeof routes === "function" ? routes(String(url)) : routes[path];
-    const body = typeof r === "function" ? r(String(url)) : r;
+    const r = typeof routes === "function" ? routes(String(url), opts) : routes[path];
+    const body = await (typeof r === "function" ? r(String(url), opts) : r);
     if (body === undefined || body instanceof Error) return new Response(JSON.stringify({ detail: "not here" }), { status: 503, headers: { "content-type": "application/json" } });
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
   };

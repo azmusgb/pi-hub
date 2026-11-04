@@ -43,10 +43,12 @@ export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-var
 }
 
 // The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
-// project name that isn't a lab project name is left out rather than put in the address.
-export function printLabUrl(exp, project = "") {
+// project name that isn't a lab project name is left out rather than put in the address; so is an action /lab doesn't
+// take (it opens the verdict sheet for do=judge). The experiment id is encoded, so & or # in it can't add a parameter.
+const LAB_ACTIONS = new Set(["judge"]);
+export function printLabUrl(exp, project = "", act = "") {
   const p = typeof project === "string" && /^[a-z0-9-]{1,40}$/.test(project) ? `p=${project}&` : "";
-  return `/lab?${p}e=${exp}`;
+  return `/lab?${p}e=${encodeURIComponent(String(exp ?? ""))}${LAB_ACTIONS.has(act) ? `&do=${act}` : ""}`;
 }
 
 // The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).
