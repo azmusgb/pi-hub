@@ -43,3 +43,12 @@ test("the printer's lab print links its experiment in its own project", async ()
   assert.equal(printLabUrl("E-30", 'x"><img'), "/lab?e=E-30");
   assert.equal(printLabUrl("E-30"), "/lab?e=E-30");
 });
+
+test("a record's page: its own, a release record's Versions, and System for one the browser doesn't know", async () => {
+  const { recordPath } = await import("../hub/static/js/control-room.js");
+  assert.equal(recordPath("backups"), "/backups");
+  assert.equal(recordPath("mac_lab"), "/lab");
+  assert.equal(recordPath("release:localai"), "/versions");
+  assert.equal(recordPath("something_new"), "/system");
+  assert.equal(recordPath(undefined), "/system");
+});

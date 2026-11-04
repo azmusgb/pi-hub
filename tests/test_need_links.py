@@ -18,11 +18,17 @@ def _routes():
 ROUTES = _routes()
 
 
-def _record_paths():
-    text = (ROOT / "hub/static/js/control-room.js").read_text()
-    block = text[text.index("export const RECORD_PATHS = {"):]
+CONTROL_ROOM = (ROOT / "hub/static/js/control-room.js").read_text()
+
+
+def _js_object(name):
+    block = CONTROL_ROOM[CONTROL_ROOM.index(f"export const {name} = {{"):]
     block = block[:block.index("};")]
-    return dict(re.findall(r'^\s*([a-z_]+): "([^"]+)",', block, re.M))
+    return dict(re.findall(r'^\s*"?([a-z_:]+)"?: "([^"]+)",', block, re.M))
+
+
+def _js_const(name):
+    return re.search(rf'^export const {name} = "([^"]+)";', CONTROL_ROOM, re.M).group(1)
 
 
 def _lab(*ns, project="hex-tile"):
@@ -49,9 +55,32 @@ def test_record_links_are_shell_pages_never_redirects_or_retired_paths():
 
 
 def test_server_and_browser_agree_on_each_records_page():
-    browser = _record_paths()
-    for key, path in browser.items():
-        assert now.HREF.get(key) == path, (key, now.HREF.get(key), path)
+    browser, prefixes = _js_object("RECORD_PATHS"), _js_object("RECORD_PREFIX_PATHS")
+    server = {k: v for k, v in now.HREF.items() if not any(k.startswith(p) for p in prefixes)}
+    assert server == browser  # the same keys both ways, each to the same page
+    for key, path in now.HREF.items():  # release:<target> and other prefixed ids
+        for prefix, page in prefixes.items():
+            if key.startswith(prefix):
+                assert path == page, (key, path, page)
+    unknown = now.issue_from({"id": "something_new", "severity": "attention", "headline": "x"})["href"]
+    assert _js_const("RECORD_FALLBACK") == unknown == "/system"
+
+
+# Literal page paths in the browser's link builders: none may be a redirect or a retired path.
+LINK_BUILDERS = ["now.js", "control-room.js", "home-cards.js", "command-palette.js", "sections.js"]
+RETIRED = {"/scan"}  # answered by the server with a 308 to the scan host (7.4), never a shell page
+
+
+def test_browser_links_never_point_at_a_redirect_or_retired_path():
+    bad = set(ROUTES["redirects"]) | RETIRED
+    found = []
+    for name in LINK_BUILDERS:
+        text = (ROOT / "hub/static/js" / name).read_text()
+        for m in re.finditer(r'(?:href|path|link)\s*[:=]\s*["`](/[a-z][a-z/-]*)(?=["`?#])|^\s*[a-z_]+: "(/[a-z][a-z/-]*)",', text, re.M):
+            path = m.group(1) or m.group(2)
+            if path.rstrip("/") in bad:
+                found.append(f"{name}: {path}")
+    assert found == []
 
 
 def test_records_with_their_own_page_link_there_not_to_health():
@@ -59,7 +88,6 @@ def test_records_with_their_own_page_link_there_not_to_health():
     assert now.HREF["paper_printer"] == "/print"
     assert now.HREF["plex"] == "/media"
     assert now.HREF["devices"] == "/network"
-    assert now.issue_from({"id": "something_new", "severity": "attention", "headline": "x"})["href"] == "/system"
 
 
 def test_the_hubs_live_issues_never_link_a_retired_path():

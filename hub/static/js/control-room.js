@@ -46,7 +46,22 @@ export const RECORD_PATHS = {
   weather: "/weather",
   hub: "/system",
   pc_printing: "/workshop",
+  mac_lab: "/lab",
 };
+
+// Ids made from a prefix (releases.py adds release:<target>) and the page for a record nobody listed: the same as the
+// server's now.HREF and issue_from (tests/test_need_links.py checks both sides agree).
+export const RECORD_PREFIX_PATHS = {
+  "release:": "/versions",
+};
+export const RECORD_FALLBACK = "/system";
+
+export function recordPath(id) {
+  const key = String(id || "");
+  if (RECORD_PATHS[key]) return RECORD_PATHS[key];
+  const prefix = Object.keys(RECORD_PREFIX_PATHS).find((p) => key.startsWith(p));
+  return prefix ? RECORD_PREFIX_PATHS[prefix] : RECORD_FALLBACK;
+}
 
 const FIX_MAP = {
   plex: { name: "restart:plex", label: "Restart Plex" },
@@ -112,9 +127,8 @@ export function printerNow(r, nowMs = Date.now()) {
     facts,
     cause: r?.cause || "",
     actions: actionNames(r?.actions),
-    // The printer record carries the lab print as {experiment, project} (sources.lab_printing, since 6.3); a record
-    // kept from before then has {exp}, and records.load() brings it back at start.
-    lab: d.lab?.experiment || d.lab?.exp || d.lab_experiment || "",
+    // The printer record carries the lab print as {experiment, project} (sources.lab_printing).
+    lab: d.lab?.experiment || d.lab_experiment || "",
     labProject: d.lab?.project || "",
   };
 }
@@ -180,7 +194,7 @@ export function mergeProblems(records = [], needs = null) {
       since: r.since || null,
       actions: actionNames(r.actions),
       fix: FIX_MAP[r.id] || null,
-      href: RECORD_PATHS[r.id] || "/system",
+      href: recordPath(r.id),
     });
   }
   return out;
@@ -253,7 +267,7 @@ function renderPrinterHero(r, state, onReload) {
 function renderActiveItem(r, state, onReload) {
   if (r.id === "printer" && state.homeMode) return renderPrinterHero(r, state, onReload);
   const name = RECORD_LABELS[r.id] || r.id;
-  const href = RECORD_PATHS[r.id] || "/";
+  const href = recordPath(r.id);
   const metaParts = [];
   if (r.id === "printer") metaParts.push(...printerNow(r).facts);
   if (r.cause) metaParts.push(r.cause);
@@ -365,7 +379,7 @@ function renderControlRoom(state) {
           h("ul", { class: "status-list cr-calm-grid" },
             calm.map((r) => h("li", {},
               h("span", { class: "dot", dataset: { tone: "ok" }, "aria-hidden": "true" }),
-              h("a", { href: RECORD_PATHS[r.id] || "/", "data-link": true }, h("strong", {}, RECORD_LABELS[r.id] || r.id)),
+              h("a", { href: recordPath(r.id), "data-link": true }, h("strong", {}, RECORD_LABELS[r.id] || r.id)),
               h("span", { class: "status-side meta" }, r.headline || r.state)))))
         : null)
   );
@@ -399,7 +413,7 @@ function renderControlRoom(state) {
           listed.map((ev, i) => {
             const isNew = fresh[i];
             const tone = recordTone(ev.severity);
-            const href = RECORD_PATHS[ev.thing] || "/";
+            const href = recordPath(ev.thing);
             // A timeline: the time first, then what changed, the dot marking anything that went wrong.
             return h("li", { class: "log-row cr-since-row", dataset: { new: isNew ? "true" : "false", tone } },
               h("span", { class: "cr-since-when" }, shortWhen(ev.ts)),

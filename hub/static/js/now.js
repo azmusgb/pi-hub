@@ -1336,7 +1336,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
       houseWidgets.push(h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },
           h("h2", { class: "section-title" }, controlsTitle),
-          h("a", { href: "/control?from=home", "data-link": true }, "All devices →")),
+          h("a", { href: "/network", "data-link": true }, "All devices →")),
         h("div", { class: "tiles" }, others.map(a => tile(a, state)))));
     }
   }

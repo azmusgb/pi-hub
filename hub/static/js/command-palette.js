@@ -4,7 +4,7 @@
 import { api, fix } from "./core.js";
 import { runPrinterAction, PRINTER_ACTIONS } from "./printer-actions.js";
 import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
-import { navigateSpa, RECORD_LABELS, RECORD_PATHS } from "./control-room.js";
+import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
 const PAGES = [
   { label: "Home", href: "/", area: "Home", keywords: "home overview now needs you" },
@@ -67,7 +67,7 @@ export function findResults(query, records = [], needs = null) {
   if (!q) return [];
   const recs = records.filter((r) => r?.id).map((r) => {
     const name = RECORD_LABELS[r.id] || r.id;
-    return { kind: "find", label: `${name}: ${r.headline || r.state}`, hint: r.cause || "", href: RECORD_PATHS[r.id] || "/",
+    return { kind: "find", label: `${name}: ${r.headline || r.state}`, hint: r.cause || "", href: recordPath(r.id),
       area: "Now", at: r.as_of || r.at || undefined, text: `${name} ${r.id} ${r.state} ${r.headline || ""} ${r.cause || ""}` };
   });
   const items = (needs?.items || []).filter((n) => n?.title).map((n) => ({
