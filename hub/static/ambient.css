@@ -15,16 +15,18 @@ html[data-weather="sleet"] .ambient-layer::before {
   content: "";
   position: absolute;
   inset: -100px 0;
+  /* Each tile holds one short streak (a thin ellipse) with clear space around it. A top-to-bottom linear-gradient
+     would fill the tile's full width and join its neighbours into a line across the page. */
   background-image:
-    linear-gradient(transparent 0%, transparent 55%, rgba(160, 190, 220, .18) 55%, transparent 60%),
-    linear-gradient(transparent 0%, transparent 55%, rgba(160, 190, 220, .10) 55%, transparent 60%);
-  background-size: 2px 120px, 3px 180px;
-  background-position: 0 0, 43px 0;
-  animation: ambient-rain 0.8s linear infinite;
+    radial-gradient(1px 14px at 50% 50%, rgba(160, 190, 220, .28), transparent),
+    radial-gradient(1px 10px at 50% 50%, rgba(160, 190, 220, .18), transparent);
+  background-size: 37px 120px, 59px 180px;
+  background-position: 0 0, 23px 60px;
+  animation: ambient-rain 1.2s linear infinite;
   opacity: 0.6;
 }
 @keyframes ambient-rain {
-  to { background-position: 0 120px, 43px 180px; }
+  to { background-position: 0 120px, 23px 240px; }
 }
 
 html[data-weather="snow"] .ambient-layer::before {
