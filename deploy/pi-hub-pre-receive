@@ -1,0 +1,34 @@
+#!/bin/sh
+# The Pi's deploy repo takes a push of main only when its tip came through a GitHub pull request: a squash merge
+# ("… (#77)") or a merge commit ("Merge pull request #77 …"). This stops a commit made straight on main from going
+# live; it is a speed bump, not a lock, since a subject can be written by hand. An owner's deliberate exception is
+# `git push -o allow-direct pi main`, which is let through and said so.
+zero=0000000000000000000000000000000000000000
+allow=no
+i=0
+while [ "$i" -lt "${GIT_PUSH_OPTION_COUNT:-0}" ]; do
+  eval "opt=\${GIT_PUSH_OPTION_$i}"
+  [ "$opt" = allow-direct ] && allow=yes
+  i=$((i + 1))
+done
+status=0
+while read -r old new ref; do
+  [ "$ref" = refs/heads/main ] || continue
+  if [ "$new" = "$zero" ]; then
+    echo "pi-hub: main can't be deleted here" >&2
+    status=1
+    continue
+  fi
+  subject=$(git log -1 --format=%s "$new")
+  if printf '%s\n' "$subject" | grep -Eq '\(#[0-9]+\)$|^Merge pull request #[0-9]+ '; then
+    continue
+  fi
+  if [ "$allow" = yes ]; then
+    echo "pi-hub: deploying ${new%"${new#???????}"} without a pull request (allow-direct)" >&2
+    continue
+  fi
+  echo "pi-hub: refused ${new%"${new#???????}"} \"$subject\": main's tip must be a merged pull request" >&2
+  echo "pi-hub: open a PR and merge it on GitHub, or, as the owner, push with -o allow-direct" >&2
+  status=1
+done
+exit "$status"

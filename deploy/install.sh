@@ -18,7 +18,7 @@ CADDY_DUCKDNS=v0.5.0
 CADDY_SHA256=c7f294f87d4dada6c2322da95da15a07f6ad7897634507cf45ca84a705b21b5a
 CADDY_URL="https://caddyserver.com/api/download?os=linux&arch=arm64&version=$CADDY_VERSION&p=github.com%2Fcaddy-dns%2Fduckdns%40$CADDY_DUCKDNS"
 
-scp -q deploy/pi-hub-release deploy/bambuhelper-post-receive pi:/tmp/ 2>&1 | quiet
+scp -q deploy/pi-hub-release deploy/bambuhelper-post-receive deploy/pi-hub-pre-receive pi:/tmp/ 2>&1 | quiet
 # ssh hands its arguments to the Pi's shell as one line, so the URL (full of &) is quoted for that shell.
 ssh -o BatchMode=yes pi "bash -s -- '$CADDY_URL' '$CADDY_SHA256'" <<'EOF' 2>&1 | quiet
 set -euo pipefail
@@ -131,6 +131,10 @@ while read old new ref; do
 done
 HOOK
 chmod 755 /srv/pi-hub.git/hooks/post-receive
+# Only a merged pull request's commit goes live (an owner can push with -o allow-direct).
+install -m 755 /tmp/pi-hub-pre-receive /srv/pi-hub.git/hooks/pre-receive
+rm -f /tmp/pi-hub-pre-receive
+git -C /srv/pi-hub.git config receive.advertisePushOptions true
 EOF
 
 # Local AI's CA, so the hub can trust its HTTPS. Read from the PC over ssh (never plain HTTP), checked here, installed on

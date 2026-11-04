@@ -21,6 +21,8 @@ The release runner:
 5. Waits for `/healthz`, then runs the page/API release gate.
 6. Records success and retains the five newest release directories plus the running release. On installation or gate failure it attempts to restore the previous app and supporting files, including permissions, and removes newly introduced files.
 
+The Pi's deploy repo refuses a push whose tip of `main` isn't a merged pull request (subject ending `(#N)`, or `Merge pull request #N …`; hook `deploy/pi-hub-pre-receive`, installed by `install.sh`). It is a speed bump against commits made straight on `main`, not a lock. For a deliberate exception the owner pushes with `git push -o allow-direct pi main`.
+
 A failed post-receive hook does not reject the Git push. The installer therefore checks that `/opt/pi-hub/current` names the requested commit before reporting success. Read the release output and Settings → Versions if this check fails.
 
 ## Verify after deployment

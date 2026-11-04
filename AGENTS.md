@@ -14,7 +14,8 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
 
 ## How changes land
 
-- Never push to `main`, and never push to the `pi` remote. Branch, open a PR, stop.
+- Never push to `main`, and never push to the `pi` remote. Branch, open a PR, stop. The Pi's deploy repo refuses a tip that isn't a
+  merged PR; never use `-o allow-direct`, which is the owner's.
 - Every migration PR says: the baseline requirement it implements, full or partial coverage, and acceptance evidence.
 - Run both suites before opening the PR and paste the counts:
   `HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests` and `node --test tests/*.mjs`.
