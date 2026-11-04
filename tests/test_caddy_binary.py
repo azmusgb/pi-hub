@@ -60,22 +60,16 @@ def test_every_tool_has_a_real_name():
     caddyfile = open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", caddyfile, re.M))
     assert real == {"hub", "assistant", "bambuddy", "paperless", "homebox", "backups", "network", "status", "adguard",
-                    "devices", "pi", "scan", "family", "plex"}
+                    "devices", "pi", "scan", "family"}
 
 
-# A6 decision plex (approved 4 Nov 2026): Plex gets a gated name, like the other tools, and the deploy's gate check names it.
 def _caddyfile():
     return open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
 
 
-def test_plex_is_behind_the_gate_on_its_own_name():
-    caddyfile = _caddyfile()
-    block = re.search(r"\t@plex host plex\.rahe-home\.duckdns\.org\n\thandle @plex \{\n(.*?)\n\t\}\n", caddyfile, re.S)
-    assert block, "plex.rahe-home.duckdns.org has a block under the real names"
-    assert block.group(1).strip() == "import site_tool 127.0.0.1:32400"
-    # site_tool is the gated snippet: the block adds no way round it
-    snippet = re.search(r"\(site_tool\) \{\n(.*?)\n\}\n", caddyfile, re.S).group(1)
-    assert "import gated" in snippet and "reverse_proxy {args[0]}" in snippet
+def test_plex_has_no_gated_name():
+    """A6 decision plex (revised 4 Nov 2026): Plex opens at app.plex.tv, so Caddy serves no name for it."""
+    assert "plex" not in _caddyfile().lower().replace("plex.tv", "")
 
 
 def test_the_gate_check_covers_every_gated_name():
@@ -85,4 +79,4 @@ def test_the_gate_check_covers_every_gated_name():
     names = set(re.search(r"^NAMES=\((.*?)\)$", check, re.M).group(1).split())
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", _caddyfile(), re.M))
     assert names == real - {"hub", "family"}
-    assert "plex" in names
+    assert "plex" not in names

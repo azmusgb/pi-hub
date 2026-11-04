@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { install, text } from './helpers/fake_dom.mjs';
 import ROUTES from '../hub/static/js/routes.js';
-import { TOOLS } from '../hub/static/ui/tools.js';
+import { TOOLS, toolUrl } from '../hub/static/ui/tools.js';
 
 function fakeStorage(initial = {}) {
   const data = { ...initial };
@@ -272,7 +272,7 @@ test('the Site map page shows a link to every route and every registry tool', as
     const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
     assert.ok(ROUTES.pages.length > 10 && TOOLS.length > 5, 'the lists the map is drawn from are not empty');
     for (const p of ROUTES.pages) assert.ok(links.includes(p), `page ${p}`);
-    for (const t of TOOLS.filter((x) => !x.boundary)) assert.ok(links.includes(`https://${t.host}/`), `tool ${t.id}`);
+    for (const t of TOOLS.filter((x) => !x.boundary)) assert.ok(links.includes(toolUrl(t.id)), `tool ${t.id}`);
     const body = text(root);
     for (const t of TOOLS.filter((x) => x.boundary)) assert.ok(body.includes(t.name), `machine-facing ${t.id} is named`);
   } finally { dom.uninstall(); }

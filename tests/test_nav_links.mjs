@@ -11,15 +11,12 @@ const JS = new URL('../hub/static/js/', import.meta.url);
 const files = readdirSync(JS).filter((f) => f.endsWith('.js'));
 const read = (f) => readFileSync(new URL(f, JS), 'utf8');
 
-// Plex is the one port link left until N4 moves it; only port 32400, only in these two files. N4 deletes this list.
-const PLEX_PORT = { 'movies.js': 32400, 'movie-night.js': 32400 };
-
 test('no page builds a raw :port link with piLink(), whatever its first argument', () => {
   const bad = [];
   for (const f of files) {
     if (f === 'core.js') continue;  // defines piLink
     for (const m of read(f).matchAll(/piLink\(\s*([^,)\s]+)/g)) {
-      if (!(PLEX_PORT[f] && Number(m[1]) === PLEX_PORT[f])) bad.push(`${f}: piLink(${m[1]}`);
+      bad.push(`${f}: piLink(${m[1]}`);
     }
   }
   assert.deepEqual(bad, []);
@@ -90,7 +87,7 @@ function assertOnce(root, label, { rowOnly = true } = {}) {
   // A tool's front door is linked only from the "Open in ↗" row; anything else on the page is a deeper path. Uptime
   // Kuma's front door is its public status page, /status/home (its root is a login).
   const inRow = new Set(row.querySelectorAll('a').map((a) => a.getAttribute('href')));
-  const door = (u) => new URL(u).pathname === '/' || new URL(u).pathname === '/status/home';
+  const door = (u) => ['/', '/status/home', '/desktop'].includes(new URL(u).pathname);
   const outside = links.filter((u) => door(u) && !inRow.has(u));
   assert.deepEqual(outside, [], `${label}: a tool's front door is linked outside the Open in row`);
 }
