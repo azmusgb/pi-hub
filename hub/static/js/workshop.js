@@ -70,6 +70,11 @@ function camera(c) {
 }
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.
+// A lab print's history link: its experiment in its own project (the print name carries both).
+export function printLabHref(p) {
+  return p?.lab ? printLabUrl(p.lab.exp, p.lab.project) : null;
+}
+
 function printRow(p) {
   const [label, tone] = printWords(p);
   const used = p.grams ? `${Math.round(p.grams)} g of filament` + (p.cost ? `, $${p.cost.toFixed(2)}` : "") : null;
@@ -94,7 +99,7 @@ function printRow(p) {
     h("span", { class: "log-main" }, h("strong", {}, label),
       h("span", { class: "meta" }, p.name),
       h("span", { class: "meta" }, when(p.started)),
-      p.lab ? h("a", { class: "meta", href: printLabUrl(p.lab.exp), "data-link": true }, printLabText(p))
+      p.lab ? h("a", { class: "meta", href: printLabHref(p), "data-link": true }, printLabText(p))
         : h("span", { class: "meta" }, printLabText(p)),
       !p.error ? null : printErrorCode(p.error)
         ? h("a", { class: "meta", href: `https://e.bambulab.com/query.php?lang=en&e=${encodeURIComponent(printErrorCode(p.error))}`, target: "_blank", rel: "noopener" }, `What ${p.error} means`)
