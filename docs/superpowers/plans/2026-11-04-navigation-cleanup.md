@@ -31,10 +31,20 @@ Stacks on N1 (same files).
 
 Stacks on N2.
 
-## N4. Plex behind the gate (plex)
+## N4. Plex opens in Plex's own web app (plex, revised 4 Nov 2026)
 
-- `deploy/caddy/Caddyfile`: `plex.rahe-home.duckdns.org` to `127.0.0.1:32400`, behind the gate, like the other tool blocks.
-- Plex in the registry (and appliance-ui's `tools.json` if it needs the same row); Media's links and posters use it; the deploy's gate test covers the host.
+Decision `plex` changed from "a gated name" to "app.plex.tv", on the same day, before anything was deployed. Why:
+
+- The gate makes Open Plex and every poster-to-movie link owner-only. The household would lose the links they use today. That is a regression, not a cleanup.
+- Port 32400 stays open on the LAN for the TVs and phones' Plex apps either way, so the gate would protect nothing.
+- A gated name needs a manual "Custom server access URL" setting in Plex, to be reached from outside the house. That is a step nobody has done and nobody wants to own.
+
+What N4 does instead:
+
+- No Caddyfile block and no `gate-check.sh` name. A test says Caddy serves no Plex name.
+- Plex stays in the registry, as an outside tool: `host` `app.plex.tv`, `base` `/desktop`, `external` true (appliance-ui kit 2.3.0, PR #6). It still shows in ⌘K, the Site map and Media's "Open in" row.
+- Media's Open in Plex goes to `https://app.plex.tv/desktop`. A movie's link is `https://app.plex.tv/desktop/#!/server/<machineIdentifier>/details?key=/library/metadata/<ratingKey>`; the hub already returns the server's id as `machine` in `/api/movies`. With no id, the link is the front door.
+- Posters stay on the hub's own `/api/plex/thumb`. No raw `:32400` link is left, so the port-link guard has no Plex exemption.
 
 Stacks on N3 (Media and the registry).
 
