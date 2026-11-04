@@ -245,7 +245,7 @@ body::before {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .foot-links { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.link-btn, #wall-link {
+.link-btn, #wall-link, #map-link {
   display: inline-flex; align-items: center; gap: .45rem;
   padding: .4rem .7rem; border-radius: var(--r-full);
   border: 1px solid var(--line); background: transparent;
@@ -253,10 +253,10 @@ body::before {
   text-decoration: none; cursor: pointer;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.link-btn:hover, #wall-link:hover {
+.link-btn:hover, #wall-link:hover, #map-link:hover {
   background: var(--surface-3); color: var(--text); border-color: var(--line-strong);
 }
-.link-btn:focus-visible, #wall-link:focus-visible { outline: none; box-shadow: var(--ring); }
+.link-btn:focus-visible, #wall-link:focus-visible, #map-link:focus-visible { outline: none; box-shadow: var(--ring); }
 
 .toast {
   position: fixed; left: 50%;

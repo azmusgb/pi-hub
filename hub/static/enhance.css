@@ -467,7 +467,7 @@ kbd {
 /* ---------- Print ---------- */
 @media print {
   .rail, .foot, .skip, .toast, .progress-top, .offline-banner,
-  .ui-palette, .shortcuts, .modal, #wall-link, #theme-btn { display: none !important; }
+  .ui-palette, .shortcuts, .modal, #wall-link, #map-link, #theme-btn { display: none !important; }
   .shell { display: block; }
   .stage { min-height: 0; }
   #view { max-width: none; padding: 0; }
@@ -785,7 +785,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
    changing how it reads. Desktop with a mouse keeps the compact sizes. */
 @media (max-width: 860px), (pointer: coarse) {
-  #theme-btn, #wall-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
   a.action { display: inline-flex; align-items: center; }
   .hud-cam-btn, .tile-fav { min-width: 44px; }
   kbd { font-size: .75rem; }
