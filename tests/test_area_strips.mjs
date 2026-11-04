@@ -188,6 +188,26 @@ test('the Site map lists every page and every registry tool, built from routes.j
   assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
 });
 
+test('the Site map reads at a glance: areas side by side, a page with its address, a tool marked as opening a new tab', async () => {
+  const { mount } = await import('../hub/static/js/map.js');
+  const dom = install();
+  try {
+    const root = document.createElement('div');
+    mount({ root });
+    const grid = root.querySelector('.map-areas');
+    assert.ok(grid, 'the areas sit in one grid');
+    assert.equal(grid.querySelectorAll('.more-group').length, root.querySelectorAll('.more-group').length);
+    const printer = [...root.querySelectorAll('.more a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
+    assert.equal(text(printer).replace(/\s+/g, ' ').trim(), 'Printer /workshop');
+    const bambuddy = [...root.querySelectorAll('a[target="_blank"]')].find((a) => /Bambuddy/.test(text(a)));
+    assert.match(text(bambuddy), /opens in a new tab/);
+    const machine = root.querySelector('[data-area="machine"] li');
+    assert.match(text(machine), /^Workshop display feed\s*·?\s+home\.home\.arpa/, 'name and host never run together');
+  } finally { dom.uninstall(); }
+  const css = read('hub/static/enhance.css');
+  assert.match(css, /\.map-areas\s*\{[^}]*grid-template-columns/);
+});
+
 test('no card or description still says Storage once the page is Drives (A6 N2 review)', async () => {
   const health = read('hub/static/js/health.js');
   assert.ok(!/"Storage"/.test(health) && !/Storage information/.test(health) && !/`\$\{storageItem\?\.name \|\| "Storage"\}/.test(health));
