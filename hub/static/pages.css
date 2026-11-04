@@ -119,7 +119,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .day + .day { margin-top: 0.6rem; }
 .steps { margin: 0.3rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.45rem; color: var(--muted); }
 
-.page-pi .cards, .page-workshop .cards, .page-print .cards { align-items: start; }
+.page-health .cards, .page-workshop .cards, .page-print .cards { align-items: start; }
 
 
 /* Sign-in sheet */

@@ -9,7 +9,8 @@ import * as workshopPage from "./workshop.js";
 import * as labPage from "./lab.js";
 import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
-import * as piPage from "./pi.js";
+import * as healthPage from "./health.js";
+import * as backupsPage from "./backups.js";
 import * as alertsPage from "./alerts.js";
 import * as settingsPage from "./settings.js";
 import * as morePage from "./more.js";
@@ -18,8 +19,8 @@ import * as drivesPage from "./drives.js";
 import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
-import * as systemPage from "./system.js";
 import * as versionsPage from "./versions.js";
+import { systemStrip, revealCurrent } from "./system-strip.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
@@ -55,7 +56,6 @@ const PAGES = {
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print a document", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/pi": { key: "pi", title: "Health", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
@@ -65,7 +65,8 @@ const PAGES = {
   "/media": { key: "movies", title: "Media", mod: moviesPage },
   "/documents": { key: "documents", title: "Documents", mod: documentsPage },
   "/network": { key: "network", title: "Home & network", mod: networkPage },
-  "/system": { key: "system", title: "System", mod: systemPage },
+  "/system": { key: "health", title: "Health", mod: healthPage },
+  "/backups": { key: "backups", title: "Backups", mod: backupsPage },
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
 };
 
@@ -90,14 +91,14 @@ const subtitles = {
   "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
-  "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub",
   "/media": "Movies and what's playing",
   "/documents": "Find, scan and print papers",
   "/network": "Devices, internet and blocking",
-  "/system": "Backups, alerts and settings",
+  "/system": "How the hub and the Pi are doing, and what to try",
+  "/backups": "What is backed up, and when",
   "/versions": "What is live where",
 };
 
@@ -246,7 +247,11 @@ async function show(path, { focus = false } = {}) {
   const context = new URLSearchParams(location.search);
   const state = { root, context };
   const home = SECTIONS.find((x) => x.key === section);
-  const parents = home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
+  // System's pages carry their strip instead of a breadcrumb: the strip already says where you are.
+  const strip = systemStrip(path);
+  if (strip) { view.prepend(strip); revealCurrent(strip); }
+  const parents = strip ? [] : page.key === "drives" ? [["/media", "Media"]]
+    : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
     : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
     ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),

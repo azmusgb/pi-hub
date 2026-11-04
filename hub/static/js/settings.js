@@ -64,14 +64,6 @@ function shortcutsCard(state, keys, save) {
     steps(shown));
 }
 
-// Versions moved to System › Versions (platform step 3), which reads every part's release record and keeps Pi Hub's
-// history and "Go back to this". This card only points there.
-function versionsCard() {
-  return card("Versions", {},
-    h("p", { class: "meta" }, "What is live where, for Pi Hub and every other part, and going back to an earlier Pi Hub version."),
-    h("a", { class: "tool-link", href: "/versions" }, "Open System › Versions"));
-}
-
 export function mount(state) {
   state.body = h("div", { class: "stack" });
   state.root.append(state.body);
@@ -190,7 +182,6 @@ export async function load(state) {
       d.pc_copy ? h("p", {}, h("span", { class: "dot", dataset: { tone: Date.now() / 1000 - d.pc_copy.ts < 50 * 3600 ? "ok" : "warn" }, style: "display:inline-block;margin-right:.5rem" }),
         `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
         : h("p", { class: "note" }, "Not copied to the PC yet.")),
-    versionsCard(),
     devicesCard(d.devices, save),
     shortcutsCard(state, d.shortcut_keys, save),
     card("Activity", { cls: "wide" },
@@ -216,7 +207,7 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
     ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
-    ["pi", "The Pi", ["Versions", "Backups", "Activity"]],
+    ["pi", "The Pi", ["Backups", "Activity"]],
   ];
   const steps = [
     ["Connect Homebridge", d.homebridge.connected, "home", "so lights and plugs work from the hub"],

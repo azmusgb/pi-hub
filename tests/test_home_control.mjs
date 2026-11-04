@@ -78,8 +78,8 @@ test("a Needs you item that stands for a hub record is listed once, not again as
   assert.equal(problemsBadge(needs, probs).count, needs.count);  // Home's badge matches every other page's
 });
 
-test("System lists each service with its record's health, and no health where no record speaks for it", async () => {
-  const { serviceRows } = await import("../hub/static/js/system.js");
+test("Health lists each service with its record's health, and no health where no record speaks for it", async () => {
+  const { serviceRows } = await import("../hub/static/js/health.js");
   const rows = serviceRows(
     [{ name: "restart:plex", label: "Restart Plex" }, { name: "restart:ntfy", label: "Restart ntfy" }, { name: "restart:pi", label: "Restart the Pi" }],
     [{ id: "plex", severity: "ok", state: "idle", headline: "Nothing playing" }]);

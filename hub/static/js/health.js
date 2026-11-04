@@ -1,4 +1,5 @@
-// Raspberry Pi: health and history, every service, updates, storage and network.
+// System › Health (platform step 7, PR 7.3): the hub and the Pi in one page. It took over /pi's cards and System's
+// services and display: self-check, outages, services, fix it, storage, updates, network, history and the help guides.
 import {
   api,
   card,
@@ -11,6 +12,8 @@ import {
   spark,
   when,
 } from "./core.js";
+import { toolUrl } from "./sections.js";
+import { displayCard } from "./display-pair.js";
 
 export const every = 20;
 
@@ -70,15 +73,15 @@ function helpGuidance() {
       "movies",
       "Movies won’t play",
       "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.",
-      "/movies",
+      "/media",
       "Check Movies",
     ],
 
     [
       "devices",
       "Lights aren’t responding",
-      "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, open System checks & advanced fixes below to check the smart-home service.",
-      "/control",
+      "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, check Homebridge under Services on this page.",
+      "/network",
       "Check Devices",
     ],
 
@@ -134,9 +137,8 @@ export function mount(state) {
       Number(a[0] === topic),
   );
 
-  state.root.append(
-    state.result,
-
+  // The guides are last, as the plan orders Health; opened with ?help=, they come first.
+  const help =
     h(
       "section",
       {
@@ -210,34 +212,32 @@ export function mount(state) {
         },
         "Check movie storage",
       ),
-    ),
+    );
 
+  state.root.append(...[
+    state.result,
+    topic ? help : null,
+    state.diagnostic,
+    state.body,
+    displayCard(),
     h(
-      "details",
+      "p",
       {
-        class: "system-details",
-        open: topic === "system",
+        class: "open-in",
       },
-
       h(
-        "summary",
-        {},
-        "System checks & advanced fixes",
-      ),
-
-      state.diagnostic,
-
-      h(
-        "p",
+        "a",
         {
-          class: "meta",
+          class: "tool-link",
+          href: toolUrl("pi"),
+          target: "_blank",
+          rel: "noopener",
         },
-        "Service restarts, updates, charts and diagnostics. Actions ask for confirmation and the owner.",
+        "Open in Cockpit ↗",
       ),
-
-      state.body,
     ),
-  );
+    topic ? null : help,
+  ].filter(Boolean));
 }
 
 function chart(
@@ -931,113 +931,130 @@ function outagesCard(outages) {
   );
 }
 
+// Which record speaks for each restartable service; the rest have no record, so their row says nothing about health.
+const SERVICE_RECORD = { plex: "plex", homebridge: "devices", adguard: "adguard", backrest: "backups", bambuddy: "printer" };
+const TONE = { ok: "ok", attention: "warn", problem: "bad" };
+
+// The restartable services (System's old "Services on the Pi"), each with its record's health where one speaks for it.
+export function serviceRows(actions = [], records = []) {
+  const byId = new Map((records || []).map((r) => [r.id, r]));
+  return (actions || [])
+    .filter((a) => a?.name?.startsWith("restart:") && a.name !== "restart:pi")
+    .map((a) => {
+      const key = a.name.slice("restart:".length);
+      const rec = byId.get(SERVICE_RECORD[key]);
+      const known = rec && rec.state !== "unknown" && !rec.stale;
+      return { key, action: a, name: a.label.replace(/^Restart\s+/i, ""),
+        tone: known ? TONE[rec.severity] || "" : "", status: known ? rec.headline : "" };
+    });
+}
+
+// One Services card: the Pi's units first, then the apps the hub can restart. A unit and an app with the same name
+// (Plex, Homebridge) share one row, so nothing is listed twice.
+export function mergeServices(services = [], rows = []) {
+  const left = [...(rows || [])];
+  const take = (name) => {
+    const i = left.findIndex((r) => r.name.toLowerCase() === String(name || "").toLowerCase());
+    return i < 0 ? null : left.splice(i, 1)[0];
+  };
+  const units = (services || []).map((service) => ({ service, restart: take(service?.name) }));
+  return [...units, ...left.map((restart) => ({ service: null, restart }))];
+}
+
+// A small Restart beside its service: restarting is the rare thing (iPad, 1 Nov: eight identical buttons and no status).
+function restartButton(restart) {
+  const { action: a, name } = restart;
+  const btn = h("button", {
+    type: "button",
+    class: "btn btn--ghost",
+    "aria-label": a.label,
+    onclick: async () => {
+      btn.disabled = true;
+      btn.textContent = "Restarting…";
+      btn.setAttribute("aria-label", `Restarting ${name}`);
+      // fix() asks first, shows the outcome (or the reason it failed) and returns false on cancel or failure.
+      const done = await fix(a.name, a.label, {
+        confirmText: `${a.label}? Anyone using it is cut off for a moment.`,
+        isCurrent: () => btn.isConnected,
+      });
+      btn.textContent = done ? "Restarted" : "Restart";
+      setTimeout(() => { btn.disabled = false; btn.textContent = "Restart"; btn.setAttribute("aria-label", a.label); }, done ? 2000 : 0);
+    },
+  }, "Restart");
+  return btn;
+}
+
+function serviceRow({ service, restart }) {
+  const [label, unitTone] = service
+    ? STATE[service.state || "unknown"] || [service.state || "unknown", "warn"]
+    : [restart.status, restart.tone];
+  // A running unit whose record reports trouble shows the record's tone; a stopped unit shows its own.
+  const tone = service && unitTone === "ok" && restart?.tone ? restart.tone : unitTone;
+  const what = [service?.what, service && restart?.status ? restart.status : ""].filter(Boolean).join(" · ");
+  return h(
+    "li",
+    { class: "log-row" },
+    h("span", { class: "dot", dataset: { tone }, "aria-hidden": "true" }),
+    h(
+      "span",
+      { class: "log-main" },
+      h("strong", {}, service?.name || restart.name),
+      what ? h("span", { class: "meta" }, what) : null,
+    ),
+    h(
+      "span",
+      { class: "log-side", dataset: { tone } },
+      label,
+      restart ? restartButton(restart) : null,
+    ),
+  );
+}
+
 function servicesCard(
   services,
+  actions,
+  records,
 ) {
   const list =
-    asArray(services);
-
+    mergeServices(
+      asArray(services),
+      serviceRows(asArray(actions), records),
+    );
   return card(
     "Services",
     {},
-
     list.length
       ? h(
           "ul",
           {
-            class: "log",
+            class: "log service-list",
           },
-
-          list.map(
-            (service) => {
-              const state =
-                service?.state ||
-                "unknown";
-
-              const [
-                label,
-                tone,
-              ] =
-                STATE[state] || [
-                  state,
-                  "warn",
-                ];
-
-              return h(
-                "li",
-                {
-                  class:
-                    "log-row",
-                },
-
-                h("span", {
-                  class: "dot",
-                  dataset: {
-                    tone,
-                  },
-                  "aria-hidden":
-                    "true",
-                }),
-
-                h(
-                  "span",
-                  {
-                    class:
-                      "log-main",
-                  },
-
-                  h(
-                    "strong",
-                    {},
-                    service?.name ||
-                      "Unnamed service",
-                  ),
-
-                  service?.what
-                    ? h(
-                        "span",
-                        {
-                          class:
-                            "meta",
-                        },
-                        service.what,
-                      )
-                    : null,
-                ),
-
-                h(
-                  "span",
-                  {
-                    class:
-                      "log-side",
-
-                    dataset: {
-                      tone,
-                    },
-                  },
-                  label,
-                ),
-              );
-            },
-          ),
+          list.map(serviceRow),
         )
       : empty(
           "No service status is available.",
         ),
-
+    actions === null
+      ? null
+      : actions.length
+        ? null
+        : h(
+            "p",
+            {
+              class: "meta",
+            },
+            "Sign in as the owner to restart services.",
+          ),
     h(
       "a",
       {
         class: "action",
-
         href: piLink(
           9090,
           "/system/services",
           "https",
         ),
-
         target: "_blank",
-
         rel:
           "noopener noreferrer",
       },
@@ -1346,6 +1363,7 @@ async function loadDiagnostics(
   const [
     diagnosticsResult,
     actionsResult,
+    recordsResult,
   ] =
     await Promise.allSettled([
       api(
@@ -1353,6 +1371,8 @@ async function loadDiagnostics(
       ),
 
       api("/api/actions"),
+
+      api("/api/records"),
     ]);
 
   if (
@@ -1384,14 +1404,21 @@ async function loadDiagnostics(
           updates: {},
         };
 
+  // Records only colour the restartable services; without them those rows say nothing about health.
+  const recordsValue =
+    recordsResult.status ===
+    "fulfilled"
+      ? recordsResult.value
+      : null;
+
+  const records =
+    asArray(
+      recordsValue?.records ||
+        recordsValue,
+    );
+
+  // Health's order (step 7 plan, Decision 3): self-check, outages, services, fix it, storage, updates, network, history.
   state.body.replaceChildren(
-    healthCard(state, data),
-
-    fixCard(
-      state,
-      actionsData,
-    ),
-
     selfcheckCard(
       data.selfcheck,
     ),
@@ -1409,7 +1436,27 @@ async function loadDiagnostics(
 
       servicesCard(
         data.services,
+        actionsResult.status ===
+          "fulfilled"
+          ? asArray(
+              actionsData.actions,
+            )
+          : null,
+        records,
       ),
+    ),
+
+    fixCard(
+      state,
+      actionsData,
+    ),
+
+    h(
+      "div",
+      {
+        class:
+          "pi-bottom-grid",
+      },
 
       storageCard(
         data.storage,
@@ -1425,6 +1472,8 @@ async function loadDiagnostics(
         data.network,
       ),
     ),
+
+    healthCard(state, data),
   );
 
   if (
@@ -1487,7 +1536,7 @@ export async function load(
     }
 
     state.diagnostic.textContent =
-      "System checks unavailable. The help guides above still work.";
+      "System checks unavailable. The help guides on this page still work.";
 
     state.body.replaceChildren(
       card(
