@@ -3,7 +3,7 @@ import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.j
 import { updateNavigation } from "./navigation.js";
 import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
-import * as nextPage from "./next.js";
+import { initCommandPalette } from "./command-palette.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
 import * as labPage from "./lab.js";
@@ -11,7 +11,6 @@ import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
 import * as piPage from "./pi.js";
 import * as alertsPage from "./alerts.js";
-import * as controlPage from "./control.js";
 import * as settingsPage from "./settings.js";
 import * as morePage from "./more.js";
 import * as rulesPage from "./rules.js";
@@ -48,17 +47,16 @@ checkAssistant();
 setInterval(checkAssistant, 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
+// Every page the shell draws; routes.js lists the same paths for the server, and a test keeps the two equal.
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
-  "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print a document", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/pi": { key: "pi", title: "Health", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
@@ -71,12 +69,22 @@ const PAGES = {
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
 };
 
+// In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
+const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {
+  mount(state) {
+    state.root.append(h("section", { class: "not-found" },
+      h("p", {}, "There’s no page at this address on Pi Hub."),
+      h("p", { class: "not-found-actions" },
+        h("a", { class: "ui-btn ui-btn--primary", href: "/", "data-link": true }, "Open Home"),
+        h("a", { class: "ui-btn", href: "/system", "data-link": true }, "System"))));
+  },
+  async load() {},
+} };
+
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
   "/wall": "Glanceable ambient display",
-  "/movies": "Plex library and playback",
-  "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
   "/lab": "Experiments, test coupons and operator verdicts",
@@ -215,7 +223,7 @@ async function refresh() {
 async function show(path, { focus = false } = {}) {
   const moved = redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
-  const page = PAGES[path] || PAGES["/"];
+  const page = PAGES[path] || NOT_FOUND;  // the server answers unknown paths itself; this is in-app navigation
   const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
@@ -238,8 +246,7 @@ async function show(path, { focus = false } = {}) {
   const context = new URLSearchParams(location.search);
   const state = { root, context };
   const home = SECTIONS.find((x) => x.key === section);
-  const parents = page.key === "drives" ? [["/media", "Media"]]
-    : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
+  const parents = home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
     : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
     ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),
@@ -328,6 +335,6 @@ setInterval(updateNavigation, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
 gateSignIn();
-nextPage.initCommandPalette();
+initCommandPalette();
 
 

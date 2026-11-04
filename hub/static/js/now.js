@@ -1,4 +1,4 @@
-// Home: the one-line answer, then the control room (Now, Needs you, Since you last looked; next.js). The wall
+// Home: the one-line answer, then the control room (Now, Needs you, Since you last looked; control-room.js). The wall
 // display keeps its own layout and the house cards (home-cards.js).
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
@@ -6,7 +6,7 @@ import { homeCards, labLink, needsSummary } from "./home-cards.js";
 import { plainInternet, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
-import { mountControlRoom, loadControlRoom, leaveControlRoom, setControlNeeds, problemsBadge } from "./next.js";
+import { mountControlRoom, loadControlRoom, leaveControlRoom, setControlNeeds, problemsBadge } from "./control-room.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";

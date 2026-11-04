@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitNowRecords, calmSummaryText, mergeProblems, buildCommandItems } from "../hub/static/js/next.js";
+import { splitNowRecords, calmSummaryText, mergeProblems } from "../hub/static/js/control-room.js";
+import { buildCommandItems } from "../hub/static/js/command-palette.js";
 
 test("splitNowRecords separates active printing/playing items from calm OK items", () => {
   const recs = [
