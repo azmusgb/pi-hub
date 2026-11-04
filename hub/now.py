@@ -208,7 +208,8 @@ def printer_from(rec):
            "bed_target": d.get("bed_target"), "ams_humidity": d.get("ams_humidity"), "ams_temp": None,
            "layer_num": d.get("layer"), "total_layers": d.get("total_layers"), "job_name": d.get("job"),
            "filament_type": d.get("filament_type"), "filament_color": d.get("filament_color"),
-           "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions}
+           "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions,
+           "as_of": rec.get("as_of")}  # when the record was last read: the page's "last seen" while it is stale
     if d.get("lab") and state in ("printing", "paused"):
         res["lab"] = d["lab"]
     return res

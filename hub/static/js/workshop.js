@@ -1,12 +1,12 @@
 // Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Materials,
 // This week, More in the workshop (filament, history, projects, the lab queue) and one "Open in" row. The touchscreen's
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
-import { api, card, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
+import { api, card, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { band } from "./now.js";
 import { printLabUrl, sourceDown } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
-import { printerButtons, runPrinterAction } from "./printer-actions.js";
+import { printerActionList, printerBusy, printerButtons, runPrinterAction } from "./printer-actions.js";
 
 export const every = 15;
 
@@ -180,9 +180,11 @@ export const bambuddyDown = (d) => d?.prints_available === false || d?.spools ==
 const WAITING = "Shown again when Bambuddy answers.";
 
 // The one Bambuddy notice, as a small state machine so a live region speaks only on a change: going down is said once,
-// coming back is said once ("answering again"), and the render after that clears it without a word.
-export function nextSourceNotice(prev, down) {
-  if (down) return { state: "down", text: `${sourceDown("Bambuddy")}. Print history and spools show again when it answers.`, changed: prev !== "down" };
+// coming back is said once ("answering again"), and the render after that clears it without a word. `seen` (seconds) is
+// when the printer's record was last read, when the page knows it.
+export function nextSourceNotice(prev, down, seen = null) {
+  const since = Number.isFinite(seen) ? ` · last seen ${clockTime(seen)}` : "";
+  if (down) return { state: "down", text: `${sourceDown("Bambuddy")}${since}. Print history and spools show again when it answers.`, changed: prev !== "down" };
   if (prev === "down") return { state: "recovered", text: "Bambuddy is answering again.", changed: true };
   return { state: "up", text: "", changed: prev === "recovered" };
 }
@@ -226,12 +228,33 @@ export function workshopView(d, { role = "none", last = null } = {}) {
     bandActions: owner ? actions.filter((a) => a !== "clear") : [],
     camFirst: ["printing", "paused"].includes(p.state),
     lastPrint: p.state === "idle" && latest ? `Last print: ${latest.name}, ${printWords(latest)[0]}, ${when(latest.started)}` : null,
-    materials: down ? null : { trays: Array.isArray(d.ams_trays) ? d.ams_trays : [], low: (spools || []).filter((s) => s.low) },
-    week: down || !d.week ? null : `${weekPill(d.week).pill} · ${d.week.hours} h printing`,
-    quiet: down ? "No answer from Bambuddy for spools and this week’s prints." : null,
+    // Trays read from a stale printer record are last known, not current: left out rather than shown as now.
+    materials: down ? null : { trays: !p.stale && Array.isArray(d.ams_trays) ? d.ams_trays : [], low: (spools || []).filter((s) => s.low) },
+    week: down || !d.week ? null : weekLine(d.week),
+    seen: down && p.stale && known(p.as_of) ? p.as_of : null,
     history: { prints: d.prints_available === false ? last?.prints ?? null : prints, asOf: d.prints_available === false ? age : null },
     spools: { list: spools ?? last?.spools ?? null, asOf: spools ? null : age },
   };
+}
+
+// A colour from Bambuddy or the AMS goes into an inline style only as hex (#RGB, #RRGGBB or #RRGGBBAA; the AMS sends it
+// without the #); anything else is a neutral grey.
+export function safeColour(c) {
+  const v = typeof c === "string" ? c.trim().replace(/^(?!#)/, "#") : "";
+  return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) ? v : "#888";
+}
+
+const known = (n) => typeof n === "number" && Number.isFinite(n);
+
+// This week in one line: the pill's count, and the hours when Bambuddy gave them.
+function weekLine(week) {
+  return `${weekPill(week).pill}${known(week.hours) ? ` · ${week.hours} h printing` : ""}`;
+}
+
+// A low spool in a few words, leaving out what Bambuddy didn't say.
+function lowSpoolText(s) {
+  const name = [s.colour, s.material].filter(Boolean).join(" ") || "A spool";
+  return known(s.grams_left) ? `${name}: ${s.grams_left} g left` : `${name} running low`;
 }
 
 function lastKnown(asOf) {
@@ -246,14 +269,15 @@ function needsList(state, v) {
       // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab).
       n.detail ? h("span", { class: "meta clamp-2", title: n.detail }, n.detail) : null,
       n.kind === "clear" && n.action ? clearButton(state)
-        : n.href ? h("a", { class: "btn btn--primary lab-need-act", href: n.href, "data-link": true }, n.label) : null)));
+        : n.href ? h("a", { class: "btn btn--primary lab-need-act", href: n.href, "data-link": true, dataset: { key: `lab-${n.id}` } }, n.label) : null)));
   return [h("ul", { class: "log" }, rows),
     v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
-      h("button", { type: "button", class: "ghost small", onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
+      h("button", { type: "button", class: "ghost small", dataset: { key: "sign-in" }, onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
 }
 
 function clearButton(state) {
-  const b = h("button", { type: "button", class: "btn btn--primary lab-need-act" }, "Clear the plate");
+  // Made disabled while an action is running, so a redraw mid-action can't offer a second tap.
+  const b = h("button", { type: "button", class: "btn btn--primary lab-need-act", dataset: { key: "clear" }, disabled: printerBusy() }, "Clear the plate");
   b.addEventListener("click", () => runPrinterAction("clear", [b], () => load(state)));
   return b;
 }
@@ -274,8 +298,8 @@ function setPill(m, text, tone) {
 
 function trayPill(t) {
   return h("span", { class: "pill ws-tray" },
-    h("span", { class: "swatch", style: `background:${t.color || "#888"}`, "aria-hidden": "true" }),
-    `AMS ${t.slot}: ${t.type}${Number.isFinite(t.remain) && t.remain >= 0 ? ` (${t.remain}%)` : ""}`);
+    h("span", { class: "swatch", style: `background:${safeColour(t.color)}`, "aria-hidden": "true" }),
+    `AMS ${t.slot}: ${t.type || "Unknown"}${known(t.remain) && t.remain >= 0 ? ` (${t.remain}%)` : ""}`);
 }
 
 function shelf(spools, printer = null) {
@@ -284,16 +308,16 @@ function shelf(spools, printer = null) {
   const activePrint = printer && ["printing", "paused"].includes(printer.state);
   const shortfallBanner = low.length && activePrint
     ? h("div", { class: "callout callout--warn", style: "margin-bottom: .75rem;" },
-      h("span", {}, `Spool shortfall check: ${low.map((s) => `${s.colour} (${s.grams_left} g)`).join(", ")} running low while the X2D is active.`))
+      h("span", {}, `Spool shortfall check: ${low.map((s) => (known(s.grams_left) ? `${s.colour || "A spool"} (${s.grams_left} g)` : s.colour || "A spool")).join(", ")} running low while the X2D is active.`))
     : null;
   const rows = spools.map((s) => {
-    const pct = s.grams_total ? Math.round((s.grams_left / s.grams_total) * 100) : 0;
+    const pct = known(s.grams_left) && s.grams_total ? Math.round((s.grams_left / s.grams_total) * 100) : 0;
     return h("li", { class: "spool", dataset: { low: String(s.low) } },
-      h("span", { class: "swatch", style: `background:${s.hex || "#888"}`, "aria-hidden": "true" }),
-      h("span", { class: "spool-main" }, h("strong", {}, s.colour), h("span", { class: "meta" }, [s.material, s.brand].filter(Boolean).join(", "))),
+      h("span", { class: "swatch", style: `background:${safeColour(s.hex)}`, "aria-hidden": "true" }),
+      h("span", { class: "spool-main" }, h("strong", {}, s.colour || "Unnamed spool"), h("span", { class: "meta" }, [s.material, s.brand].filter(Boolean).join(", "))),
       // An unweighed spool's amount is unknown: no bar rather than a full green one.
       h("span", { class: "spool-left" }, s.measured ? h("span", { class: "meter" }, h("i", { style: `width:${pct}%`, dataset: { tone: s.low ? "bad" : pct < 35 ? "warn" : "ok" } })) : null,
-        h("span", { class: "grams" }, s.measured ? `${s.grams_left} g` : "not weighed")));
+        h("span", { class: "grams" }, s.measured && known(s.grams_left) ? `${s.grams_left} g` : "not weighed")));
   });
   return [shortfallBanner,
     rows.length ? h("ul", { class: "spools" }, rows) : empty("No spools in Bambuddy yet."),
@@ -331,7 +355,8 @@ function labPill(labData) {
 }
 
 function projectsBody(projects) {
-  if (projects === null) return [h("p", { class: "meta" }, WAITING)];
+  // Only reached while the rest of Bambuddy answers (else this section is hidden): projects alone didn't load.
+  if (projects === null) return [h("p", { class: "meta" }, "Projects didn't load this time; the next check tries again.")];
   return [projects.length
     ? h("ul", { class: "log" }, projects.map((p) => h("li", { class: "log-row" },
       h("span", { class: "dot", dataset: { tone: "ok" } }),
@@ -343,6 +368,18 @@ function projectsBody(projects) {
   h("a", { class: "action", href: bambuddyUrl("/projects"), target: "_blank", rel: "noopener" }, "Plan projects in Bambuddy ↗")];
 }
 
+// Redraw one part of the page only when what it shows has changed (the page reloads every 15 s and on each printer
+// event), and put keyboard focus back on the same control, by its data-key, when it has.
+function redraw(state, name, el, sig, draw) {
+  state.sigs ||= {};
+  if (state.sigs[name] === sig) return;
+  state.sigs[name] = sig;
+  const active = globalThis.document?.activeElement;
+  const key = active && el.contains(active) ? active.dataset?.key : null;
+  draw();
+  if (key && !el.contains(globalThis.document.activeElement)) el.querySelector(`[data-key="${key}"]`)?.focus();
+}
+
 export async function load(state) {
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
   // read-only.
@@ -351,65 +388,81 @@ export async function load(state) {
   const v = workshopView(d, { role: me?.role, last: state.last });
   if (!v) throw new Error("The workshop status came back empty.");
   if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
+  const busy = printerBusy();
 
-  // Now: the band (with pause or resume for the owner, under the readings they act on) and the camera.
-  const printerBand = band(d.printer);
-  const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));
-  const info = printerBand.querySelector(".band-info") || printerBand;
-  if (v.lastPrint) info.append(h("p", { class: "meta ws-last-print" }, v.lastPrint));
-  if (buttons) info.append(buttons);
-  state.bandBox.replaceChildren(printerBand);
+  // Now: the band (with pause or resume for the owner, under the readings they act on) and the camera. While Bambuddy
+  // is down the notice above says so, with when it was last seen; the band doesn't say it again.
+  const shown = v.down && d.printer.stale ? { ...d.printer, detail: "" } : d.printer;
+  // Its readings change while printing; its "checked" age is redrawn at least once a minute.
+  redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, Math.floor(Date.now() / 60000)]), () => {
+    const printerBand = band(shown);
+    const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));
+    const listed = printerActionList({ actions: v.bandActions });
+    buttons?.querySelectorAll("button").forEach((b, i) => { b.dataset.key = `printer-${listed[i]?.action}`; });
+    const info = printerBand.querySelector(".band-info") || printerBand;
+    if (v.lastPrint) info.append(h("p", { class: "meta ws-last-print" }, v.lastPrint));
+    if (buttons) info.append(buttons);
+    state.bandBox.replaceChildren(printerBand);
+  });
   state.facts = d.printer.headline;
   state.now.dataset.camFirst = String(v.camFirst);
   if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
   }
-  const notice = nextSourceNotice(state.notice, v.down);
+  const notice = nextSourceNotice(state.notice, v.down, v.seen);
   state.notice = notice.state;
   if (notice.changed) state.sources.replaceChildren(...(notice.text ? [h("p", {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
 
   // Needs you here: only when something waits, never an empty section.
   state.needs.hidden = !v.needs.length;
-  state.needs.replaceChildren(state.needs.firstChild, ...(v.needs.length ? needsList(state, v).filter(Boolean) : []));
+  redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.signIn, busy]), () =>
+    state.needs.replaceChildren(state.needs.firstChild, ...(v.needs.length ? needsList(state, v).filter(Boolean) : [])));
 
-  // Materials and This week: one line each, or one "No answer" line for both while Bambuddy is down.
+  // Materials and This week: one line each. While Bambuddy is down they have nothing current, and the notice covers it.
   const heading = (el) => el.firstChild;
-  if (v.quiet) {
-    state.materials.replaceChildren(heading(state.materials), h("p", { class: "meta ws-line" }, v.quiet));
-    state.week.hidden = true;
-  } else {
-    const all = h("button", { type: "button", class: "ghost small", onclick: () => openMore(state, "filament") }, "All spools");
-    state.materials.replaceChildren(heading(state.materials), h("div", { class: "ws-line" },
-      ...v.materials.trays.map(trayPill),
-      ...v.materials.low.map((s) => h("span", { class: "pill", dataset: { tone: "bad" } }, `${s.colour} ${s.material || ""}: ${s.grams_left} g left`.replace(" :", ":"))),
-      v.materials.trays.length || v.materials.low.length ? null : h("span", { class: "meta" }, "No spool running low."),
-      all));
-    state.week.hidden = false;
-    state.week.replaceChildren(heading(state.week), h("div", { class: "ws-line" },
-      h("span", {}, v.week || "No prints logged this week."),
-      h("button", { type: "button", class: "ghost small", onclick: () => openMore(state, "history") }, "Print history")));
+  state.materials.hidden = !v.materials;
+  state.week.hidden = !v.materials;
+  if (v.materials) {
+    redraw(state, "materials", state.materials, JSON.stringify(v.materials), () =>
+      state.materials.replaceChildren(heading(state.materials), h("div", { class: "ws-line" },
+        ...v.materials.trays.map(trayPill),
+        ...v.materials.low.map((s) => h("span", { class: "pill", dataset: { tone: "bad" } }, lowSpoolText(s))),
+        v.materials.trays.length || v.materials.low.length ? null : h("span", { class: "meta" }, "No spool running low."),
+        h("button", { type: "button", class: "ghost small", dataset: { key: "all-spools" }, onclick: () => openMore(state, "filament") }, "All spools"))));
+    redraw(state, "week", state.week, JSON.stringify(v.week), () =>
+      state.week.replaceChildren(heading(state.week), h("div", { class: "ws-line" },
+        h("span", {}, v.week || "No prints logged this week."),
+        h("button", { type: "button", class: "ghost small", dataset: { key: "history" }, onclick: () => openMore(state, "history") }, "Print history"))));
   }
 
-  // More in the workshop.
+  // More in the workshop. A section with nothing known while Bambuddy is down is hidden rather than repeating the notice.
   const m = d.filament_month || {};
   const { filament, history, projects, lab } = state.more;
+  filament.el.hidden = v.down && v.spools.list === null;
   setPill(filament, v.down ? null : v.materials.low.length ? `${v.materials.low.length} running low` : null, "bad");
-  filament.body.replaceChildren(...[lastKnown(v.spools.asOf), ...shelf(v.spools.list, d.printer)].filter(Boolean));
+  redraw(state, "filament", filament.body, JSON.stringify([v.spools, d.printer.state, filament.el.hidden]), () =>
+    filament.body.replaceChildren(...(filament.el.hidden ? [] : [lastKnown(v.spools.asOf), ...shelf(v.spools.list, d.printer)].filter(Boolean))));
+  history.el.hidden = v.down && v.history.prints === null;
   const pills = cardPills(d);
   setPill(history, pills.history?.pill, pills.history?.tone);
-  const rows = (v.history.prints || []).map((p) => printRow(p));
-  history.body.replaceChildren(...[
-    lastKnown(v.history.asOf),
-    ...(v.history.prints === null ? [h("p", { class: "meta" }, WAITING)]
-      : rows.length ? firstFew(rows, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
-    d.week ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
-      (m.prints_logged ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null,
-  ].filter(Boolean));
+  redraw(state, "history", history.body, JSON.stringify([v.history, d.week, m, history.el.hidden]), () => {
+    if (history.el.hidden) return history.body.replaceChildren();
+    const rows = (v.history.prints || []).map((p) => printRow(p));
+    history.body.replaceChildren(...[
+      lastKnown(v.history.asOf),
+      ...(v.history.prints === null ? [h("p", { class: "meta" }, WAITING)]
+        : rows.length ? firstFew(rows, { n: 5, noun: "prints" }) : [empty("Prints show up here once Bambuddy has logged one.")]),
+      d.week && known(d.week.hours) ? h("p", { class: "meta" }, `${d.week.hours} hours of printing in the last 7 days.` +
+        (m.prints_logged && known(m.grams) ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${known(m.cost) && m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null,
+    ].filter(Boolean));
+  });
   const list = pr.available ? pr.projects || [] : null;
+  projects.el.hidden = v.down && list === null;
   setPill(projects, list?.length ? `${list.length} active` : null, "ok");
-  projects.body.replaceChildren(...projectsBody(list));
+  redraw(state, "projects", projects.body, JSON.stringify([list, projects.el.hidden]), () =>
+    projects.body.replaceChildren(...(projects.el.hidden ? [] : projectsBody(list))));
   setPill(lab, ...labPill(d.lab));
-  lab.body.replaceChildren(...labQueue(d.lab).filter(Boolean));
+  redraw(state, "lab", lab.body, JSON.stringify(d.lab ?? null), () => lab.body.replaceChildren(...labQueue(d.lab).filter(Boolean)));
 }
