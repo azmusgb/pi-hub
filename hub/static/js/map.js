@@ -44,19 +44,21 @@ export function siteMap(routes = ROUTES, tools = TOOLS) {
   ];
 }
 
+// The " " between a name and its line keeps them apart when read aloud or copied; the layout puts the line below.
 function toolItem(t, machine) {
   return h("li", {}, machine
-    ? [h("strong", {}, t.name), h("span", { class: "meta" }, `${t.host} · ${t.purpose}`)]
-    : h("a", { href: toolUrl(t.id), target: "_blank", rel: "noopener" }, h("strong", {}, `${t.name} ↗`), h("span", { class: "meta" }, t.purpose)));
+    ? [h("strong", {}, t.name), " ", h("span", { class: "meta" }, `${t.host} · ${t.purpose}`)]
+    : h("a", { href: toolUrl(t.id), target: "_blank", rel: "noopener" }, h("strong", {}, `${t.name} ↗`),
+      h("span", { class: "visually-hidden" }, " (opens in a new tab)"), " ", h("span", { class: "meta" }, t.purpose)));
 }
 
 export function mount(state) {
   state.root.append(h("p", { class: "page-intro" }, "Every page and tool, drawn from the menu and the tool list, so it is always current."),
-    ...siteMap().map((g) => h("section", { class: "more-group", dataset: { area: g.key } },
+    h("div", { class: "map-areas" }, siteMap().map((g) => h("section", { class: "more-group", dataset: { area: g.key } },
       h("h2", {}, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title),
       g.pages.length ? h("ul", { class: "more" }, g.pages.map((p) =>
-        h("li", {}, h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), h("span", { class: "meta" }, p.href))))) : null,
-      g.tools.length ? h("ul", { class: "more" }, g.tools.map((t) => toolItem(t, g.machine))) : null)));
+        h("li", {}, h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href))))) : null,
+      g.tools.length ? h("ul", { class: "more" }, g.tools.map((t) => toolItem(t, g.machine))) : null))));
 }
 
 export async function load() {}
