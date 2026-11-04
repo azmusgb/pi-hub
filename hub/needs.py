@@ -15,11 +15,11 @@ ABOUT_PRINTER = re.compile(r"\b(printer|x2d|bambu)\b", re.I)
 NOT_X2D = re.compile(r"\b(document|brother|toner|paper|deskjet|laserjet|inkjet)\b", re.I)
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
-BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"
+BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
 # Each Local AI card kind opens the Assistant page it is about (LocalAI view-registry.js ids): approvals are in the
 # Inbox with the alerts a watch raises, runs in Work, disk in Assistant status.
 ASSISTANT_VIEW = {"needs": f"{ASSISTANT}/#inbox", "running": f"{ASSISTANT}/#work", "done": f"{ASSISTANT}/#work",
-                  "disk": f"{ASSISTANT}/#status", "watch": f"{ASSISTANT}/#inbox"}  # Bambuddy's own Failure detection settings tab
+                  "disk": f"{ASSISTANT}/#status", "watch": f"{ASSISTANT}/#inbox"}
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
