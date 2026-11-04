@@ -3,7 +3,7 @@
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
 import { homeCards, labLink, needsSummary } from "./home-cards.js";
-import { plainInternet, workshopDisplayLabel } from "./wording.js";
+import { plainInternet, tileState, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { mountControlRoom, loadControlRoom, leaveControlRoom, setControlNeeds, problemsBadge } from "./control-room.js";
@@ -338,19 +338,22 @@ function workshopKioskConsole(d, cam, lab = null, onDone = null) {
 
 function workshopLightCard(light, w = {}) {
   if (!light) return null;
-  const label = (on) => on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
+  // Unknown (Homebridge didn't report on/off) is "No answer" and can't be toggled: unknown is never Off.
+  const known = tileState(light).known;
+  const label = (on) => !known ? "No answer" : on ? (light.brightness ? `On (${light.brightness}%)` : "On") : "Off";
   const bulbIcon = h("span", { class: "kiosk-light-bulb", "aria-hidden": "true" }, "💡");
   const nameLabel = h("span", { class: "kiosk-light-name" },
     h("strong", {}, light.name || "Workshop Light"),
     h("span", { class: "meta" }, "Govee Workbench Illumination"));
   const stateLabel = h("span", { class: "kiosk-light-state" }, label(light.on));
-  const btnAction = h("span", { class: "chip kiosk-light-action" }, light.on ? "Turn Off" : "Turn On");
+  const btnAction = known ? h("span", { class: "chip kiosk-light-action" }, light.on ? "Turn Off" : "Turn On") : null;
 
   const toggleBtn = h("button", {
     type: "button",
     class: `kiosk-light-toggle-btn ${light.on ? "is-on" : ""}`,
-    "aria-pressed": String(Boolean(light.on)),
+    ...(known ? { "aria-pressed": String(Boolean(light.on)) } : { disabled: true }),
     onclick: async () => {
+      if (!known) return;
       toggleBtn.disabled = true;
       try {
         await post(`/api/home/${light.id}`, { characteristic: light.control || "On", value: !light.on });

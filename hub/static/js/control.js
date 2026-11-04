@@ -1,6 +1,6 @@
 // Control: lights, plugs and switches from Homebridge. Tap to switch; a device that is not the owner's is asked to sign in once.
 import { api, card, ensure, h, post, toast } from "./core.js";
-import { applianceControls, applianceLabel, groupAppliances, laundryLine } from "./wording.js";
+import { applianceControls, applianceLabel, groupAppliances, laundryLine, tileState } from "./wording.js";
 
 export const every = 10;
 
@@ -23,18 +23,21 @@ function icon(kind) {
 
 export function tile(a, state, { favourite, label } = {}) {
   const busy = () => tileEl.classList.add("busy");
-  const stateEl = h("span", { class: "tile-state" }, a.on ? (a.brightness != null ? `On, ${a.brightness}%` : "On") : "Off");
+  const st = tileState(a);
+  const stateEl = h("span", { class: "tile-state" }, st.text);
   const toggle = h("button", {
-    class: "tile-main", "aria-pressed": String(a.on),
+    class: "tile-main",
+    // Unknown: not a toggle, since switching would assume a state the bridge didn't report.
+    ...(st.known && a.control ? { "aria-pressed": String(st.on) } : { disabled: true }),
     onclick: async () => {
-      if (!a.control || !(await ensure("kid"))) return;
+      if (!tileState(a).known || !a.control || !(await ensure("kid"))) return;
       busy();
       try {
         await post(`/api/home/${a.id}`, { characteristic: a.control, value: !a.on });
         a.on = !a.on;
         toggle.setAttribute("aria-pressed", String(a.on));
         tileEl.dataset.on = String(a.on);
-        stateEl.textContent = a.on ? (a.brightness != null ? `On, ${a.brightness}%` : "On") : "Off";
+        stateEl.textContent = tileState(a).text;
       } catch (e) { toast(e.message, "bad"); }
       tileEl.classList.remove("busy");
     },
@@ -44,14 +47,14 @@ export function tile(a, state, { favourite, label } = {}) {
   stateEl);
 
   const kids = [toggle];
-  if (a.brightness != null) {
+  if (a.brightness != null && st.known) {
     const slider = h("input", { type: "range", min: 1, max: 100, value: a.brightness || 1, class: "tile-slider", "aria-label": `${applianceLabel(a)} brightness` });
     slider.addEventListener("change", async () => {
       if (!(await ensure("kid"))) return;
       try {
         await post(`/api/home/${a.id}`, { characteristic: "Brightness", value: Number(slider.value) });
         a.brightness = Number(slider.value);
-        stateEl.textContent = a.on ? `On, ${a.brightness}%` : "Off";
+        stateEl.textContent = tileState(a).text;
       }
       catch (e) { toast(e.message, "bad"); }
     });
@@ -67,7 +70,7 @@ export function tile(a, state, { favourite, label } = {}) {
       },
     }, favourite ? "★" : "☆"));
   }
-  const tileEl = h("div", { class: "tile", dataset: { on: String(a.on), kind: a.kind } }, ...kids);
+  const tileEl = h("div", { class: "tile", dataset: { on: st.known ? String(st.on) : "unknown", kind: a.kind } }, ...kids);
   return tileEl;
 }
 

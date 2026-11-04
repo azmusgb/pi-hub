@@ -111,7 +111,8 @@ def _accessories():
             "name": name,
             "room": room,
             "kind": {"Lightbulb": "light", "Outlet": "plug", "Switch": "switch"}.get(kind, "fan"),
-            "on": bool(on and on.get("value")),
+            # A value Homebridge didn't report is unknown, never Off: None, and the tile says "No answer".
+            "on": None if not on or on.get("value") is None else bool(on.get("value")),
             "control": on.get("type") if on else None,
             "brightness": bright.get("value") if bright else None,
         })
