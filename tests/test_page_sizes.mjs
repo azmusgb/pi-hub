@@ -178,7 +178,7 @@ test('Media shows at most six sections and folds the drive, requests, surprise p
       await m.load(state);
       const more = state.root.querySelector('.media-more');
       assert.ok(more, 'a More section');
-      const outside = state.body.children.filter((n) => n !== more && !n.matches('.movie-libraries') && !n.matches('.row'));
+      const outside = state.body.children.filter((n) => n !== more && !n.matches('.movie-libraries') && !n.matches('.row') && !n.matches('.open-in'));
       assert.ok(outside.length >= 4 && outside.length <= 6, `${outside.length} sections outside More: ${outside.map((n) => n.className).join(' | ')}`);
       const items = more.querySelectorAll('.more-list-item');
       assert.deepEqual(items.map((d) => d.dataset.key), ['surprise', 'drive', 'requests', 'watched']);

@@ -224,6 +224,12 @@ home.home.arpa {
 	handle @scan {
 		import site_tool 127.0.0.1:8095
 	}
+	# Plex (A6 decision plex, approved by the owner 4 Nov 2026): the web app and the posters, behind the gate like the other
+	# tools. The TVs' and phones' Plex apps keep talking to :32400 directly; this name is for a browser.
+	@plex host plex.rahe-home.duckdns.org
+	handle @plex {
+		import site_tool 127.0.0.1:32400
+	}
 	@family host family.rahe-home.duckdns.org
 	handle @family {
 		import site_family

@@ -45,6 +45,13 @@ export function toolUrl(name, host = "") {  // eslint-disable-line no-unused-var
 // A tool's address with a path kept (a deeper page of the tool): null for an id that isn't in the registry.
 export const toolPath = (name, path = "") => registryUrl(name, path);
 
+// A movie's page in Plex, or Plex's front page: the registry's address (behind the gate), never a port on the Pi.
+export function plexUrl(machine, key) {
+  return machine && key
+    ? toolPath("plex", `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}`)
+    : toolPath("plex", "/web");
+}
+
 // The hub's own Print lab page, opened on one experiment in its project (an internal link: give it data-link). A
 // project name that isn't a lab project name is left out rather than put in the address; so is an action /lab doesn't
 // take (it opens the verdict sheet for do=judge). The experiment id is encoded, so & or # in it can't add a parameter.

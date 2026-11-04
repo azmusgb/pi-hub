@@ -1,8 +1,11 @@
 // Movies: what's playing, continue watching, recently added, search, requests, and drive health.
-import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
+import { api, card, empty, h, post, toast, when } from "./core.js";
 import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
-import { moreList, rememberOpen } from "./section-links.js";
+import { moreList, openInRow, rememberOpen } from "./section-links.js";
+import { plexUrl } from "./sections.js";
+
+export { plexUrl };
 
 export const every = 30;
 
@@ -45,17 +48,6 @@ function remainingMinutes(item) {
   }
 
   return Math.max(0, Math.round(minutes * (1 - progress / 100)));
-}
-
-function plexUrl(machine, key) {
-  return machine && key
-    ? piLink(
-        32400,
-        `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(
-          `/library/metadata/${key}`,
-        )}`,
-      )
-    : piLink(32400, "/web");
 }
 
 function poster(item, machine) {
@@ -1974,31 +1966,7 @@ export async function load(
 
         state.more.root,
 
-        h(
-          "div",
-          {
-            class: "row",
-          },
-
-          h(
-            "a",
-            {
-              class: "btn",
-
-              href: piLink(
-                32400,
-                "/web",
-              ),
-
-              target:
-                "_blank",
-
-              rel:
-                "noopener noreferrer",
-            },
-            "Open Plex",
-          ),
-        ),
+        openInRow("media"),
       ].filter(Boolean),
     );
     refreshMovieNight(state);
