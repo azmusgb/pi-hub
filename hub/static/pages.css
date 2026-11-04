@@ -44,7 +44,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   max-width: min(92vw, 480px); padding: 0.75rem 1.1rem; border-radius: 14px;
   background: var(--toast-bg); color: var(--ink); border: 1px solid var(--acrylic-edge); box-shadow: 0 10px 30px rgb(var(--shade-rgb) / 0.35);
 }
-.toast[data-tone="bad"] { border-color: rgb(var(--bad-rgb) / 0.5); color: var(--bad-ink); }
+.toast[data-tone="bad"] { border-color: rgb(var(--bad-rgb) / 0.5); color: var(--bad); }
 .toast[data-tone="warn"] { border-color: rgb(var(--warn-rgb) / 0.5); }
 
 
@@ -56,7 +56,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .log-main .meta { font-size: 0.88rem; }
 .log-side { color: var(--muted); font-size: 0.9rem; text-align: right; }
 .log-side[data-tone="ok"] { color: var(--ok); }
-.log-side[data-tone="bad"] { color: var(--bad-ink); }
+.log-side[data-tone="bad"] { color: var(--bad); }
 .timeline { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
 .timeline li { display: flex; justify-content: space-between; gap: 1rem; padding-left: 0.9rem; border-left: 2px solid var(--muted); font-size: 0.92rem; }
 .timeline li[data-tone="bad"] { border-color: var(--bad); }
@@ -80,7 +80,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .print-form .primary { justify-self: start; }
 .ink { display: grid; gap: 0.7rem; margin-top: 0.3rem; }
 .ink-row { display: grid; grid-template-columns: 4.5rem 1fr 3rem; align-items: center; gap: 0.75rem; }
-.ink-bar, .meter { display: block; height: 10px; border-radius: 999px; background: var(--well); overflow: hidden; }
+.ink-bar, .meter:not(:has(> .meter-bar)) { display: block; height: 10px; border-radius: 999px; background: var(--well); overflow: hidden; }
 .ink-bar i, .meter i { display: block; height: 100%; border-radius: 999px; background: var(--ok); }
 .ink-bar i[data-ink="black"] { background: linear-gradient(90deg, #5d646a, #c9cdd0); }
 .ink-bar i[data-ink="colour"] { background: linear-gradient(90deg, #3fc2d6, #d65aa8, #e8cf4f); }
@@ -130,7 +130,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet::backdrop { background: var(--backdrop); backdrop-filter: blur(3px); }
 .sheet-body { display: grid; gap: 0.75rem; padding: 1.4rem; }
 .sheet h2 { margin: 0; font-size: 1.3rem; }
-.sheet-error { margin: 0; min-height: 1.2em; color: var(--bad-ink); }
+.sheet-error { margin: 0; min-height: 1.2em; color: var(--bad); }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
 
 /* Fix it */
