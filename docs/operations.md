@@ -276,9 +276,68 @@ AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on p
 ## Backrest (backups)
 
 - **The Pi:** Backrest (`/opt/backrest`, port 9898, a web UI for restic) backs it up every night at 03:30 into `/mnt/usb1/backups/restic/pi`: hub backups, `/etc`, `/opt`, and Bambuddy, Homebox, Paperless snapshots and NETMON data. Encrypted; it keeps 14 daily, 8 weekly and 12 monthly snapshots, and prunes on Sundays.
-- **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/HealthData`, `~/.ssh` and Claude's memory, without build output or dependencies.
+- **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/.ssh` and Claude's memory, without build output or dependencies.
 - **Passwords and login:** the repository passwords are in `/etc/pi-hub/secrets/restic_pi` and `restic_mac` (root only). The Mac's is also in its login Keychain as `restic-mac`. **Without them the backups can't be read.** Backrest's login is `bill`; the password is in `/etc/pi-hub/secrets/backrest_admin`.
-- **Still to do:** both repositories sit on the same USB drive as the Movies and Bambuddy data. An off-site copy (another drive, or a cloud bucket, still encrypted) is the next step.
+- **HealthData stays in the house** (owner's decision, 4 Nov 2026, amendment A5). `~/HealthData` has its own Mac
+  repository, `/mnt/usb1/backups/restic/mac-health`, written by the same script with the same retention. Its password
+  is in the Mac's login Keychain as `restic-mac-health`. It is never in an off-site plan. The `mac` repository holds
+  no HealthData: old snapshots were rewritten without it.
+
+### Off-site copy (Google Drive, since 4 November 2026)
+
+Platform baseline C1, amendment A5. The USB copies above share one drive with the movies, so a second encrypted copy
+lives in the owner's Google Drive.
+
+- **What:** Backrest repository `gdrive-offsite` (`rclone:gdrive:pi-offsite`, the Drive folder `pi-offsite`). Plan
+  `pi-offsite` runs every night at 04:30, after the USB backup. It covers the same Pi paths (Bambuddy, `/etc`, Homebox,
+  NETMON, `/opt`, Paperless, hub backups) plus the Mac's `mac` repository as files. Retention is 14 daily, 8 weekly and
+  12 monthly. The repository prunes on Sundays at 06:00 and checks 5% of its data on the 1st at 07:00.
+- **Alarm:** after each successful snapshot, a Backrest hook pings the Healthchecks.io check `offsite-backup` (period
+  1 day, grace 6 h). A failed or missing backup sends nothing, so the check goes Late, then Down, and emails the owner.
+- **Google access:** the owner's own OAuth client (Google Cloud project `pi-offsite`, Desktop app, scope `drive.file`,
+  so it sees only files it created). The app is published "In production". Its branding links to this hub's
+  `/privacy` page. The refresh token is only in Backrest's config on the Pi, as `RCLONE_CONFIG_GDRIVE_*`. To
+  re-authorise, run `~/.local/bin/backrest-gdrive-repo` on the Mac.
+- **Repository password:** in Apple Passwords as `gdrive-offsite` and on paper, **never in the Google account.**
+  Without it, the Drive copy can't be read.
+- **Check it:** Backrest › Plans › `pi-offsite` shows the last run. The Healthchecks.io dashboard shows `offsite-backup`
+  Up.
+
+#### Disaster restore (the Pi and its USB drive are gone)
+
+1. On any computer with restic and rclone, authorise read-only access to Drive. Use the `pi-offsite` client's ID and
+   secret from Google Cloud › Clients, or add a new Desktop client to that project:
+   `rclone authorize "drive" --drive-scope drive.readonly --drive-client-id <id> --drive-client-secret <secret>`.
+   Use `drive.readonly`. Under `drive.file`, a client may not see files that a different client created.
+2. Make a remote named `gdrive` with that token (`rclone config`, type `drive`, the same scope).
+3. `restic -r rclone:gdrive:pi-offsite snapshots`, with the password from Apple Passwords.
+4. `restic -r rclone:gdrive:pi-offsite restore latest --target <empty folder>`. Add `--include <path>` for part of it.
+   Inside the restore, the Mac's repository is at `repos/mac`. Open it with `restic -r <that folder>` and the Mac's
+   password (`restic-mac` in the login Keychain, or `/etc/pi-hub/secrets/restic_mac` in the restored `/etc`).
+5. Afterwards, revoke the temporary grant at myaccount.google.com › Security › Third-party access.
+
+#### Acceptance (C1)
+
+The five criteria from the platform baseline §12:
+
+1. **Repository initialises:** done 4 Nov.
+2. **A scheduled backup completes:** done 4 Nov. The first run was 11:48–11:59 (6.94 GiB), and the hook pinged the check.
+3. **Visible independently of the USB and PC copies:** done 4 Nov. The owner saw the `pi-offsite` folder in Google
+   Drive in a browser.
+4. **Restored and verified:** done 4 Nov, from Drive into a scratch folder on the Pi.
+   - A Pi archive's SHA-256 matched the original.
+   - The restored Caddy root CA has the expected fingerprint (`C1:B4:…:12:45`, above).
+   - `hub.db` passed `PRAGMA integrity_check`.
+   - The restored Mac repository passed `restic check` and holds 0 HealthData file entries. That was checked with
+     `restic ls --json`, counting file entries whose path contains `/HealthData`. A plain `grep` also matches the
+     snapshot header line.
+   - A restored `AGENTS.md` matched the Mac's copy.
+   - The scratch folder was then deleted.
+5. **A failure alerts:** not yet evidenced. The owner deferred the test on 4 Nov.
+   - **The test:** set the check to period 1 h and grace 30 min, and confirm it is Up. Disable only `pi-offsite`'s
+     schedule. Watch Late, then Down, and confirm the email. Re-enable the schedule and run Backup now. Confirm Up and
+     the recovery email. Then set the check back to 1 day and 6 h.
+   - C1 is accepted when this is recorded here.
 
 ## The hub's menu (since 25 October 2026)
 
