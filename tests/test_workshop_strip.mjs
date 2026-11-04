@@ -65,6 +65,8 @@ test('Settings owns display pairing, made once so a refresh keeps a code on scre
   const src = read('hub/static/js/settings.js');
   assert.match(src, /import \{ displayCard \} from "\.\/display-pair\.js";/);
   assert.match(src, /state\.display \?\?= displayCard\(\)/);
+  // Settings shows only the cards its groups name: the display card has to be in one, or it's made and never shown.
+  assert.match(src, /\["home", "Home", \[[^\]]*"Workshop display"[^\]]*\]\]/);
   assert.doesNotMatch(read('hub/static/js/health.js'), /displayCard/);
 });
 

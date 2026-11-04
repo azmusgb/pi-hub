@@ -206,7 +206,7 @@ export async function load(state) {
 const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.textContent, c]));
   const GROUPS = [
     ["general", "General", ["Appearance"]],
-    ["home", "Home", ["Homebridge", "Guest Wi-Fi"]],
+    ["home", "Home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
     ["outside", "Weather and calendar", ["Weather", "Calendar"]],
     ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
     ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
