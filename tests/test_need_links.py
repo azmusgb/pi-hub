@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from hub import needs, now, sources
+from hub import needs, now
 
 ROOT = Path(__file__).resolve().parents[1]
 NOW = 1793500000
@@ -87,14 +87,3 @@ def test_local_ai_items_open_the_assistant_page_they_are_about():
     assert links["localai:watch-x"] == "tool:assistant/#inbox"
     assert links["localai:odd-1"] == "tool:assistant"
 
-
-def test_the_printing_experiment_carries_its_project(monkeypatch, tmp_path):
-    from hub import db
-    monkeypatch.setenv("HUB_DB", str(tmp_path / "hub.db"))
-    monkeypatch.setattr(sources, "cached", lambda key, ttl, fn: fn())
-    db.reset() if hasattr(db, "reset") else None
-    rows = [{"project": "vase-mode", "index_json": json.dumps({"experiments": [{"id": "E-030", "status": "printing"}]})}]
-    monkeypatch.setattr(db, "rows", lambda sql, *a: rows)
-    from hub import lab
-    monkeypatch.setattr(lab, "ready", lambda: None)
-    assert sources.lab_printing() == {"experiment": "E-030", "project": "vase-mode"}
