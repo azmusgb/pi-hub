@@ -7,12 +7,12 @@ import { toolUrl as registryUrl } from "../ui/tools.js";
 export const ASSISTANT_URL = registryUrl("assistant");
 
 export const SECTIONS = [
-  { key: "home", title: "Home", path: "/", pages: ["/", "/wall", "/weather"] },
+  { key: "home", title: "Home", path: "/", pages: ["/", "/wall"] },
   { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/drives"] },
-  { key: "network", title: "Home & network", path: "/network", pages: ["/network"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings"] },
+  { key: "network", title: "Home & network", path: "/devices", pages: ["/devices", "/network", "/weather"] },
+  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map"] },
 ];
 
 // On the phone, Home & network and System sit under More.

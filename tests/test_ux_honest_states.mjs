@@ -52,13 +52,13 @@ test("System's strip pages are headed System; the strip and the tab title say wh
   const { pageHeading } = await import('../hub/static/js/system-strip.js');
   assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'System', title: 'Health · System' });
   assert.deepEqual(pageHeading('/backups', 'Backups'), { heading: 'System', title: 'Backups · System' });
-  assert.deepEqual(pageHeading('/media', 'Media'), { heading: 'Media', title: 'Media' });
+  assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
   assert.match(read('hub/static/js/main.js'), /pageHeading\(path, page\.title\)/);
 });
 
-test('on a phone the strip shows all six entries, in two rows of three', () => {
+test('on a phone every strip shows all its entries, in rows of up to three, none hidden off the edge', () => {
   const css = read('hub/static/app.css');
-  assert.match(css, /@media \(max-width: 560px\) \{\s*\.tabs\.system-strip \{[^}]*grid-template-columns: repeat\(3, 1fr\)/);
+  assert.match(css, /@media \(max-width: 560px\) \{\s*\.tabs\.page-strip \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(6\.25rem, 1fr\)\)/);
 });
 
 test('the Bambuddy notice: said once when it goes down, recovery said once, then cleared without a word', async () => {

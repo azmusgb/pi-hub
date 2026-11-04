@@ -4,9 +4,8 @@ import { linkGroup } from "./section-links.js";
 export const every = 600;
 export function mount(state) {
   state.root.append(linkGroup("", [
-    ["/network", "Home & network", "Devices, internet and blocking"],
-    ["/system", "System", "Backups, alerts and settings"],
-    ["/weather", "Weather", "Forecast, air quality and warnings"],
+    ["/devices", "Home & network", "Devices, internet, ad blocking and weather"],
+    ["/system", "System", "Health, backups, alerts, settings and the site map"],
   ]));
 }
 export async function load() {}

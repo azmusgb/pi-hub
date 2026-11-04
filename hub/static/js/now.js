@@ -69,7 +69,7 @@ export function networkPanel(net, { links = true } = {}) {
       Number.isFinite(net.printer_ms) ? row("3D printer", "The X2D", net.printer_ms) : null),
     links ? h("p", { class: "meta" },
       h("a", { class: "tool-link", href: toolUrl("network"), target: "_blank", rel: "noopener" }, "Open Grafana ↗"), " ",
-      h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗")) : null);
+      h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Uptime Kuma ↗")) : null);
 }
 
 function telemetryAge(iso) {
@@ -506,8 +506,8 @@ function opsHeroConsole(d) {
         ].filter(Boolean))),
       h("div", { class: "kiosk-links" },
         h("a", { class: "chip", href: toolUrl("network"), target: "_blank", rel: "noopener" }, "Open Grafana ↗"),
-        h("a", { class: "chip", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗"),
-        h("a", { class: "chip", href: "/system", "data-link": true }, "System & Backups"))),
+        h("a", { class: "chip", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Uptime Kuma ↗"),
+        h("a", { class: "chip", href: "/system", "data-link": true }, "System"))),
     h("div", { class: "kiosk-cam-slot", style: "overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15em), 1fr)); gap: .5rem; padding: .25rem 0;" },
       checkCard("Router", "The Orbi", net.orbi_ms),
       checkCard("AT&T Line", "WAN Link", net.att_ms),
@@ -1345,7 +1345,7 @@ async function loadWall(state, d, out, home, cam, displayAccessories, controlsTi
       houseWidgets.push(h("section", { class: "home-favourites wall-tile" },
         h("div", { class: "wall-favourites-head" },
           h("h2", { class: "section-title" }, controlsTitle),
-          h("a", { href: "/network", "data-link": true }, "All devices →")),
+          h("a", { href: "/devices", "data-link": true }, "All devices →")),
         h("div", { class: "tiles" }, others.map(a => tile(a, state)))));
     }
   }

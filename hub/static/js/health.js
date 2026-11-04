@@ -71,7 +71,7 @@ export function helpGuidance() {
     [
       "movies",
       "Movies won’t play",
-      "Check the TV’s connection and try Plex again. If movies are missing, check movie storage before restarting anything.",
+      "Check the TV’s connection and try Plex again. If movies are missing, check the movies drive before restarting anything.",
       "/media",
       "Check Movies",
     ],
@@ -80,7 +80,7 @@ export function helpGuidance() {
       "devices",
       "Lights aren’t responding",
       "Check that the light or plug has power. Open Devices to try its controls. If every device is affected, check Homebridge under Services on this page.",
-      "/network",
+      "/devices",
       "Check Devices",
     ],
 
@@ -212,7 +212,7 @@ export function mount(state) {
           href: "/drives",
           "data-link": true,
         },
-        "Check movie storage",
+        "Check the movies drive",
       ),
     );
 
@@ -1094,7 +1094,7 @@ function storageCard(storage) {
     asArray(storage);
 
   return card(
-    "Storage",
+    "Pi disks",
     {},
 
     list.length

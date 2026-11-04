@@ -1,5 +1,6 @@
 // An area's page strip: one row of the area's pages, shown on each of them. System's (§5.6 `/system`, platform step 7,
-// PR 7.3) came first; Workshop's Printer | Print lab (§5.1, workshop flow W.1) is the same component.
+// PR 7.3) came first; Workshop's Printer | Print lab (§5.1, workshop flow W.1) is the same component, and A6 gives
+// Documents, Media and Home & network theirs, so no page is hidden.
 import { h } from "./core.js";
 
 export const STRIP = [
@@ -9,12 +10,16 @@ export const STRIP = [
   ["/alerts", "Alerts"],
   ["/rules", "Automations"],
   ["/settings", "Settings"],
+  ["/map", "Site map"],
 ];
 
 // Each strip names its area: the pages' heading and the strip's accessible name.
 export const STRIPS = {
   system: { label: "System", entries: STRIP },
   workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"]] },
+  documents: { label: "Documents", entries: [["/documents", "Papers"], ["/print", "Print"], ["/lists", "Lists"]] },
+  media: { label: "Media", entries: [["/media", "Movies"], ["/drives", "Drives"]] },
+  network: { label: "Home & network", entries: [["/devices", "Devices"], ["/network", "Network"], ["/weather", "Weather"]] },
 };
 
 // The strip a page belongs to, with its entries, or null when the page isn't on one.

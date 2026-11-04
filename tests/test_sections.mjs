@@ -12,7 +12,7 @@ test('one menu by task, in the design order', () => {
 
 test('every page belongs to a section', () => {
   const want = {
-    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
+    '/': 'home', '/wall': 'home', '/weather': 'network', '/devices': 'network', '/map': 'system', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
     '/media': 'media', '/network': 'network',
     '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
@@ -23,7 +23,7 @@ test('every page belongs to a section', () => {
 
 test('old bookmarks land in the section where the tool now lives', () => {
   const want = {
-    '/movies': '/media', '/control': '/network', '/pi': '/system', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
+    '/movies': '/media', '/control': '/devices', '/pi': '/system', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
     '/apps/grafana': '/network', '/grafana': '/network', '/apps/status': '/network', '/status': '/network',
     '/apps/scan': '/documents', '/workshop': null, '/': null, '/print': null,
   };

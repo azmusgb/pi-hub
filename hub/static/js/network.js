@@ -1,22 +1,18 @@
-// Home & network: the devices, the internet, ad blocking and guest Wi-Fi.
+// Home & network › Network: the internet, ad blocking and guest Wi-Fi. The devices are /devices (devices.js).
 import { api, ensure, h } from "./core.js";
-import * as devices from "./control.js";
 import { networkPanel } from "./now.js";
 import { openInRow } from "./section-links.js";
 import { plainInternet } from "./wording.js";
 
-export const every = devices.every;
+export const every = 10;
 
 export function mount(state) {
-  state.devices = { root: h("div"), context: state.context };
   state.internet = h("div");
   state.extras = h("div");
-  devices.mount(state.devices);
   state.root.append(
-    h("section", { class: "more-group" }, h("h2", {}, "Devices"), state.devices.root),
     h("section", { class: "more-group" }, h("h2", {}, "Internet"), state.internet),
     state.extras,
-    openInRow("network"));
+    openInRow("network", ["adguard", "network", "status"]));
 }
 
 // Paused protection still answers lookups and blocks none, so it is said plainly, not as a count (iPad, 1 Nov).
@@ -33,7 +29,6 @@ export async function load(state) {
     api("/api/now").catch(() => null),
     api("/api/network/adguard").catch(() => null),
     api("/api/wifi").catch(() => ({ set: false })),
-    devices.load(state.devices),
   ]);
   state.facts = now?.network ? plainInternet(now.network) : "";
   state.internet.replaceChildren(networkPanel(now?.network, { links: false }) || h("p", { class: "meta" }, "The network checks aren't answering."));
