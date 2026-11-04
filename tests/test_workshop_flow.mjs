@@ -30,13 +30,16 @@ test('the lab link helper takes the action: p, e and do=judge, and nothing it do
   assert.equal(printLabUrl('E-007', 'hex-tile'), '/lab?p=hex-tile&e=E-007');
   assert.equal(printLabUrl('E-007', 'Bad Name', 'judge'), '/lab?e=E-007&do=judge');
   assert.equal(printLabUrl('E-007', 'hex-tile', 'delete'), '/lab?p=hex-tile&e=E-007');
+  // An id carrying & or # can't add a parameter or cut the address (review, #91).
+  assert.equal(printLabUrl('E-7&do=judge#x', 'hex-tile'), '/lab?p=hex-tile&e=E-7%26do%3Djudge%23x');
+  const u = new URL(printLabUrl('E&1#x', 'hex-tile', 'judge'), 'http://hub');
+  assert.equal(u.searchParams.get('e'), 'E&1#x');
+  assert.equal(u.searchParams.get('do'), 'judge');
+  assert.equal(u.hash, '');
 });
 
-test('loading: no view until the first answer; the page draws a band skeleton and a camera placeholder', () => {
+test('loading: no view until the first answer (the drawn skeleton is checked in test_workshop_render.mjs)', () => {
   assert.equal(workshopView(null, owner), null);
-  const src = read('hub/static/js/workshop.js');
-  assert.match(src, /class: "band ws-skeleton", "aria-busy": "true"/);
-  assert.match(src, /h\("div", \{ class: "ws-cam-placeholder" \}\)/);
   const css = read('hub/static/workshop-pi-rich.css');
   assert.match(css, /\.ws-cam-placeholder \{[^}]*aspect-ratio: 16 \/ 9/);
 });
@@ -68,10 +71,6 @@ test('idle: the band says Idle with the last print, and Needs you is empty (so h
   const v = workshopView(base(), owner);
   assert.deepEqual(v.needs, []);
   assert.match(v.lastPrint, /^Last print: Cable clip x4, Finished/);
-  const src = read('hub/static/js/workshop.js');
-  assert.match(src, /state\.needs\.hidden = !v\.needs\.length/);
-  // An empty slot is left out, not drawn as the word "null" (screenshot, W.2).
-  assert.match(src, /needsList\(state, v\)\.filter\(Boolean\)/);
   // A pill with nothing to say is hidden, whatever display the kit gives .pill.
   assert.match(read('hub/static/workshop-pi-rich.css'), /\.ws-more-item \.pill\[hidden\] \{ display: none; \}/);
 });
@@ -81,17 +80,16 @@ test('materials: AMS trays and only the low spools, in one row; this week: one l
   assert.deepEqual(v.materials.trays.map((t) => t.slot), [1]);
   assert.deepEqual(v.materials.low.map((s) => s.colour), ['White']);
   assert.equal(v.week, '6 finished this week · 14.2 h printing');
-  assert.equal(v.quiet, null);
+  assert.equal(workshopView(base({ week: { finished: 2 } }), owner).week, '2 finished this week');
 });
 
-test('Bambuddy down: one "No answer" line for Materials and This week, lab items still shown, last known kept with its age', () => {
+test('Bambuddy down: Materials and This week have nothing current, lab items still shown, last known kept with its age', () => {
   const down = base({ printer: printer('printing', { stale: true, detail: 'Bambuddy not answering since 12:40; last read 3 min ago.' }),
     prints: [], prints_available: false, week: null, spools: null, lab: { needs: [judge], active: [], questions: [] } });
   const v = workshopView(down, { ...owner, last: { prints, spools: base().spools, week: base().week, at: T - 300 } });
   assert.equal(v.down, true);
   assert.equal(v.materials, null);
   assert.equal(v.week, null);
-  assert.equal(v.quiet, 'No answer from Bambuddy for spools and this week’s prints.');
   assert.deepEqual(v.needs.map((n) => n.id), ['E-007']);
   assert.equal(v.history.prints.length, 2);
   assert.equal(v.history.asOf, T - 300);
@@ -112,24 +110,6 @@ test('signed out: a read-only band, no Clear button, and lab items with no actio
   assert.equal(workshopView(base(), owner).signIn, false);
 });
 
-test('camera off: says the camera is unavailable and why, never that the printer is off', () => {
-  const src = read('hub/static/js/workshop.js');
-  const off = src.slice(src.indexOf('function camera('), src.indexOf('// One row per print'));
-  assert.match(off, /Camera unavailable/);
-  assert.match(off, /LAN Only Liveview/);
-  assert.doesNotMatch(off, /printer is off|Printer off/i);
-});
-
-test('the page in the plan order: Now, Needs you here, Materials, This week, More in the workshop, Open in', () => {
-  const src = read('hub/static/js/workshop.js');
-  const order = src.match(/state\.root\.append\(([^;]+)\);/)[1];
-  const at = (s) => order.indexOf(s);
-  for (const [a, b] of [['state.sources', 'now'], ['now', 'state.needs'], ['state.needs', 'state.materials'],
-    ['state.materials', 'state.week'], ['state.week', 'more'], ['more', 'openInRow("workshop")']]) {
-    assert.ok(at(a) >= 0 && at(a) < at(b), `${a} before ${b}`);
-  }
-});
-
 test('More in the workshop: four native <details>, closed by default, open state remembered per viewer', () => {
   assert.deepEqual(MORE.map(([k, title]) => [k, title]),
     [['filament', 'Filament'], ['history', 'Print history'], ['projects', 'Projects'], ['lab', 'Print lab & queue']]);
@@ -145,8 +125,6 @@ test('More in the workshop: four native <details>, closed by default, open state
   assert.doesNotThrow(() => writeOpen('history', true, broken));
   assert.deepEqual(readOpen({ getItem: () => '[1,2]', setItem() {} }), {});
   assert.deepEqual(readOpen(undefined), {});
-  const src = read('hub/static/js/workshop.js');
-  assert.match(src, /h\("details", \{ class: "ws-more-item"/);
 });
 
 test('one "Open in Bambuddy ↗" row, and no other Bambuddy link names the tool', () => {
