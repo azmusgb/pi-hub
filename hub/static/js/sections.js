@@ -77,7 +77,8 @@ export function assistantHref(host, title, facts) {
 // Local AI is down but the PC isn't known to be off. Either disables the button. "Unknown" isn't "off": it stays enabled.
 export const PHRASES = { pc_off: "The PC is off or asleep", assistant_down: "The Assistant isn't answering" };
 export function assistantButton(state, pc) {
-  if (pc === "off") return { label: PHRASES.pc_off, phrase: "pc_off", disabled: true };
+  // A live answer from Local AI wins over a stale "off" from the network monitor.
+  if (pc === "off" && state !== "Ready" && state !== "Busy") return { label: PHRASES.pc_off, phrase: "pc_off", disabled: true };
   if (state === "Down") return { label: PHRASES.assistant_down, phrase: "assistant_down", disabled: true };
   return { label: "Assistant", phrase: "", disabled: false };
 }

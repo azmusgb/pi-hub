@@ -112,3 +112,9 @@ test('tool links follow a hub opened on the real name', () => {
   assert.equal(toolUrl('scan', 'hub.rahe-home.duckdns.org:443'), 'https://scan.rahe-home.duckdns.org/');
   assert.equal(toolUrl('bambuddy', 'evilrahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
 });
+
+test("a PC record of off doesn't disable an Assistant that answers", () => {
+  assert.equal(assistantButton("Ready", "off").disabled, false);
+  assert.equal(assistantButton("Busy", "off").disabled, false);
+  assert.equal(assistantButton("Unknown", "off").phrase, "pc_off");
+});
