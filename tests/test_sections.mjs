@@ -14,7 +14,7 @@ test('every page belongs to a section', () => {
   const want = {
     '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
-    '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
+    '/media': 'media', '/network': 'network',
     '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
     '/more': 'more', '/nowhere': 'home',
   };

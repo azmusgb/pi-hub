@@ -114,6 +114,25 @@ def test_title_is_one_line_and_click_passes_through(fresh):
     assert fresh[1]["click"] == "https://localai.home.arpa/?run=1#top"  # rebuilt from its parts
 
 
+def test_the_assistant_registry_address_is_a_click_host_and_the_old_hosts_still_are(fresh):
+    """A6: Local AI's tap link moves to assistant.rahe-home.duckdns.org; notices already sent keep their old hosts."""
+    for host in ("assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.21"):
+        r = post("localai", json={"kind": "failed", "title": host, "click": f"https://{host}/r/1"})
+        assert r.status_code == 200, host
+        assert fresh[-1]["click"] == f"https://{host}/r/1"
+
+
+@pytest.mark.parametrize("click", [
+    "http://assistant.rahe-home.duckdns.org/",
+    "https://assistant.rahe-home.duckdns.org:8443/",
+    "https://assistant.rahe-home.duckdns.org.evil.example/",
+    "https://user@assistant.rahe-home.duckdns.org/",
+    "https://evil.rahe-home.duckdns.org/",
+])
+def test_lookalikes_of_the_assistant_address_are_refused(fresh, click):
+    assert post("localai", json={"kind": "failed", "title": "x", "click": click}).status_code == 400
+
+
 def test_quiet_hours_hold_a_non_urgent_kind_and_pass_an_urgent_one(fresh, monkeypatch):
     monkeypatch.setattr(events, "quiet_now", lambda now=None: True)
     assert post("localai", json={"kind": "finished", "title": "Done"}).json()["outcome"] == "held"

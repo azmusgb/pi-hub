@@ -186,7 +186,7 @@ export function controlRoomHtml(ix) {
   const packageId = reference.package;
   return `<section class="card lab-v3-control" aria-label="Print Lab control room">
     <div class="lab-v3-control__head">
-      <div><div class="lab-v2-kicker">Print Lab v3</div><h2>Control room</h2></div>
+      <div><div class="lab-v2-kicker">Print lab</div><h2>Control room</h2></div>
       <span class="badge badge--${running ? "warn" : "neutral"}">${running ? "LIVE" : "READY"}</span>
     </div>
     <div class="lab-v3-control__grid">

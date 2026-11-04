@@ -2,7 +2,6 @@
 import { api, ensure, h } from "./core.js";
 import * as devices from "./control.js";
 import { networkPanel } from "./now.js";
-import { toolUrl } from "./sections.js";
 import { openInRow } from "./section-links.js";
 import { plainInternet } from "./wording.js";
 
@@ -37,11 +36,10 @@ export async function load(state) {
     devices.load(state.devices),
   ]);
   state.facts = now?.network ? plainInternet(now.network) : "";
-  state.internet.replaceChildren(networkPanel(now?.network) || h("p", { class: "meta" }, "The network checks aren't answering."));
+  state.internet.replaceChildren(networkPanel(now?.network, { links: false }) || h("p", { class: "meta" }, "The network checks aren't answering."));
   state.extras.replaceChildren(...[
     h("section", { class: "more-group" }, h("h2", {}, "Ad blocking"),
-      adBlocking(adguard),
-      h("a", { class: "tool-link", href: toolUrl("adguard"), target: "_blank", rel: "noopener" }, "Open AdGuard ↗")),
+      adBlocking(adguard)),
     wifi.set ? h("section", { class: "more-group wifi-panel" }, h("h2", {}, "Guest Wi-Fi"),
       h("div", { class: "wifi-content" },
         // The code holds the password: only a signed-in household member gets it (the password is null otherwise).

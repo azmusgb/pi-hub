@@ -49,7 +49,8 @@ function isWallMode() {
 
 // The internet and the home network in plain words (the 25 Oct critique): one headline, then how quickly each part
 // of the path answers. Details live in Grafana and Uptime Kuma.
-export function networkPanel(net) {
+// `links: false` leaves out the Grafana and Uptime Kuma links, for a page that has them in its Open in row.
+export function networkPanel(net, { links = true } = {}) {
   if (!net || (!net.orbi_ms && !net.wan_ms)) return null;
   const ms = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10} ms` : "no answer");
   const tone = (v) => (!Number.isFinite(v) ? "bad" : v > 60 ? "warn" : "ok");
@@ -66,9 +67,9 @@ export function networkPanel(net) {
       row("Name lookups", "Turning names into addresses", net.dns_ms),
       row("Windows PC", "Local AI and Paperless", net.win_ms),
       Number.isFinite(net.printer_ms) ? row("3D printer", "The X2D", net.printer_ms) : null),
-    h("p", { class: "meta" },
+    links ? h("p", { class: "meta" },
       h("a", { class: "tool-link", href: toolUrl("network"), target: "_blank", rel: "noopener" }, "Open Grafana ↗"), " ",
-      h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗")));
+      h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Status ↗")) : null);
 }
 
 function telemetryAge(iso) {
