@@ -39,7 +39,7 @@ def test_item_shape_and_utc_epoch(monkeypatch):
     assert p["started"] == 1793133390
     assert p["ended"] == 1793133390 + 1800
     assert p["word"] == "Finished" and p["seconds"] == 1800 and p["grams"] == 12.5
-    assert p["lab"] == {"exp": "E-023", "build": "BLD-023-01"}
+    assert p["lab"] == {"project": "hex-tile", "exp": "E-023", "build": "BLD-023-01"}
 
 
 def test_non_lab_name_and_error(monkeypatch):
