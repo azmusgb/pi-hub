@@ -2,7 +2,7 @@
 
 Date: 2026-11-04 · Status: **approved by the owner on 4 Nov 2026 ("fix all")**: all 12 decisions below, as written, plus the broken-link fixes · Amends: the platform baseline
 (`2026-11-01-platform-product-architecture-design.md`, section 5.1 and 5.2 (level-2 strips), 5.3 (tools once, from the registry),
-5.6 (route mapping), section 9 (terminology) and section 12's gate decisions for the `plex.` host).
+5.6 (route mapping), section 9 (terminology) and, for Plex, the revised decision `plex` below).
 
 ## Why
 
