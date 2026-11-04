@@ -55,7 +55,7 @@ class FakeHosts:
         if args[:3] == ["rev-parse", "--verify", "--quiet"]:
             ref = args[3].removesuffix("^{commit}")
             return ok(self.refs[ref] + "\n") if ref in self.refs else shell.Run(1, "", "")
-        if args == ["status", "--porcelain"]:
+        if args == ["status", "--porcelain", "-z"]:
             return ok(self.dirty)
         if args[:2] == ["ls-remote", "origin"] and "refs/heads/release" in args:
             return ok(f"{self.gh_main}\trefs/heads/main\n{self.gh_release}\trefs/heads/release\n")
@@ -108,9 +108,9 @@ async def test_pi_hub_newest_attempt_not_running_blocks():
     assert any("newest release attempt" in b and "gate failed" in b for b in d["blockers"])
 
 
-async def test_pi_hub_dirty_checkout_blocks():
-    d = await deploy.deploy_state(FakeHosts(dirty=" M hub/app.py\n"), "pi-hub")
-    assert not d["local_checkout_clean"] and any("uncommitted changes" in b for b in d["blockers"])
+async def test_pi_hub_dirty_checkout_blocks_install_sh():
+    d = await deploy.deploy_state(FakeHosts(dirty=" M hub/app.py\0"), "pi-hub")
+    assert not d["local_checkout_clean"] and any("install.sh refuses" in b for b in d["install_sh"]["blockers"])
 
 
 async def test_pi_hub_unknown_target_commit_says_fetch():
@@ -131,7 +131,7 @@ async def test_pi_hub_intended_not_on_github_and_not_main_warns():
     hosts.refs["feat/x"] = NEW
     d = await deploy.deploy_state(hosts, "pi-hub", "feat/x")
     assert any("not on GitHub main" in w for w in d["warnings"])
-    assert any("install.sh ships local main" in w for w in d["warnings"])
+    assert any("install.sh ships local main" in b for b in d["install_sh"]["blockers"])
 
 
 async def test_pi_hub_missing_ref_blocks():
@@ -390,3 +390,69 @@ async def test_logs_a_shortened_line_is_disclosed():
 def test_redaction_puts_back_only_trailing_brackets():
     assert logs.redact("{token: abc}") == "{token: [redacted]}"
     assert logs.redact("password=ab}cd done") == "password=[redacted] done"
+
+
+# The working tree and the release candidate are different things: `git push pi <sha>:main` ships only the commit,
+# while install.sh refuses any `git status --porcelain` output (deploy/install.sh:11). Facts first, then each path's policy.
+async def test_pi_hub_untracked_files_dont_block_a_push_release_but_do_block_install_sh():
+    d = await deploy.deploy_state(FakeHosts(dirty="?? data/\0?? notes.txt\0"), "pi-hub")
+    assert d["ready"] and d["blockers"] == []
+    assert d["checkout"] == {"state": "dirty", "tracked_changes": [], "untracked": ["data/", "notes.txt"]}
+    assert not d["install_sh"]["ready"]
+    assert any("install.sh refuses" in b and "data/" in b for b in d["install_sh"]["blockers"])
+    assert any("untracked" in w and "data/" in w for w in d["warnings"])
+
+
+async def test_pi_hub_tracked_changes_warn_that_a_push_wont_ship_them():
+    d = await deploy.deploy_state(FakeHosts(dirty=" M hub/app.py\0R  b.py\0a.py\0"), "pi-hub")
+    assert d["ready"]
+    assert d["checkout"]["tracked_changes"] == ["hub/app.py", "b.py"]
+    assert any("won't ship" in w and "hub/app.py" in w for w in d["warnings"])
+    assert not d["install_sh"]["ready"]
+
+
+async def test_pi_hub_unreadable_checkout_is_unknown_never_clean():
+    hosts = FakeHosts()
+    real = hosts.__call__
+
+    async def failing(argv, timeout=30):
+        if argv[3:] == ["status", "--porcelain", "-z"]:
+            return shell.Run(128, "", "fatal: not a git repository")
+        return await real(argv, timeout)
+    d = await deploy.deploy_state(failing, "pi-hub")
+    assert d["checkout"] == {"state": "unknown", "tracked_changes": None, "untracked": None}
+    assert d["local_checkout_clean"] is None
+    assert not d["ready"] and not d["install_sh"]["ready"]
+
+
+async def test_pi_hub_clean_checkout_is_ready_on_both_paths():
+    d = await deploy.deploy_state(FakeHosts(), "pi-hub")
+    assert d["checkout"] == {"state": "clean", "tracked_changes": [], "untracked": []}
+    assert d["install_sh"] == {"ready": True, "blockers": [], "warnings": []}
+
+
+async def test_pi_hub_install_sh_ships_local_main_not_the_intended_ref():
+    hosts = FakeHosts(github_main=NEW)
+    d = await deploy.deploy_state(hosts, "pi-hub", NEW)
+    assert any("install.sh ships local main" in b for b in d["install_sh"]["blockers"])
+    assert not any("install.sh" in w for w in d["warnings"])
+
+
+async def test_pi_hub_unparsable_status_is_unknown_never_clean():
+    d = await deploy.deploy_state(FakeHosts(dirty="?\0"), "pi-hub")
+    assert d["checkout"]["state"] == "unknown" and d["local_checkout_clean"] is None
+    assert not d["ready"] and not d["install_sh"]["ready"]
+
+
+async def test_pi_hub_paths_are_reported_as_named():
+    d = await deploy.deploy_state(FakeHosts(dirty="?? caf\u00e9 notes.txt\0 M a -> b.txt\0"), "pi-hub")
+    assert d["checkout"]["untracked"] == ["caf\u00e9 notes.txt"]
+    assert d["checkout"]["tracked_changes"] == ["a -> b.txt"]
+
+
+async def test_pi_hub_install_sh_blocks_when_it_would_ship_a_different_commit():
+    hosts = FakeHosts(github_main=NEW)
+    d = await deploy.deploy_state(hosts, "pi-hub", NEW)
+    assert d["ready"]
+    assert not d["install_sh"]["ready"]
+    assert any("install.sh ships local main" in b for b in d["install_sh"]["blockers"])

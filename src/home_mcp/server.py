@@ -216,7 +216,10 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         (pi-hub: a ref in the local checkout, default main; localai: an optional SHA), GitHub's heads, what the
         target's repository holds, the running release and its health, and for localai the PC checkout and the
         LocalAI Safe Deploy task. ready is false when blockers is non-empty: another session advanced the target,
-        a release is pending or failed, a checkout is dirty, or a source couldn't be read. Never changes anything."""
+        a release is pending or failed, the PC checkout is dirty, or a source couldn't be read. For pi-hub, ready is for a
+        release by `git push pi <sha>:main`, which ships only the commit; checkout reports the local working tree as facts
+        (clean, dirty or unknown), and install_sh says separately whether deploy/install.sh would run. Never changes
+        anything."""
         out = await deploy.deploy_state(runner, target, intended)
         # Platform step 4: Pi Hub's release record is the deployment truth; live (read over SSH) only verifies it.
         async with client_factory() as c:

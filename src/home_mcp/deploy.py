@@ -59,23 +59,62 @@ async def _resolve(run: Runner, repo: str, ref: str) -> str | None:
     return r.out.strip() if r.code == 0 and r.out.strip() else None
 
 
+def _checkout(status: shell.Run) -> dict:
+    """`git status --porcelain -z` as facts: tracked changes and untracked paths. Unknown when it couldn't be read or
+    an entry doesn't parse: an unreadable status must never look clean. -z gives paths unquoted, and a rename or copy
+    entry is followed by its source path."""
+    unknown = {"state": "unknown", "tracked_changes": None, "untracked": None}
+    if status.code != 0:
+        return unknown
+    tracked, untracked = [], []
+    entries = status.out.split("\0")
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        i += 1
+        if not entry:
+            continue
+        if len(entry) < 4 or entry[2] != " " or not set(entry[:2]) <= set(" MTADRCU?!"):
+            return unknown
+        (untracked if entry[:2] == "??" else tracked).append(entry[3:])
+        if entry[0] in "RC":
+            i += 1  # the source path of the rename or copy
+    return {"state": "dirty" if tracked or untracked else "clean", "tracked_changes": tracked, "untracked": untracked}
+
+
+def _listed(paths: list[str], most: int = 5) -> str:
+    more = len(paths) - most
+    return ", ".join(paths[:most]) + (f" and {more} more" if more > 0 else "")
+
+
 async def pi_hub(run: Runner, intended: str | None) -> dict:
     repo, host = shell.pihub_repo(), shell.pi_host()
     ref = intended or "main"
     errors, blockers, warnings = [], [], []
     sha_r, local_main_r, dirty_r, gh_r, pi_r, live_r = await asyncio.gather(
         _resolve(run, repo, ref), _resolve(run, repo, "main"),
-        run(["git", "-C", repo, "status", "--porcelain"]),
+        run(["git", "-C", repo, "status", "--porcelain", "-z"]),
         run(["git", "-C", repo, "ls-remote", "origin", "refs/heads/main"]),
         run(["git", "-C", repo, "ls-remote", "pi", "refs/heads/main"]),
         run(shell.ssh(host, PI_LIVE)),
     )
     if sha_r is None:
         blockers.append(f"{ref} is not a commit in {repo}")
-    if dirty_r.code != 0:
+    # The checkout is a fact; what it means depends on the release path. `git push pi <sha>:main` ships only the commit,
+    # so the working tree can't change what goes live. install.sh refuses any status output (deploy/install.sh:11) and
+    # copies a few deploy files from the working tree, so for it the checkout must be clean.
+    checkout = _checkout(dirty_r)
+    install_blockers, install_warnings = [], []
+    if checkout["state"] == "unknown":
         errors.append(_failed("local checkout status", dirty_r))
-    elif dirty_r.out.strip():
-        blockers.append("the local pi-hub checkout has uncommitted changes; install.sh needs a clean, committed checkout")
+        install_blockers.append("the local checkout's status couldn't be read")
+    elif checkout["state"] == "dirty":
+        listed = _listed(checkout["tracked_changes"] + checkout["untracked"])
+        install_blockers.append(f"install.sh refuses a checkout with changes or untracked files: {listed}")
+        if checkout["tracked_changes"]:
+            warnings.append(f"uncommitted changes to tracked files won't ship with a push: {_listed(checkout['tracked_changes'])}")
+        if checkout["untracked"]:
+            warnings.append(f"untracked files in the local checkout (not shipped by a push): {_listed(checkout['untracked'])}")
     github_main = _remote_head(gh_r)
     if github_main is None:
         errors.append(_failed("GitHub main (git ls-remote origin)", gh_r))
@@ -132,14 +171,16 @@ async def pi_hub(run: Runner, intended: str | None) -> dict:
         if github_main and sha_r != github_main and await _contains(run, repo, sha_r, github_main) is not True:
             warnings.append(f"{ref} ({sha_r[:10]}) is not on GitHub main ({github_main[:10]})")
         if local_main_r and sha_r != local_main_r:
-            warnings.append(f"install.sh ships local main ({local_main_r[:10]}), not {ref}")
+            install_blockers.append(f"install.sh ships local main ({local_main_r[:10]}), not {ref}; the checks above are for {ref}")
         if _same(sha_r, live["sha"]):
             warnings.append("the intended commit is already live; a release would be a no-op")
     if errors:
         blockers.append("some sources couldn't be read; see errors")
     return _shape("pi-hub", ref, sha_r, errors, blockers, warnings,
-                  github_main=github_main, deploy_remote_main=pi_main, live=live,
-                  local_checkout_clean=dirty_r.code == 0 and not dirty_r.out.strip())
+                  github_main=github_main, deploy_remote_main=pi_main, live=live, checkout=checkout,
+                  local_checkout_clean=None if checkout["state"] == "unknown" else checkout["state"] == "clean",
+                  install_sh={"ready": not blockers and not install_blockers, "blockers": install_blockers,
+                              "warnings": install_warnings})
 
 
 async def localai(run: Runner, intended: str | None) -> dict:
