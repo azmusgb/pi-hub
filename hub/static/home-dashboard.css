@@ -1,0 +1,200 @@
+/* Home as a dashboard (amendment A8; home-dashboard.js): the house's day as a 24-hour band (the one bold thing), then
+   Needs you beside a rack of systems, one full-width row each, read across like the front of a server rack. Kit tokens
+   only (plan decision 9); readouts use Archivo at its readout width, like a panel meter. Phone, iPad and desktop come
+   from the grid and container queries; a TV (wide landscape) gets two columns and a larger scale, last so it wins. */
+
+.hd {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  grid-template-areas: "today today" "needs rack";
+  gap: 24px;
+  align-items: start;
+  font-variant-numeric: tabular-nums;
+}
+.hd h2 { margin: 0; font: 760 var(--ui-fs-5)/1 var(--ui-font); font-stretch: var(--ui-stretch-heading); }
+.hd p, .hd dl, .hd dd, .hd ol { margin: 0; }
+.hd-meter { font-weight: 720; font-stretch: var(--ui-stretch-readout); letter-spacing: -.005em; line-height: .9; }
+.hd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.hd-head { display: flex; align-items: baseline; gap: 10px; min-height: 30px; }
+
+/* Mark kinds: one colour per meaning, in the band, the tally and the rack */
+.hd-k-ok { color: var(--ui-ok); fill: var(--ui-ok); }
+.hd-k-bad { color: var(--ui-bad); fill: var(--ui-bad); }
+.hd-k-warn { color: var(--ui-warn); fill: var(--ui-warn); }
+.hd-k-run, .hd-k-deployed { color: var(--ui-accent-text); fill: var(--ui-accent); }
+.hd-k-other { color: var(--ui-unknown); fill: var(--ui-unknown); }
+
+/* Today: the hero */
+.hd-band {
+  grid-area: today;
+  display: grid;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  background: var(--ui-bar);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-3);
+  min-width: 0;
+}
+.hd-band__head { display: flex; align-items: flex-end; gap: 12px 28px; flex-wrap: wrap; }
+.hd-band__head h2 { margin-right: auto; }
+.hd-tally { display: flex; gap: 28px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.hd-tally li { display: grid; gap: 4px; }
+.hd-tally .hd-meter { font-size: var(--ui-fs-7); }
+.hd-tally span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
+.hd-band__plot { min-width: 0; min-height: 120px; }
+.hd-band__svg { display: block; max-width: 100%; height: auto; touch-action: manipulation; }
+.hd-band__lane { fill: var(--ui-muted); font: 600 12.5px var(--ui-font); }
+.hd-band__hour { fill: var(--ui-muted); font: 500 11px var(--ui-font); }
+.hd-band__grid { stroke: var(--ui-line); stroke-width: 1; }
+.hd-band__grid--minor { opacity: .45; }
+.hd-band__track { fill: var(--ui-surface-2); opacity: .6; }
+.hd-band__ghost { fill: none; stroke: var(--ui-accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.hd-band__now { stroke: var(--ui-text); stroke-width: 2; }
+.hd-band__nowlabel { fill: var(--ui-text); font: 800 12px var(--ui-font); }
+.hd-band__future { fill: url(#hd-hatch); }
+.hd-band__hatch { stroke: var(--ui-line); stroke-width: 1; }
+.hd-band__hit { fill: transparent; }
+.hd-band__mark { cursor: pointer; outline: none; }
+.hd-band__mark:hover .hd-band__fill,
+.hd-band__mark:focus-visible .hd-band__fill,
+.hd-band__mark.is-lit .hd-band__fill { stroke: var(--ui-text); stroke-width: 2; }
+.hd-band__mark:focus-visible .hd-band__hit { stroke: var(--ui-accent); stroke-width: 2; }
+.hd-band__halo { fill: none; stroke: var(--ui-text); stroke-width: 1.5; opacity: 0; }
+.hd-band__mark.is-lit .hd-band__halo { opacity: 1; }
+.hd-band__down { fill: var(--ui-muted); color: var(--ui-muted); font: 500 var(--ui-fs-2) var(--ui-font); }
+p.hd-band__down { padding: 12px 0; }
+.hd-band__detail { min-height: 1.45em; color: var(--ui-muted); font-size: var(--ui-fs-3); }
+.hd-band__detail b { color: var(--ui-text); font-weight: 650; }
+
+/* Needs you: the kit's list (ui-needs), headed by its count */
+.hd-needs { grid-area: needs; display: grid; gap: 12px; position: sticky; top: calc(var(--ui-header-total) + 16px); min-width: 0; }
+.hd-needs__count { font-size: var(--ui-fs-6); color: var(--ui-warn); }
+.hd-needs__list { min-width: 0; }
+
+/* Systems: the rack */
+.hd-rack { grid-area: rack; display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
+.hd-rack__units {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-3);
+  background: var(--ui-surface);
+  overflow: hidden;
+}
+.hd-unit {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) auto;
+  gap: 16px 24px;
+  align-items: center;
+  padding: 16px 18px;
+  border-top: 1px solid var(--ui-line);
+}
+.hd-unit:first-child { border-top: 0; }
+.hd-unit[data-lamp="warn"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-warn) 14%, transparent), transparent 40%); }
+.hd-unit[data-lamp="bad"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-bad) 14%, transparent), transparent 40%); }
+.hd-unit__name { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: var(--ui-fs-4); line-height: 1.2; }
+.hd-unit__name small { display: block; color: var(--ui-muted); font-weight: 500; font-size: var(--ui-fs-2); }
+.hd-lamp { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ui-unknown); }
+.hd-lamp[data-lamp="ok"] { background: var(--ui-ok); }
+.hd-lamp[data-lamp="warn"] { background: var(--ui-warn); }
+.hd-lamp[data-lamp="bad"] { background: var(--ui-bad); }
+.hd-lamp[data-lamp="run"] { background: var(--ui-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hd-lamp:not([data-lamp="unknown"]) { box-shadow: 0 0 8px currentColor; }
+}
+:root[data-theme="dark"] .hd-lamp:not([data-lamp="unknown"]) { box-shadow: 0 0 8px currentColor; }
+.hd-lamp[data-lamp="ok"] { color: color-mix(in srgb, var(--ui-ok) 55%, transparent); }
+.hd-lamp[data-lamp="warn"] { color: color-mix(in srgb, var(--ui-warn) 55%, transparent); }
+.hd-lamp[data-lamp="bad"] { color: color-mix(in srgb, var(--ui-bad) 55%, transparent); }
+.hd-lamp[data-lamp="run"] { color: color-mix(in srgb, var(--ui-accent) 55%, transparent); }
+.hd-unit__go {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--ui-fs-2);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hd-unit__go:hover { text-decoration: underline; }
+.hd-unit__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.hd-unit__readings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 28px; min-width: 0; }
+.hd-rd { display: grid; gap: 5px; min-width: 0; }
+.hd-rd dt { color: var(--ui-muted); font-size: var(--ui-fs-1); }
+.hd-rd dd { font-weight: 650; }
+.hd-rd dd.hd-meter { font-size: var(--ui-fs-6); font-weight: 700; }
+.hd-rd .hd-meter--big { font-size: 56px; }
+.hd-rd dd.hd-warn { color: var(--ui-warn); }
+.hd-rd--hero { display: flex; align-items: center; gap: 12px; }
+.hd-rd__note { color: var(--ui-muted); font-size: var(--ui-fs-2); margin-top: 4px; }
+.hd-of { color: var(--ui-muted); font-weight: 500; }
+.hd-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--ui-line-2); }
+.hd-ring__track { stroke: var(--ui-surface-2); }
+.hd-ring__fill { stroke: var(--ui-accent); }
+.hd-gauge { display: grid; gap: 5px; width: 180px; max-width: 100%; }
+.hd-gauge__bar { position: relative; display: block; height: 8px; border-radius: 999px; background: var(--ui-surface-2); }
+.hd-gauge__fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--ui-accent); }
+.hd-gauge__hot {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 9%;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, var(--ui-bad) 16%, transparent);
+  border-left: 2px solid var(--ui-bad);
+}
+.hd-gauge__lbl { display: flex; justify-content: space-between; gap: 8px; color: var(--ui-muted); font-size: var(--ui-fs-1); }
+.hd-gauge__lbl b { color: var(--ui-text); font-weight: 650; }
+.hd-bars { display: flex; align-items: flex-end; gap: 3px; height: 40px; width: 140px; }
+.hd-bars span { flex: 1; border-radius: 2px 2px 0 0; background: var(--ui-accent); min-height: 2px; }
+.hd-bars span.hd-bars__bad { background: var(--ui-bad); }
+@container (max-width: 700px) {
+  .hd-unit { grid-template-columns: 1fr auto; padding: 14px; }
+  .hd-unit__readings { grid-column: 1 / -1; grid-row: 2; gap: 12px 22px; }
+  .hd-unit__go { grid-column: 2; grid-row: 1; }
+}
+
+/* Everything else that is fine */
+.hd-others__summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ui-muted);
+  font-size: var(--ui-fs-2);
+  cursor: pointer;
+}
+.hd-others__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.hd-others__list li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ui-line); }
+.hd-others__list a { display: inline-flex; align-items: center; min-height: 32px; color: var(--ui-text); font-weight: 600; }
+.hd-others__list span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
+
+/* Phone and portrait iPad: one column, the day first, then Needs you, then the rack */
+@media (max-width: 1000px) {
+  .hd { grid-template-columns: minmax(0, 1fr); grid-template-areas: "today" "needs" "rack"; }
+  .hd-needs { position: static; }
+}
+@media (max-width: 640px) {
+  .hd { gap: 20px; }
+  .hd-band { padding: 16px 14px 12px; }
+  .hd-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+  .hd-tally .hd-meter { font-size: var(--ui-fs-6); }
+  .hd-tally span { font-size: var(--ui-fs-1); line-height: 1.25; }
+  .hd-rd .hd-meter--big { font-size: 44px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hd-band__fill.hd-k-run { animation: hd-pulse 2.4s ease-in-out infinite; }
+  @keyframes hd-pulse { 50% { opacity: .65; } }
+}
+
+/* TV and large landscape screens: two columns (the day and Needs you left, Systems right) at a scale that reads from
+   across the room. Last, so it wins over the rules above. */
+@media (min-width: 1800px) and (orientation: landscape) {
+  .hd { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "today rack" "needs rack"; gap: 20px 24px; }
+  .hd-needs { position: static; }
+  .hd-unit { padding-block: 12px; }
+  .home-context, .home-dash { zoom: 1.2; }
+}
+@media (min-width: 2400px) and (orientation: landscape) { .home-context, .home-dash { zoom: 1.6; } }
+@media (min-width: 3400px) and (orientation: landscape) { .home-context, .home-dash { zoom: 2.4; } }
