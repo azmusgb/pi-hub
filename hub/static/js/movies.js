@@ -1,9 +1,11 @@
-// Movies: what's playing, continue watching, recently added, search, requests, and drive health.
+// Movies: what's playing, continue watching, recently added, search, requests, and drive health. A7 P1: the faceplate
+// is Plex (the library, what's playing, the drive); the shelves are sections; four more fold under More (A6).
 import { api, card, empty, h, post, toast, when } from "./core.js";
 import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
 import { moreList, openInRow, rememberOpen } from "./section-links.js";
 import { plexUrl } from "./sections.js";
+import { faceplate, faceplateLoading, fillNeedsHere, needsHere, section } from "./page-parts.js";
 
 export const every = 30;
 
@@ -398,7 +400,11 @@ export function mount(state) {
 
   // Search and Add a movie share one row, aligned with the content under them (iPad, 1 Nov: a floating button above
   // an indented search box left a dead band at the top of the page).
+  state.plate = h("div", {}, faceplateLoading("Plex"));
+  state.needs = needsHere();
   state.root.append(
+    state.plate,
+    state.needs,
     h("div", { class: "movie-toolbar" },
     h(
       "form",
@@ -1471,9 +1477,8 @@ function playingNowCard(
     return null;
   }
 
-  return card(
+  return section(
     "Playing now",
-    {},
 
     h(
       "ul",
@@ -1852,6 +1857,41 @@ function catalogSection(state, allMovies, genres) {
   return section;
 }
 
+// The faceplate and sources line from /api/movies (A7 P1, P8). Plex's sessions are null when Plex didn't answer and a
+// list (maybe empty) when it did; the drive's state comes from the Pi. Neither is shown as fine without an answer.
+export function mediaPlate(data, { onRetry = null } = {}) {
+  if (!data) {
+    return {
+      sources: [{ name: "Plex", tone: "unknown", word: "couldn't check" }],
+      plate: faceplate({ name: "Plex", lamp: ["unknown", "Unknown"], readout: "—",
+        caption: "The movies page couldn't load. Plex or the hub may be unavailable.",
+        actions: onRetry ? [h("button", { type: "button", class: "ui-btn ui-btn--primary", onclick: onRetry }, "Try again")] : [] }),
+    };
+  }
+  const playing = Array.isArray(data.playing) ? data.playing : null;
+  const drive = data.drive || {};
+  const driveOk = drive.state === "Connected";
+  const driveKnown = ["Connected", "Missing", "Not mounted"].includes(drive.state);
+  const lamp = !playing ? ["bad", "Not answering"]
+    : !driveOk ? [driveKnown ? "bad" : "unknown", driveKnown ? `Drive ${drive.state.toLowerCase()}` : "Drive unknown"]
+      : playing.length ? ["ok", "Playing", true] : ["ok", "Ready"];
+  const count = Number.isFinite(Number(drive.count)) && drive.count !== null && drive.count !== "" ? Number(drive.count) : null;
+  const first = playing?.[0];
+  const caption = !playing ? "Plex isn't answering, so nothing can play from the hub right now."
+    : first ? `Playing ${first.title || "something"}${first.device ? ` on ${first.device}` : ""}${playing.length > 1 ? `, and ${playing.length - 1} more` : ""}.`
+      : "Nothing playing.";
+  return {
+    sources: [playing ? { name: "Plex", tone: "ok" } : { name: "Plex", tone: "bad", word: "isn't answering" },
+      driveOk ? { name: "Movies drive", tone: "ok" } : { name: "Movies drive", tone: driveKnown ? "bad" : "unknown", word: driveKnown ? drive.state.toLowerCase() : "no reading" }],
+    plate: faceplate({
+      name: "Plex", lamp,
+      readout: count === null ? "—" : count.toLocaleString(), unit: count === null ? "" : count === 1 ? "movie" : "movies",
+      caption,
+      readings: [["Movies drive", drive.state || null], ["Free space", drive.free || null]],
+    }),
+  };
+}
+
 export async function load(
   state,
 ) {
@@ -1875,6 +1915,11 @@ export async function load(
       api(`/api/movies${qs ? `?${qs}` : ""}`),
       api(`/api/movies/catalog${qs ? `?${qs}` : ""}`).catch(() => ({ movies: [], genres: [] })),
     ]);
+
+    const plate = mediaPlate(data);
+    state.sources = plate.sources;
+    state.plate.replaceChildren(plate.plate);
+    fillNeedsHere(state.needs, "/media");
 
     if (data?.active_section) {
       state.section = data.active_section;
@@ -1972,35 +2017,11 @@ export async function load(
     ));
     refreshMovieNight(state);
   } catch (error) {
-    state.body.replaceChildren(
-      card(
-        "Movies unavailable",
-        {
-          tone: "bad",
-        },
-
-        h(
-          "p",
-          {
-            class: "note",
-          },
-          "The movies dashboard couldn't load. Plex or the hub API may be unavailable.",
-        ),
-
-        h(
-          "button",
-          {
-            type: "button",
-            class:
-              "btn btn--primary",
-
-            onclick: () =>
-              load(state),
-          },
-          "Try again",
-        ),
-      ),
-    );
+    // Down is said once, by the faceplate and the sources line, never as an empty library.
+    const plate = mediaPlate(null, { onRetry: () => load(state) });
+    state.sources = plate.sources;
+    state.plate.replaceChildren(plate.plate);
+    state.body.replaceChildren();
 
     toast(
       error?.message ||
