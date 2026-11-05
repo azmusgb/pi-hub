@@ -59,6 +59,49 @@ test("hour labels never touch each other, from a phone to a wide desktop", () =>
   }
 });
 
+// A9 D1: a phone band runs from midnight to an hour after Now, at least six hours, never past midnight.
+test("a phone band shows the day so far; a wide band keeps the whole day", () => {
+  const H = 3600;
+  const at = (h) => bandLayout(day({ now: START + h * H }), 390);
+  assert.equal(at(18).end, START + 19 * H, "6 PM: midnight to 7 PM");
+  assert.equal(at(1).end, START + 6 * H, "1 AM: at least six hours");
+  assert.equal(at(23.5).end, START + 24 * H, "11:30 PM: never past midnight");
+  assert.equal(bandLayout(day({ now: START + 18 * H }), 900).end, START + 24 * H, "wide: midnight to midnight");
+  const L = at(18);
+  assert.ok(L.nowX > L.width * 0.9, "Now sits near the right edge, the past gets the width");
+});
+
+test("on a phone a mark past the band's end is clipped, not dropped", () => {
+  const H = 3600;
+  const d = day({ now: START + 18 * H });
+  d.lanes[0].marks = [{ start: START + 17 * H, end: d.now, until: d.now + 3 * H, kind: "run", title: "E-026: Printing" }];
+  const L = bandLayout(d, 390), m = L.lanes[0].marks[0];
+  assert.ok(m.w > 0);
+  assert.ok(m.ghost.x + m.ghost.w <= L.width, "the dashed finish stops at the edge");
+});
+
+test("phone hour labels never touch, whatever the span", () => {
+  const CH = 7;
+  for (const h of [0.5, 3, 9, 14, 18, 23.5]) for (let w = 300; w < 520; w += 10) {
+    const L = bandLayout(day({ now: START + h * 3600 }), w);
+    const labels = L.hours.filter((x) => x.label).map((x) => {
+      const len = x.label.length * CH;
+      const left = x.anchor === "start" ? x.x : x.anchor === "end" ? x.x - len : x.x - len / 2;
+      return { left, right: left + len, label: x.label };
+    });
+    assert.ok(labels.length >= 2, `${w}px at ${h}h: some hours are labelled`);
+    for (let i = 1; i < labels.length; i++) assert.ok(labels[i].left - labels[i - 1].right >= 4, `${w}px at ${h}h: ${labels[i - 1].label} / ${labels[i].label}`);
+    assert.ok(labels.every((x) => x.left >= 0 && x.right <= w), `${w}px at ${h}h: labels inside the band`);
+  }
+});
+
+// A9 D2: short count labels on a phone, the full words kept for screen readers
+test("each count has a short phone label and keeps its full words", () => {
+  const items = countItems({ finished: 3, failed: 2, power: 1, updates: 3 });
+  assert.deepEqual(items.map((c) => c.label), ["prints finished", "failed", "power dips", "updates shipped"]);
+  assert.deepEqual(items.map((c) => c.short), ["finished", "failed", "power dips", "updates"]);
+});
+
 test("an hour label next to Now gives way to it", () => {
   const L = bandLayout(day({ now: START + 12 * 3600 + 60 }), 1200);
   const noon = L.hours[12];
@@ -274,6 +317,52 @@ test("a refresh puts keyboard focus back where it was", async () => {
     renderDashboard(state, src, () => {});
     assert.equal(document.activeElement, links()[2], "the Network row's link has focus again");
   } finally { k.done(); }
+});
+
+test("the tally hides the extra words visually on a phone, not from screen readers", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 1, updates: 3 } }), records: [], needs: { count: 0, items: [], unread: [] } }, () => {});
+    const labels = [...parent.querySelectorAll(".hd-tally li > span")];
+    assert.deepEqual(labels.map(text), ["prints finished", "failed", "power dips", "updates shipped"]);
+    assert.deepEqual([...parent.querySelectorAll(".hd-tally__more")].map(text), ["prints", "shipped"]);
+    const css = readFileSync(new URL("../hub/static/home-dashboard.css", import.meta.url), "utf8");
+    assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.hd-tally__more \{[^}]*clip-path: inset\(50%\)/);
+  } finally { k.done(); }
+});
+
+// A8 D1: the Now line sweeps from midnight once on first load, never with reduced motion and never on a refresh
+test("the Now line sweeps once per page load, and not with reduced motion", async () => {
+  const k = kitInstall();
+  try {
+    const mod = await import("../hub/static/js/home-dashboard.js");
+    const sweeps = () => parent.querySelectorAll(".hd-band__nowg.is-sweeping").length;
+    let parent;
+    const draw = (reduce) => {
+      globalThis.matchMedia = (q) => ({ matches: /no-preference/.test(q) ? !reduce : false });
+      const state = {};
+      parent = k.env.root();
+      mod.mountDashboard(state, parent);
+      state.hd.plot.clientWidth = 390;
+      return state;
+    };
+    mod.resetSweep();
+    let state = draw(true);
+    mod.renderDashboard(state, { today: day(), records: [], needs: null }, () => {});
+    assert.equal(sweeps(), 0, "reduced motion: no sweep");
+    mod.resetSweep();
+    state = draw(false);
+    mod.renderDashboard(state, { today: day(), records: [], needs: null }, () => {});
+    assert.equal(sweeps(), 1, "first draw sweeps");
+    mod.renderDashboard(state, { today: day(), records: [], needs: null }, () => {});
+    assert.equal(sweeps(), 0, "a refresh doesn't");
+    state = draw(false);
+    mod.renderDashboard(state, { today: day(), records: [], needs: null }, () => {});
+    assert.equal(sweeps(), 0, "coming back to Home in the same page load doesn't");
+  } finally { delete globalThis.matchMedia; k.done(); }
 });
 
 test("the control room's page code is gone: nothing mounts it, and Home's camera timer doesn't look for it", () => {

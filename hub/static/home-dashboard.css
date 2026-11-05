@@ -40,7 +40,7 @@
 .hd-tally { display: flex; gap: 28px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
 .hd-tally li { display: grid; gap: 4px; }
 .hd-tally .hd-meter { font-size: var(--ui-fs-7); }
-.hd-tally span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
+.hd-tally li > span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 .hd-band__plot { min-width: 0; min-height: 120px; }
 .hd-band__svg { display: block; max-width: 100%; height: auto; touch-action: manipulation; }
 .hd-band__lane { fill: var(--ui-muted); font: 600 12.5px var(--ui-font); }
@@ -179,7 +179,9 @@ p.hd-band__down { padding: 12px 0; }
   .hd-band { padding: 16px 14px 12px; }
   .hd-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
   .hd-tally .hd-meter { font-size: var(--ui-fs-6); }
-  .hd-tally span { font-size: var(--ui-fs-1); line-height: 1.25; }
+  .hd-tally li > span { font-size: var(--ui-fs-1); line-height: 1.25; white-space: nowrap; }
+  /* A9 D2: "prints" and "shipped" drop out of sight, not out of what a screen reader says */
+  .hd-tally__more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .hd-rd .hd-meter--big { font-size: 44px; }
 }
 
