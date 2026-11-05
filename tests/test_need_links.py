@@ -24,7 +24,7 @@ CONTROL_ROOM = (ROOT / "hub/static/js/control-room.js").read_text()
 def _js_object(name):
     block = CONTROL_ROOM[CONTROL_ROOM.index(f"export const {name} = {{"):]
     block = block[:block.index("};")]
-    return dict(re.findall(r'^\s*"?([a-z_:]+)"?: "([^"]+)",', block, re.M))
+    return dict(re.findall(r'^\s*"?([a-z0-9_:-]+)"?: "([^"]+)",', block, re.M))
 
 
 def _js_const(name):
@@ -129,5 +129,6 @@ def test_local_ai_the_display_and_the_pc_open_health_where_they_are_shown():
 
 def test_the_page_names_every_record_as_the_server_does():  # A7 P5: "mac_lab" showed on Home's All else OK line
     from hub.records import LABELS
-    # releases.py adds release:<target> labels at import; the page doesn't name those yet (A7 PR H4, Versions' names).
-    assert _js_object("RECORD_LABELS") == {k: v for k, v in LABELS.items() if not k.startswith("release:")}
+    from hub import releases  # noqa: F401  (adds the release:<target> labels at import)
+    # Every record, release records included (A7 H4): Home never shows "release:pi-hub".
+    assert _js_object("RECORD_LABELS") == LABELS

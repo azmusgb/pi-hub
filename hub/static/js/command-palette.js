@@ -1,8 +1,8 @@
 // The ⌘K palette: the kit's one component (appliance-ui palette.js, platform step 7 Decision 7) with Pi Hub's
-// providers: Go (pages, tools, the Assistant's door), Do (printer actions and fixes, each asking first as it always
-// has), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
-import { api, fix } from "./core.js";
-import { runPrinterAction, PRINTER_ACTIONS } from "./printer-actions.js";
+// providers: Go (pages, tools, the Assistant's door), Do (printer actions and fixes, each asking first, inline
+// under the input), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
+import { api, askFirst, fix, FIX_WHAT } from "./core.js";
+import { runPrinterAction, PRINTER_ACTIONS, PRINTER_DEPS } from "./printer-actions.js";
 import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
 import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
@@ -50,16 +50,17 @@ export function goResults(query) {
   return [...pages, ...tools];
 }
 
-// Do: the printer's current actions and the hub's fixes. Each asks first itself (printer-actions.js, core.js fix),
-// so no `confirm` here: the question is asked once, in the words the rest of the hub uses.
+// Do: the printer's current actions and the hub's fixes. The palette asks first, inline under its input (A7 P7), in
+// the words the rest of the hub uses; the action then runs without asking again.
 export function doResults(query, records = [], { onDone = () => {} } = {}) {
   const q = norm(query);
   const printer = records.find((r) => r?.id === "printer");
   const actions = (printer?.actions || []).filter((a) => PRINTER_ACTIONS[a])
     .map((a) => ({ kind: "do", label: `${PRINTER_ACTIONS[a].label} on the X2D`, area: "Workshop",
-      keywords: `${a} printer x2d bambu plate print`, run: () => runPrinterAction(a, [], onDone) }));
-  const fixes = FIXES.map((f) => ({ kind: "do", label: f.label, area: "Health", keywords: f.keywords,
-    run: () => fix(f.name, f.label, { onResult: onDone }) }));
+      keywords: `${a} printer x2d bambu plate print`, ...(PRINTER_ACTIONS[a].ask ? { confirm: PRINTER_ACTIONS[a].ask } : {}),
+      run: () => runPrinterAction(a, [], onDone, { ...PRINTER_DEPS, confirm: () => true }) }));
+  const fixes = FIXES.map((f) => ({ kind: "do", label: f.label, area: "Health", keywords: f.keywords, confirm: FIX_WHAT[f.name] || `${f.label}?`,
+    run: () => fix(f.name, f.label, { onResult: onDone, asked: true }) }));
   return [...actions, ...fixes].filter((r) => matches(q, r.label, r.keywords)).map(({ keywords, ...r }) => r);  // eslint-disable-line no-unused-vars
 }
 
@@ -165,6 +166,8 @@ export function initCommandPalette() {
     recentKey: "pihub.palette.recent",
     label: "Search and go",
     placeholder: "Search, go to a page, run a fix, or ask the Assistant…",
+    // A risky "do" asks inline, under the palette's input, never with the browser's confirm().
+    confirm: (question) => askFirst(palette.dialog?.querySelector(".ui-palette__input"), question),
   });
   window.hubPalette = palette;
   window.openHubCommandPalette = (query) => palette.open(query);

@@ -3,10 +3,12 @@
 // outages, network, history and the help guides into a collapsed More.
 import {
   api,
+  askFirst,
   card,
   duration,
   empty,
   fix,
+  FIX_WHAT,
   verifyFix,
   h,
   spark,
@@ -33,13 +35,8 @@ const RANGES = [
   [168, "Week"],
 ];
 
-const CONFIRM = {
-  "restart:pi":
-    "Restart the Pi? Plex, Homebridge and the hub go away for about a minute.",
-
-  "updates:install":
-    "Install all waiting updates now? Plex or Homebridge may restart.",
-};
+// What a fix will do is said once, in core.js FIX_WHAT; nothing here overrides it.
+const CONFIRM = {};
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -553,200 +550,77 @@ function healthCard(
   );
 }
 
+// Recent fixes, grouped (A7 P6, decision 5): the same fix with the same outcome on the same local day is one row with a
+// count and a time range. The log itself stays one entry per run; only the page groups.
+export function groupFixLog(log) {
+  const groups = new Map();
+  for (const e of asArray(log)) {
+    const ts = finiteNumber(e?.ts);
+    if (ts === null) continue;
+    const d = new Date(ts * 1000);
+    const key = [e.action || "", e.result || "", d.getFullYear(), d.getMonth(), d.getDate()].join("|");
+    const g = groups.get(key);
+    if (g) {
+      g.count += 1; g.first = Math.min(g.first, ts); g.last = Math.max(g.last, ts);
+      if (e.device && !g.devices.includes(e.device)) g.devices.push(e.device);
+    } else {
+      groups.set(key, { action: e.action || "", result: e.result || "Action completed", count: 1, first: ts, last: ts, devices: e.device ? [e.device] : [] });
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.last - a.last);
+}
+
+const clock = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+function fixLogRow(g) {
+  const bad = /didn't|isn't|failed|error/i.test(g.result);
+  const when = g.count > 1 ? `${g.count} times · ${clock(g.first)}–${clock(g.last)}` : safeWhen(g.last);
+  return h("li", { class: "ui-row ui-row--lamp" },
+    h("div", {}, h("span", { class: "ui-row__title" }, g.result),
+      h("span", { class: "ui-row__detail" }, g.devices.join(", ") || "A device")),
+    h("span", { class: `ui-chip ui-chip--${bad ? "bad" : "ok"}` }, bad ? "Didn't work" : "Done"),
+    h("span", { class: "ui-row__value" }, when));
+}
+
+// Fixes (A7 P7): a closed section. Each row says what will happen; its button asks inline, repeating its verb, before
+// anything runs. Restart the Pi is the danger button. The section stays open across the page's own refreshes.
 function fixCard(
   state,
   actionsData,
 ) {
-  const data =
-    asObject(actionsData);
+  const data = asObject(actionsData);
+  const updates = asObject(data.updates);
+  const actions = asArray(data.actions).filter((a) => a?.name);
+  const log = groupFixLog(data.log).slice(0, 5);
 
-  const updates =
-    asObject(data.updates);
+  const rows = actions.map((action) => {
+    const name = action.name;
+    const label = action.label || name;
+    const updateRunning = name === "updates:install" && updates.state === "running";
+    const btn = h("button", {
+      type: "button",
+      class: `ui-btn ${name === "restart:pi" ? "ui-btn--danger" : ""}`.trim(),
+      disabled: state.running || updateRunning,
+      onclick: () => runFix(state, name, label, CONFIRM[name], false, btn),
+    }, updateRunning ? "Installing…" : label);
+    return h("li", { class: "ui-row ui-row--lamp" },
+      h("div", {}, h("span", { class: "ui-row__title" }, label),
+        h("span", { class: "ui-row__detail" }, FIX_WHAT[name] || "")),
+      btn);
+  });
 
-  const actions =
-    asArray(data.actions);
-
-  const log =
-    asArray(data.log);
-
-  return card(
-    "Fix it",
-    {
-      cls: "wide",
-
-      pill:
-        updates.state ===
-        "running"
-          ? "Updates installing"
-          : null,
-
-      tone: "warn",
-    },
-
-    h(
-      "p",
-      {
-        class: "meta",
-      },
-      "Choose a fix after checking the problem above. You’ll confirm before anything changes.",
-    ),
-
-    actions.length
-      ? h(
-          "div",
-          {
-            class: "fix-grid",
-          },
-
-          actions.map((action) => {
-            const name =
-              action?.name || "";
-
-            const updateRunning =
-              name ===
-                "updates:install" &&
-              updates.state ===
-                "running";
-
-            return h(
-              "button",
-              {
-                type: "button",
-
-                class:
-                  `btn ghost ${
-                    name ===
-                    "restart:pi"
-                      ? "btn--danger"
-                      : ""
-                  }`,
-
-                disabled:
-                  state.running ||
-                  updateRunning,
-
-                onclick: () =>
-                  runFix(
-                    state,
-                    name,
-                    action?.label ||
-                      "Run action",
-                    CONFIRM[name],
-                  ),
-              },
-              action?.label ||
-                name ||
-                "Run action",
-            );
-          }),
-        )
-      : empty(
-          "No maintenance actions are available right now.",
-        ),
-
-    updates.state ===
-    "failed"
-      ? h(
-          "p",
-          {
-            class: "note",
-          },
-          `The last update run didn't finish${
-            updates.message
-              ? `: ${updates.message}`
-              : "."
-          }`,
-        )
+  const el = h("details", { class: "ui-section health-fixes", id: "fixes" },
+    h("summary", {}, h("h2", {}, "Fixes")),
+    h("p", { class: "ui-section__note" }, "Check the problem above first. Each fix says what it will do and asks before it runs."),
+    rows.length ? h("ul", { class: "ui-rows" }, ...rows) : empty("No maintenance actions are available right now."),
+    updates.state === "failed"
+      ? h("p", { class: "ui-notice ui-notice--warn" }, `The last update run didn't finish${updates.message ? `: ${updates.message}` : "."}`)
       : null,
-
-    log.length
-      ? [
-          h(
-            "h3",
-            {
-              class: "sub",
-            },
-            "Recent fixes",
-          ),
-
-          h(
-            "ul",
-            {
-              class: "log",
-            },
-
-            log
-              .slice(0, 5)
-              .map((entry) => {
-                const result =
-                  entry?.result ||
-                  "Action completed";
-
-                const bad =
-                  /didn't|isn't|failed|error/i.test(
-                    result,
-                  );
-
-                return h(
-                  "li",
-                  {
-                    class:
-                      "log-row",
-                  },
-
-                  h("span", {
-                    class: "dot",
-
-                    dataset: {
-                      tone: bad
-                        ? "bad"
-                        : "ok",
-                    },
-
-                    "aria-hidden":
-                      "true",
-                  }),
-
-                  h(
-                    "span",
-                    {
-                      class:
-                        "log-main",
-                    },
-
-                    h(
-                      "strong",
-                      {},
-                      result,
-                    ),
-
-                    h(
-                      "span",
-                      {
-                        class:
-                          "meta",
-                      },
-                      entry?.device ||
-                        "A device",
-                    ),
-                  ),
-
-                  h(
-                    "span",
-                    {
-                      class:
-                        "log-side",
-                    },
-                    safeWhen(
-                      entry?.ts,
-                    ),
-                  ),
-                );
-              }),
-          ),
-        ]
-      : null,
-  );
+    log.length ? h("h3", { class: "sub" }, "Recent fixes") : null,
+    log.length ? h("ul", { class: "ui-rows" }, ...log.map(fixLogRow)) : null);
+  el.open = !!state.fixesOpen || location.hash === "#fixes";
+  el.addEventListener("toggle", () => { state.fixesOpen = el.open; });
+  return el;
 }
 
 function outagesCard(outages) {
@@ -909,12 +783,14 @@ function restartButton(restart) {
     class: "btn btn--ghost",
     "aria-label": a.label,
     onclick: async () => {
+      // Ask first, inline under this button (A7 P7), while it can still take focus back.
+      if (!(await askFirst(btn, FIX_WHAT[a.name] || `${a.label}? Anyone using it is cut off for a moment.`, { confirm: a.label }))) return;
       btn.disabled = true;
       btn.textContent = "Restarting…";
       btn.setAttribute("aria-label", `Restarting ${name}`);
-      // fix() asks first, shows the outcome (or the reason it failed) and returns false on cancel or failure.
+      // fix() shows the outcome (or the reason it failed) and returns false on failure.
       const done = await fix(a.name, a.label, {
-        confirmText: `${a.label}? Anyone using it is cut off for a moment.`,
+        asked: true,
         isCurrent: () => btn.isConnected,
       });
       btn.textContent = done ? "Restarted" : "Restart";
@@ -1214,21 +1090,14 @@ function updatesCard(
           "button",
           {
             type: "button",
-            class: "ghost",
+            class: "ghost updates-install",
 
             disabled:
               state.running ||
               running,
 
-            onclick: () =>
-              runFix(
-                state,
-                "updates:install",
-                "Install updates",
-                CONFIRM[
-                  "updates:install"
-                ],
-              ),
+            onclick: (event) =>
+              runFix(state, "updates:install", "Install updates", undefined, false, event.currentTarget),
           },
           running
             ? "Installing…"
@@ -1428,8 +1297,7 @@ async function loadDiagnostics(
 
   state.fix.replaceChildren(...[
     actionsResult.status !== "fulfilled"
-      ? card("Maintenance actions unavailable", { tone: "warn" },
-        h("p", { class: "meta" }, "Health checks loaded, but restart and update controls aren't available right now."))
+      ? h("p", { class: "ui-notice ui-notice--warn" }, "Health checks loaded, but the fixes aren't available right now.")
       : null,
     section(fixCard(state, actionsData), "fix"),
   ].filter(Boolean));
@@ -1629,12 +1497,14 @@ function showFixResult(
   });
 }
 
+// Runs one fix. It asks first, inline under `trigger` (A7 P7), before any button is disabled, so focus can go back to it.
 async function runFix(
   state,
   name,
   label,
   confirmText,
   checkOnly = false,
+  trigger = null,
 ) {
   if (
     state.running ||
@@ -1643,11 +1513,18 @@ async function runFix(
     return;
   }
 
+  if (!checkOnly && !(await askFirst(trigger, confirmText || FIX_WHAT[name] || `${label}?`, { confirm: label, danger: name === "restart:pi" }))) {
+    return;
+  }
+  if (state.running) {
+    return;
+  }
+
   state.running = true;
 
   const buttons =
     state.root.querySelectorAll(
-      ".fix-grid button, .fix-result button",
+      ".health-fixes button, .fix-result button, .updates-install",
     );
 
   buttons.forEach(
@@ -1680,7 +1557,7 @@ async function runFix(
         label,
         {
           ...options,
-          confirmText,
+          asked: true,
         },
       );
     }

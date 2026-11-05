@@ -25,6 +25,14 @@ export const RECORD_LABELS = {
   hub: "The hub's sources",
   pc_printing: "PC during a print",
   mac_lab: "Print lab on the Mac",
+  // Each deploy's release record (releases.py TARGETS), named as the server names it, never "release:pi-hub".
+  "release:pi-hub": "Pi Hub deploy",
+  "release:localai": "Local AI deploy",
+  "release:firmware": "Display firmware deploy",
+  "release:netmon": "netmon deploy",
+  "release:mac-watch": "Mac watchdog deploy",
+  "release:x2d-bridge-mac": "Mac camera bridge deploy",
+  "release:print-lab": "Print lab deploy",
 };
 
 export const RECORD_PATHS = {
@@ -329,7 +337,7 @@ function problemButtons(p, onReload) {
   }
   if (p.kind === "record" && p.fix) {
     const btn = h("button", { type: "button", class: "btn ghost" }, p.fix.label);
-    btn.addEventListener("click", () => fix(p.fix.name, p.fix.label, { onResult: () => onReload() }));
+    btn.addEventListener("click", () => fix(p.fix.name, p.fix.label, { trigger: btn, onResult: () => onReload() }));
     out.push(btn);
   }
   return out;

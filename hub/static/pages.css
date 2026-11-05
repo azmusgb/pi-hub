@@ -404,3 +404,10 @@ body.wall .link-btn { display: none; }
 .not-found { max-width: 32rem; }
 .not-found p { margin: 0 0 1rem; color: var(--ui-muted); }
 .not-found-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+
+/* A closed section (Health's Fixes, A7 P7; Devices' More): the heading is the summary, with the browser's own marker. */
+details.ui-section > summary { cursor: pointer; display: list-item; padding-block: .6rem; }
+details.ui-section > summary::marker { color: var(--muted); }
+details.ui-section > summary > h2 { display: inline; margin: 0; }
+details.ui-section:not([open]) { gap: 0; }
+.health-fixes .ui-row--lamp > .ui-btn { justify-self: end; white-space: nowrap; }

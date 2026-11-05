@@ -56,6 +56,7 @@ args = sys.argv[1:]
 if name == 'git':
     if 'rev-parse' in args: print('a' * 40)
     elif 'archive' in args: sys.stdout.buffer.write(pathlib.Path(os.environ['ARCHIVE']).read_bytes())
+    elif 'log' in args and os.environ.get('MSG'): print(os.environ['MSG'])
     else: print('Test release')
 elif name == 'timeout':
     if 'node' in args and os.environ.get('FAIL') == 'js': sys.exit(1)
@@ -92,8 +93,8 @@ elif name == 'readlink':
                  'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']:
         (tools / name).symlink_to(stub)
 
-    def run(fail='', kind='gate', healthy=''):
-        env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy,
+    def run(fail='', kind='gate', healthy='', msg=''):
+        env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy, 'MSG': msg,
                'ARCHIVE': str(archives[kind]), 'FAIL': fail, 'CALLS': str(tmp_path / 'calls')}
         return subprocess.run(['bash', str(runner), SHA], env=env, capture_output=True, text=True)
     return root, helper, run
@@ -387,3 +388,17 @@ def test_failed_release_keeps_the_ota_hook(release, failure):
     (hooks / 'post-receive').write_text('old hook')
     run(failure)
     assert (hooks / 'post-receive').read_text() == 'old hook'
+
+
+@pytest.mark.parametrize('msg, name', [
+    ('Merge pull request #109 from azmusgb/docs/c1-accepted\n\nOff-site backup accepted', 'Off-site backup accepted #109'),
+    ('Off-site backup accepted (#109)', 'Off-site backup accepted #109'),
+    ('Merge pull request #7 from azmusgb/x', 'Merge pull request #7 from azmusgb/x'),
+    ('Fix the gate', 'Fix the gate'),
+])
+def test_a_version_is_named_by_its_change(release, msg, name):
+    # A7 decision 4: the PR title and its number, never "Merge pull request #N from …" when GitHub gave a title.
+    root, _, run = release
+    run(msg=msg)
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert log[0]['subject'] == name

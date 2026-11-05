@@ -20,9 +20,20 @@ NEW="$REL/$SHORT"
 say() { echo "pi-hub: $*"; }
 
 record() {  # status message [restored]
-  python3 - "$LOG" "$SHORT" "$1" "$2" "$(git --git-dir="$REPO" log -1 --format=%s "$SHA" 2>/dev/null)" "${3:-}" <<'PY'
-import json, os, sys, time
-path, sha, status, message, subject, restored = sys.argv[1:]
+  python3 - "$LOG" "$SHORT" "$1" "$2" "$(git --git-dir="$REPO" log -1 --format=%B "$SHA" 2>/dev/null)" "${3:-}" <<'PY'
+import json, os, re, sys, time
+path, sha, status, message, text, restored = sys.argv[1:]
+# A version is named by its change (A7 decision 4): a PR merge's subject is "Merge pull request #N from …" and GitHub
+# puts the PR title in the body, so the name is that title and "#N". A squash ("Title (#N)") or a plain commit keeps
+# its subject. Nothing is fetched from GitHub.
+lines = [l.strip() for l in text.splitlines()]
+subject = lines[0] if lines else ""
+m = re.match(r"Merge pull request #(\d+) ", subject)
+title = next((l for l in lines[1:] if l), "")
+if m and title:
+    subject = f"{title} #{m[1]}"
+else:
+    subject = re.sub(r"\s*\((#\d+)\)$", r" \1", subject)
 os.makedirs(os.path.dirname(path), exist_ok=True)
 try:
     data = json.load(open(path))

@@ -134,7 +134,7 @@ function matches(el, sel) {
 }
 
 // h() sets data-* through dataset; selectors on [data-x] read it back.
-export function install({ fetch: routes = {} } = {}) {
+export function install({ fetch: routes = {}, confirm = true } = {}) {
   const documentElement = new Element("html");
   const body = new Element("body");
   documentElement.append(body);
@@ -147,8 +147,12 @@ export function install({ fetch: routes = {} } = {}) {
     querySelectorAll: (s) => documentElement.querySelectorAll(s),
     addEventListener() {}, removeEventListener() {},
   };
-  const saved = { document: globalThis.document, Node: globalThis.Node, fetch: globalThis.fetch, location: globalThis.location, window: globalThis.window };
-  globalThis.window = { confirm: () => true };
+  const saved = { document: globalThis.document, Node: globalThis.Node, fetch: globalThis.fetch, location: globalThis.location, window: globalThis.window,
+    ApplianceConfirm: globalThis.ApplianceConfirm };
+  // No browser confirm() (A7 P7: a page that still calls it fails here). The kit's inline confirm answers yes unless a
+  // test passes `confirm: false` or its own ask.
+  globalThis.window = {};
+  globalThis.ApplianceConfirm = { ask: typeof confirm === "function" ? confirm : async () => confirm !== false };
   globalThis.document = doc;
   globalThis.Node = Node;
   globalThis.location = { hostname: "hub.test", protocol: "http:", host: "hub.test", pathname: "/", search: "", href: "http://hub.test/" };
