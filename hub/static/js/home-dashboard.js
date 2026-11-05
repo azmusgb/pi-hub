@@ -34,22 +34,30 @@ const SHORT_HOUR = (h) => (h % 24 === 0 ? "12a" : h === 12 ? "12p" : h < 12 ? `$
 const LONG_HOUR = (h) => (h % 24 === 0 ? "Midnight" : h === 12 ? "Noon" : h < 12 ? `${h} AM` : `${h - 12} PM`);
 
 // The band's geometry at a pixel width: pure, so it can be tested without a browser. Hours are placed by the day's
-// real length (a DST day is 23 or 25 hours), and an hour label too close to Now gives way to it.
+// real length (a DST day is 23 or 25 hours), and an hour label too close to Now gives way to it. A phone's band shows
+// the day so far (A9 D1): midnight to an hour after Now, at least six hours, never past midnight.
 export function bandLayout(day, width) {
   const W = Math.max(240, Math.round(width));
   const narrow = W < NARROW;
   const LABEL = narrow ? 0 : 132, PAD = narrow ? 2 : 16, TOP = 24;
   const NAME = narrow ? 18 : 0, ROW = narrow ? 52 : 44, BAR = narrow ? 14 : 16;  // rows fit a 44 px target
-  const span = Math.max(1, day.end - day.start);
-  const x = (ts) => LABEL + (Math.min(Math.max(ts, day.start), day.end) - day.start) / span * (W - LABEL - PAD);
+  const end = narrow ? Math.min(day.end, Math.max(day.now + 3600, day.start + 6 * 3600)) : day.end;
+  const span = Math.max(1, end - day.start);
+  const track = W - LABEL - PAD;
+  const x = (ts) => LABEL + (Math.min(Math.max(ts, day.start), end) - day.start) / span * track;
   const nowX = x(day.now);
-  const step = narrow ? 6 : W > 1100 ? 2 : W > 800 ? 3 : 6;  // labels every 2, 3 or 6 hours, never touching
+  // labels every 1, 2, 3 or 6 hours: the closest spacing that leaves room for each label ("12p", "Midnight")
+  const room = narrow ? 40 : 84;
+  const step = [1, 2, 3, 6].find((s) => s * 3600 / span * track >= room) || 6;
+  const LABEL_W = narrow ? 24 : 60;  // the widest label, so one at either end stays inside the band
   const hours = [];
   for (let i = 0; i * 3600 <= span; i++) {
     const ts = day.start + i * 3600;
     const major = i % step === 0;
-    const label = major && Math.abs(x(ts) - nowX) > (narrow ? 34 : 44) ? (narrow ? SHORT_HOUR(i) : LONG_HOUR(i)) : "";
-    hours.push({ x: x(ts), major, label, anchor: i === 0 ? "start" : (i + 1) * 3600 > span ? "end" : "middle" });
+    const hx = x(ts);
+    const anchor = i === 0 ? "start" : hx > LABEL + track - LABEL_W / 2 ? "end" : "middle";
+    const label = major && Math.abs(hx - nowX) > (narrow ? 34 : 44) ? (narrow ? SHORT_HOUR(i) : LONG_HOUR(i)) : "";
+    hours.push({ x: hx, major, label, anchor });
   }
   const lanes = (day.lanes || []).map((lane, i) => {
     const top = TOP + i * ROW;
@@ -70,7 +78,8 @@ export function bandLayout(day, width) {
       }),
     };
   });
-  return { width: W, height: TOP + lanes.length * ROW + 4, narrow, top: TOP, bar: BAR, nowX, nowLabelEnd: nowX + 40 > W, hours, lanes };
+  return { width: W, height: TOP + lanes.length * ROW + 4, narrow, end, top: TOP, bar: BAR, nowX, nowLabelEnd: nowX + 40 > W,
+    start: LABEL, hours, lanes };
 }
 
 function svg(tag, attrs, parent) {
@@ -120,16 +129,39 @@ export function drawBand(host, day, width, onMark) {
     });
   }
   svg("rect", { x: L.nowX, y: L.top - 6, width: Math.max(0, L.width - (L.narrow ? 2 : 16) - L.nowX), height: L.height - L.top + 2, class: "hd-band__future" }, root);
-  svg("line", { x1: L.nowX, x2: L.nowX, y1: L.top - 8, y2: L.height - 2, class: "hd-band__now" }, root);
-  svg("text", { x: L.nowLabelEnd ? L.nowX - 6 : L.nowX + 6, y: 13, class: "hd-band__nowlabel", "text-anchor": L.nowLabelEnd ? "end" : "start" }, root).textContent = "Now";
+  // Now, as one group so it can sweep from midnight on first load (A8 D1)
+  const now = svg("g", { class: "hd-band__nowg" }, root);
+  svg("line", { x1: L.nowX, x2: L.nowX, y1: L.top - 8, y2: L.height - 2, class: "hd-band__now" }, now);
+  svg("text", { x: L.nowLabelEnd ? L.nowX - 6 : L.nowX + 6, y: 13, class: "hd-band__nowlabel", "text-anchor": L.nowLabelEnd ? "end" : "start" }, now).textContent = "Now";
   host.replaceChildren(root);
-  return { marks, layout: L };
+  return { marks, layout: L, now, sweep: L.start - L.nowX };
 }
 
-const COUNTS = [["finished", "prints finished", "ok"], ["failed", "failed", "bad"], ["power", "power dips", "warn"], ["updates", "updates shipped", "run"]];
+// The Now line sweeps once per page load: not on a refresh, not on coming back to Home, never with reduced motion.
+let swept = false;
+export function resetSweep() { swept = false; }  // tests only
+function sweepOnce(g, dx) {
+  if (swept) return;
+  swept = true;
+  if (!globalThis.matchMedia?.("(prefers-reduced-motion: no-preference)")?.matches) return;
+  g.classList.add("is-sweeping");
+  const run = g.animate?.([{ transform: `translateX(${Math.round(dx)}px)` }, { transform: "none" }],
+    { duration: 1100, easing: "cubic-bezier(.2, .7, .2, 1)" });
+  if (run) run.onfinish = () => g.classList.remove("is-sweeping");
+}
+
+// Each count's words: [before, the short label a phone shows (A9 D2), after]. The words around it stay for screen readers.
+const COUNTS = [["finished", ["prints ", "finished", ""], "ok"], ["failed", ["", "failed", ""], "bad"],
+  ["power", ["", "power dips", ""], "warn"], ["updates", ["", "updates", " shipped"], "run"]];
 
 export function countItems(counts = {}) {
-  return COUNTS.map(([key, label, kind]) => ({ key, label, kind, value: Number.isFinite(counts[key]) ? String(counts[key]) : "—" }));
+  return COUNTS.map(([key, words, kind]) => ({ key, words, label: words.join(""), short: words[1], kind,
+    value: Number.isFinite(counts[key]) ? String(counts[key]) : "—" }));
+}
+
+function tallyLabel(c) {
+  const more = (w) => (w ? h("span", { class: "hd-tally__more" }, w) : null);
+  return h("span", {}, more(c.words[0]), c.words[1], more(c.words[2]));
 }
 
 // ---- Needs you ----
@@ -356,7 +388,7 @@ function skeletonRows(n) {
 export function mountDashboard(state, parent) {
   state.hd = {};
   const hd = state.hd;
-  hd.counts = h("ol", { class: "hd-tally" }, ...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, h("span", { class: "ui-skeleton", style: "width:1ch" })), h("span", {}, c.label))));
+  hd.counts = h("ol", { class: "hd-tally" }, ...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, h("span", { class: "ui-skeleton", style: "width:1ch" })), tallyLabel(c))));
   hd.plot = h("div", { class: "hd-band__plot" }, h("span", { class: "ui-skeleton", style: "height:180px" }));
   hd.detail = h("p", { class: "hd-band__detail", "aria-live": "polite" }, "Tap, point at or tab to anything on the band to see what it was.");
   hd.needs = h("div", { class: "hd-needs__list" }, h("span", { class: "ui-skeleton", style: "height:4em" }));
@@ -411,10 +443,11 @@ function redrawBand(state) {
   const width = hd.plot.clientWidth || 0;
   if (!width || width === hd.drawnWidth) return;
   hd.drawnWidth = width;
-  const { marks } = drawBand(hd.plot, hd.day, width, (lane, m) => {
+  const { marks, now, sweep } = drawBand(hd.plot, hd.day, width, (lane, m) => {
     hd.detail.replaceChildren(h("b", {}, m.title), `, ${markWhen(m, hd.day)}`);
   });
   hd.marks = marks;
+  sweepOnce(now, sweep);
   if (hd.lit) light(hd, hd.lit);
 }
 
@@ -431,11 +464,11 @@ export function renderDashboard(state, src, onReload) {
     hd.drawnWidth = 0;
     redrawBand(state);
     hd.counts.replaceChildren(...countItems(src.today.counts).map((c) =>
-      h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), h("span", {}, c.label))));
+      h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), tallyLabel(c))));
   } else {
     hd.day = null;
     hd.plot.replaceChildren(h("p", { class: "hd-band__down" }, sourceDown("Pi Hub")));
-    hd.counts.replaceChildren(...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), h("span", {}, c.label))));
+    hd.counts.replaceChildren(...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), tallyLabel(c))));
   }
 
   // Needs you: the same merged list as before, ordered by tone; the badge counts it (baseline 5.5). With neither of
