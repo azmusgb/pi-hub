@@ -27,6 +27,13 @@ def eastern():
     time.tzset()
 
 
+@pytest.fixture(autouse=True)
+def no_cache():
+    today._cache.update(at=0.0, body=None)
+    yield
+    today._cache.update(at=0.0, body=None)
+
+
 MIDNIGHT = 1793854800  # 2026-11-05 00:00 America/New_York
 NOW = MIDNIGHT + 15 * 3600 + 30 * 60  # 3:30 PM
 
@@ -115,6 +122,27 @@ def test_running_print_with_no_remaining_time_has_no_ghost():
     assert marks == [{"start": at(14), "end": NOW, "kind": "run", "title": "Tile: Printing"}]
 
 
+def test_only_the_newest_printing_row_is_the_running_print():
+    orphan = pr("Old", "printing", MIDNIGHT - 3 * 86400, None)  # a row Bambuddy never closed
+    current = pr("Tile", "printing", at(14, 47), None)
+    printer = {"state": "printing", "detail": {"progress": 50, "minutes_left": 30}}
+    marks = lane(today.build(NOW, inputs(prints=[current, orphan], printer=printer)), "printer")["marks"]
+    assert [m["title"] for m in marks] == ["Tile: Printing, 50%"]
+
+
+def test_a_stale_printer_record_gives_no_remaining_time():
+    p = pr("Tile", "printing", at(14), None)
+    printer = {"state": "printing", "stale": True, "detail": {"progress": 50, "minutes_left": 30}}
+    marks = lane(today.build(NOW, inputs(prints=[p], printer=printer)), "printer")["marks"]
+    assert marks == [{"start": at(14), "end": NOW, "kind": "run", "title": "Tile: Printing"}]
+
+
+def test_an_unknown_print_status_is_drawn_neutral_and_not_counted():
+    body = today.build(NOW, inputs(prints=[pr("Odd", "aborted", at(9), at(10))]))
+    assert lane(body, "printer")["marks"] == [{"start": at(9), "end": at(10), "kind": "other", "title": "Odd: Aborted"}]
+    assert body["counts"]["finished"] == 0 and body["counts"]["failed"] == 0
+
+
 def test_bambuddy_down_is_unavailable_not_an_empty_day():
     body = today.build(NOW, inputs(prints=None))
     x2d = lane(body, "printer")
@@ -151,6 +179,13 @@ def test_display_events_out_of_order_still_pair():
               ev(at(7), "workshop_display", "offline"), ev(at(8), "workshop_display", "online")]
     marks = lane(today.build(NOW, inputs(events=events)), "workshop_display")["marks"]
     assert [(m["start"], m["end"]) for m in marks] == [(at(4), at(5)), (at(7), at(8))]
+
+
+def test_unknown_ends_an_offline_span():
+    events = [ev(at(2), "workshop_display", "offline"), ev(at(3), "workshop_display", "unknown"),
+              ev(at(6), "workshop_display", "online")]
+    marks = lane(today.build(NOW, inputs(events=events)), "workshop_display")["marks"]
+    assert [(m["start"], m["end"]) for m in marks] == [(at(2), at(3))]
 
 
 def test_power_seen_today_is_a_warn_point():
@@ -221,6 +256,11 @@ def test_updates_today_only_and_counted():
     assert body["counts"]["updates"] == 2
 
 
+def test_releases_unreadable_is_unavailable_not_quiet():
+    body = today.build(NOW, inputs(releases=None))
+    assert lane(body, "updates")["available"] is False and body["counts"]["updates"] is None
+
+
 # ---- gathering and the route ----
 
 def test_releases_from_records(monkeypatch):
@@ -237,6 +277,16 @@ def test_route_answers_with_every_source_down(monkeypatch):
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
     body = r.json()
     assert [l["available"] for l in body["lanes"]] == [False, False, False, False, True]
+
+
+def test_one_build_serves_every_page_for_ten_seconds(monkeypatch):
+    calls = []
+    monkeypatch.setattr(today, "gather", lambda start, now: calls.append(now) or inputs())
+    today.body(NOW)
+    today.body(NOW + 9)
+    assert len(calls) == 1
+    today.body(NOW + 11)
+    assert len(calls) == 2
 
 
 def test_route_reads_the_hub_history(monkeypatch):
