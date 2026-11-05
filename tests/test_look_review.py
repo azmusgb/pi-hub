@@ -24,7 +24,9 @@ def test_notes_on_a_warning_tint_use_body_text():
     assert "--warn-ink" not in rule(css("pages.css"), ".note")
     assert "var(--text)" in rule(css("pages.css"), ".note")
     home = css("home.css")
-    assert "--warn-ink" not in rule(home, ".out-alert") and "--warn-ink" not in rule(home, ".wx-alert strong")
+    assert "--warn-ink" not in rule(home, ".out-alert")
+    # Weather's warnings are the kit's ui-notice since A7 H3: no local colour on them at all.
+    assert ".wx-alert strong" not in home
 
 
 def test_poster_titles_over_the_artwork_are_white():

@@ -114,6 +114,25 @@ def test_title_is_one_line_and_click_passes_through(fresh):
     assert fresh[1]["click"] == "https://localai.home.arpa/?run=1#top"  # rebuilt from its parts
 
 
+def test_the_assistant_registry_address_is_a_click_host_and_the_old_hosts_still_are(fresh):
+    """A6: Local AI's tap link moves to assistant.rahe-home.duckdns.org; notices already sent keep their old hosts."""
+    for host in ("assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.21"):
+        r = post("localai", json={"kind": "failed", "title": host, "click": f"https://{host}/r/1"})
+        assert r.status_code == 200, host
+        assert fresh[-1]["click"] == f"https://{host}/r/1"
+
+
+@pytest.mark.parametrize("click", [
+    "http://assistant.rahe-home.duckdns.org/",
+    "https://assistant.rahe-home.duckdns.org:8443/",
+    "https://assistant.rahe-home.duckdns.org.evil.example/",
+    "https://user@assistant.rahe-home.duckdns.org/",
+    "https://evil.rahe-home.duckdns.org/",
+])
+def test_lookalikes_of_the_assistant_address_are_refused(fresh, click):
+    assert post("localai", json={"kind": "failed", "title": "x", "click": click}).status_code == 400
+
+
 def test_quiet_hours_hold_a_non_urgent_kind_and_pass_an_urgent_one(fresh, monkeypatch):
     monkeypatch.setattr(events, "quiet_now", lambda now=None: True)
     assert post("localai", json={"kind": "finished", "title": "Done"}).json()["outcome"] == "held"
@@ -174,3 +193,33 @@ def test_old_rows_are_pruned(fresh):
     notify_routes.take("localai", n, now=1_000_000)
     notify_routes.take("localai", {**n, "dedupe": "e"}, now=1_000_000 + 31 * 86400)
     assert len(notify_routes.history()) == 1
+
+
+def test_alerts_carry_their_cause_so_a_problem_and_its_recovery_group(fresh, tmp_path):
+    # A7 decision 5: the Alerts page groups by cause per day; the history itself stays one entry per alert.
+    (tmp_path / "alerts.jsonl").write_text('{"ts": 1, "title": "Pi is running hot", "tag": "fire"}\n'
+                                           '{"ts": 2, "title": "Pi has cooled down", "tag": "white_check_mark"}\n'
+                                           '{"ts": 3, "title": "Something new", "tag": "warning"}\n')
+    notify_routes.take("mac-watch", {"kind": "outage", "title": "House offline", "body": "", "click": None, "dedupe": "o"})
+    notify_routes.take("mac-watch", {"kind": "back", "title": "House back", "body": "", "click": None, "dedupe": "b"})
+    notify_routes.take("localai", {"kind": "failed", "title": "Job A", "body": "", "click": None, "dedupe": "a"})
+    alerts = client.get("/api/alerts").json()["alerts"]
+    by = {a["title"]: (a["cause"], a["side"]) for a in alerts}
+    assert by["Pi is running hot"] == ("hot", "problem") and by["Pi has cooled down"] == ("hot", "recovery")
+    assert by["Something new"] == ("title:Something new", "event")
+    assert by["Mac watchdog: House offline"] == ("mac-watch:outage", "problem")
+    assert by["Mac watchdog: House back"] == ("mac-watch:outage", "recovery")
+    assert by["Local AI: Job A"] == ("localai:failed:Job A", "problem")
+
+
+def test_every_pi_status_alert_title_has_a_cause():
+    # pi-status.py's watch() writes the titles; system.ALERT_CAUSES pairs them. A new or renamed title fails here.
+    import re
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "pi-status.py")).read()
+    block = src[src.index("messages = {"):src.index("for key, val in now.items()")]
+    titles = re.findall(r'\(\("([^"]+)", .*?\),\s*\("([^"]+)",', block, re.S)
+    called = re.findall(r'notify\("([^"]+)"', src)
+    found = {t for pair in titles for t in pair} | set(called)
+    assert len(titles) == 6 and found <= set(system.ALERT_CAUSES)
+    for good, bad in titles:
+        assert system.ALERT_CAUSES[good][0] == system.ALERT_CAUSES[bad][0]

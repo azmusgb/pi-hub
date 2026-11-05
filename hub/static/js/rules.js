@@ -1,5 +1,7 @@
-// Preview describes decisions. Only real household events execute automations.
-import { api, card, empty, ensure, h, post, toast, when } from './core.js';
+// Automations. Preview describes decisions; only real household events execute automations. A7 P1: the faceplate says
+// how many are on and whether a run needs a look; the list, the builder (a form), the history and the events are sections.
+import { api, askFirst, empty, ensure, h, post, toast, when } from './core.js';
+import { faceplate, faceplateLoading, section } from './page-parts.js';
 import { firstFew } from './section-links.js';
 export const every=30;
 const STATUS={succeeded:['Completed','ok'],failed:['Failed','bad'],blocked:['Blocked','warn'],skipped:['Skipped','warn'],running:['No completion recorded','warn'],would_run:['Would run','ok']};
@@ -8,9 +10,10 @@ export function mount(state) {
   state.filter='all';
   state.rules=h('div',{});state.builder=h('div',{});state.preview=h('div',{class:'rule-preview',role:'status'});
   state.history=h('div',{});state.events=h('div',{});
-  state.root.append(h('section',{class:'feature-intro'},h('p',{class:'feature-kicker'},'A HOUSE THAT EXPLAINS ITSELF'),
-    h('p',{class:'feature-lead'},'Try the idea. Trust the result.'),h('p',{class:'meta'},'Preview a rule against recent events before enabling it. Real runs leave a trail of what happened and why.')),
-    state.rules,card('Build an automation',{cls:'wide feature'},state.builder,state.preview),state.history,state.events);
+  state.plate=h('div',{},faceplateLoading('Automations'));
+  state.root.append(state.plate,state.rules,
+    section('Build an automation',[state.builder,state.preview],{note:'Preview a rule against recent events before enabling it. Real runs leave a trail of what happened and why.'}),
+    state.history,state.events);
 }
 function select(name,label,items,value) {
   return h('label',{class:'field',for:`rule-${name}`},h('span',{},label),
@@ -41,7 +44,7 @@ async function preview(state,rule) {
   state.preview.replaceChildren(h('p',{},'Replaying recent events without running any actions…'));
   try{
     const d=await post('/api/rules/preview',rule);if(!state.root.isConnected || version!==(state.previewVersion||0))return;
-    state.preview.replaceChildren(h('p',{class:'feature-kicker'},'PREVIEW · NO ACTIONS RUN'),h('h3',{},d.text),
+    state.preview.replaceChildren(h('p',{class:'ui-chip ui-chip--unknown'},'Preview: no actions run'),h('h3',{},d.text),
       h('div',{class:'feature-metrics'},...[[d.matches,`matching events${d.capped?' (latest 100)':''}`],[d.would_run,'would run'],[d.would_skip+d.blocked,'would skip or block']].map(([n,label])=>h('div',{},h('strong',{},String(n)),h('span',{},label)))),
       h('p',{class:'match-reason'},`If this happened now: ${d.now.message}`),
       d.matches?h('ul',{class:'log'},d.samples.map(item=>h('li',{class:'log-row'},h('span',{class:'dot',dataset:{tone:STATUS[item.status]?.[1]||'warn'}}),
@@ -56,34 +59,48 @@ function renderHistory(state) {
   const runs=state.data.runs||[];
   const attention=runs.filter(r=>['failed','blocked','running'].includes(r.status));
   const shown=state.filter==='attention'?attention:runs;
-  state.history.replaceChildren(card('Automation history',{cls:'wide feature',pill:attention.length?`${attention.length} ${attention.length===1?"needs":"need"} a look`:null,tone:'warn'},
-    h('p',{class:'meta'},'The latest 60 outcomes from the last 30 days. History starts with this version; removing a rule keeps its recorded outcomes.'),
-    h('div',{class:'tabs','aria-label':'Filter automation history'},...[['all',`All · ${runs.length}`],['attention',`Needs a look · ${attention.length}`]].map(([key,label])=>h('button',{
-      type:'button',class:state.filter===key?'active':'','aria-pressed':String(state.filter===key),onclick:()=>{state.filter=key;renderHistory(state);}},label))),
+  state.history.replaceChildren(section('Automation history',[
+    h('div',{class:'ui-chips','role':'group','aria-label':'Show'},...[['all',`All · ${runs.length}`],['attention',`Needs a look · ${attention.length}`]].map(([key,label])=>h('button',{
+      type:'button','aria-pressed':String(state.filter===key),onclick:()=>{state.filter=key;renderHistory(state);}},label))),
     ...(shown.length?firstFew(shown.map(run=>{
       const [label,tone]=STATUS[run.status]||[run.status,'warn'];
       return h('li',{},h('div',{class:'run-outcome'},h('span',{class:'feature-tag',dataset:{tone}},label),h('time',{},when(run.ts))),
         h('strong',{},run.rule_text),h('p',{},run.message),h('span',{class:'meta'},run.elapsed_ms?`${(run.elapsed_ms/1000).toFixed(1)} seconds`:['skipped','blocked'].includes(run.status)?'No device action was run.':'Recorded by the hub.'));
-    }),{n:6,cls:'automation-history',noun:'runs'}):[empty(state.filter==='attention'?'No failed or blocked runs in this history.':'The next matching household event will leave its outcome here. Previewing a rule never adds a real run.')])));
+    }),{n:6,cls:'automation-history',noun:'runs'}):[empty(state.filter==='attention'?'No failed or blocked runs in this history.':'The next matching household event will leave its outcome here. Previewing a rule never adds a real run.')])],
+    {note:'The latest 60 outcomes from the last 30 days. Removing a rule keeps its recorded outcomes.'}));
 }
 export async function load(state) {
   const d=await api('/api/rules');if(!state.root.isConnected)return;
   state.data=d;
   if(!state.builder.childElementCount)state.builder.append(builder(state,d));
-  state.rules.replaceChildren(card('Your automations',{cls:'wide feature',pill:`${d.rules.filter(r=>r.enabled).length} enabled`,tone:'ok'},
+  state.plate.replaceChildren(automationsPlate(d));
+  state.rules.replaceChildren(section('Your automations',[
     d.rules.length?h('ul',{class:'rules'},d.rules.map(r=>h('li',{class:'rule',dataset:{on:String(!!r.enabled)}},
       h('label',{class:'switch'},h('input',{type:'checkbox',role:'switch',checked:!!r.enabled,'aria-label':r.text,onchange:async e=>{
         if(!(await ensure('household'))){e.target.checked=!e.target.checked;return;}
         try{await post(`/api/rules/${r.id}/toggle`);await load(state);}catch(x){e.target.checked=!e.target.checked;toast(x.message,'bad');}
       }}),h('span',{class:'switch-track','aria-hidden':'true'})),
       h('span',{class:'rule-main'},h('strong',{},r.text),h('span',{class:'meta'},r.last_run?`${when(r.last_run)} · ${r.last_result}`:'Waiting for its first matching event.')),
-      h('div',{class:'feature-actions'},h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async()=>{
-        if(!(await ensure('household'))||!confirm(`Remove automation “${r.text}”? Its run history will remain.`))return;
+      h('div',{class:'feature-actions'},h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async(e)=>{
+        const btn=e.currentTarget;
+        if(!(await ensure('household'))||!(await askFirst(btn,`The automation “${r.text}” stops and is removed. Its run history stays.`,{confirm:'Remove'})))return;
         try{await post(`/api/rules/${r.id}/delete`);await load(state);}catch(x){toast(x.message,'bad');}
       }},'Remove'))))):empty('No automations yet. Build and preview one below.'),
-    d.alerts_ready?null:h('p',{class:'note'},'Phone alerts need an alert topic in Settings. Preview will explain which alerts would be blocked.')));
+    d.alerts_ready?null:h('p',{class:'ui-notice ui-notice--warn'},'Phone alerts need an alert topic in Settings. Preview will explain which alerts would be blocked.')]));
   renderHistory(state);
-  state.events.replaceChildren(card('What the hub noticed',{cls:'wide'},
+  state.events.replaceChildren(section('What the hub noticed',
     d.events.length?h('ul',{class:'log'},d.events.slice(0,12).map(e=>h('li',{class:'log-row'},h('span',{class:'dot',dataset:{tone:/dropped|failed|down|stopped|hot/.test(e.kind)?'warn':'ok'}}),h('span',{class:'log-main'},h('strong',{},e.text.charAt(0).toUpperCase()+e.text.slice(1)),e.detail?h('span',{class:'meta'},e.detail):null),h('span',{class:'log-side'},when(e.ts)))))
       :empty('Household events appear here as the hub observes them.')));
+}
+
+// The faceplate (A7 P1): how many automations are on, and whether a recent run needs a look.
+export function automationsPlate(d) {
+  const rules=Array.isArray(d?.rules)?d.rules:[], runs=Array.isArray(d?.runs)?d.runs:[];
+  const on=rules.filter(r=>r.enabled).length;
+  const attention=runs.filter(r=>['failed','blocked','running'].includes(r.status)).length;
+  return faceplate({name:'Automations',
+    lamp:attention?['warn',`${attention} ${attention===1?'needs':'need'} a look`]:rules.length?['ok','Running']:null,
+    readout:String(on),unit:'on',
+    caption:rules.length?`Of ${rules.length} automation${rules.length===1?'':'s'}. Each runs only on a real household event.`:'No automations yet. Build one below and preview it first.',
+    readings:[['Last run',runs[0]?.ts?when(runs[0].ts):null],['Phone alerts',d?.alerts_ready===false?'Not set up':d?.alerts_ready?'Ready':null]]});
 }

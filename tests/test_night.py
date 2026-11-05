@@ -26,7 +26,7 @@ def env(monkeypatch):
     monkeypatch.setattr(sources, "localai_feed", lambda: {"cards": []})
     monkeypatch.setattr(sources, "plex_sessions", lambda: [])
     monkeypatch.setattr(sources, "network_metrics", lambda: None)
-    for name in ("pi_status", "bambuddy_printer", "localai_lab"):
+    for name in ("pi_status", "bambuddy_printer", "lab_printing"):
         monkeypatch.setattr(sources, name, lambda name=name: pytest.fail(f"{name} polled: the views read the records"))
     events.ready()
     yield sent

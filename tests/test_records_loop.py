@@ -420,8 +420,9 @@ def test_build_all_makes_every_thing_but_the_hub():
     recs = things.build_all(GOOD, {}, T)
     assert set(recs) == set(records.KINDS) - {"hub"}
     silent = things.build_all({k: None for k in GOOD}, {}, T)
-    # pc_printing is the hub's own reading of other records, so it is always there
-    assert all(r is None for id, r in silent.items() if id != "pc_printing") and silent["pc_printing"]["state"] == "fine"
+    # pc_printing and mac_lab are the hub's own readings (other records, its own lab tables), so they are always there
+    assert all(r is None for id, r in silent.items() if id not in ("pc_printing", "mac_lab"))
+    assert silent["pc_printing"]["state"] == "fine" and silent["mac_lab"]["state"] in ("idle", "unknown")
 
 
 def test_local_ai_hears_about_the_new_pc_record():
@@ -450,7 +451,7 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
     monkeypatch.setattr(sources, "bambuddy_printer", answer("bambuddy"))
     monkeypatch.setattr(sources, "pi_status", answer("pi_status"))
     monkeypatch.setattr(sources, "network_metrics", answer("netmon"))
-    monkeypatch.setattr(sources, "localai_lab", answer("lab"))
+    monkeypatch.setattr(sources, "lab_printing", answer("lab"))
     monkeypatch.setattr(sources, "plex_sessions", answer("sessions", fail=True))
     monkeypatch.setattr(printing, "printer_state", answer("paper", fail=True))
     monkeypatch.setattr(outside, "weather", answer("weather"))
@@ -478,7 +479,7 @@ def test_the_loop_gives_bambuddy_3_s_and_asks_the_lab_only_mid_print(monkeypatch
     from hub import sources
     timeouts, labs = [], []
     monkeypatch.setattr(sources, "_get_json", lambda url, headers=None, timeout=4: timeouts.append(timeout))
-    monkeypatch.setattr(sources, "localai_lab", lambda: labs.append(1) or {"experiment": "E-020"})
+    monkeypatch.setattr(sources, "lab_printing", lambda: labs.append(1) or {"experiment": "E-020"})
     sources._cache.pop("bambuddy_printer", None)
     assert things._fetchers()["bambuddy"]() is None and timeouts == [3]
     sources._cache.pop("bambuddy_printer", None)

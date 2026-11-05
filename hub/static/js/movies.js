@@ -1,8 +1,11 @@
-// Movies: what's playing, continue watching, recently added, search, requests, and drive health.
-import { api, card, empty, h, piLink, post, toast, when } from "./core.js";
+// Movies: what's playing, continue watching, recently added, search, requests, and drive health. A7 P1: the faceplate
+// is Plex (the library, what's playing, the drive); the shelves are sections; four more fold under More (A6).
+import { api, card, empty, h, post, toast, when } from "./core.js";
 import { addMovieButton } from "./movie-upload.js";
 import { mountMovieNight, refreshMovieNight } from "./movie-night.js";
-import { rememberOpen } from "./section-links.js";
+import { moreList, openInRow, rememberOpen } from "./section-links.js";
+import { plexUrl } from "./sections.js";
+import { faceplate, faceplateLoading, fillNeedsHere, needsHere, section } from "./page-parts.js";
 
 export const every = 30;
 
@@ -45,17 +48,6 @@ function remainingMinutes(item) {
   }
 
   return Math.max(0, Math.round(minutes * (1 - progress / 100)));
-}
-
-function plexUrl(machine, key) {
-  return machine && key
-    ? piLink(
-        32400,
-        `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(
-          `/library/metadata/${key}`,
-        )}`,
-      )
-    : piLink(32400, "/web");
 }
 
 function poster(item, machine) {
@@ -391,6 +383,16 @@ export function mount(state) {
   });
 
   state.night = mountMovieNight(state);
+  // Six sections in view; the rest are under More (A6): closed until opened, and remembered.
+  state.more = moreList({
+    storeKey: "hub-media-more",
+    title: "More",
+    cls: "media-more",
+    items: [["surprise", "Surprise pick"], ["drive", "Movies drive"], ["requests", "Requests"], ["watched", "What's been watched"]],
+    alerts: ["drive"],
+    legacy: { watched: "movies-stats" },   // where "What's been watched" kept its open state before it moved under More
+  });
+  for (const key of ["surprise", "drive", "requests", "watched"]) state.more.fill(key, []);
 
   state.body = h("div", {
     class: "stack",
@@ -398,7 +400,11 @@ export function mount(state) {
 
   // Search and Add a movie share one row, aligned with the content under them (iPad, 1 Nov: a floating button above
   // an indented search box left a dead band at the top of the page).
+  state.plate = h("div", {}, faceplateLoading("Plex"));
+  state.needs = needsHere();
   state.root.append(
+    state.plate,
+    state.needs,
     h("div", { class: "movie-toolbar" },
     h(
       "form",
@@ -1471,9 +1477,8 @@ function playingNowCard(
     return null;
   }
 
-  return card(
+  return section(
     "Playing now",
-    {},
 
     h(
       "ul",
@@ -1587,7 +1592,7 @@ function mirrorSay(m) {
   return { tone: m.state === "ok" ? "ok" : "warn", say: `Copied ${when(m.last_ok)}` };
 }
 
-function driveCard(drive, driveEvents) {
+export function driveCard(drive, driveEvents) {
   const drv = drive || {};
   const events = asArray(driveEvents);
   const drops = events.filter((event) => event.kind === "dropped").length;
@@ -1599,7 +1604,7 @@ function driveCard(drive, driveEvents) {
   const fact = (k, v, tone) => h("div", {}, h("dt", {}, k), h("dd", tone ? { dataset: { tone } } : {}, v));
 
   return card(
-    "Movie storage",
+    "Movies drive status",
     {
       pill: connected ? "Connected" : drv.state || "Unknown",
       tone: connected ? (hasErrors || drops || copy.tone !== "ok" ? "warn" : "ok") : "bad",
@@ -1842,7 +1847,7 @@ function catalogSection(state, allMovies, genres) {
     h(
       "div",
       { class: "eyebrow-section" },
-      h("h2", { id: "movie-catalog-heading" }, "Browse Library"),
+      h("h2", { id: "movie-catalog-heading" }, "Library"),
     ),
     toolbar,
     gridContainer,
@@ -1850,6 +1855,41 @@ function catalogSection(state, allMovies, genres) {
 
   renderGrid();
   return section;
+}
+
+// The faceplate and sources line from /api/movies (A7 P1, P8). Plex's sessions are null when Plex didn't answer and a
+// list (maybe empty) when it did; the drive's state comes from the Pi. Neither is shown as fine without an answer.
+export function mediaPlate(data, { onRetry = null } = {}) {
+  if (!data) {
+    return {
+      sources: [{ name: "Plex", tone: "unknown", word: "couldn't check" }],
+      plate: faceplate({ name: "Plex", lamp: ["unknown", "Unknown"], readout: "—",
+        caption: "The movies page couldn't load. Plex or the hub may be unavailable.",
+        actions: onRetry ? [h("button", { type: "button", class: "ui-btn ui-btn--primary", onclick: onRetry }, "Try again")] : [] }),
+    };
+  }
+  const playing = Array.isArray(data.playing) ? data.playing : null;
+  const drive = data.drive || {};
+  const driveOk = drive.state === "Connected";
+  const driveKnown = ["Connected", "Missing", "Not mounted"].includes(drive.state);
+  const lamp = !playing ? ["bad", "Not answering"]
+    : !driveOk ? [driveKnown ? "bad" : "unknown", driveKnown ? `Drive ${drive.state.toLowerCase()}` : "Drive unknown"]
+      : playing.length ? ["ok", "Playing", true] : ["ok", "Ready"];
+  const count = Number.isFinite(Number(drive.count)) && drive.count !== null && drive.count !== "" ? Number(drive.count) : null;
+  const first = playing?.[0];
+  const caption = !playing ? "Plex isn't answering, so nothing can play from the hub right now."
+    : first ? `Playing ${first.title || "something"}${first.device ? ` on ${first.device}` : ""}${playing.length > 1 ? `, and ${playing.length - 1} more` : ""}.`
+      : "Nothing playing.";
+  return {
+    sources: [playing ? { name: "Plex", tone: "ok" } : { name: "Plex", tone: "bad", word: "isn't answering" },
+      driveOk ? { name: "Movies drive", tone: "ok" } : { name: "Movies drive", tone: driveKnown ? "bad" : "unknown", word: driveKnown ? drive.state.toLowerCase() : "no reading" }],
+    plate: faceplate({
+      name: "Plex", lamp,
+      readout: count === null ? "—" : count.toLocaleString(), unit: count === null ? "" : count === 1 ? "movie" : "movies",
+      caption,
+      readings: [["Movies drive", drive.state || null], ["Free space", drive.free || null]],
+    }),
+  };
 }
 
 export async function load(
@@ -1875,6 +1915,11 @@ export async function load(
       api(`/api/movies${qs ? `?${qs}` : ""}`),
       api(`/api/movies/catalog${qs ? `?${qs}` : ""}`).catch(() => ({ movies: [], genres: [] })),
     ]);
+
+    const plate = mediaPlate(data);
+    state.sources = plate.sources;
+    state.plate.replaceChildren(plate.plate);
+    fillNeedsHere(state.needs, "/media");
 
     if (data?.active_section) {
       state.section = data.active_section;
@@ -1914,7 +1959,13 @@ export async function load(
         ? "Nothing new lately."
         : "The movies drive is missing, so Plex can't list new movies.";
 
-    state.body.replaceChildren(
+    state.more.fill("surprise", [movieNight(state, genres)]);
+    state.more.fill("drive", [driveCard(drive, driveEvents)]);
+    state.more.fill("requests", [requestsCard(state, data?.requests)]);
+    state.more.fill("watched", [statsCard(data, activeTitle)]);
+
+    // The body is redrawn around More, which holds the Requests field: keep the keyboard where it was.
+    state.more.keepFocus(() => state.body.replaceChildren(
       ...[
         librarySwitcher(
           data?.sections,
@@ -1959,89 +2010,18 @@ export async function load(
 
         state.night,
 
-        movieNight(state, genres),
+        state.more.root,
 
-        driveCard(
-          drive,
-          driveEvents,
-        ),
-
-        requestsCard(
-          state,
-          data?.requests,
-        ),
-
-        rememberOpen(h("details", { class: "show-all" }, h("summary", {}, "What's been watched"), statsCard(data, activeTitle)), "movies-stats"),
-
-        h(
-          "div",
-          {
-            class: "row",
-          },
-
-          h(
-            "a",
-            {
-              class: "btn",
-              href: "/drives",
-              "data-link":
-                true,
-            },
-            "Drive health and the copy from the PC",
-          ),
-
-          h(
-            "a",
-            {
-              class: "btn",
-
-              href: piLink(
-                32400,
-                "/web",
-              ),
-
-              target:
-                "_blank",
-
-              rel:
-                "noopener noreferrer",
-            },
-            "Open Plex",
-          ),
-        ),
+        openInRow("media"),
       ].filter(Boolean),
-    );
+    ));
     refreshMovieNight(state);
   } catch (error) {
-    state.body.replaceChildren(
-      card(
-        "Movies unavailable",
-        {
-          tone: "bad",
-        },
-
-        h(
-          "p",
-          {
-            class: "note",
-          },
-          "The movies dashboard couldn't load. Plex or the hub API may be unavailable.",
-        ),
-
-        h(
-          "button",
-          {
-            type: "button",
-            class:
-              "btn btn--primary",
-
-            onclick: () =>
-              load(state),
-          },
-          "Try again",
-        ),
-      ),
-    );
+    // Down is said once, by the faceplate and the sources line, never as an empty library.
+    const plate = mediaPlate(null, { onRetry: () => load(state) });
+    state.sources = plate.sources;
+    state.plate.replaceChildren(plate.plate);
+    state.body.replaceChildren();
 
     toast(
       error?.message ||

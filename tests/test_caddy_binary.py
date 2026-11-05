@@ -61,3 +61,22 @@ def test_every_tool_has_a_real_name():
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", caddyfile, re.M))
     assert real == {"hub", "assistant", "bambuddy", "paperless", "homebox", "backups", "network", "status", "adguard",
                     "devices", "pi", "scan", "family"}
+
+
+def _caddyfile():
+    return open(os.path.join(ROOT, "deploy", "caddy", "Caddyfile")).read()
+
+
+def test_plex_has_no_gated_name():
+    """A6 decision plex (revised 4 Nov 2026): Plex opens at app.plex.tv, so Caddy serves no name for it."""
+    assert "plex" not in _caddyfile().lower().replace("plex.tv", "")
+
+
+def test_the_gate_check_covers_every_gated_name():
+    """gate-check.sh signs out and in against each gated host; a host Caddy serves behind the gate but the check doesn't
+    name would go untested. hub is open by design and family has its own allow-list."""
+    check = open(os.path.join(ROOT, "deploy", "gate-check.sh")).read()
+    names = set(re.search(r"^NAMES=\((.*?)\)$", check, re.M).group(1).split())
+    real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", _caddyfile(), re.M))
+    assert names == real - {"hub", "family"}
+    assert "plex" not in names

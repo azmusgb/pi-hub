@@ -52,7 +52,7 @@ export async function load(state) {
   if (!state.force && state.root.contains(document.activeElement) && ["INPUT", "SELECT"].includes(document.activeElement.tagName)) return;
   state.force = false;
   if (!["household", "owner"].includes((await whoami())?.role)) {
-    state.body.replaceChildren(card("Movie storage", {},
+    state.body.replaceChildren(card("Drives", {},
       h("p", { class: "meta" }, "Drive health is for the owner. Sign in to see it."),
       h("button", { type: "button", class: "btn", onclick: async () => { if (await ensure("household")) { state.force = true; load(state); } } }, "Sign in")));
     return;
@@ -61,7 +61,7 @@ export async function load(state) {
   state.body.replaceChildren(
     ...(d.drives.length ? d.drives.map((x) => {
       const hl = health(x);
-      return card(x.is_movies ? "Movies drive (Pi)" : "Other drive", { pill: hl.pill ? hl.pill(x) : hl.tone === "ok" ? "Healthy" : hl.tone === "bad" ? "Failing" : "Check", tone: hl.pill ? (x.mounted ? "ok" : "warn") : hl.tone },
+      return card(x.is_movies ? "Movies drive" : "Other drive", { pill: hl.pill ? hl.pill(x) : hl.tone === "ok" ? "Healthy" : hl.tone === "bad" ? "Failing" : "Check", tone: hl.pill ? (x.mounted ? "ok" : "warn") : hl.tone },
         h("p", { class: "big" }, `${x.model || "USB drive"}`),
         h("p", { class: "meta" }, `${gb(x.size)}${x.serial_end ? `, serial ending ${x.serial_end}` : ""}`),
         h("p", {}, hl.say),

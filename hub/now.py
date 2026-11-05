@@ -6,7 +6,9 @@ read the records (build, printer_from); printer() and issues() read pi-status di
 for the morning digest, which does not read the records yet.
 """
 import time
+from datetime import datetime, timezone
 from .printer_telemetry import normalize_printer
+from .records import SOURCE_NAMES
 
 
 def _tone(ok, warn=False):
@@ -49,18 +51,18 @@ def issues(s):
     """Things that need a person, most urgent first."""
     if s is None:
         return [{"tone": "bad", "what": "Home status unavailable",
-                 "say": "The hub can’t check your devices right now. Open Help & system to check the hub and find recovery options.",
-                 "href": "/pi", "link_label": "Check the hub"}]
+                 "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
+                 "href": "/system", "link_label": "Check the hub"}]
     out = []
     svc = s.get("services") or {}
     if s.get("drive_state") not in ("Connected", "Missing", "Not mounted") or any(not isinstance(svc.get(key), bool) for key in ("plex", "homebridge")):
         out.append({"tone": "warn", "what": "Some device status unavailable",
                     "say": "Some checks returned no reading. This does not confirm that those devices are offline.",
-                    "href": "/pi", "link_label": "Check source responses"})
+                    "href": "/system", "link_label": "Check source responses"})
     if s.get("drive_state") == "Missing":
         out.append({"tone": "bad", "what": "Movies drive",
-                    "say": "Movies may not play because the storage drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
-                    "href": "/drives", "link_label": "Check movie storage"})
+                    "say": "Movies may not play because the movies drive disconnected. Unplug it, wait 10 seconds, plug it back in.",
+                    "href": "/drives", "link_label": "Check the movies drive"})
     elif s.get("drive_state") == "Not mounted":
         out.append({"tone": "warn", "what": "Movies drive",
                     "say": "It's plugged in but not mounted.", "fix": "remount:movies", "fix_label": "Remount it"})
@@ -72,10 +74,10 @@ def issues(s):
     if s.get("ai_state") == "Down":
         out.append({"tone": "bad", "what": "Windows PC",
                     "say": "Local AI isn't answering. The PC may be off, or the room's breaker tripped.",
-                    "href": "/workshop", "link_label": "Check the workshop"})
+                    "href": "/system", "link_label": "Check Health"})
     if s.get("display_state") == "Offline":
         out.append({"tone": "warn", "what": "Workshop display", "say": "The touchscreen is offline.",
-                    "href": "/workshop", "link_label": "Check the workshop"})
+                    "href": "/system", "link_label": "Check Health"})
     if (s.get("pi_temp") or 0) >= 80:
         out.append({"tone": "warn", "what": "Raspberry Pi", "say": f"Running hot at {s['pi_temp']:.0f} °C."})
     if s.get("pi_power") not in (None, "Good"):
@@ -99,13 +101,14 @@ def summary(found):
 
 # ---- From the records (control room, piece 1): Home, the wall and Needs you read the same records ----
 
-HREF = {"printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/workshop", "local_ai": "/workshop",
-        "pc": "/workshop", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
-        "adguard": "/network", "backups": "/system", "pc_printing": "/"}
+HREF = {"mac_lab": "/lab", "printer": "/workshop", "camera": "/workshop", "obico": "/workshop", "hms": "/workshop", "workshop_display": "/system", "local_ai": "/system",
+        "pc": "/system", "movies_drive": "/drives", "movie_copy": "/drives", "internet": "/network",
+        "adguard": "/network", "backups": "/backups", "pc_printing": "/workshop", "pi": "/system", "plex": "/media",
+        "devices": "/devices", "paper_printer": "/print", "weather": "/weather", "hub": "/system"}
 
 UNAVAILABLE = {"tone": "bad", "what": "Home status unavailable",
-               "say": "The hub can’t check your devices right now. Open Help & system to check the hub and find recovery options.",
-               "href": "/pi", "link_label": "Check the hub"}
+               "say": "The hub can’t check your devices right now. Open System › Health to check the hub and find recovery options.",
+               "href": "/system", "link_label": "Check the hub"}
 
 
 def _say(rec):
@@ -128,7 +131,7 @@ def issue_from(rec):
     """One record that needs a look, as an issue on Home and a row in Needs you."""
     from .records import LABELS
     out = {"tone": "bad" if rec["severity"] == "problem" else "warn", "what": LABELS.get(rec["id"], rec["id"]),
-           "say": _say(rec), "href": HREF.get(rec["id"], "/pi")}
+           "say": _say(rec), "href": HREF.get(rec["id"], "/system")}
     fix = next((a for a in rec.get("actions") or [] if ":" in a.get("name", "")), None)
     if fix:
         out.update(fix=fix["name"], fix_label=fix.get("label") or "")
@@ -140,7 +143,7 @@ def quiet_source(source, recs):
     from .records import LABELS, SOURCE_NAMES
     since = time.strftime("%H:%M", time.localtime(max(r["as_of"] for r in recs)))
     labels = ", ".join(LABELS.get(r["id"], r["id"]) for r in recs)
-    return {"tone": "warn", "what": SOURCE_NAMES.get(source, source), "href": "/pi",
+    return {"tone": "warn", "what": SOURCE_NAMES.get(source, source), "href": "/system",
             "say": f"Isn't answering since {since}. Last readings for {labels} are shown as they were."}
 
 
@@ -187,11 +190,29 @@ def _printer_detail(rec, actions):
             "offline": "Check that the printer is on and Bambuddy can reach it."}.get(state, "")
 
 
+def _telemetry(rec):
+    """Where the card's readings came from, for the page's lamp (A7 H2): live from Bambuddy, backup from the Pi's status
+    service, stale (the source stopped answering; the readings are its last), offline (Bambuddy said so), or none."""
+    if rec is None:
+        return {"status": "none", "source": "", "observed_at": None}
+    as_of = rec.get("as_of")
+    seen = datetime.fromtimestamp(as_of, timezone.utc).isoformat() if isinstance(as_of, (int, float)) else None
+    if rec.get("stale"):
+        status = "stale"
+    elif rec["state"] == "offline":
+        status = "offline"
+    elif rec["state"] == "unknown":
+        status = "none"
+    else:
+        status = "live" if rec.get("source") == "bambuddy" else "degraded"
+    return {"status": status, "source": SOURCE_NAMES.get(rec.get("source"), rec.get("source") or ""), "observed_at": seen}
+
+
 def printer_from(rec):
     """The printer card from the printer record, in the keys the page has always read."""
     if rec is None:
         return {"state": "none", "headline": "No status yet", "detail": "Bambuddy hasn't answered yet.",
-                "left": "", "minutes_left": None, "actions": []}
+                "left": "", "minutes_left": None, "actions": [], "telemetry": _telemetry(None)}
     d = rec["detail"]
     stale = bool(rec.get("stale"))
     actions = [] if stale else [a["name"] for a in rec.get("actions") or []]
@@ -207,7 +228,9 @@ def printer_from(rec):
            "bed_target": d.get("bed_target"), "ams_humidity": d.get("ams_humidity"), "ams_temp": None,
            "layer_num": d.get("layer"), "total_layers": d.get("total_layers"), "job_name": d.get("job"),
            "filament_type": d.get("filament_type"), "filament_color": d.get("filament_color"),
-           "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions}
+           "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions,
+           "as_of": rec.get("as_of"),  # when the record was last read: the page's "last seen" while it is stale
+           "telemetry": _telemetry(rec)}
     if d.get("lab") and state in ("printing", "paused"):
         res["lab"] = d["lab"]
     return res

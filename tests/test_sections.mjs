@@ -12,10 +12,10 @@ test('one menu by task, in the design order', () => {
 
 test('every page belongs to a section', () => {
   const want = {
-    '/': 'home', '/wall': 'home', '/weather': 'home', '/workshop': 'workshop',
+    '/': 'home', '/wall': 'home', '/weather': 'network', '/devices': 'network', '/map': 'system', '/workshop': 'workshop',
     '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
-    '/media': 'media', '/movies': 'media', '/network': 'network', '/control': 'network',
-    '/system': 'system', '/pi': 'system', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'system', '/versions': 'system',
+    '/media': 'media', '/network': 'network',
+    '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
     '/more': 'more', '/nowhere': 'home',
   };
   for (const [path, key] of Object.entries(want)) assert.equal(sectionFor(path), key, path);
@@ -23,7 +23,7 @@ test('every page belongs to a section', () => {
 
 test('old bookmarks land in the section where the tool now lives', () => {
   const want = {
-    '/movies': '/media', '/control': '/network', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
+    '/movies': '/media', '/control': '/devices', '/pi': '/system', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
     '/apps/grafana': '/network', '/grafana': '/network', '/apps/status': '/network', '/status': '/network',
     '/apps/scan': '/documents', '/workshop': null, '/': null, '/print': null,
   };
@@ -35,7 +35,7 @@ test('the menu markup matches the sections', () => {
   const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
   const pages = [...nav.matchAll(/data-page="(\w+)"/g)].map((m) => m[1]);
   assert.deepEqual(pages, [...railItems(), 'more']);
-  assert.ok(nav.includes(`href="${ASSISTANT_URL}"`), 'Assistant at the rail foot');
+  assert.ok(nav.includes('class="rail-assistant" href="/assistant" data-link'), 'Assistant at the rail foot, in the shell (A4)');
   assert.ok(!/data-page="[^"]*"[^>]*>[^<]*<span class="nav-badge"/.test(nav));
 });
 
@@ -51,14 +51,14 @@ test('tool links are always the gate names', () => {
 
 test('server links name a tool, and the page resolves it to the gate', () => {
   assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.30'), 'https://paperless.rahe-home.duckdns.org/documents/42/details');
-  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), 'https://assistant.rahe-home.duckdns.org/');
+  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), '/assistant', 'the Assistant opens in the shell (A4)');
   assert.equal(resolveLink('/workshop', '10.0.0.30'), '/workshop');
 });
 
-test('assistantHref carries the page and its facts', () => {
+test('assistantHref carries the page and its facts to /assistant in the shell (A4)', () => {
   assert.equal(assistantHref('hub.rahe-home.duckdns.org', 'Workshop', 'Printing, 40% · done 3:10 PM'),
-    'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
-  assert.equal(assistantHref('10.0.0.30', 'Home'), 'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Home'));
+    '/assistant?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
+  assert.equal(assistantHref('10.0.0.30', 'Home'), '/assistant?context=' + encodeURIComponent('Pi Hub › Home'));
 });
 
 test('assistantHref keeps the context to 300 characters', () => {
@@ -72,11 +72,16 @@ test('assistantHref never sends "undefined" and collapses whitespace', () => {
   assert.equal(decodeURIComponent(assistantHref('hub.rahe-home.duckdns.org', 'Home', ' Two\n things  ').split('context=')[1]), 'Pi Hub › Home: Two things');
 });
 
-test('assistantButton says the PC is off only when Local AI is down', () => {
-  assert.deepEqual(assistantButton('Down'), { label: 'The PC is off', disabled: true });
-  assert.deepEqual(assistantButton('Unknown'), { label: 'Assistant', disabled: false });
-  assert.deepEqual(assistantButton('Ready'), { label: 'Assistant', disabled: false });
-  assert.deepEqual(assistantButton(undefined), { label: 'Assistant', disabled: false });
+test('assistantButton: pc_off when the PC is off, assistant_down when only Local AI is down, unknown stays enabled', () => {
+  const on = { label: 'Assistant', phrase: '', disabled: false };
+  assert.deepEqual(assistantButton('Down', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Unknown', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Down', 'on'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Down', 'unknown'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Down'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
+  assert.deepEqual(assistantButton('Unknown', 'unknown'), on);
+  assert.deepEqual(assistantButton('Ready', 'on'), on);
+  assert.deepEqual(assistantButton(undefined), on);
 });
 
 test('assistantHref never cuts an emoji in half', () => {
@@ -106,4 +111,10 @@ test('tool links follow a hub opened on the real name', () => {
   assert.equal(toolUrl('bambuddy', 'hub.rahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
   assert.equal(toolUrl('scan', 'hub.rahe-home.duckdns.org:443'), 'https://scan.rahe-home.duckdns.org/');
   assert.equal(toolUrl('bambuddy', 'evilrahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/');
+});
+
+test("a PC record of off doesn't disable an Assistant that answers", () => {
+  assert.equal(assistantButton("Ready", "off").disabled, false);
+  assert.equal(assistantButton("Busy", "off").disabled, false);
+  assert.equal(assistantButton("Unknown", "off").phrase, "pc_off");
 });

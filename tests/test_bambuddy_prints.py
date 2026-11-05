@@ -39,7 +39,7 @@ def test_item_shape_and_utc_epoch(monkeypatch):
     assert p["started"] == 1793133390
     assert p["ended"] == 1793133390 + 1800
     assert p["word"] == "Finished" and p["seconds"] == 1800 and p["grams"] == 12.5
-    assert p["lab"] == {"exp": "E-023", "build": "BLD-023-01"}
+    assert p["lab"] == {"project": "hex-tile", "exp": "E-023", "build": "BLD-023-01"}
 
 
 def test_non_lab_name_and_error(monkeypatch):
@@ -67,3 +67,10 @@ def test_limits_share_one_fetch(monkeypatch):
     assert len(bambuddy.prints(1)) == 1
     assert len(bambuddy.prints(20)) == 20
     assert len(seen) == 1
+
+
+def test_a_lab_print_keeps_its_project(monkeypatch):
+    # The print name is <project>_<experiment>_<build>; the project is what opens the right one of several projects.
+    _serve(monkeypatch, [_entry(print_name="mount-v2_E-007_BLD-007-03")])
+    [p] = bambuddy.prints(limit=10)
+    assert p["lab"] == {"project": "mount-v2", "exp": "E-007", "build": "BLD-007-03"}

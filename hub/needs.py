@@ -16,6 +16,10 @@ NOT_X2D = re.compile(r"\b(document|brother|toner|paper|deskjet|laserjet|inkjet)\
 ABOUT_WORKSHOP_DISPLAY = re.compile(r"\b(workshop display|touchscreen)\b", re.I)
 ASSISTANT = "tool:assistant"  # the page resolves it to the address in use (sections.js resolveLink)
 BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Failure detection settings tab
+# Each Local AI card kind opens the Assistant page it is about (LocalAI view-registry.js ids): approvals are in the
+# Inbox with the alerts a watch raises, runs in Work, disk in Assistant status.
+ASSISTANT_VIEW = {"needs": f"{ASSISTANT}/#inbox", "running": f"{ASSISTANT}/#work", "done": f"{ASSISTANT}/#work",
+                  "disk": f"{ASSISTANT}/#status", "watch": f"{ASSISTANT}/#inbox"}
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
@@ -30,6 +34,11 @@ NAMES_X2D = re.compile(r"\b(x2d|bambu)\b", re.I)
 HMS_EFFECT = {1: "It stops the print.", 2: "It pauses the print.", 3: "The print carries on."}
 LAB_TONE = {"Judge the print": "attention", "Approve or drop": "attention", "Send it to the printer": "warn",
             "Fix the plan": "warn"}
+# Each item's action is named by its verb, as a kit phrase key (A7 P2, plan decision 3): never "Open" alone. The lab's
+# asks are their own verbs; a hub item opens its page by name. An item with no verb here is a row that is its link.
+LAB_VERB = {"Judge the print": "judge_it", "Approve or drop": "approve", "Send it to the printer": "send",
+            "Fix the plan": "fix_plan"}
+PAGE_VERB = {"/workshop": "open_printer", "/network": "open_network"}
 
 
 def _clip(text, n):
@@ -73,22 +82,24 @@ def _lab_items(lab, now, printer_done):
             if urgency >= 3 and action != "Fix the plan":
                 continue
             judge = action == "Judge the print"
+            link = f"/lab?p={project}&e={eid}&do=judge" if judge else f"/lab?p={project}&e={eid}"
             if judge and n.get("due_at") is not None and not printer_done and not _due(n["due_at"], now):
                 continue  # not yet due (or an unreadable time): the verdict waits for the print
             out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
                         "title": f"{eid}: {action}"[:80], "detail": _clip(n.get("why"), 200),
-                        "link": f"/lab?e={eid}&do=judge" if judge else f"/lab?e={eid}",
+                        "link": link, "action": {"key": LAB_VERB[action], "link": link},
                         "as_of": str(as_of or ""), "ts": now})
     return out
 
 
 def _whats_using_it(item):
     """Local AI's "Mac disk is 95% full": the Assistant, opened with the question (its #ask?context= hand-off, as the
-    hub's Assistant button). Local AI has no page listing the Mac's largest folders yet, so none is linked. The kit
-    draws only its own action phrases, so the words go after the detail."""
+    hub's Assistant button). Local AI has no page listing the Mac's largest folders yet, so none is linked. The kit's
+    see_usage phrase names the action."""
     said = item["detail"].rstrip(".")
-    item["detail"] = f"{said} · What's using it"
+    item["detail"] = said
     item["link"] = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's using the space?", safe="")
+    item["action"] = {"key": "see_usage", "link": item["link"]}
 
 
 def _matches(about, text):
@@ -146,7 +157,7 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
                 continue
             item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
                     "title": _clip(c.get("title", ""), 80), "detail": _clip(c.get("text", ""), 200),
-                    "link": ASSISTANT, "ts": now}
+                    "link": ASSISTANT_VIEW.get(c.get("kind"), ASSISTANT), "ts": now}
             if c.get("id") == "watch-mac-disk":
                 _whats_using_it(item)
             if "workshop_display" in healthy and ABOUT_WORKSHOP_DISPLAY.search(f'{item["title"]} {item["detail"]}'):
@@ -168,6 +179,9 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
             i["about"] = "printer"
     # After the folds: the lab's text says "printer"/"print", and must not be folded into the printer's row.
     items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
+    for i in items:
+        if "action" not in i and i.get("link") in PAGE_VERB:
+            i["action"] = {"key": PAGE_VERB[i["link"]], "link": i["link"]}
     drop = ("ts", "thing")
     return {"count": len(items), "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
 

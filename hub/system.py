@@ -100,6 +100,24 @@ def drive_events(days=7):
     return db.rows("SELECT ts, kind FROM drive_events WHERE ts >= ? ORDER BY ts DESC LIMIT 100", since)
 
 
+# Each pi-status alert's cause and side (A7 decision 5): an alert and its recovery share a cause, so the Alerts page can
+# group "ran hot, then cooled down" by day. The titles are pi-status.py watch()'s; a test keeps the two in step. A title
+# not listed is its own cause, an event with no pair.
+ALERT_CAUSES = {
+    "Movies drive dropped out": ("drive", "problem"), "Movies drive is back": ("drive", "recovery"),
+    "Plex stopped": ("plex", "problem"), "Plex is running again": ("plex", "recovery"),
+    "Homebridge stopped": ("homebridge", "problem"), "Homebridge is running again": ("homebridge", "recovery"),
+    "Windows PC isn't answering": ("pc", "problem"), "Windows PC is back": ("pc", "recovery"),
+    "Workshop display went offline": ("display", "problem"), "Workshop display is back": ("display", "recovery"),
+    "Pi is running hot": ("hot", "problem"), "Pi has cooled down": ("hot", "recovery"),
+    "X2D print finished": ("print_finished", "event"), "X2D needs attention": ("x2d_error", "problem"),
+}
+
+
+def alert_cause(title):
+    return ALERT_CAUSES.get(title, (f"title:{title}", "event"))
+
+
 def alerts(limit=200):
     try:
         with open(ALERTS_FILE) as f:
@@ -110,8 +128,10 @@ def alerts(limit=200):
     for line in reversed(lines):
         try:
             a = json.loads(line)
-            out.append({"ts": int(a["ts"]), "title": str(a["title"])[:120], "body": str(a.get("body", ""))[:240],
-                        "tag": str(a.get("tag", ""))[:30]})
+            title = str(a["title"])[:120]
+            cause, side = alert_cause(title)
+            out.append({"ts": int(a["ts"]), "title": title, "body": str(a.get("body", ""))[:240],
+                        "tag": str(a.get("tag", ""))[:30], "cause": cause, "side": side})
         except (ValueError, KeyError, TypeError):
             continue
     return out

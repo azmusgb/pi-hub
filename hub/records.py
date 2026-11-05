@@ -28,6 +28,7 @@ KINDS = {
     "hms": {"clear": "ok", "notice": "attention", "stopped": "problem"},
     "camera": {"live": "ok", "no_picture": "attention"},
     "workshop_display": {"online": "ok", "offline": "attention"},
+    "mac_lab": {"idle": "ok", "waiting": "ok", "mac_silent": "problem"},
     "pc": {"on": "ok", "off": "problem"},
     "local_ai": {"ready": "ok", "busy": "ok", "no_models": "attention", "down": "problem"},
     "pi": {"ok": "ok", "hot": "attention", "power": "attention"},
@@ -61,14 +62,14 @@ DISAGREE_AFTER = 300
 SOURCE = {"printer": "bambuddy", "obico": "bambuddy", "hms": "bambuddy", "camera": "camera", "workshop_display": "pi_status", "local_ai": "pi_status",
           "pi": "pi_status", "movies_drive": "pi_status", "movie_copy": "pi_status", "pc": "netmon",
           "internet": "netmon", "adguard": "adguard", "backups": "backrest", "plex": "pi_status",
-          "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub", "pc_printing": "hub"}
+          "devices": "pi_status", "paper_printer": "cups", "weather": "weather", "hub": "hub", "pc_printing": "hub", "mac_lab": "hub"}
 
 LABELS = {"printer": "Bambu X2D", "obico": "Failure detection", "hms": "Printer alerts", "camera": "Printer camera", "workshop_display": "Workshop display",
           "pc": "Windows PC", "local_ai": "Local AI", "pi": "Raspberry Pi", "movies_drive": "Movies drive",
           "movie_copy": "Movie copy from the PC", "internet": "Internet", "adguard": "Ad blocking",
           "backups": "Backups", "plex": "Movies", "devices": "Smart-home controls",
           "paper_printer": "Document printer", "weather": "Weather", "hub": "The hub's sources",
-          "pc_printing": "PC during a print"}
+          "pc_printing": "PC during a print", "mac_lab": "Print lab on the Mac"}
 
 # source key -> how it reads in a sentence
 SOURCE_NAMES = {"bambuddy": "Bambuddy", "pi_status": "The Pi's status service", "netmon": "NETMON",

@@ -1,9 +1,9 @@
 import { api, h } from "./core.js";
 
-// Checking detail, not something to act on: it lives on Help & system only (25 Oct critique). Other pages say
+// Checking detail, not something to act on: it lives on System › Health only (25 Oct critique). Other pages say
 // "<App> isn't answering" in the card that needs it. The rows are the hub's records (one per thing), then the
 // calendar and any source not set up: all of them show.
-const SOURCES = { pi: true };
+const SOURCES = { health: true };
 export function ageLabel(seconds) {
   const age = Math.max(0, Math.floor(seconds));
   if (age < 60) return `${age} second${age === 1 ? "" : "s"} ago`;

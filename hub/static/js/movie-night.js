@@ -1,8 +1,8 @@
-import { api, card, ensure, h, piLink, post, toast } from './core.js';
+import { api, askFirst, ensure, h, post, toast } from './core.js';
+import { section } from './page-parts.js';
+import { plexUrl } from './sections.js';
 
-function watchUrl(machine, key) {
-  return piLink(32400, machine ? `/web/index.html#!/server/${machine}/details?key=${encodeURIComponent(`/library/metadata/${key}`)}` : '/web');
-}
+export const watchUrl = (machine, key) => plexUrl(machine, key);
 const art = item => item.thumb
   ? h('img', {src: `/api/plex/thumb?path=${encodeURIComponent(item.thumb)}`, alt:'', loading:'lazy'})
   : h('div', {class:'night-art-placeholder', 'aria-hidden':'true'}, '▶');
@@ -16,14 +16,14 @@ export function mountMovieNight(state) {
   ui.budget = h('select', {id:'night-budget', onchange:()=>refreshMovieNight(state)},
     [0,60,90,120,150,180].map(n=>h('option',{value:n}, n ? `${n} minutes` : 'Any length')));
   ui.kids = h('input', {type:'checkbox', id:'night-family', onchange:()=>refreshMovieNight(state)});
-  ui.root = card('Movie night', {cls:'wide feature movie-night'},
-    h('div', {class:'feature-intro'}, h('p',{class:'feature-kicker'}, 'A GOOD NIGHT STARTS HERE'),
-      h('p', {class:'feature-lead'}, 'A few good films. Everyone gets a say.'),
-      h('p', {class:'meta'}, 'Shortlist a film, vote for anything you’d enjoy, then choose tonight’s pick.')),
+  // A section on the page, not a card with a hero (A7 P1): the heading and one line of purpose.
+  ui.root = section('Movie night', [
     ui.message, ui.shortlist,
     h('div', {class:'feature-section-heading'}, h('div',{},h('h3',{},'Find a contender'),h('p',{class:'meta'},'Unwatched films from your library, with a reason they fit.')),
       h('div',{class:'night-filters'},h('label',{class:'field',for:'night-budget'},h('span',{},'Time available'),ui.budget),
-        h('label',{class:'check',for:'night-family'},ui.kids,'Family-friendly ratings'))), ui.suggestions);
+        h('label',{class:'check',for:'night-family'},ui.kids,'Family-friendly ratings'))), ui.suggestions],
+    {note:'Shortlist a film, vote for anything you’d enjoy, then choose tonight’s pick.'});
+  ui.root.classList.add('movie-night');
   return ui.root;
 }
 
@@ -65,8 +65,8 @@ export async function refreshMovieNight(state, force=false) {
             'data-focus':`vote:${item.key}`, 'aria-label':`${item.voted?'Remove your vote for':'Vote for'} ${item.title}`,onclick:()=>change(state,'kid',()=>post(`/api/movie-night/${item.key}/vote`,{vote:!item.voted}))},`${item.voted?'✓ Voted':'Vote'} · ${item.votes}`),
           item.key===d.chosen ? h('a',{class:'action',href:watchUrl(state.machine,item.key),target:'_blank',rel:'noopener'},'Watch in Plex')
             : h('button',{type:'button',class:'ghost',onclick:()=>change(state,'household',()=>post(`/api/movie-night/${item.key}/choose`))},'Choose for tonight'),
-          h('button',{type:'button',class:'ghost small','aria-label':`Remove ${item.title} from shortlist`,onclick:()=>{
-            if(confirm(`Remove ${item.title} and its votes from tonight’s shortlist?`)) change(state,'household',()=>post(`/api/movie-night/${item.key}/remove`));
+          h('button',{type:'button',class:'ghost small','aria-label':`Remove ${item.title} from shortlist`,onclick:async(e)=>{
+            if(await askFirst(e.currentTarget, `${item.title} and its votes leave tonight’s shortlist.`, {confirm:'Remove'})) change(state,'household',()=>post(`/api/movie-night/${item.key}/remove`));
           }},'Remove'))))) : [h('div',{class:'feature-empty'},h('h3',{},'Give tonight a shortlist'),h('p',{},'Add up to 12 films. Votes stay here even when Plex is temporarily unavailable.'))]));
     ui.suggestions.replaceChildren(...(d.suggestions.length ? d.suggestions.map(item=>h('article',{class:'night-suggestion'},
       h('div',{class:'night-art'},art(item)),h('div',{class:'night-copy'},h('h4',{},item.title),h('p',{class:'meta'},meta(item)),

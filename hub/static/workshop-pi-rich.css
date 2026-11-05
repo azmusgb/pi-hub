@@ -94,3 +94,40 @@
 .lab-need .dot { margin-top: .45em; }
 .lab-need-act { justify-self: start; margin-top: .5rem; }
 .band .printer-actions { margin-top: .75rem; }
+
+/* Workshop › Printer (workshop flow W.2): Now, Needs you here, Filament loaded, This week, More in the workshop. */
+.ws-now { display: grid; gap: 1.25rem; align-items: start; }
+@media (min-width: 1024px) {
+  .ws-now { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+}
+.ws-now .band, .ws-now .card { margin: 0; }
+/* On a phone the camera is 16:9 and at most ~40% of the screen high, so the next section stays in view; while a print
+   runs it comes first. */
+.ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--surface-3); }
+@media (max-width: 1023px) {
+  .ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
+  .ws-now[data-cam-first="true"] > .ws-cam { order: -1; }
+}
+.ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
+.ws-cam .card[aria-hidden] { display: grid; gap: .75rem; }
+.ws-skel-line { height: .9rem; }
+.ws-skel-head { height: 2.2rem; width: 60%; }
+@media (prefers-reduced-motion: reduce) {
+  .ws-skeleton .skeleton, .ws-section .skeleton { animation: none; }
+}
+.ws-section { margin-top: 1.75rem; }
+.ws-section > .section-title { margin: 0 0 .6rem; }
+.ws-section[hidden] { display: none; }
+.ws-line { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0; }
+.ws-tray { display: inline-flex; align-items: center; gap: .35rem; }
+.ws-tray .swatch { width: 10px; height: 10px; border-radius: 50%; }
+.ws-last-print { margin: .5rem 0 0; }
+.ws-needs .lab-need-act { margin-top: .5rem; align-self: flex-start; }
+.ws-more-item { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.ws-more-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .75rem 1.1rem;
+  cursor: pointer; font-weight: 600; border-radius: inherit; }
+.ws-more-item .pill[hidden] { display: none; }
+.ws-more-item > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ws-more-item[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.ws-more-body { padding: 1rem 1.1rem; }
+.ws-more-body > :first-child { margin-top: 0; }

@@ -24,7 +24,7 @@ def client(monkeypatch):
     monkeypatch.setattr(sources, "localai_feed", lambda: {"cards": []})
     monkeypatch.setattr(sources, "plex_sessions", lambda: [])
     monkeypatch.setattr(sources, "network_metrics", lambda: None)
-    for name in ("pi_status", "bambuddy_printer", "localai_lab"):
+    for name in ("pi_status", "bambuddy_printer", "lab_printing"):
         monkeypatch.setattr(sources, name, lambda name=name: pytest.fail(f"{name} polled: the views read the records"))
     c = TestClient(hub_app.app)
     c.held = held
@@ -46,7 +46,7 @@ def test_pc_answering_with_local_ai_down_blames_local_ai_not_the_pc(client):
     issue = next(i for i in client.get("/api/now").json()["issues"] if i["what"] == "Local AI")
     assert "Local AI isn't answering" in issue["say"]
     assert "may be off" not in issue["say"].lower()
-    assert issue["href"] == "/workshop" and issue["tone"] == "bad"
+    assert issue["href"] == "/system" and issue["tone"] == "bad"
     item = next(i for i in client.get("/api/needs").json()["items"] if i["title"] == "Local AI")
     assert item["detail"] == issue["say"]
 
@@ -89,13 +89,13 @@ def test_a_quiet_source_is_one_issue_not_one_per_thing(client):
     client.held.update(_quiet_pi())
     issues = client.get("/api/now").json()["issues"]
     since = time.strftime("%H:%M", time.localtime(T))
-    assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/pi",
+    assert issues == [{"tone": "warn", "what": "The Pi's status service", "href": "/system",
                        "say": f"Isn't answering since {since}. Last readings for Local AI, Workshop display, "
                               "Raspberry Pi, Movies drive, Movie copy from the PC, Movies, Smart-home controls "
                               "are shown as they were."}]
     items = client.get("/api/needs").json()["items"]
     assert [(i["id"], i["title"], i["tone"], i["link"]) for i in items] == [
-        ("pi:source:pi_status", "The Pi's status service", "warn", "/pi")]
+        ("pi:source:pi_status", "The Pi's status service", "warn", "/system")]
     assert items[0]["detail"] == issues[0]["say"]
 
 

@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes
+from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -133,6 +133,12 @@ def api_now():
     return fresh(data)
 
 
+@app.get("/api/today")
+def api_today():
+    """The house's day for Home's band (amendment A8 D7)."""
+    return fresh(today.body())
+
+
 # ---- Records ----
 
 STREAM_PING = 15  # seconds of quiet before the stream sends a comment, so proxies keep it open
@@ -142,6 +148,11 @@ STREAM_SLICE = 1  # how often the stream looks for a vanished client
 def records_body():
     recs = records.all()
     return {"as_of": time.time(), "records": [recs[k] for k in [*records.KINDS, *releases.ids()] if k in recs]}
+
+
+@app.get("/api/systems")
+def api_systems():
+    return fresh(systems.body())
 
 
 @app.get("/api/records")
@@ -714,8 +725,9 @@ def api_gate(request: Request):
 
 @app.get("/api/assistant")
 def api_assistant():
-    """Whether Local AI answers, for the Assistant button (the same fact /api/now shows)."""
-    return fresh({"state": (sources.pi_status() or {}).get("ai_state") or "Unknown"})
+    """Whether Local AI answers and whether the PC is on, for the Assistant button's `assistant_down` and `pc_off`."""
+    pc = (records.get("pc") or {}).get("state") or "unknown"
+    return fresh({"state": (sources.pi_status() or {}).get("ai_state") or "Unknown", "pc": pc})
 
 
 @app.get("/api/me")
@@ -1163,74 +1175,77 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
 
-# ---- Scanning: scanservjs (Docker on the Pi), only through the hub so it needs the owner ----
-# scanservjs listens on 127.0.0.1:8095 only; its page and API are served here under /scan/ (its paths are relative).
-# Every request needs the owner, because a scan goes straight into Paperless. scanservjs runs on the hub's own
-# address, so the hub's cookie and Authorization are never forwarded and only content headers come back.
-SCAN_URL = os.environ.get("HUB_SCAN_URL", "http://127.0.0.1:8095")
-_HOP = {"connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te",
-        "trailers", "content-length", "content-encoding", "host"}
-_SCAN_PASS = {"content-type", "content-disposition", "cache-control", "etag", "last-modified", "content-language"}
+# ---- Scanning: retired here (platform step 7, PR 7.4). Scan is its own tool at scan.<house> behind the gate; an old
+# /scan or /scan/... bookmark moves there with its path and query kept (308 keeps the method too).
+SCAN_HOST = "https://scan.rahe-home.duckdns.org"
 
 
-# Shown in Documents' Scan frame (or on its own) when nobody has signed in: the kit's look, one way forward.
-SCAN_SIGNED_OUT = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scan · Pi Hub</title>
-<script src="/static/js/saved-theme.js"></script>
-<link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
-<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
-main{max-width:32rem}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}p{margin:0 0 16px;color:var(--ui-muted)}</style>
-</head><body><main>
-<h1>Scan needs the owner</h1>
-<p>A scan goes straight into Paperless, so the hub asks who you are first. Sign in, then open Scan again.</p>
-<a class="ui-btn ui-btn--primary" href="/settings" target="_top">Sign in to Pi Hub</a>
-</main></body></html>"""
-
-
-@app.api_route("/scan", methods=["GET"])
-def scan_root():
-    return Response(status_code=307, headers={"Location": "/scan/"})
-
-
+@app.api_route("/scan", methods=["GET", "POST", "PUT", "DELETE"])
 @app.api_route("/scan/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def scan_proxy(path: str, request: Request):
-    import httpx
-    from fastapi.responses import StreamingResponse
-    try:
-        need(request, "household")
-    except HTTPException as e:
-        if request.method == "GET" and not path.startswith("api/"):
-            return Response(SCAN_SIGNED_OUT, status_code=e.status_code, media_type="text/html")
-        raise
-    client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))
-    # No cookie (the hub's session stays here) and no accept-encoding (the body is passed through as is).
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP | {"cookie", "accept-encoding", "authorization"}}
-    try:
-        upstream = await client.send(client.build_request(request.method, f"{SCAN_URL}/{path}", params=request.query_params,
-                                                          headers=headers, content=await request.body()), stream=True)
-    except httpx.HTTPError:
-        await client.aclose()
-        raise HTTPException(502, "The scanner page isn't answering.")
-
-    async def body():
-        try:
-            async for chunk in upstream.aiter_bytes():  # decoded, so dropping content-encoding is right
-                yield chunk
-        finally:
-            await upstream.aclose()
-            await client.aclose()
-    # Only content headers come back: never Set-Cookie or anything that could weaken the hub's own security headers.
-    out = {k: v for k, v in upstream.headers.items() if k.lower() in _SCAN_PASS}
-    return StreamingResponse(body(), status_code=upstream.status_code, headers=out)
+def scan_moved(request: Request, path: str = ""):
+    query = f"?{request.url.query}" if request.url.query else ""
+    return Response(status_code=308, headers={"Location": f"{SCAN_HOST}/{path}{query}"})
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
+def _routes() -> dict:
+    """The shell's pages and redirects, from the one list the router imports (hub/static/js/routes.js)."""
+    text = (STATIC / "js" / "routes.js").read_text()
+    body = text[re.search(r"^export default", text, re.M).end():]
+    return json.loads(body.strip().rstrip(";"))
+
+
+_ROUTES = _routes()
+SHELL_PATHS = frozenset(_ROUTES["pages"]) | frozenset(_ROUTES["redirects"])
+
+# Any other address: a real 404, not the shell (§5.6 "Any other path"). Standalone, in the kit's look.
+NOT_FOUND_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · Pi Hub</title>
+<script src="/static/js/saved-theme.js"></script>
+<link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
+<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
+main{max-width:32rem;margin:10vh auto 0}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}
+p{margin:0 0 16px;color:var(--ui-muted)}nav{display:flex;flex-wrap:wrap;gap:12px}</style>
+</head><body><main>
+<h1>Page not found</h1>
+<p>There’s no page at this address on Pi Hub.</p>
+<nav aria-label="Ways back"><a class="ui-btn ui-btn--primary" href="/">Open Home</a><a class="ui-btn" href="/system">System</a></nav>
+</main></body></html>"""
+
+
+# The privacy note Google's consent screen links to for pi-offsite, the owner's own OAuth app that writes the off-site
+# backup to Google Drive (amendment A5). Standalone, like the 404 page.
+PRIVACY_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Pi Hub</title>
+<script src="/static/js/saved-theme.js"></script>
+<link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
+<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
+main{max-width:36rem;margin:10vh auto 0}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}
+p{margin:0 0 16px;color:var(--ui-muted)}</style>
+</head><body><main>
+<h1>Privacy</h1>
+<p>Pi Hub and its “pi-offsite” Google app are a personal system used by one household. They have no other users.</p>
+<p>The app asks Google only for <code>drive.file</code>: it can see and change only the files it created itself, never
+anything else in the Drive. It stores the household’s own backups there, encrypted on the household’s computer before
+upload, so Google holds only data it cannot read. Nothing is shared, sold or sent anywhere else.</p>
+<p>Access can be removed at any time from the Google account’s “Third-party apps &amp; services” page.</p>
+</main></body></html>"""
+
+
+@app.get("/privacy")
+def privacy():
+    return Response(PRIVACY_PAGE, media_type="text/html", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/{page:path}")
 def index(page: str):
-    # Every page is the same shell; the browser picks the view from the address.
+    # Every page is the same shell; the browser picks the view from the address. Paths it doesn't have get a 404.
     if page.startswith("api/"):
         raise HTTPException(404)
+    if f"/{page}" not in SHELL_PATHS:
+        return Response(NOT_FOUND_PAGE, status_code=404, media_type="text/html", headers={"Cache-Control": "no-cache"})
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})

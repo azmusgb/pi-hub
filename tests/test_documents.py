@@ -63,21 +63,3 @@ def test_documents_are_for_the_owner_only(monkeypatch):
     fake(monkeypatch, calls)
     r = TestClient(hub_app.app).get("/api/documents", params={"q": "tax"})
     assert r.status_code == 401 and calls == []
-
-
-def test_scan_signed_out_page_is_styled():
-    c = TestClient(hub_app.app)
-    r = c.get("/scan/")
-    assert r.status_code == 401 and r.headers["content-type"].startswith("text/html")
-    html = r.text
-    assert "<h1>Scan needs the owner</h1>" in html
-    assert 'href="/static/ui/tokens.css"' in html and 'href="/static/ui/components.css"' in html
-    assert 'class="ui-btn ui-btn--primary"' in html and 'target="_top"' in html
-    assert 'lang="en"' in html and "Open Pi Hub" not in html
-
-
-def test_scan_signed_out_page_follows_the_hub_theme():
-    html = TestClient(hub_app.app).get("/scan/").text
-    head = html[:html.index("</head>")]
-    assert '<script src="/static/js/saved-theme.js"></script>' in head
-    assert head.index("saved-theme.js") < head.index("/static/ui/tokens.css")

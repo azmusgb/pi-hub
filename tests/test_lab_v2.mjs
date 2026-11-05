@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  controlRoomHtml,
-  controlRoomModel,
+  faceplateModel,
+  labFaceplateHtml,
   experimentV2Html,
   lifecycleModel,
   productionState,
@@ -56,6 +56,8 @@ const run = {
 
 const exp = {
   id: "E-025",
+  question: "Q-006",
+  question_text: "RIFT rerun",
   status: "printing",
   test_kind: "full_part",
   shown_build: "BLD-025-01",
@@ -71,6 +73,7 @@ const ix = {
   experiments: [exp],
   runs: [run],
   needs: [{ id: "E-025", action: "Judge the print", why: "Inspect the face under raking light." }],
+  questions: [{ id: "Q-006", question: "Does the common-Z failure disappear?", budget: { minutes: 180, g: 80 }, spent: { minutes: 0, g: 0 } }],
   qualification: {},
   production: { current: null, packages: [] },
 };
@@ -85,19 +88,36 @@ assert(runHtml.includes("363.7 g est."));
 assert(runHtml.includes("660 layers"));
 assert(runHtml.includes("4/4 artifacts bound"));
 
-const control = controlRoomModel(ix);
+const control = faceplateModel(ix);
 assert.equal(control.run.id, "RUN-025-01");
 assert.equal(control.experiment.id, "E-025");
 assert.equal(control.next.action, "Judge the print");
-const controlHtml = controlRoomHtml(ix);
-assert(controlHtml.includes("Print Lab v3"));
-assert(controlHtml.includes("Control room"));
-assert(controlHtml.includes("Current run"));
-assert(controlHtml.includes("RUN-025-01"));
-assert(controlHtml.includes("LIVE"));
-assert(controlHtml.includes("Needs attention"));
-assert(controlHtml.includes("Judge the print · E-025"));
-assert(controlHtml.includes("Production reference"));
+// A7 P1: Print lab opens on its faceplate (the kit's), not a "Control room" dashboard.
+const controlHtml = labFaceplateHtml(ix);
+assert.match(controlHtml, /^<section class="ui-faceplate lab-faceplate" aria-label="Print lab">/);
+assert(!/Control room|LIVE|READY|lab-v2-kicker|card/.test(controlHtml), "no dashboard, all-caps labels or card");
+assert(controlHtml.includes('<span>E-025 · RIFT rerun</span>'));
+assert(controlHtml.includes('<span class="ui-chip ui-chip--ok ui-chip--live">Printing</span>'), "the printer's state leads while it prints");
+const doneRun = labFaceplateHtml({ ...ix, runs: [{ ...run, status: "completed" }] });
+assert(doneRun.includes('<span class="ui-chip ui-chip--warn">Judge the print</span>'), "then the need");
+assert(controlHtml.includes('<p class="ui-readout ui-readout--md">Q-006</p>'));
+assert(controlHtml.includes('<p class="ui-faceplate__caption">Does the common-Z failure disappear?</p>'));
+assert(controlHtml.includes("<dt>Run</dt><dd>RUN-025-01 · printing</dd>"));
+assert(controlHtml.includes("<dt>Time</dt><dd>0 of 180 min</dd>"));
+assert(controlHtml.includes("<dt>Material</dt><dd>0 of 80 g</dd>"));
+assert(controlHtml.includes("<dt>Production</dt><dd>Not set</dd>"));
+assert(controlHtml.includes("Experiment lifecycle"));
+// The action is the need's verb (never "Open" alone); with no criteria to judge yet it opens the experiment.
+assert(controlHtml.includes('<a class="ui-btn ui-btn--primary" href="#lab-E-025" data-lab-open="E-025">Judge it</a>'));
+const judgeable = labFaceplateHtml({ ...ix, experiments: [{ ...exp, criteria: [{ id: "c1" }] }] });
+assert(judgeable.includes('<button type="button" class="ui-btn ui-btn--primary lab-record-verdict" data-exp="E-025">Judge it</button>'));
+// A stale mirror never shows a print as live: it says what it last saw, and when (A7 finding 4).
+const staleHtml = labFaceplateHtml({ ...ix, needs: [] }, { stale: true, syncedAt: "2026-10-29T22:41:00+00:00" });
+assert.match(staleHtml, /<span class="ui-chip ui-chip--unknown">Printing, as of [^<]+<\/span>/);
+// Nothing open: the faceplate still stands, and says how to start.
+const none = labFaceplateHtml({ experiments: [], runs: [], needs: [], questions: [] });
+assert(none.includes("<span>Print lab</span>") && none.includes("No open experiment"));
+assert(controlHtml.includes("<dt>Production</dt>"));
 
 const life = lifecycleModel(exp, ix);
 assert.deepEqual(life.map((x) => x[0]), ["Plan", "Build", "Run", "Evidence", "Verdict", "Qualify", "Production"]);
@@ -177,9 +197,8 @@ assert(refHtml.includes("RUN-025-01"));
 assert(refHtml.includes(packageId));
 assert(refHtml.includes("Sealed"));
 assert(refHtml.includes("replaced E-019"));
-const qualifiedControl = controlRoomHtml(qualifiedIx);
-assert(qualifiedControl.includes("Production reference"));
-assert(qualifiedControl.includes(packageId));
+const qualifiedControl = labFaceplateHtml(qualifiedIx);
+assert(qualifiedControl.includes("<dt>Production</dt>"));
 assert(qualifiedControl.includes("Sealed"));
 
 const qualifiedRunHtml = runCardHtml({ ...answeredRun, status: "qualified" }, qualifiedIx);

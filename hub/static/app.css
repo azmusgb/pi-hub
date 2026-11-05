@@ -53,7 +53,7 @@
   --shadow-1: 0 1px 2px rgb(var(--shade-rgb) / .05), 0 2px 6px rgb(var(--shade-rgb) / .05);
   --shadow-2: 0 18px 40px -18px rgb(var(--shade-rgb) / .28);
   --glow: 0 0 0 1px var(--accent-soft), 0 10px 30px -12px var(--accent-soft);
-  --ring: 0 0 0 3px var(--accent-soft);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);  /* solid, so focus shows on any surface (CSS review 4 Nov) */
   --shell-blur: saturate(140%) blur(14px);
 }
 
@@ -245,7 +245,14 @@ body::before {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .foot-links { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.link-btn, #wall-link {
+/* The page's sources line (A7 P1, sources.js) takes the footer's first row; the kit's .ui-sources is a flex row, so
+   hidden needs saying again. */
+#page-sources { flex-basis: 100%; }
+#page-sources[hidden] { display: none; }
+/* The kit sets .ui-section to grid, which beats the hidden attribute: a hidden section (Needs you here with nothing in
+   it) must not draw its heading. */
+.ui-section[hidden] { display: none; }
+.link-btn, #wall-link, #map-link {
   display: inline-flex; align-items: center; gap: .45rem;
   padding: .4rem .7rem; border-radius: var(--r-full);
   border: 1px solid var(--line); background: transparent;
@@ -253,10 +260,10 @@ body::before {
   text-decoration: none; cursor: pointer;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.link-btn:hover, #wall-link:hover {
+.link-btn:hover, #wall-link:hover, #map-link:hover {
   background: var(--surface-3); color: var(--text); border-color: var(--line-strong);
 }
-.link-btn:focus-visible, #wall-link:focus-visible { outline: none; box-shadow: var(--ring); }
+.link-btn:focus-visible, #wall-link:focus-visible, #map-link:focus-visible { outline: none; box-shadow: var(--ring); }
 
 .toast {
   position: fixed; left: 50%;
@@ -608,6 +615,29 @@ html {
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .rail-assistant[aria-disabled], .top-assistant[aria-disabled] { cursor: not-allowed; }
+.rail-assistant[aria-current="page"], .top-assistant[aria-current="page"] {
+  background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+/* /assistant (A4, step 7a): the frame fills the stage under the header and is the page's one scroller (requirement 8).
+   The stage stops at the screen (and, on the phone, at the tab bar); the footer's lines belong to the hub's own pages. */
+[data-assistant] .stage { height: 100dvh; min-height: 0; }
+[data-assistant] .foot { display: none; }
+[data-assistant] #view { display: flex; flex-direction: column; min-height: 0; padding-bottom: 1rem; }
+[data-assistant] .page-assistant { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.assistant-box { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.assistant-frame {
+  flex: 1; width: 100%; min-height: 0; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.assistant-frame:focus-visible { outline: none; box-shadow: var(--ring); }
+.assistant-down { max-width: 40rem; }
+@media (max-width: 860px) {
+  [data-assistant] .stage { height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); }
+  [data-assistant] #view { padding: 0 0 .5rem; }
+  [data-assistant] .assistant-frame { border-radius: 0; border-left: 0; border-right: 0; }
+  [data-assistant] .assistant-down { margin: 0 1.25rem; }
+}
 
 /* ============================================================
    Live printer HUD
@@ -643,6 +673,7 @@ html {
 .printer-source[data-state="live"] .printer-source__dot { background: var(--state-ok); }
 .printer-source[data-state="degraded"] .printer-source__dot { background: var(--state-warn); }
 .printer-source[data-state="offline"] .printer-source__dot { background: var(--state-error); }
+.printer-source[data-state="none"] .printer-source__dot { background: var(--state-unknown); }
 
 .printer-job {
   max-width: 54ch;
@@ -714,3 +745,33 @@ html {
   }
 }
 
+
+/* An area's page strip is the kit's underlined .ui-strip (A7 P4), the current page underlined in the accent. On a phone
+   it wraps instead of scrolling, so none of System's seven pages hides off the edge (A6: every page on a visible strip). */
+.ui-strip.page-strip { margin: 0 0 1.25rem; }
+@media (max-width: 560px) {
+  .ui-strip.page-strip { flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
+}
+/* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
+.ui-chips.settings-tabs { margin: 0 0 1.25rem; }
+
+/* A "More" list (A6): a heading, then one closed row per item. The card inside an item loses its box and its visible
+   heading, because the row's summary already names it; the heading stays for screen readers, and so does the pill. */
+.more-list { margin-top: 1.25rem; }
+.more-list-item { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.more-list-item[hidden] { display: none; }
+.more-list-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .75rem 1.1rem; cursor: pointer; font-weight: 600; }
+.more-list-item > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.more-list-item[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.more-list-body { padding: 1rem 1.1rem; }
+.more-list-body > :first-child { margin-top: 0; }
+.more-list-body > .card { border: 0; box-shadow: none; background: none; padding: 0; margin: 0; }
+.more-list-body > .card > .card-head > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.more-list-body > .card > .card-head { justify-content: flex-end; }
+.more-list-body .help-topics { margin-top: .5rem; }
+
+/* "Open in …↗": the tool behind a page, one quiet line under its cards (§5.3). */
+.open-in { margin: .75rem 0 0; }
+.more-badge { margin-left: auto; padding: .1rem .6rem; border-radius: 999px; border: 1px solid currentColor; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.more-badge[data-tone="warn"] { color: var(--warn, #9a6700); }
+.more-badge[data-tone="bad"] { color: var(--bad, #b42318); }

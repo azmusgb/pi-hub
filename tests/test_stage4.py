@@ -156,26 +156,3 @@ def test_bambuddy_reads_send_the_api_key_when_there_is_one(monkeypatch, tmp_path
     sources._cache.clear()
     bambuddy.projects()
     assert seen == [{}, {"X-API-Key": "bb_secret"}]
-
-
-def test_scan_page_needs_the_owner_and_is_proxied(monkeypatch):
-    import httpx
-    from fastapi.testclient import TestClient
-    from hub import app as hub_app
-    seen = []
-    def handler(req):
-        seen.append((req.method, str(req.url), req.headers.get("cookie")))
-        return httpx.Response(200, headers={"content-type": "text/html", "set-cookie": "x=1", "x-frame-options": "ALLOWALL"},
-                              content=b"<html>scanservjs</html>")
-    real = httpx.AsyncClient
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
-    c = TestClient(hub_app.app)
-    r = c.get("/scan/")
-    assert r.status_code == 401 and "needs the owner" in r.text and not seen
-    assert c.get("/scan/api/v1/context").status_code == 401
-    monkeypatch.setattr(hub_app, "need", lambda *a: ("household", "Test"))
-    r = c.get("/scan/api/v1/context?x=1", cookies={"hub_session": "secret"})
-    assert r.status_code == 200 and r.text == "<html>scanservjs</html>"
-    assert "set-cookie" not in r.headers and r.headers["x-frame-options"] == "SAMEORIGIN"  # the hub's own, not upstream's
-    assert seen == [("GET", "http://127.0.0.1:8095/api/v1/context?x=1", None)]
-    assert c.get("/scan", follow_redirects=False).headers["location"] == "/scan/"

@@ -4,8 +4,8 @@ gather() asks each designated source once (None for one that raised); build_all(
 answers into records. One builder going wrong gives its thing an "unknown" record and the rest
 still build.
 """
-from .. import records
-from . import house, network, printer
+from .. import mac_lab, records
+from . import house, lab, network, printer
 
 
 def _adguard():
@@ -24,7 +24,7 @@ def _lab():
     """The print lab's view, asked only while the printer's current record is printing or paused."""
     from .. import sources
     rec = records.get("printer")
-    return sources.localai_lab() if rec and rec["state"] in ("printing", "paused") else None
+    return sources.lab_printing() if rec and rec["state"] in ("printing", "paused") else None
 
 
 def _homebridge_login():
@@ -108,4 +108,5 @@ def build_all(inputs, prev, now):
         old = fresh(prev.get("local_ai"))
         ai = dict(ai, since=old["since"] if old and old["state"] == "down" and "since" in old else now)
     out["pc_printing"] = _build("pc_printing", lambda: house.pc_printing(current("printer"), ai, now))
+    out["mac_lab"] = _build("mac_lab", lambda: lab.mac_lab_record(mac_lab.facts(), now))
     return out

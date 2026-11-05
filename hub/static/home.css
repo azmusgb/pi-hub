@@ -105,6 +105,8 @@ body.wall.night { filter: brightness(0.55); }
 .wall-needs[data-tone="attention"] .wall-needs-status, .wall-needs[data-tone="warn"] .wall-needs-status { color: var(--warn); }
 .wall-needs[data-tone="ok"] .wall-needs-status { color: var(--ok); }
 .ui-need__link:focus-visible, .ui-needs__more a:focus-visible { outline: none; box-shadow: var(--ring); }
+/* A row's own buttons (Clear the plate, Remount the drive) sit under its link, inside the row (A7 P2). */
+.ui-need__buttons { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 calc(var(--ui-space) * 4) calc(var(--ui-space) * 3); }
 
 /* The house: the workshop light, the network and any other favourites. */
 .wall-house { display: grid; gap: var(--wall-gap); grid-template-columns: repeat(auto-fit, minmax(min(100%, 21em), 1fr)); align-content: start; align-items: start; }
@@ -538,28 +540,13 @@ body.wall.night { filter: brightness(0.55); }
 .out-weather:hover strong { color: var(--pei); }
 .out-alert { color: var(--warn); font-weight: 700; text-decoration: none; }
 .out-soon { color: var(--rain-ink); }
-.wx-alert { padding: 0.9rem 1.1rem; border-radius: 16px; background: rgb(var(--warn-rgb) / 0.12); border: 1px solid rgb(var(--warn-rgb) / 0.4); }
-.wx-alert strong { color: var(--text); font-size: 1.1rem; }
 .wx-alert p { margin: 0.3rem 0 0; }
-.wx-now { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 1.2rem; align-items: center;
-  padding: clamp(1.1rem, 3vw, 1.6rem); border-radius: 22px; background: var(--acrylic); border: 1px solid var(--acrylic-edge); }
-.wx-now > .wx { width: clamp(5rem, 16vw, 8rem); height: clamp(5rem, 16vw, 8rem); }
-.wx-soon { margin: 0; padding: 0.7rem 1rem; border-radius: 14px; background: rgb(var(--rain-rgb) / 0.12); color: var(--rain-ink); }
+/* Weather (A7): the sky's icon beside now, in the faceplate's aside. */
+.ui-faceplate__aside > .wx { width: clamp(4.5rem, 14vw, 7rem); height: clamp(4.5rem, 14vw, 7rem); }
 .wx-h-time { color: var(--muted); font-size: 0.82rem; }
 .wx-h-rain { position: relative; width: 70%; height: 1.15rem; font-size: 0.75rem; color: var(--rain-ink); text-align: center; }
 .wx-h-rain::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 999px;
   background: linear-gradient(90deg, #7cb8e6 var(--p), rgb(var(--rain-rgb) / 0.12) var(--p)); }
-.wx-days { list-style: none; margin: 0; padding: 0; }
-.wx-days li { display: grid; grid-template-columns: minmax(5.5rem, 1fr) 2rem 2.6rem 2.6rem minmax(5rem, 2fr) 2.6rem; gap: 0.6rem; align-items: center;
-  padding: 0.55rem 0; border-bottom: 1px solid rgb(var(--ink-rgb) / 0.06); }
-.wx-days li:last-child { border-bottom: 0; }
-.wx-d-day { font-weight: 700; }
-.wx-d-rain { color: var(--rain-ink); font-size: 0.85rem; text-align: right; }
-.wx-d-low { color: var(--muted); text-align: right; }
-.wx-d-high { font-weight: 700; }
-.wx-range { position: relative; height: 6px; border-radius: 999px; background: var(--well); }
-.wx-range i { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, #7cb8e6, #f2c45c); }
-@media (max-width: 420px) { .wx-days li { grid-template-columns: 5.2rem 1.8rem 2.2rem 2.2rem 1fr 2.2rem; gap: 0.4rem; } }
 
 /* Now: the house panel. One quiet surface, a row per area; the print band stays the only loud thing. */
 .house { border-radius: 20px; background: var(--acrylic); border: 1px solid var(--acrylic-edge); padding: 0.9rem 0.4rem 0.4rem; }
@@ -1174,12 +1161,12 @@ body:not(.wall) .page-now { display: block; }
   position: fixed;
   inset: 0;
   z-index: 99999;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100dvh;
   margin: 0;
   padding: 0;
-  max-width: 100vw;
-  max-height: 100vh;
+  max-width: 100%;
+  max-height: 100dvh;
   background: #000;
   border: none;
   color: #fff;
@@ -1192,8 +1179,8 @@ body:not(.wall) .page-now { display: block; }
 .cam-modal-stage {
   position: absolute;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -1206,8 +1193,8 @@ body:not(.wall) .page-now { display: block; }
   cursor: grabbing;
 }
 .cam-modal-img {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100dvh;
   object-fit: cover;
   display: block;
   user-select: none;

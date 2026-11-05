@@ -21,6 +21,8 @@ The release runner:
 5. Waits for `/healthz`, then runs the page/API release gate.
 6. Records success and retains the five newest release directories plus the running release. On installation or gate failure it attempts to restore the previous app and supporting files, including permissions, and removes newly introduced files.
 
+The Pi's deploy repo refuses a push whose tip of `main` isn't a merged pull request (subject ending `(#N)`, or `Merge pull request #N …`; hook `deploy/pi-hub-pre-receive`, installed by `install.sh`). It is a speed bump against commits made straight on `main`, not a lock. For a deliberate exception the owner pushes with `git push -o allow-direct pi main`.
+
 A failed post-receive hook does not reject the Git push. The installer therefore checks that `/opt/pi-hub/current` names the requested commit before reporting success. Read the release output and Settings → Versions if this check fails.
 
 ## Verify after deployment
@@ -242,8 +244,9 @@ their phone notices to `POST /api/notify/{source}` instead of sending their own,
 The one alarm that does not depend on Pi Hub (platform baseline D2). Every 5 minutes `pi-hub-heartbeat.timer` fetches
 `https://hub.rahe-home.duckdns.org/healthz` through Caddy on the Pi, with the real certificate. `/healthz` reads the
 database. Only a `{"ok":true}` answer sends a ping to the Healthchecks.io check `home-platform-alive` (period 5 min,
-grace 5 min). A failed check sends nothing, so Healthchecks.io alerts after about 10 minutes of silence and again
-when pings resume.
+grace 5 min). A failed check is tried four times over 15 seconds, so the few seconds a release spends restarting
+Caddy and Pi Hub don't skip a ping (one skipped ping was enough to flap the check Down and Up, 2-4 Nov 2026). If every
+try fails it sends nothing, so Healthchecks.io alerts after about 10 minutes of silence and again when pings resume.
 
 - **Secret:** `/etc/pi-hub/healthchecks.env`, owned by root, mode `0600`, one line `HC_PING_URL=<the check's ping URL>`.
   It is never in the repo. Like the other `/etc/pi-hub` secrets it is in the nightly backup, so a restored Pi keeps
@@ -274,22 +277,85 @@ AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on p
 ## Backrest (backups)
 
 - **The Pi:** Backrest (`/opt/backrest`, port 9898, a web UI for restic) backs it up every night at 03:30 into `/mnt/usb1/backups/restic/pi`: hub backups, `/etc`, `/opt`, and Bambuddy, Homebox, Paperless snapshots and NETMON data. Encrypted; it keeps 14 daily, 8 weekly and 12 monthly snapshots, and prunes on Sundays.
-- **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/HealthData`, `~/.ssh` and Claude's memory, without build output or dependencies.
+- **The Mac:** backs up at 01:30 (launchd `com.billrahe.restic-mac`, script `~/.config/restic/mac-backup.sh`, log `~/Library/Logs/restic-mac.log`) over SFTP into `/mnt/usb1/backups/restic/mac`. That covers `~/dev`, `~/PycharmProjects`, `~/.ssh` and Claude's memory, without build output or dependencies.
 - **Passwords and login:** the repository passwords are in `/etc/pi-hub/secrets/restic_pi` and `restic_mac` (root only). The Mac's is also in its login Keychain as `restic-mac`. **Without them the backups can't be read.** Backrest's login is `bill`; the password is in `/etc/pi-hub/secrets/backrest_admin`.
-- **Still to do:** both repositories sit on the same USB drive as the Movies and Bambuddy data. An off-site copy (another drive, or a cloud bucket, still encrypted) is the next step.
+- **HealthData stays in the house** (owner's decision, 4 Nov 2026, amendment A5). `~/HealthData` has its own Mac
+  repository, `/mnt/usb1/backups/restic/mac-health`, written by the same script with the same retention. Its password
+  is in the Mac's login Keychain as `restic-mac-health`. It is never in an off-site plan. The `mac` repository holds
+  no HealthData: old snapshots were rewritten without it.
+
+### Off-site copy (Google Drive, since 4 November 2026)
+
+Platform baseline C1, amendment A5. The USB copies above share one drive with the movies, so a second encrypted copy
+lives in the owner's Google Drive.
+
+- **What:** Backrest repository `gdrive-offsite` (`rclone:gdrive:pi-offsite`, the Drive folder `pi-offsite`). Plan
+  `pi-offsite` runs every night at 04:30, after the USB backup. It covers the same Pi paths (Bambuddy, `/etc`, Homebox,
+  NETMON, `/opt`, Paperless, hub backups) plus the Mac's `mac` repository as files. Retention is 14 daily, 8 weekly and
+  12 monthly. The repository prunes on Sundays at 06:00 and checks 5% of its data on the 1st at 07:00.
+- **Alarm:** after each successful snapshot, a Backrest hook pings the Healthchecks.io check `offsite-backup` (period
+  1 day, grace 6 h). A failed or missing backup sends nothing, so the check goes Late, then Down, and emails the owner.
+- **Google access:** the owner's own OAuth client (Google Cloud project `pi-offsite`, Desktop app, scope `drive.file`,
+  so it sees only files it created). The app is published "In production". Its branding links to this hub's
+  `/privacy` page. The refresh token is only in Backrest's config on the Pi, as `RCLONE_CONFIG_GDRIVE_*`. To
+  re-authorise, run `~/.local/bin/backrest-gdrive-repo` on the Mac.
+- **Repository password:** in Apple Passwords as `gdrive-offsite` and on paper, **never in the Google account.**
+  Without it, the Drive copy can't be read.
+- **Check it:** Backrest › Plans › `pi-offsite` shows the last run. The Healthchecks.io dashboard shows `offsite-backup`
+  Up.
+
+#### Disaster restore (the Pi and its USB drive are gone)
+
+1. On any computer with restic and rclone, authorise read-only access to Drive. Use the `pi-offsite` client's ID and
+   secret from Google Cloud › Clients, or add a new Desktop client to that project:
+   `rclone authorize "drive" --drive-scope drive.readonly --drive-client-id <id> --drive-client-secret <secret>`.
+   Use `drive.readonly`. Under `drive.file`, a client may not see files that a different client created.
+2. Make a remote named `gdrive` with that token (`rclone config`, type `drive`, the same scope).
+3. `restic -r rclone:gdrive:pi-offsite snapshots`, with the password from Apple Passwords.
+4. `restic -r rclone:gdrive:pi-offsite restore latest --target <empty folder>`. Add `--include <path>` for part of it.
+   Inside the restore, the Mac's repository is at `repos/mac`. Open it with `restic -r <that folder>` and the Mac's
+   password (`restic-mac` in the login Keychain, or `/etc/pi-hub/secrets/restic_mac` in the restored `/etc`).
+5. Afterwards, revoke the temporary grant at myaccount.google.com › Security › Third-party access.
+
+#### Acceptance (C1)
+
+The five criteria from the platform baseline §12:
+
+1. **Repository initialises:** done 4 Nov.
+2. **A scheduled backup completes:** done 4 Nov. The first run was 11:48–11:59 (6.94 GiB), and the hook pinged the check.
+3. **Visible independently of the USB and PC copies:** done 4 Nov. The owner saw the `pi-offsite` folder in Google
+   Drive in a browser.
+4. **Restored and verified:** done 4 Nov, from Drive into a scratch folder on the Pi.
+   - A Pi archive's SHA-256 matched the original.
+   - The restored Caddy root CA has the expected fingerprint (`C1:B4:…:12:45`, above).
+   - `hub.db` passed `PRAGMA integrity_check`.
+   - The restored Mac repository passed `restic check` and holds 0 HealthData file entries. That was checked with
+     `restic ls --json`, counting file entries whose path contains `/HealthData`. A plain `grep` also matches the
+     snapshot header line.
+   - A restored `AGENTS.md` matched the Mac's copy.
+   - The scratch folder was then deleted.
+5. **A failure alerts:** done 4 Nov, with the owner (Healthchecks.io emails to the owner's inbox).
+   - The check was set to period 1 h and grace 30 min. It was Up at 15:32 (UP email).
+   - With only `pi-offsite`'s schedule disabled, the check went Down and the DOWN email arrived at 17:02.
+   - With the schedule re-enabled, Backup now ran at 19:34 (snapshot `d0b35c6b`, 7.44 GiB in 23 s). The hook's ping
+     brought the check back Up, and the UP email arrived at 19:34. Backrest shows the next scheduled run at 04:30.
+   - Then the check went back to period 1 day and grace 6 h, and the Backrest login password was rotated (the record
+     in `/etc/pi-hub/secrets/backrest_admin`, root only, 600).
+
+**Accepted 4 Nov 2026:** all five criteria are evidenced above.
 
 ## The hub's menu (since 25 October 2026)
 
 One menu by task (design: one home, step 2). The phone shows Home, Workshop, Documents, Media and More; More holds Home & network and System. The Assistant button opens Local AI and never carries a badge. The Home tab's badge is the count of Needs you.
 
-| Section | Path | Inside |
+| Section | Path | Inside (each area shows its pages as a strip, A6) |
 |---|---|---|
-| Home | `/` | Needs you (`/api/needs`: the hub's own live issues, Local AI's warnings, the printer) and one card per section |
-| Workshop | `/workshop` | The X2D, camera, filament and projects (Bambuddy), Print lab, the workshop display |
-| Documents | `/documents` | Find a document (owner only, Paperless user `hub`), Scan, `/print`, `/lists` |
-| Media | `/media` | Movies (`/movies` redirects here), `/drives` |
-| Home & network | `/network` | Devices (`/control` redirects here), Internet, Ad blocking (AdGuard via the root helper), Guest Wi-Fi |
-| System | `/system` | Backup ages (restic snapshots via the root helper), `/alerts`, `/rules`, `/pi`, `/settings`, Cockpit |
+| Home | `/` | Needs you (`/api/needs`: the hub's own live issues, Local AI's warnings, the printer) and one card per section; `/wall` |
+| Workshop | `/workshop` | Printer (the X2D, camera, filament and projects from Bambuddy) \| Print lab (`/lab`) |
+| Documents | `/documents` | Papers (find a document, owner only, Paperless user `hub`) \| Print (`/print`) \| Lists (`/lists`) |
+| Media | `/media` | Movies (`/movies` redirects here) \| Drives (`/drives`) |
+| Home & network | `/devices` | Devices (`/control` redirects here) \| Network (`/network`: Internet, Ad blocking via the root helper, Guest Wi-Fi) \| Weather (`/weather`) |
+| System | `/system` | Health (Local AI, the workshop display and the PC under Other systems) \| Backups \| Versions \| Alerts \| Automations \| Settings (workshop display pairing) \| Site map (`/map`, every page and tool) |
 
 Old App Suite addresses (`/apps/...`, `/bambuddy`, `/grafana`, `/status`) redirect to the section that now holds the tool. Links to tools use the `*.home.arpa` names when the hub is opened by one, and the old `IP:port` otherwise. Browser check from the Mac: `cd tests/browser && npm install && node structure.mjs http://10.0.0.30`.
 
@@ -321,12 +387,13 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
 
 - **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.30`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
 - **Real names (from 1 Nov 2026; the home.arpa names are retired):** every tool answers at `<tool>.rahe-home.duckdns.org`, the hub at `hub.rahe-home.duckdns.org` (`docs/superpowers/specs/2026-11-01-real-names-design.md`). Public DNS (DuckDNS) points the name at the Pi's Tailscale address `100.92.174.18`, so it works on any device with Tailscale on; AdGuard rewrites `*.rahe-home.duckdns.org` to `10.0.0.30` for the house. One Let's Encrypt wildcard certificate covers them, renewed by Caddy through DuckDNS with the token in `/etc/pi-hub/secrets/duckdns.env` (root 600): no device needs to trust anything. Old `https://<tool>.home.arpa` addresses redirect to the same page on the real name. `home.home.arpa` stays only for the Workshop display (`/api/display/*`, pinned to Caddy's CA in its firmware), the Mac's Print lab sync (`/api/lab/*`) and `/home-ca.crt`; `updates.home.arpa` stays for the display's updates. Moving those needs a firmware release and a print-lab change.
+- **Plex (A6 decision plex, revised 4 Nov 2026):** Plex is not behind the gate and has no name here. Media's "Open in Plex" and each movie's link open Plex's own web app, `https://app.plex.tv/desktop` (a movie: `…/desktop/#!/server/<machine id>/details?key=…`, the id from `/api/movies`), where a household member signs in with their Plex account. Posters come through the hub's own `/api/plex/thumb`. The TVs' and phones' Plex apps keep talking to `:32400` on the LAN, untouched. Plex appears in the tool registry as an outside tool (`external`, kit 2.3.0), so the Site map and ⌘K list it too.
 - **The gate:** Caddy on the Pi (`/etc/caddy/Caddyfile`, installed by each release from `deploy/caddy/Caddyfile`) holds ports 80 and 443. Pi Hub now listens on `127.0.0.1:8100`. Each name except `home.` asks the hub's `GET /api/gate` first: the owner goes through, anyone else goes to the hub's sign-in and comes back after it.
 - **Sign-in:** signing in as the owner at `https://home.home.arpa` lets each tool get its own `hub_gate` cookie on first visit through a one-time code (30 s, single use, that tool only), because `home.arpa` is a public suffix and browsers refuse a cookie shared across it. The cookie is a gate-only token (it ends with the sign-in that made it; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes the sign-in and every gate token it made. If a tool keeps sending you back, the hub renews the gate token once, then says the browser is refusing the cookie. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
 - **Grafana:** signs in whoever the gate names, but only from 127.0.0.1 and only under a secret header name shared by Caddy and Grafana (`/etc/pi-hub/secrets/grafana_gate.env`, made by `install.sh`; netmon reads it with `env_file`; Caddy refuses to start without it, and its admin API is a private socket, `/run/caddy/admin.sock`, so the name can't be read from it). Other services on the Pi, such as Uptime Kuma, can send any header from 127.0.0.1, so the name is what proves the gate sent it. The gate also removes any client-sent `X-Remote-User`, `X-Webauth-User` or secret-named header. User `bill` is an org Admin (not a server admin) with an unknown password; the `admin` login still works with `/etc/pi-hub/secrets/grafana_admin`. To change the secret, delete the file, run `deploy/install.sh`, then `cd /opt/netmon && sudo docker compose up -d grafana`.
 - **Certificates:** Caddy's own CA. Its root is at `https://home.home.arpa/home-ca.crt`; trust it once on each device (iPhone: download, then Settings › General › VPN & Device Management, then Settings › General › About › Certificate Trust Settings; Mac: open it in Keychain Access, set to Always Trust). The CA lives in `/var/lib/caddy`; **never delete it**, or every device must trust a new one.
 - **Check it:** `ssh pi 'sudo bash /opt/pi-hub/current/deploy/gate-check.sh'` prints one line per check. The nightly self-check includes "The front gate answers".
-- **Old addresses (locked 31 Oct 2026, step 6):** the Pi's tools listen on 127.0.0.1 only (`deploy/pi-lock.py`). Plain `http://10.0.0.30` answers only the machine paths (`/api/now*`, `/api/needs`, `/api/records` (Local AI's printer reading), `/api/webhook/bambuddy`, `/api/shortcut/*`, `/healthz`) and `/home-ca.crt`; everything else is redirected to `https://home.home.arpa`. What stays open, and why:
+- **Old addresses (locked 31 Oct 2026, step 6):** the Pi's tools listen on 127.0.0.1 only (`deploy/pi-lock.py`). Plain `http://10.0.0.30` answers only the machine paths (`/api/now*`, `/api/needs`, `/api/records` (Local AI's printer reading), `/api/systems` (Local AI's Systems strip), `/api/webhook/bambuddy`, `/api/shortcut/*`, `/healthz`) and `/home-ca.crt`; everything else is redirected to `https://home.home.arpa`. What stays open, and why:
   - Bambuddy `:8000`, for an allow-list only (nftables table `inet pi_lock`, `/etc/pi-lock/firewall.nft`): the Pi and its containers, the PC (`10.0.0.21`, Tailscale `100.78.96.97`: Local AI), the Mac (`10.0.0.16`, Tailscale `100.109.178.34`: print-lab) and the Workshop display (`10.0.0.124`). The Mac and the PC reach the Pi through Tailscale even at home (the Pi advertises `10.0.0.30/32`), so their tailnet addresses are what arrive.
   - Paperless `:8010` on the PC, for the Pi only (Windows firewall rule `PiLock-Paperless-8010`, `deploy/windows-lock-paperless.ps1`). Known gap: the PC advertises its own `10.0.0.21/32` on Tailscale, and tailnet traffic delivered that way is not filtered by the rule, so tailnet devices (all the owner's) still reach it.
   - Uptime Kuma's Pi Hub, Grafana and Bambuddy monitors use `127.0.0.1` addresses.

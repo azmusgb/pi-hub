@@ -426,7 +426,7 @@ which level each existing model is, and retires the one that adds nothing.
 
 | Level | What it is | Pattern | Who has it |
 |---|---|---|---|
-| 0, the door | The always-visible way between the house and the Assistant | Pi Hub: the Assistant button (`sections.js:4,77`). LocalAI: "← Home" | Both apps |
+| 0, the door | The always-visible way between the house and the Assistant | Pi Hub: the Assistant button, which opens `/assistant` in Pi Hub's shell (amendment A4). LocalAI: "← Home" when opened on its own; no door when framed by Pi Hub | Both apps |
 | 1, areas | What the owner is doing | Pi Hub: the rail and phone bar. LocalAI: its five pages, inside the Assistant | Each app, once |
 | 2, pages | Where in the area | One underlined page strip; filters are chips (`nav-structure` N5, l.50) | Both apps, same pattern |
 
@@ -452,7 +452,7 @@ which level each existing model is, and retires the one that adds nothing.
 | Phone web | Bottom bar Home, Workshop, Documents, Media, More. More holds Home & network and System. The Assistant button is in the top bar. The Home tab carries the Needs-you count | `one-home` D7; `sections.js:16` |
 | Wall (`/wall`) | No navigation. It is an ambient mode of Home's Now. Esc or `w` returns (`enhance.js:162-186`) | `control-room` C5 |
 | Display | Tabs map to areas: Home is Home, Printer is Workshop, Assistant is the Assistant, More is device settings and Display status. One tab name only (Report l.267 lists four variants) | `display-on-hub`; Report l.239, 267 |
-| Inside the Assistant | LocalAI's five pages with "← Home" as the door. Phone bar of five | `nav-structure` N3 |
+| Inside the Assistant | Opened on its own: LocalAI's five pages with "← Home" as the door. Phone bar of five. Framed by Pi Hub (A4): no bar of its own; the five pages are a level-2 strip | `nav-structure` N3; A4 |
 
 The shared header is not navigation (K5, D3). Its useful half survives: one list of tools, generated from the
 registry, feeds the rail, the "Open in …" links and the display's links.
@@ -488,7 +488,7 @@ registry, feeds the rail, the "Open in …" links and the display's links.
 
 ### 5.5 Home
 
-Home keeps the control-room order with one rename: **Now → Needs you → Since you last looked**. Needs you is hidden
+*Amended by A8 (5 Nov 2026): Home is a dashboard: Today, Needs you and Systems.* Home keeps the control-room order with one rename: **Now → Needs you → Since you last looked**. Needs you is hidden
 when empty (`one-home`:113). The "Problems" heading and the separate Needs you card merge into this one list
 (K6, Report l.218). The Home tab's badge counts the same list. The wall, the Assistant's Home and the display render
 this list with one component each (`one-needs-you` N3; `display-card`:8-19).
@@ -516,6 +516,7 @@ this list with one component each (`one-needs-you` N3; `display-card`:8-19).
 | `/pi` ("Help & system") | Merge | System › Health. Keep `/pi` as a redirect | Report l.279: the page does too many jobs; the name is plumbing (`one-home`:21) |
 | `/alerts` | Keep | System › Alerts: what the house told you | — |
 | `/rules` | Keep | System › Automations | — |
+| (new) `/assistant` | Add | The Assistant in Pi Hub's shell, framing its own origin; takes `?context=` and `?to=` | Amendment A4 |
 | `/settings` | Keep | System › Settings, including Your devices and Workshop display (pairing and display state). Its Versions card moves | `hub/static/js/settings.js:67`; K7 |
 | (new) `/versions` | Add | System › Versions: what is live where, all targets | K7, D1 |
 | `/more` | Keep | Phone only. Fix the blank desktop view | Report l.232, `control-room`:36 |
@@ -766,7 +767,7 @@ Internal ids never appear in the UI.
 
 | Term | Means | Do not use for | Resolves |
 |---|---|---|---|
-| **Home** | The first screen: Now, Needs you, Since you last looked | The section "Home & network"; the product | Report l.268 (`now.js`, key `now`, title "Home") |
+| **Home** | The first screen: Today, Needs you, Systems (A8) | The section "Home & network"; the product | Report l.268 (`now.js`, key `now`, title "Home") |
 | **Home & network** | The area for devices, internet and ad blocking | — | K14 |
 | **home-platform** | The product, in documents | Any UI string | — |
 | **Pi Hub** | The runtime and its hostname in documents and System pages | The word users read on the rail ("Home") | `one-home`:21 (labels describe plumbing) |
@@ -820,7 +821,7 @@ phrase-table wording, and never shows an empty list as if nothing were wrong.
 
 | Failure | Keeps working | Degrades | What the owner sees |
 |---|---|---|---|
-| **PC asleep or off** | All of Pi Hub, including Home, Workshop, Print lab, Versions (last known records) and pushes. The display's household facts and its direct printer MQTT. Lab requests queue as usual | The Assistant, Ask, Documents › Find, AI cards on the display. LocalAI's attention items stop updating | "The PC is off". Pi Hub keeps the last `localai:` Needs-you items, marked with their `as_of` time, because a pending approval is still pending. It does not drop them or present them as current |
+| **PC asleep or off** | All of Pi Hub, including Home, Workshop, Print lab, Versions (last known records) and pushes. The display's household facts and its direct printer MQTT. Lab requests queue as usual | The Assistant, Ask, Documents › Find, AI cards on the display. LocalAI's attention items stop updating | "The PC is off". Pi Hub keeps the last `localai:` Needs-you items, marked with their `as_of` time, because a pending approval is still pending. It does not drop them or present them as current. Pi Hub's Assistant page shows "The PC is off" instead of the frame (A4) |
 | **Mac asleep** | Pi Hub and the PC. The lab page reads the mirror | Lab requests wait. The workshop camera stops, because the Mac bridge is the only camera until the printer's LAN liveview is on | `mac_waiting` on the item; the `mac_lab` record shows how many requests wait. The camera tile says the camera is unavailable, not that the printer is |
 | **Pi Hub down** (the Pi, Pi Hub, its Caddy or its database) | The Assistant on its own: Home, Work, Improve, Assistant status. The display's printer telemetry over MQTT. The failure-independent path (D2) | Assistant Home shows only its own attention items, plus one line: "House items unavailable: Pi Hub isn't answering". "← Home" stays visible and fails like any link to a host that is down. The display's household tabs and OTA. Every push except D2's outage message | The D2 outage message ("Pi Hub unreachable since …", then "Pi Hub is back"). LocalAI does not try to rebuild the household list |
 | **A deploy cannot write its `release:` record** (Pi Hub down or restarting) | The deploy itself. It is not blocked by Pi Hub | Versions shows the previous record until the new one arrives | The deploy mechanism keeps the record and retries until Pi Hub accepts it. Pi Hub's own deploy writes its record after the new release passes its checks, or records the rollback |
@@ -847,6 +848,7 @@ it depends on are done. Steps on different lines can run in parallel.
 7. **Navigation and names (D3, D6), independent of 2-6.** The System strip, `/pi` into Health, the `/control` and `/next`
    retirements, the real 404 page, the ⌘K palette component, the registry-generated tool list replacing the shared
    header, and the renames on Pi Hub and LocalAI. Only the strip's Versions entry waits for 3.
+7a. **The Assistant in the shell (amendment A4), after 7's strip and 404.** One LocalAI PR, then one Pi Hub PR.
 8. **The display.** It moves to Pi Hub for its household facts and the direct Bambuddy call is removed. Then display
    step 4, after which LocalAI's display routes and Services card retire. A firmware candidate carries the tab
    rename, the phrase keys and Display status.
@@ -1015,3 +1017,20 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   pushes move onto Pi Hub only after the D2 acceptance test is recorded and senders publish `release:` records.
 - **A3. print-lab gets a `release:` record** (`2026-11-02-amendment-a3-print-lab-release.md`): `lab pull` reports
   `release:print-lab` when its checkout changes, so A2's step 5 gate can be met. Adds the `print-lab` target.
+- **A4. The Assistant opens inside Pi Hub's shell** (`2026-11-03-amendment-a4-assistant-in-shell.md`): `/assistant`
+  frames `assistant.…` on its own origin, never proxied under Pi Hub's. Context hand-off, the down state and one
+  navigation are specified. Adds route `/assistant` and migration step 7a.
+- **A5. C1's off-site copy goes to Google Drive** (`2026-11-04-amendment-a5-c1-google-drive.md`): restic's rclone
+  backend writes to a `drive.file`-scoped folder in the owner's existing Google One plan instead of a new B2 bucket.
+  The done criteria and the `offsite-backup` heartbeat are unchanged. HealthData stays in the house in its own
+  USB-only repo (owner, 4 Nov 2026).
+- **A6. Navigation cleanup** (`2026-11-04-amendment-a6-navigation-cleanup.md`): every area gets a page strip, Home & network
+  splits into Devices and Network with Weather, pages cap at six sections, names settle (Drives, Pi disks, product names for
+  tools), System gains a generated Site map, and Plex gets a gated address. Approved by the owner on 4 Nov 2026 ("fix all").
+- **A7. One page** (`2026-11-04-amendment-a7-one-page.md`): every page in Pi Hub and the Assistant follows one anatomy
+  (head, strip, one faceplate, Needs you here, at most six sections, Open in, sources), Needs you is the kit's
+  `.ui-needs` everywhere with verb actions, one strip style, plain words, grouped repeats, risky fixes ask first, and
+  every page designs its loading, stale and source-down states. Approved by the owner on 4 Nov 2026 ("Yes").
+- **A8. Home is a dashboard** (`2026-11-05-amendment-a8-home-dashboard.md`): Home leaves A7's anatomy for a 24-hour
+  Today band, Needs you beside a rack of systems with meter readouts, and one layout from phone to TV, fed by a new
+  `/api/today`. Approved by the owner on 5 Nov 2026 ("lets go with it!").

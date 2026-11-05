@@ -34,7 +34,7 @@ def test_needs_merges_the_three_sources():
     assert n["count"] == len(n["items"]) == 4
     local = [i for i in n["items"] if i["source"] == "Local AI"]
     assert {i["title"] for i in local} == {"Needs you", "Disk"}
-    assert all(i["link"] == "tool:assistant" for i in local)
+    assert {i["title"]: i["link"] for i in local} == {"Needs you": "tool:assistant/#inbox", "Disk": "tool:assistant/#inbox"}
     hub = {i["title"]: i for i in n["items"] if i["source"] == "Pi Hub"}
     assert hub["Movies drive"]["link"] == "/drives"
     # the printer's finished record says "clear the plate" (it was a print event before the records)
@@ -77,7 +77,7 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
 def test_the_hubs_own_live_issues_need_you_too():
     n = needs.build([], {"cards": []}, NOW, problems({"services": {"plex": False, "homebridge": True}}))
     assert n["items"][0] == {"id": "pi:Movies", "source": "Pi Hub", "tone": "bad", "title": "Movies",
-                             "detail": "The movie service has stopped", "link": "/pi", "record": "plex"}
+                             "detail": "The movie service has stopped", "link": "/media", "record": "plex"}
 
 
 def test_the_alert_history_is_not_needs():
@@ -180,11 +180,32 @@ def test_lab_kinds_tone_title_link_as_of():
     assert got["pi:lab:hex-tile:E-001"]["tone"] == "attention"
     assert got["pi:lab:hex-tile:E-001"]["title"] == "E-001: Judge the print"
     assert got["pi:lab:hex-tile:E-001"]["detail"] == "Look at the face."
-    assert got["pi:lab:hex-tile:E-001"]["link"] == "/lab?e=E-001&do=judge"
-    assert got["pi:lab:hex-tile:E-002"]["tone"] == "attention" and got["pi:lab:hex-tile:E-002"]["link"] == "/lab?e=E-002"
+    assert got["pi:lab:hex-tile:E-001"]["link"] == "/lab?p=hex-tile&e=E-001&do=judge"
+    assert got["pi:lab:hex-tile:E-002"]["tone"] == "attention" and got["pi:lab:hex-tile:E-002"]["link"] == "/lab?p=hex-tile&e=E-002"
     assert got["pi:lab:hex-tile:E-003"]["tone"] == "warn"
     assert got["pi:lab:hex-tile:E-004"]["tone"] == "warn"
     assert all(i["as_of"] == "2026-10-28T10:00:00+00:00" for i in got.values())
+
+
+def test_lab_items_are_named_by_their_verb():  # A7 P2: Judge it, Approve or drop, …; never "Open" alone
+    lab = _lab(_need("E-001", "Judge the print"), _need("E-002", "Approve or drop"),
+               _need("E-003", "Send it to the printer"), _need("E-004", "Fix the plan", urgency=3))
+    got = {i["id"][-5:]: i["action"] for i in _labitems(needs.build([], None, NOW, lab=lab))}
+    assert got == {"E-001": {"key": "judge_it", "link": "/lab?p=hex-tile&e=E-001&do=judge"},
+                   "E-002": {"key": "approve", "link": "/lab?p=hex-tile&e=E-002"},
+                   "E-003": {"key": "send", "link": "/lab?p=hex-tile&e=E-003"},
+                   "E-004": {"key": "fix_plan", "link": "/lab?p=hex-tile&e=E-004"}}
+
+
+def test_hub_items_open_their_page_by_verb():  # A7 P2: Open printer, Open Network
+    got = {i.get("thing") or i["id"]: i for i in needs.build([], None, NOW, problems(b=FAILED, pi={"internet": {"ok": False}}))["items"]}
+    printer = next(i for i in got.values() if i["link"] == "/workshop")
+    assert printer["action"] == {"key": "open_printer", "link": "/workshop"}
+    for i in got.values():
+        if i["link"] == "/network":
+            assert i["action"] == {"key": "open_network", "link": "/network"}
+        elif i["link"] not in ("/workshop",) and i.get("action"):
+            assert i["action"]["key"] in {"open_bambuddy", "see_usage", "judge_it", "approve", "send", "fix_plan"}
 
 
 def test_lab_skips_run_the_check_keeps_fix_the_plan():
@@ -325,10 +346,11 @@ def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk
     by_id = {i["id"]: i for i in needs.build([], feed, NOW, [])["items"]}
     mac = by_id["localai:watch-mac-disk"]
     assert mac["title"] == "Worth a look"
-    assert mac["detail"] == "Mac disk is 95% full · What's using it"
+    assert mac["detail"] == "Mac disk is 95% full"  # A7 P2: the verb is the kit's see_usage, not words in the detail
+    assert mac["action"] == {"key": "see_usage", "link": mac["link"]}
     assert mac["link"].startswith("tool:assistant/#ask?context=")
     assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
-    assert by_id["localai:watch-disk"]["link"] == "tool:assistant"  # other cards keep the plain Assistant link
+    assert by_id["localai:watch-disk"]["link"] == "tool:assistant/#inbox"  # other watch cards open the Inbox
 
 
 def test_a_local_ai_item_about_another_printer_is_not_about_the_x2d():  # review: "printer" alone isn't the X2D

@@ -1,6 +1,6 @@
 /* ============================================================
    Pi Hub — enhance.css
-   Richer primitives, motion, ambient, command palette.
+   Richer primitives, motion, ambient.
    Loaded after app.css + pages.css. Fully additive.
    ============================================================ */
 
@@ -271,21 +271,6 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
   pointer-events: none;
 }
 
-/* ---------- Timeline ---------- */
-.timeline { list-style: none; margin: 0; padding: 0 0 0 1.25rem; position: relative; }
-.timeline::before {
-  content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px;
-  width: 1px; background: var(--line);
-}
-.timeline > li { position: relative; padding: .25rem 0 .9rem; }
-.timeline > li::before {
-  content: ""; position: absolute; left: -1.25rem; top: .55rem;
-  width: 11px; height: 11px; border-radius: 50%;
-  background: var(--surface-3); border: 2px solid var(--line-strong);
-}
-.timeline > li.is-now::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-.timeline time { font-size: .75rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
-
 /* ---------- Kbd ---------- */
 kbd {
   display: inline-flex; align-items: center; justify-content: center;
@@ -413,73 +398,8 @@ kbd {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
 }
 
-/* ---------- Command palette ---------- */
-.palette {
-  position: fixed; inset: 0; z-index: var(--z-palette);
-  display: grid; place-items: start center;
-  padding: clamp(3rem, 12vh, 8rem) 1.5rem 1.5rem;
-}
-.palette[hidden] { display: none; }
-.palette-backdrop {
-  position: absolute; inset: 0;
-  background: rgb(var(--shade-rgb) / .48);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: fade-in .2s var(--smooth);
-}
+/* The ⌘K palette is the kit's (/static/ui/palette.css). */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-.palette-panel {
-  position: relative; width: 100%; max-width: 560px;
-  background: var(--surface); border: 1px solid var(--line-strong);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-3);
-  overflow: hidden;
-  animation: pop-in .24s var(--spring) both;
-}
-.palette-search {
-  display: flex; align-items: center; gap: .65rem;
-  padding: .8rem 1rem;
-  border-bottom: 1px solid var(--line);
-  color: var(--text-3);
-}
-.palette-search svg { flex: none; }
-.palette-search input {
-  flex: 1; border: 0; background: transparent;
-  font: inherit; font-size: .9375rem; color: var(--text);
-  padding: .25rem 0; outline: none;
-}
-.palette-search input::placeholder { color: var(--text-3); }
-.palette-results {
-  list-style: none; margin: 0; padding: .35rem 0;
-  max-height: 55vh; overflow-y: auto;
-}
-.palette-item {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .55rem 1rem; cursor: pointer;
-  color: var(--text-2); font-size: .875rem; font-weight: 500;
-  transition: background .1s var(--smooth), color .1s var(--smooth);
-}
-.palette-item.is-active {
-  background: var(--accent-soft); color: var(--accent-strong);
-  border-left: 3px solid var(--accent);
-  padding-left: calc(1rem - 3px);
-}
-.palette-label { flex: 1; }
-.palette-page {
-  font-family: var(--font-mono); font-size: .6875rem;
-  color: var(--text-3); text-transform: uppercase; letter-spacing: .06em;
-  padding: .1rem .45rem; border-radius: 4px;
-  background: var(--surface-3); border: 1px solid var(--line);
-}
-.palette-empty { padding: 1rem; text-align: center; color: var(--text-3); font-size: .875rem; }
-.palette-hint {
-  display: flex; align-items: center; gap: .35rem;
-  padding: .6rem 1rem; margin: 0;
-  border-top: 1px solid var(--line);
-  background: var(--surface-2);
-  font-size: .6875rem; color: var(--text-3);
-}
-.palette-hint kbd { font-size: .7rem; }
 
 /* ---------- Shortcuts dialog ---------- */
 .shortcuts {
@@ -522,7 +442,7 @@ kbd {
   body::after, body::before { display: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .rail, .clock, .toast, .palette-backdrop, .shortcuts-backdrop,
+  .rail, .clock, .toast, .shortcuts-backdrop,
   .modal-backdrop {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -532,7 +452,7 @@ kbd {
 /* ---------- Print ---------- */
 @media print {
   .rail, .foot, .skip, .toast, .progress-top, .offline-banner,
-  .palette, .shortcuts, .modal, #wall-link, #theme-btn { display: none !important; }
+  .ui-palette, .shortcuts, .modal, #wall-link, #map-link, #theme-btn { display: none !important; }
   .shell { display: block; }
   .stage { min-height: 0; }
   #view { max-width: none; padding: 0; }
@@ -583,7 +503,7 @@ kbd {
 /* enhance-audit.css — audit fixes, additive, loaded last. */
 
 /* 1. Wall mode strips ALL interactive chrome */
-[data-wall] .palette,
+[data-wall] .ui-palette,
 [data-wall] .shortcuts,
 [data-wall] .progress-top,
 [data-wall] .toast,
@@ -620,13 +540,6 @@ body::after {
 /* 5. Tab bar height: room for iOS safe-area so labels don't clip */
 :root { --tabbar-h: 76px; }
 
-/* 6. Focus ring on the palette input itself */
-#palette-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 4px;
-}
-
 /* Explicit feedback remains readable when a page or service is unavailable. */
 .page-notice { padding: 1rem 1.25rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface-2); }
 .page-notice[hidden] { display: none; }
@@ -662,6 +575,16 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .help-topic { background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; padding: 0; }
 .more a { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: .875rem 0; }
 .more a .meta { color: var(--text-2); }
+/* System › Site map: the areas side by side where there is room, one column on a phone; a page's address sits beside its
+   name, so each area reads at a glance. */
+.map-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 1.75rem 2rem; align-items: start; }
+.map-areas .more-group + .more-group { margin-top: 0; }
+.map-areas .more { gap: 0; }
+.map-areas .more a[data-link] { display: flex; flex-wrap: wrap; align-items: baseline; gap: .125rem .625rem; min-height: 44px; box-sizing: border-box; padding: .625rem 2rem .625rem 0; }
+.map-areas .more a[data-link] .meta { font-size: .8125rem; font-family: var(--mono, ui-monospace, monospace); }
+.map-areas .more a[target] { display: grid; gap: .125rem; padding: .625rem 0; }
+.map-areas [data-area="machine"] li { display: grid; gap: .125rem; padding: .625rem 0; border-bottom: 1px solid var(--line); }
+.map-areas [data-area="machine"] .meta { color: var(--text-2); overflow-wrap: anywhere; }
 .fix-result { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
 .fix-result[hidden] { display: none; }
 .fix-result h2 { margin: 0 0 .5rem; font-size: 1.125rem; }
@@ -802,7 +725,7 @@ body.wall .source-freshness { display: none; }
 }
 /* A state word ("Finished", "Failed") instead of a percentage: still big, not poster-sized. */
 .cr-hero-readout[data-long="true"] { font-size: clamp(1.75rem, 5vw, 2.5rem); line-height: 1.05; }
-.cr-hero[data-tone="bad"] .cr-hero-readout { color: var(--bad-ink, var(--bad)); }
+.cr-hero[data-tone="bad"] .cr-hero-readout { color: var(--bad); }
 .cr-hero-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
 .cr-hero-bar > span { display: block; height: 100%; background: var(--accent); transition: width .4s var(--ease); }
 .cr-hero[data-tone="warn"] .cr-hero-bar > span { background: var(--warn); }
@@ -857,7 +780,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
    changing how it reads. Desktop with a mouse keeps the compact sizes. */
 @media (max-width: 860px), (pointer: coarse) {
-  #theme-btn, #wall-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
   a.action { display: inline-flex; align-items: center; }
   .hud-cam-btn, .tile-fav { min-width: 44px; }
   kbd { font-size: .75rem; }
@@ -875,6 +798,14 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 #view:focus, #view:focus-visible { outline: none; }
 /* Search sits at the right, beside the Assistant button, the same place on every page; it is a button, not a link. */
 .top-cmd-btn { margin-left: auto; text-decoration: none; min-height: 36px; padding-inline: .75rem; }
+/* Touch, after the compact sizes above and in the component sheets, so it wins: page strips, Search, Restart, the
+   theme link, Home's "Since you last looked", the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
+@media (max-width: 860px), (pointer: coarse) {
+  .tabs > a, .tabs > button, .top-cmd-btn, .service-list .status-side .btn, .link-btn, .cr-since-summary,
+  .more-group > h2 a { min-height: 44px; }
+  .tabs > a, .tabs > button, .more-group > h2 a { display: inline-flex; align-items: center; }
+  .tabs > a, .tabs > button { justify-content: center; }
+}
 .top-cmd-btn .command-label { text-decoration: none; }
 /* No keyboard shortcut to show on a touch screen. */
 @media (hover: none) { .top-cmd-btn kbd { display: none; } }

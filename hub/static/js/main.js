@@ -3,15 +3,15 @@ import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.j
 import { updateNavigation } from "./navigation.js";
 import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
-import * as nextPage from "./next.js";
+import { initCommandPalette } from "./command-palette.js";
 import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
 import * as labPage from "./lab.js";
 import * as printPage from "./print.js";
 import * as listsPage from "./lists.js";
-import * as piPage from "./pi.js";
+import * as healthPage from "./health.js";
+import * as backupsPage from "./backups.js";
 import * as alertsPage from "./alerts.js";
-import * as controlPage from "./control.js";
 import * as settingsPage from "./settings.js";
 import * as morePage from "./more.js";
 import * as rulesPage from "./rules.js";
@@ -19,78 +19,101 @@ import * as drivesPage from "./drives.js";
 import * as weatherPage from "./weather.js";
 import * as documentsPage from "./documents.js";
 import * as networkPage from "./network.js";
-import * as systemPage from "./system.js";
+import * as devicesPage from "./devices.js";
+import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
-import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
+import * as assistantPage from "./assistant.js";
+import { pageHeading, pageStrip, revealCurrent } from "./system-strip.js";
+import { renderSources } from "./sources.js";
+import { SECTIONS, sectionFor, redirectFor, assistantHref, assistantButton } from "./sections.js";
 
-// The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
-// (set as the person reaches for it, so they are the ones on screen).
+// The Assistant button opens /assistant in the shell (A4) with the open page and its key facts (set as the person
+// reaches for it, so they are the ones on screen). On /assistant itself it carries none: it returns to the frame.
 for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-  a.href = toolUrl("assistant");
-  const fill = () => { if (current && !a.hasAttribute("aria-disabled")) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
+  a.href = "/assistant";
+  const fill = () => {
+    if (!current || a.hasAttribute("aria-disabled")) return;
+    a.href = current.key === "assistant" ? "/assistant" : assistantHref(location.hostname, current.title, current.state.facts);
+  };
   for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
   a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
-// "The PC is off" while the Pi's status service says Local AI is down; checked now, every minute, and when the page
+// `pc_off` or `assistant_down` while the PC is off or Local AI is down; checked now, every minute, and when the page
 // comes back into view (a phone wakes with an hour-old answer otherwise).
 async function checkAssistant() {
   const r = await api("/api/assistant").catch(() => null);
-  const { label, disabled } = assistantButton(r?.state);
+  const { label, disabled } = assistantButton(r?.state, r?.pc);
   for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
     a.querySelector("span").textContent = label;
     a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
     // Without an href a link drops out of the tab order and screen readers stop reading it: keep both while it's off.
     if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); a.setAttribute("role", "link"); a.tabIndex = 0; }
-    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = toolUrl("assistant"); }
+    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = "/assistant"; }
   }
 }
 checkAssistant();
 setInterval(checkAssistant, 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
+// Every page the shell draws; routes.js lists the same paths for the server, and a test keeps the two equal.
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
   "/wall": { key: "now", title: "Wall", mod: nowPage },
-  "/movies": { key: "movies", title: "Movies", mod: moviesPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/pi": { key: "pi", title: "Help & system", mod: piPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/control": { key: "control", title: "Devices", mod: controlPage },  // old path: redirects to /network
   "/settings": { key: "settings", title: "Settings", mod: settingsPage },
   "/more": { key: "more", title: "More", mod: morePage },
   "/rules": { key: "rules", title: "Automations", mod: rulesPage },
-  "/drives": { key: "drives", title: "Movie storage", mod: drivesPage },
+  "/drives": { key: "drives", title: "Drives", mod: drivesPage },
   "/weather": { key: "weather", title: "Weather", mod: weatherPage },
-  "/media": { key: "movies", title: "Media", mod: moviesPage },
-  "/documents": { key: "documents", title: "Documents", mod: documentsPage },
-  "/network": { key: "network", title: "Home & network", mod: networkPage },
-  "/system": { key: "system", title: "System", mod: systemPage },
+  "/media": { key: "movies", title: "Movies", mod: moviesPage },
+  "/documents": { key: "documents", title: "Papers", mod: documentsPage },
+  "/devices": { key: "devices", title: "Devices", mod: devicesPage },
+  "/network": { key: "network", title: "Network", mod: networkPage },
+  "/system": { key: "health", title: "Health", mod: healthPage },
+  "/backups": { key: "backups", title: "Backups", mod: backupsPage },
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
+  "/map": { key: "map", title: "Site map", mod: mapPage },
+  "/assistant": { key: "assistant", title: "Assistant", mod: assistantPage },
 };
+
+// In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
+const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {
+  mount(state) {
+    state.root.append(h("section", { class: "not-found" },
+      h("p", {}, "There’s no page at this address on Pi Hub."),
+      h("p", { class: "not-found-actions" },
+        h("a", { class: "ui-btn ui-btn--primary", href: "/", "data-link": true }, "Open Home"),
+        h("a", { class: "ui-btn", href: "/system", "data-link": true }, "System"))));
+  },
+  async load() {},
+} };
 
 // Page-specific subtitles
 const subtitles = {
   "/": "Your home at a glance",
   "/wall": "Glanceable ambient display",
-  "/movies": "Plex library and playback",
-  "/control": "Smart home devices and scenes",
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
   "/lab": "Experiments, test coupons and operator verdicts",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
-  "/pi": "Fix common problems and check the hub",
   "/rules": "Set up things the house can do for you",
   "/alerts": "Recent system and device events",
   "/settings": "Configure your Pi Hub",
-  "/media": "Movies and what's playing",
+  "/media": "What's playing and what to watch",
+  "/drives": "The movies drive and the copy from the PC",
   "/documents": "Find, scan and print papers",
-  "/network": "Devices, internet and blocking",
-  "/system": "Backups, alerts and settings",
+  "/devices": "Lights, plugs and the other things in the house",
+  "/network": "The internet, ad blocking and guest Wi-Fi",
+  "/map": "Every page and tool, and where it lives",
+  "/system": "How the hub and the Pi are doing, and what to try",
+  "/backups": "What is backed up, and when",
   "/versions": "What is live where",
+  "/assistant": "Local AI on the PC",
 };
 
 const updateSubtitle = () => {
@@ -163,6 +186,7 @@ applyTheme();
 
 function tick() {
   if (current) renderFreshness(current);
+  renderSources(document.getElementById("page-sources"), current?.state.sources);
   const d = new Date();
   const c = document.getElementById("clock");
   c.textContent = d.toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" });
@@ -176,7 +200,7 @@ function tick() {
 }
 
 // Short enough that a hung request can't leave a page on "Loading…" for good (refresh() won't start again while a
-// load is still running). A page with a known slow source sets its own `loadDeadline` (Movie storage).
+// load is still running). A page with a known slow source sets its own `loadDeadline` (Storage).
 const LOAD_DEADLINE_MS = 45_000;
 
 async function refresh() {
@@ -215,7 +239,7 @@ async function refresh() {
 async function show(path, { focus = false } = {}) {
   const moved = redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
-  const page = PAGES[path] || PAGES["/"];
+  const page = PAGES[path] || NOT_FOUND;  // the server answers unknown paths itself; this is in-app navigation
   const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
@@ -238,7 +262,10 @@ async function show(path, { focus = false } = {}) {
   const context = new URLSearchParams(location.search);
   const state = { root, context };
   const home = SECTIONS.find((x) => x.key === section);
-  const parents = page.key === "drives" ? [["/media", "Media"]]
+  // Every area's pages carry their strip instead of a breadcrumb: the strip already says where you are.
+  const strip = pageStrip(path);
+  if (strip) { view.prepend(strip); revealCurrent(strip); }
+  const parents = strip ? []
     : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
     : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
@@ -247,12 +274,16 @@ async function show(path, { focus = false } = {}) {
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
-  document.title = `${wallMode ? "Wall" : page.title} · Pi Hub`;
-  document.getElementById("page-title").textContent = page.title;
+  const { heading, title } = pageHeading(path, page.title);
+  document.title = `${wallMode ? "Wall" : title} · Pi Hub`;
+  document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
     const here = a.dataset.page === section || (a.dataset.page === "more" && ["network", "system", "more"].includes(section));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
+  for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
+    if (section === "assistant") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);
   current.freshness = mountFreshness(page.key);
@@ -265,7 +296,7 @@ async function show(path, { focus = false } = {}) {
 
 document.addEventListener("click", (e) => {
   const a = e.target.closest("a[data-link]");
-  if (!a || e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank") return;
+  if (!a || e.defaultPrevented || !a.hasAttribute("href") || e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank") return;
   const url = new URL(a.href);
   if (url.origin !== location.origin) return;
   e.preventDefault();
@@ -276,6 +307,14 @@ document.addEventListener("click", (e) => {
   }
   const query = new URLSearchParams(url.search);
   const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
+  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message) or replaces the page in place:
+  // Back still leaves the Assistant in one step (A4 requirement 7).
+  if (url.pathname === "/assistant" && location.pathname === "/assistant") {
+    if (current?.mod.retarget?.(current.state, url)) return;
+    history.replaceState({}, "", destination);
+    show(url.pathname, { focus: true });
+    return;
+  }
   if (destination !== location.pathname + location.search + location.hash) history.pushState({}, "", destination);
   show(url.pathname, { focus: true });
   window.scrollTo({ top: 0 });
@@ -328,6 +367,6 @@ setInterval(updateNavigation, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNavigation(); });
 stayAwake();
 gateSignIn();
-nextPage.initCommandPalette();
+initCommandPalette();
 
 
