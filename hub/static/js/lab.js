@@ -7,7 +7,7 @@ import { labFetch, recorded, watchRequests } from "./lab-net.js";
 import { mountPhotos } from "./lab-photos.js";
 import { mountObserve, observeButton, observeSheetHtml } from "./lab-observe.js";
 import { evidenceButton, mountEvidenceStudio } from "./lab-evidence.js";
-import { changedIds, dialogOpen, refreshPlan, restore, snapshot } from "./lab-refresh.js";
+import { changedIds, dialogOpen, isStale, refreshPlan, restore, snapshot } from "./lab-refresh.js";
 import { toolUrl } from "./sections.js";
 
 export const every = 15;
@@ -380,10 +380,22 @@ export function experimentHtml(x, ix, requests = []) {
     `<details class="lab-details" id="lab-d-${esc(x.id)}" data-lab-details="${esc(x.id)}"><summary>Details</summary><dl>${dl}</dl>${guards ? `<h4>Last check (${esc(String(x.check.status || "").replace(/_/g, " "))})</h4><ul class="lab-guards">${guards}</ul>` : ""}</details></article>`;
 }
 
-// The sync-age line; the quiet refresh swaps just this.
-export function syncedHtml(meta, now = Date.now()) {
-  const stale = meta && meta.synced_at && now - new Date(meta.synced_at) > 2 * 3600e3;
-  return `<p class="meta lab-synced${stale ? " lab-synced--stale" : ""}" aria-live="off">Synced from the Mac ${esc(ago(meta && meta.synced_at))}${stale ? ". The Mac may be asleep." : ""}</p>`;
+// Above the faceplate, only when the Mac's mirror is stale: how old, and why (A7 P8); with requests waiting, the phrase
+// table's mac_waiting words. Fresh, it is an empty placeholder (the sources line says when the Mac synced). The quiet
+// refresh swaps just this.
+export function syncedHtml(meta, now = Date.now(), requests = []) {
+  const at = meta && meta.synced_at;
+  if (!at || !isStale(at, now)) return '<p class="lab-synced" hidden></p>';
+  const waiting = list(requests).some((r) => r && r.status === "pending");
+  return `<p class="ui-notice ui-notice--warn lab-synced" role="status">Synced from the Mac ${esc(ago(at))}. The Mac may be asleep; ` +
+    `the experiments below are as they were then.${waiting ? " The Mac hasn't picked this up. It runs when the Mac is awake." : ""}</p>`;
+}
+
+// The sources line at the foot of the page (A7 P1): the Mac, and when it last synced.
+export function labSources(meta) {
+  const at = meta && meta.synced_at;
+  if (!at || !Number.isFinite(Date.parse(at))) return [{ name: "The Mac", tone: "unknown", word: "never synced" }];
+  return [{ name: "The Mac", tone: isStale(at) ? "warn" : "ok", word: `synced ${ago(at)}` }];
 }
 
 // Each card's HTML by experiment id, to see which ones changed between renders.
@@ -406,7 +418,7 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
     earlier.length ? `<a href="#lab-earlier" class="lab-jump__chip">Earlier (${earlier.length})</a>` : "",
   ].filter(Boolean).join("");
 
-  return syncedHtml(meta, now) +
+  return syncedHtml(meta, now, requests) +
     (problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
     (jumps ? `<nav class="lab-jump" aria-label="Jump to section">${jumps}</nav>` : "") +
     `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now, requests)}</section>` +
@@ -1175,6 +1187,7 @@ export async function load(state) {
   if (state.left) return; // the owner left while this was loading: the page it would draw on is gone
   if (!got) {
     state.box.replaceChildren(card("Print lab", { cls: "wide" }, empty("No lab data yet. Run lab sync on the Mac.")));
+    state.sources = labSources(null);
     state.renderedFp = undefined;
     state.cardSigs = null;
     return;
@@ -1196,7 +1209,8 @@ export async function load(state) {
     // Nothing to redraw (or a dialog is open and must not be disturbed): keep the statuses and the sync age current.
     if (state.currentData && state.currentData.meta) state.currentData.meta = { ...state.currentData.meta, synced_at: meta.synced_at };
     const line = state.box.querySelector(".lab-synced");
-    if (line && meta.synced_at) line.outerHTML = syncedHtml({ synced_at: meta.synced_at });
+    if (line && meta.synced_at) line.outerHTML = syncedHtml({ synced_at: meta.synced_at }, Date.now(), state.currentRequests);
+    state.sources = labSources(meta);
     for (const x of list(state.currentData && state.currentData.index && state.currentData.index.experiments)) {
       const el = state.box.querySelector("#lab-requests-" + CSS.escape(String(x.id)));
       if (el) el.innerHTML = requestsHtml(state.currentRequests.filter((r) => r.experiment === x.id));
@@ -1206,6 +1220,7 @@ export async function load(state) {
   }
   const first = !state.currentData;
   state.currentData = labData;
+  state.sources = labSources(meta);
   state.renderedFp = typeof meta.fingerprint === "string" && meta.fingerprint ? meta.fingerprint : undefined;
   renderInPlace(state, labData);
 

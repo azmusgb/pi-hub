@@ -146,7 +146,7 @@ test("Health's Cockpit links are the registry address, never port 9090", async (
 
 test('Pi Hub\'s lab card is named "Print lab"', () => {
   assert.doesNotMatch(read('lab-v2.js'), /Print Lab v3<\/div>/);
-  assert.match(read('lab-v2.js'), /lab-v2-kicker">Print lab</);
+  assert.match(read('lab-v2.js'), /aria-label="Print lab"><div class="ui-faceplate__main">/);  // its faceplate (A7 P1)
 });
 
 // Every page that carries tools or Open in links: no tool URL twice, no front door outside the row where there is one.

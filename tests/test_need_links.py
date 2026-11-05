@@ -125,3 +125,9 @@ def test_local_ai_the_display_and_the_pc_open_health_where_they_are_shown():
     links = {i["what"]: (i.get("href"), i.get("link_label")) for i in found}
     assert links["Windows PC"] == ("/system", "Check Health")
     assert links["Workshop display"] == ("/system", "Check Health")
+
+
+def test_the_page_names_every_record_as_the_server_does():  # A7 P5: "mac_lab" showed on Home's All else OK line
+    from hub.records import LABELS
+    # releases.py adds release:<target> labels at import; the page doesn't name those yet (A7 PR H4, Versions' names).
+    assert _js_object("RECORD_LABELS") == {k: v for k, v in LABELS.items() if not k.startswith("release:")}

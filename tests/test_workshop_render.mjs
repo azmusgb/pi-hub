@@ -212,3 +212,17 @@ test("A7 P2: Workshop's Needs you here is the kit's list, each action named by i
     assert.equal(text(p.state.root.querySelector('.ws-materials h2')), 'Filament loaded', 'section 9: Filament, not Materials');
   } finally { p.done(); }
 });
+
+test('A7 P1: the page tells the sources line what it reads: Bambuddy by its telemetry, and the camera', async () => {
+  const { workshopSources } = await import('../hub/static/js/workshop.js');
+  const tel = (status) => ({ telemetry: { status, source: 'Bambuddy' } });
+  assert.deepEqual(workshopSources(tel('live'), { ok: true }), [{ name: 'Bambuddy', tone: 'ok' }, { name: 'Camera', tone: 'ok' }]);
+  assert.deepEqual(workshopSources(tel('degraded'), { ok: true })[0], { name: 'Bambuddy', tone: 'warn', word: 'not connected; the Pi\'s readings' });
+  for (const s of ['stale', 'offline', 'none']) assert.deepEqual(workshopSources(tel(s), { ok: true })[0], { name: 'Bambuddy', tone: 'bad', word: "isn't answering" });
+  assert.deepEqual(workshopSources(tel('live'), { ok: false })[1], { name: 'Camera', tone: 'unknown', word: 'unavailable' });
+  const p = await page({ '/api/workshop': workshop({ printer: printer('idle', tel('live')) }) });
+  try {
+    await p.ws.load(p.state);
+    assert.deepEqual(p.state.sources.map((s) => s.name), ['Bambuddy', 'Camera']);
+  } finally { p.done(); }
+});

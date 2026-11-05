@@ -105,6 +105,8 @@ body.wall.night { filter: brightness(0.55); }
 .wall-needs[data-tone="attention"] .wall-needs-status, .wall-needs[data-tone="warn"] .wall-needs-status { color: var(--warn); }
 .wall-needs[data-tone="ok"] .wall-needs-status { color: var(--ok); }
 .ui-need__link:focus-visible, .ui-needs__more a:focus-visible { outline: none; box-shadow: var(--ring); }
+/* A row's own buttons (Clear the plate, Remount the drive) sit under its link, inside the row (A7 P2). */
+.ui-need__buttons { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 calc(var(--ui-space) * 4) calc(var(--ui-space) * 3); }
 
 /* The house: the workshop light, the network and any other favourites. */
 .wall-house { display: grid; gap: var(--wall-gap); grid-template-columns: repeat(auto-fit, minmax(min(100%, 21em), 1fr)); align-content: start; align-items: start; }
