@@ -1,6 +1,6 @@
 # A8 Home is a dashboard: the day, Needs you and the systems on one screen — Plan
 
-Date: 2026-11-05 · Status: **for the owner's review** · Baseline: `2026-11-01-platform-product-architecture-design.md`
+Date: 2026-11-05 · Status: **approved; decisions 1-11 as written (owner, "proceed with your recommendations", 5 Nov 2026)** · Baseline: `2026-11-01-platform-product-architecture-design.md`
 plus amendment A8 (`2026-11-05-amendment-a8-home-dashboard.md`, #123), which amends §5.5, §9 ("Home") and A7's P1 and
 P3 for Home.
 
