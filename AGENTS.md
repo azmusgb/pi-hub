@@ -9,6 +9,9 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
 - A change the baseline doesn't contain (a new page, a new navigation model, a new route through Caddy, a new store) is
   a **proposed amendment**: write it as `docs/superpowers/specs/<date>-amendment-<id>-<name>.md` and open it as a PR.
   Don't implement it before that PR merges.
+- Any UI work follows the design contract in appliance-ui, `DESIGN.md` (https://github.com/azmusgb/appliance-ui/blob/main/DESIGN.md),
+  after the baseline and its amendments (A6, A7). Contrast claims come from its measured `docs/contrast.md`, never from
+  eyeballing; a new token or component is proposed in appliance-ui and synced into `hub/static/ui`, never added here.
 - Work on one named step or plan at a time. If there is no plan in `docs/superpowers/plans/` for the step, the first PR
   is the plan.
 
