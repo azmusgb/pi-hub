@@ -334,11 +334,15 @@ The five criteria from the platform baseline §12:
      snapshot header line.
    - A restored `AGENTS.md` matched the Mac's copy.
    - The scratch folder was then deleted.
-5. **A failure alerts:** not yet evidenced. The owner deferred the test on 4 Nov.
-   - **The test:** set the check to period 1 h and grace 30 min, and confirm it is Up. Disable only `pi-offsite`'s
-     schedule. Watch Late, then Down, and confirm the email. Re-enable the schedule and run Backup now. Confirm Up and
-     the recovery email. Then set the check back to 1 day and 6 h.
-   - C1 is accepted when this is recorded here.
+5. **A failure alerts:** done 4 Nov, with the owner (Healthchecks.io emails to the owner's inbox).
+   - The check was set to period 1 h and grace 30 min. It was Up at 15:32 (UP email).
+   - With only `pi-offsite`'s schedule disabled, the check went Down and the DOWN email arrived at 17:02.
+   - With the schedule re-enabled, Backup now ran at 19:34 (snapshot `d0b35c6b`, 7.44 GiB in 23 s). The hook's ping
+     brought the check back Up, and the UP email arrived at 19:34. Backrest shows the next scheduled run at 04:30.
+   - Then the check went back to period 1 day and grace 6 h, and the Backrest login password was rotated (the record
+     in `/etc/pi-hub/secrets/backrest_admin`, root only, 600).
+
+**Accepted 4 Nov 2026:** all five criteria are evidenced above.
 
 ## The hub's menu (since 25 October 2026)
 
