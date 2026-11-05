@@ -1027,3 +1027,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A6. Navigation cleanup** (`2026-11-04-amendment-a6-navigation-cleanup.md`): every area gets a page strip, Home & network
   splits into Devices and Network with Weather, pages cap at six sections, names settle (Drives, Pi disks, product names for
   tools), System gains a generated Site map, and Plex gets a gated address. Approved by the owner on 4 Nov 2026 ("fix all").
+- **A7. One page** (`2026-11-04-amendment-a7-one-page.md`): every page in Pi Hub and the Assistant follows one anatomy
+  (head, strip, one faceplate, Needs you here, at most six sections, Open in, sources), Needs you is the kit's
+  `.ui-needs` everywhere with verb actions, one strip style, plain words, grouped repeats, risky fixes ask first, and
+  every page designs its loading, stale and source-down states. Approved by the owner on 4 Nov 2026 ("Yes").
