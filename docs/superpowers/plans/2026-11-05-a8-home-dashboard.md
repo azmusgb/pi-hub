@@ -1,6 +1,6 @@
 # A8 Home is a dashboard: the day, Needs you and the systems on one screen — Plan
 
-Date: 2026-11-05 · Status: **approved; decisions 1-11 as written (owner, "proceed with your recommendations", 5 Nov 2026)** · Baseline: `2026-11-01-platform-product-architecture-design.md`
+Date: 2026-11-05 · Status: **approved; decisions 1-11 as written (owner, "proceed with your recommendations", 5 Nov 2026)**; P3 added for A9 (proposed with #127) · Baseline: `2026-11-01-platform-product-architecture-design.md`
 plus amendment A8 (`2026-11-05-amendment-a8-home-dashboard.md`, #123), which amends §5.5, §9 ("Home") and A7's P1 and
 P3 for Home.
 
@@ -156,6 +156,22 @@ None changes the spec. If the owner disagrees with one, it changes here.
   light attached to the PR.
 - **Needs P1 merged** (it reads `/api/today`). Evidence: criteria 1-6 in the browser with stubbed sources.
 
+### P3. Pi Hub: the band on a phone (amendment A9)
+
+- **Covers:** A9 D1-D3 in full, and A8 D1's Now sweep on first load, which P2 left out (not in this plan's P2 list; found
+  after P2 shipped).
+- **Waits on:** A9 merged (#127).
+- **Change:** `bandLayout` takes the span's end: one hour after Now, at least six hours after midnight, never past the
+  next midnight, when the band is narrower than 520 px; hour steps follow the hours shown. The counts get short labels
+  on phones, with the full words for screen readers. The Now line sweeps from midnight once per page load, under
+  `prefers-reduced-motion: no-preference` only, and never on a refresh.
+- **Tests (written first):** the phone span at 1 AM, 6 PM and 11:30 PM; a mark after the span's end is clipped, not
+  dropped (the running print's dashed finish); hour labels don't touch at 300-519 px over each span; the wide band is
+  unchanged; short labels only under 600 px; the sweep runs once and not with reduced motion.
+- **Browser:** live hub at 320, 375, 390 and 430 px, dark and light, and at 1440 px to show desktop unchanged; axe over
+  Home.
+- **Evidence:** the owner's "squished" screen (IMG_1553) against the same view after the deploy.
+
 ### Coverage
 
 | Criterion | Evidenced by |
@@ -167,6 +183,7 @@ None changes the spec. If the owner disagrees with one, it changes here.
 | 5 Sizes, axe | P2 browser run; acceptance on the iPhone, iPad and TV |
 | 6 States | P1 tests (data), P2 tests (rendering) |
 | 7 `/api/today` | P1 tests; acceptance (live response read) |
+| A9 phone band, short counts, TV 1.2× | P3 tests and phone screenshots; acceptance on the iPhone |
 
 ## Acceptance
 
