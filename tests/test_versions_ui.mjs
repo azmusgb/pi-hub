@@ -76,10 +76,10 @@ test("a deploy from uncommitted changes says so after its commit", () => {
   assert.match(src, /v\.dirty \? " \+ local changes"/);
 });
 
-test("Atlas-kept repos link to Architecture at this commit on Local AI; others don't", () => {
+test("Atlas-kept repos link to Architecture at this commit, in the shell (A4); others don't", () => {
   const rows = versionRows([live("pi-hub"), live("mac-watch"), live("firmware"), rec("print-lab", "unknown")]);
-  assert.equal(rows[0].atlas, `https://assistant.rahe-home.duckdns.org/#architecture?repo=pi-hub&commit=${A}`);
-  assert.equal(rows[1].atlas, `https://assistant.rahe-home.duckdns.org/#architecture?repo=localai&commit=${A}`);
+  assert.equal(rows[0].atlas, `/assistant?to=${encodeURIComponent(`architecture?repo=pi-hub&commit=${A}`)}`);
+  assert.equal(rows[1].atlas, `/assistant?to=${encodeURIComponent(`architecture?repo=localai&commit=${A}`)}`);
   assert.equal(rows[2].atlas, "");
   assert.equal(rows[3].atlas, undefined);
   const [bad] = versionRows([rec("localai", "live", { commit: "not-a-sha" })]);

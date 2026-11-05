@@ -22,15 +22,19 @@ import * as networkPage from "./network.js";
 import * as devicesPage from "./devices.js";
 import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
+import * as assistantPage from "./assistant.js";
 import { pageHeading, pageStrip, revealCurrent } from "./system-strip.js";
 import { renderSources } from "./sources.js";
-import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
+import { SECTIONS, sectionFor, redirectFor, assistantHref, assistantButton } from "./sections.js";
 
-// The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
-// (set as the person reaches for it, so they are the ones on screen).
+// The Assistant button opens /assistant in the shell (A4) with the open page and its key facts (set as the person
+// reaches for it, so they are the ones on screen). On /assistant itself it carries none: it returns to the frame.
 for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-  a.href = toolUrl("assistant");
-  const fill = () => { if (current && !a.hasAttribute("aria-disabled")) a.href = assistantHref(location.hostname, current.title, current.state.facts); };
+  a.href = "/assistant";
+  const fill = () => {
+    if (!current || a.hasAttribute("aria-disabled")) return;
+    a.href = current.key === "assistant" ? "/assistant" : assistantHref(location.hostname, current.title, current.state.facts);
+  };
   for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
   a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
 }
@@ -44,7 +48,7 @@ async function checkAssistant() {
     a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
     // Without an href a link drops out of the tab order and screen readers stop reading it: keep both while it's off.
     if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); a.setAttribute("role", "link"); a.tabIndex = 0; }
-    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = toolUrl("assistant"); }
+    else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = "/assistant"; }
   }
 }
 checkAssistant();
@@ -73,6 +77,7 @@ const PAGES = {
   "/backups": { key: "backups", title: "Backups", mod: backupsPage },
   "/versions": { key: "versions", title: "Versions", mod: versionsPage },
   "/map": { key: "map", title: "Site map", mod: mapPage },
+  "/assistant": { key: "assistant", title: "Assistant", mod: assistantPage },
 };
 
 // In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
@@ -108,6 +113,7 @@ const subtitles = {
   "/system": "How the hub and the Pi are doing, and what to try",
   "/backups": "What is backed up, and when",
   "/versions": "What is live where",
+  "/assistant": "Local AI on the PC",
 };
 
 const updateSubtitle = () => {
@@ -276,6 +282,9 @@ async function show(path, { focus = false } = {}) {
     const here = a.dataset.page === section || (a.dataset.page === "more" && ["network", "system", "more"].includes(section));
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
+  for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
+    if (section === "assistant") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
   page.mod.mount(state);
   current.freshness = mountFreshness(page.key);
   if (current.freshness) view.append(current.freshness);
@@ -287,7 +296,7 @@ async function show(path, { focus = false } = {}) {
 
 document.addEventListener("click", (e) => {
   const a = e.target.closest("a[data-link]");
-  if (!a || e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank") return;
+  if (!a || e.defaultPrevented || !a.hasAttribute("href") || e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank") return;
   const url = new URL(a.href);
   if (url.origin !== location.origin) return;
   e.preventDefault();
@@ -298,6 +307,14 @@ document.addEventListener("click", (e) => {
   }
   const query = new URLSearchParams(url.search);
   const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
+  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message) or replaces the page in place:
+  // Back still leaves the Assistant in one step (A4 requirement 7).
+  if (url.pathname === "/assistant" && location.pathname === "/assistant") {
+    if (current?.mod.retarget?.(current.state, url)) return;
+    history.replaceState({}, "", destination);
+    show(url.pathname, { focus: true });
+    return;
+  }
   if (destination !== location.pathname + location.search + location.hash) history.pushState({}, "", destination);
   show(url.pathname, { focus: true });
   window.scrollTo({ top: 0 });

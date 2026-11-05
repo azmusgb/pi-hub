@@ -3,7 +3,8 @@
 // answer every other path with a real 404. Everything after "export default" is plain JSON, so keep it that way.
 export default {
   "pages": ["/", "/wall", "/weather", "/workshop", "/lab", "/documents", "/print", "/lists", "/media", "/drives",
-            "/devices", "/network", "/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map", "/more"],
+            "/devices", "/network", "/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map", "/more",
+            "/assistant"],
   "redirects": {
     "/next": "/",
     "/movies": "/media",

@@ -35,7 +35,7 @@ test('the menu markup matches the sections', () => {
   const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
   const pages = [...nav.matchAll(/data-page="(\w+)"/g)].map((m) => m[1]);
   assert.deepEqual(pages, [...railItems(), 'more']);
-  assert.ok(nav.includes(`href="${ASSISTANT_URL}"`), 'Assistant at the rail foot');
+  assert.ok(nav.includes('class="rail-assistant" href="/assistant" data-link'), 'Assistant at the rail foot, in the shell (A4)');
   assert.ok(!/data-page="[^"]*"[^>]*>[^<]*<span class="nav-badge"/.test(nav));
 });
 
@@ -51,14 +51,14 @@ test('tool links are always the gate names', () => {
 
 test('server links name a tool, and the page resolves it to the gate', () => {
   assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.30'), 'https://paperless.rahe-home.duckdns.org/documents/42/details');
-  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), 'https://assistant.rahe-home.duckdns.org/');
+  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), '/assistant', 'the Assistant opens in the shell (A4)');
   assert.equal(resolveLink('/workshop', '10.0.0.30'), '/workshop');
 });
 
-test('assistantHref carries the page and its facts', () => {
+test('assistantHref carries the page and its facts to /assistant in the shell (A4)', () => {
   assert.equal(assistantHref('hub.rahe-home.duckdns.org', 'Workshop', 'Printing, 40% · done 3:10 PM'),
-    'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
-  assert.equal(assistantHref('10.0.0.30', 'Home'), 'https://assistant.rahe-home.duckdns.org/#ask?context=' + encodeURIComponent('Pi Hub › Home'));
+    '/assistant?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
+  assert.equal(assistantHref('10.0.0.30', 'Home'), '/assistant?context=' + encodeURIComponent('Pi Hub › Home'));
 });
 
 test('assistantHref keeps the context to 300 characters', () => {

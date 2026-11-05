@@ -615,6 +615,29 @@ html {
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .rail-assistant[aria-disabled], .top-assistant[aria-disabled] { cursor: not-allowed; }
+.rail-assistant[aria-current="page"], .top-assistant[aria-current="page"] {
+  background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+/* /assistant (A4, step 7a): the frame fills the stage under the header and is the page's one scroller (requirement 8).
+   The stage stops at the screen (and, on the phone, at the tab bar); the footer's lines belong to the hub's own pages. */
+[data-assistant] .stage { height: 100dvh; min-height: 0; }
+[data-assistant] .foot { display: none; }
+[data-assistant] #view { display: flex; flex-direction: column; min-height: 0; padding-bottom: 1rem; }
+[data-assistant] .page-assistant { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.assistant-box { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.assistant-frame {
+  flex: 1; width: 100%; min-height: 0; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.assistant-frame:focus-visible { outline: none; box-shadow: var(--ring); }
+.assistant-down { max-width: 40rem; }
+@media (max-width: 860px) {
+  [data-assistant] .stage { height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); }
+  [data-assistant] #view { padding: 0 0 .5rem; }
+  [data-assistant] .assistant-frame { border-radius: 0; border-left: 0; border-right: 0; }
+  [data-assistant] .assistant-down { margin: 0 1.25rem; }
+}
 
 /* ============================================================
    Live printer HUD
