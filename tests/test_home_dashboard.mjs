@@ -43,6 +43,20 @@ test("every mark is at least a 24 x 40 target, however thin it is drawn", () => 
   }
 });
 
+test("hour labels never touch each other, from a phone to a wide desktop", () => {
+  const CH = 7;  // a generous width per character at 11 px Archivo
+  for (let w = 300; w <= 1600; w += 10) {
+    const labels = bandLayout(day({ now: START + 1800 }), w).hours.filter((h) => h.label).map((h) => {
+      const len = h.label.length * CH;
+      const left = h.anchor === "start" ? h.x : h.anchor === "end" ? h.x - len : h.x - len / 2;
+      return { left, right: left + len, label: h.label };
+    });
+    for (let i = 1; i < labels.length; i++) {
+      assert.ok(labels[i].left - labels[i - 1].right >= 4, `${w}px: ${labels[i - 1].label} / ${labels[i].label}`);
+    }
+  }
+});
+
 test("an hour label next to Now gives way to it", () => {
   const L = bandLayout(day({ now: START + 12 * 3600 + 60 }), 1200);
   const noon = L.hours[12];
@@ -94,6 +108,24 @@ test("Ad blocking paused is deliberate: it is not a Need, and the badge counts t
   assert.deepEqual(probs.map((p) => p.recordId || p.id).filter((id) => /adguard/.test(id)), []);
   assert.equal(problemsBadge(needs, probs).count, probs.length);
   assert.ok(probs.length >= 1, "the PC still needs you");
+});
+
+test("the hub's own Ad blocking need is left out while the record says paused, and kept when records didn't answer", () => {
+  const needs = { count: 2, unread: [], items: [
+    { id: "pi:Ad blocking", source: "Pi Hub", tone: "warn", title: "Ad blocking", record: "adguard", link: "/network" },
+    { id: "pi:Raspberry Pi", source: "Pi Hub", tone: "warn", title: "Raspberry Pi", record: "pi", link: "/system" }] };
+  const paused = mergeProblems([{ id: "adguard", state: "paused", severity: "attention" }, { id: "pi", state: "power", severity: "attention" }], needs);
+  assert.deepEqual(paused.map((p) => p.id), ["pi:Raspberry Pi"]);
+  assert.equal(problemsBadge(needs, paused).count, 1, "the badge counts the list, not the hub's raw count");
+  const off = mergeProblems([{ id: "adguard", state: "not_answering", severity: "problem" }], needs);
+  assert.ok(off.some((p) => p.id === "pi:Ad blocking"), "ad blocking that failed still needs you");
+  assert.equal(mergeProblems(null, needs).length, 2, "no records: nothing is hidden on a guess");
+});
+
+test("a hub need that stands for a record lights that record's lane", () => {
+  const d = day();
+  d.lanes[2].marks = [{ at: START + 100, kind: "warn", title: "Low voltage seen" }];
+  assert.deepEqual(needMark({ kind: "need", record: "pi", about: "" }, d), { lane: "pi", index: 0 });
 });
 
 test("a need lights its lane's newest mark today; a Print lab need lights the running print", () => {

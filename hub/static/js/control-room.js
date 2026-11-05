@@ -92,7 +92,7 @@ export function recordTone(severity) {
 export function splitNowRecords(records = [], { skipPrinter = false } = {}) {
   const active = [];
   const calm = [];
-  for (const r of records) {
+  for (const r of records || []) {
     if (!r || typeof r !== "object") continue;
     if (skipPrinter && r.id === "printer") continue;
     const isPrinting = r.id === "printer" && ["printing", "paused", "finished", "failed"].includes(r.state);
@@ -159,6 +159,9 @@ export function mergeProblems(records = [], needs = null) {
   const coveredAbout = new Set();
   const byId = new Map((records || []).map((r) => [r?.id, r]));
   for (const item of needs?.items || []) {
+    // A need standing for a record in a state the owner chose (Ad blocking paused) is not a Need (A8 D5); with no
+    // records to check, it stays listed.
+    if (item?.record && DELIBERATE[item.record]?.includes(byId.get(item.record)?.state)) continue;
     if (item?.about) coveredAbout.add(item.about);
     if (item?.record) coveredAbout.add(item.record);  // the hub's own record, said once (iPad, 1 Nov: Pi listed twice)
     out.push({
@@ -169,6 +172,7 @@ export function mergeProblems(records = [], needs = null) {
       tone: item.tone === "bad" ? "bad" : "warn",
       kitTone: ["bad", "attention", "warn"].includes(item.tone) ? item.tone : "warn",
       about: item.about || "",
+      record: item.record || "",
       since: item.since || byId.get(item.record)?.since || null,  // the record it stands for knows since when
       as_of: typeof item.as_of === "string" ? item.as_of : "",
       source: item.source || "",
@@ -176,7 +180,7 @@ export function mergeProblems(records = [], needs = null) {
       link: typeof item.link === "string" ? item.link : "",
     });
   }
-  for (const r of records) {
+  for (const r of records || []) {
     if (!r || (r.severity !== "problem" && r.severity !== "attention")) continue;
     if (DELIBERATE[r.id]?.includes(r.state)) continue;
     if (coveredAbout.has(r.id)) continue;

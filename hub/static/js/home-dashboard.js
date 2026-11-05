@@ -7,7 +7,7 @@ import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, reco
   splitNowRecords } from "./control-room.js";
 
 const SVG = "http://www.w3.org/2000/svg";
-const NARROW = 600;  // below this the band puts each row's name above its track
+const NARROW = 520;  // below this (a phone; not the TV, whose zoom leaves the band near 600) names go above the tracks
 const RACK_IDS = new Set(["printer", "pi", "internet", "adguard", "pc", "local_ai", "backups", "movies_drive", "movie_copy"]);
 
 // The kit's phrase for a source that didn't answer (phrase key source_down), the same words on every surface.
@@ -43,7 +43,7 @@ export function bandLayout(day, width) {
   const span = Math.max(1, day.end - day.start);
   const x = (ts) => LABEL + (Math.min(Math.max(ts, day.start), day.end) - day.start) / span * (W - LABEL - PAD);
   const nowX = x(day.now);
-  const step = narrow ? 6 : W > 1100 ? 2 : 3;
+  const step = narrow ? 6 : W > 1100 ? 2 : W > 800 ? 3 : 6;  // labels every 2, 3 or 6 hours, never touching
   const hours = [];
   for (let i = 0; i * 3600 <= span; i++) {
     const ts = day.start + i * 3600;
@@ -146,7 +146,7 @@ const LANE_OF = { pi: "pi", workshop_display: "workshop_display", printer: "prin
 // the running print. Anything else lights nothing.
 export function needMark(p, day) {
   const lanes = day?.lanes || [];
-  const laneId = p.kind === "record" ? LANE_OF[p.recordId] : p.source === "Print lab" ? "printer" : LANE_OF[p.about];
+  const laneId = p.kind === "record" ? LANE_OF[p.recordId] : p.source === "Print lab" ? "printer" : LANE_OF[p.about || p.record];
   const lane = laneId && lanes.find((l) => l.id === laneId && l.available);
   if (!lane || !lane.marks.length) return null;
   if (p.kind !== "record" && p.source === "Print lab") {
