@@ -294,4 +294,6 @@ test("Home's stylesheet is linked and cached, and uses no tokens of its own", ()
   assert.match(sw, /"\/static\/js\/home-dashboard\.js"/);
   assert.doesNotMatch(css, /^\s*--[a-z]/m, "no new custom properties (plan decision 9)");
   assert.doesNotMatch(css, /var\(--(?!ui-)/, "only the kit's --ui-* tokens");
+  // the shell caps #view at 1440 px: a zoom above 1.2 would leave the band too narrow to read (2.4 gave 267 px)
+  for (const [, z] of css.matchAll(/zoom:\s*([\d.]+)/g)) assert.ok(Number(z) <= 1.2, `zoom ${z}`);
 });

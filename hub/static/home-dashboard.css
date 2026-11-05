@@ -189,11 +189,10 @@ p.hd-band__down { padding: 12px 0; }
 }
 
 /* TV and large landscape screens: two columns (the day and Needs you left, Systems right) at a scale that reads from
-   across the room. Last, so it wins over the rules above. */
+   across the room. Last, so it wins over the rules above. One step only: the shell caps #view at 1440 px, so a larger
+   zoom would only narrow Home's own layout (at 2.4 the band was 267 px wide). Most TVs report 1920 CSS px anyway. */
 @media (min-width: 1800px) and (orientation: landscape) {
   .hd { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "today rack" "needs rack"; gap: 20px 24px; }
   .hd-unit { padding-block: 12px; }
   .home-context, .home-dash { zoom: 1.2; }
 }
-@media (min-width: 2400px) and (orientation: landscape) { .home-context, .home-dash { zoom: 1.6; } }
-@media (min-width: 3400px) and (orientation: landscape) { .home-context, .home-dash { zoom: 2.4; } }
