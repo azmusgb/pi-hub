@@ -256,7 +256,7 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
         h("span", { class: "dot", dataset: { tone: done ? "ok" : "warn" } }),
         done ? h("span", {}, h("s", {}, label)) : h("a", { href: `#group-${group}` }, label),
         h("span", { class: "meta" }, done ? "Done" : why))))) : null,
-    h("nav", { class: "tabs page-strip settings-tabs", "aria-label": "Settings sections" },
+    h("nav", { class: "ui-chips settings-tabs", "aria-label": "Settings sections" },
       GROUPS.map(([id, title]) => h("a", { href: `#group-${id}` }, title))),
     ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
       h("h2", { class: "group-title", id: `group-${id}-title` }, title),

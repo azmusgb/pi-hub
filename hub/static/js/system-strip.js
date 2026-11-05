@@ -1,6 +1,7 @@
 // An area's page strip: one row of the area's pages, shown on each of them. System's (§5.6 `/system`, platform step 7,
 // PR 7.3) came first; Workshop's Printer | Print lab (§5.1, workshop flow W.1) is the same component, and A6 gives
-// Documents, Media and Home & network theirs, so no page is hidden.
+// Documents, Media and Home & network theirs, so no page is hidden. A7 (P4) draws it as the kit's underlined strip, the
+// same in Pi Hub and the Assistant.
 import { h } from "./core.js";
 
 export const STRIP = [
@@ -48,7 +49,7 @@ export function pageHeading(path, title) {
 export function pageStrip(path) {
   const strip = stripFor(path);
   if (!strip) return null;
-  return h("nav", { class: `tabs page-strip ${strip.key}-strip`, "aria-label": strip.label },
+  return h("nav", { class: `ui-strip page-strip ${strip.key}-strip`, "aria-label": strip.label },
     ...strip.items.map(({ href, label, current }) =>
       h("a", { href, "data-link": true, "aria-current": current ? "page" : null }, label)));
 }

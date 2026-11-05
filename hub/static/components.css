@@ -704,13 +704,13 @@ input:focus-visible {
 /* One link colour (25 Oct critique): plain links, "Open … ↗" actions and breadcrumbs all use the accent, never the
    browser's blue or visited purple. Buttons, chips, cards, the menu and list rows (section pages, More, Needs you)
    keep their own styles. */
-main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.meta, .page-trail a, main a.print-photo-link {
+main a:not([class]):not(:is(.more, .home-card-items, .ui-strip, .ui-chips) a), main a.action, main a.meta, .page-trail a, main a.print-photo-link {
   color: var(--accent-strong); text-decoration-thickness: 1px; text-underline-offset: 2px;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) :is(main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
+  :root:not([data-theme="light"]) :is(main a:not([class]):not(:is(.more, .home-card-items, .ui-strip, .ui-chips) a), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
 }
-:root[data-theme="dark"] :is(main a:not([class]):not(:is(.more, .home-card-items) a), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
+:root[data-theme="dark"] :is(main a:not([class]):not(:is(.more, .home-card-items, .ui-strip, .ui-chips) a), main a.action, main a.meta, .page-trail a) { color: var(--accent); }
 
 /* Facts: label on the left, value on the right, one per line (Firmware 12.8.0, Movies on the Pi 148). */
 .facts { display: grid; gap: .35rem; margin: .5rem 0; }

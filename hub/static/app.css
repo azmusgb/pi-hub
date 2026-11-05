@@ -245,6 +245,10 @@ body::before {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .foot-links { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+/* The page's sources line (A7 P1, sources.js) takes the footer's first row; the kit's .ui-sources is a flex row, so
+   hidden needs saying again. */
+#page-sources { flex-basis: 100%; }
+#page-sources[hidden] { display: none; }
 .link-btn, #wall-link, #map-link {
   display: inline-flex; align-items: center; gap: .45rem;
   padding: .4rem .7rem; border-radius: var(--r-full);
@@ -716,32 +720,14 @@ html {
 }
 
 
-/* An area's page strip (System's from step 7, PR 7.3; Workshop's from workshop flow W.1): one row of the area's pages
-   above each of them. It scrolls sideways rather than wrapping, so the row keeps one line and the page below doesn't jump. */
-.page-strip {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 1rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.page-strip::-webkit-scrollbar { display: none; }
-/* Inside a scrolling row an outside outline is clipped; draw it inside. */
-.page-strip > a:focus-visible { outline-offset: -2px; }
-/* components.css loads after this file and sets .tabs to wrap, so the strip's rule names both classes. */
-.tabs.page-strip { flex-wrap: nowrap; }
-/* On a phone an area's pages fit as rows of up to three (System's seven: three rows): nothing hides off the edge, so
-   nothing needs a scroll hint. Workshop's and Media's two share one row. */
+/* An area's page strip is the kit's underlined .ui-strip (A7 P4), the current page underlined in the accent. On a phone
+   it wraps instead of scrolling, so none of System's seven pages hides off the edge (A6: every page on a visible strip). */
+.ui-strip.page-strip { margin: 0 0 1.25rem; }
 @media (max-width: 560px) {
-  .tabs.page-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr)); width: 100%; overflow: visible; }
-  .tabs.page-strip > a { text-align: center; padding-inline: .4rem; }
-  .page-strip > a:focus-visible { outline-offset: 2px; }
+  .ui-strip.page-strip { flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
 }
-
-/* Settings' group names are longer than a page name: they wrap inside their cell on a phone. */
-.tabs.settings-tabs > a { white-space: normal; }
-@media (min-width: 561px) { .tabs.settings-tabs > a { white-space: nowrap; } }
+/* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
+.ui-chips.settings-tabs { margin: 0 0 1.25rem; }
 
 /* A "More" list (A6): a heading, then one closed row per item. The card inside an item loses its box and its visible
    heading, because the row's summary already names it; the heading stays for screen readers, and so does the pill. */
