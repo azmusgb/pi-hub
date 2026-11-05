@@ -82,3 +82,10 @@ function putBack(container, snap) {
   if (card) win.scrollBy(0, card.getBoundingClientRect().top - snap.anchor.top);
   else win.scrollTo(0, snap.scrollY);
 }
+
+// The Mac's mirror is stale after two hours without a sync (the Mac is likely asleep); no time at all is stale too.
+export const STALE_SYNC_MS = 2 * 3600e3;
+export function isStale(syncedAt, now = Date.now()) {
+  const t = Date.parse(syncedAt || "");
+  return !Number.isFinite(t) || now - t > STALE_SYNC_MS;
+}

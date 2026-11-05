@@ -24,6 +24,7 @@ export const RECORD_LABELS = {
   weather: "Weather",
   hub: "The hub's sources",
   pc_printing: "PC during a print",
+  mac_lab: "Print lab on the Mac",
 };
 
 export const RECORD_PATHS = {
@@ -174,9 +175,12 @@ export function mergeProblems(records = [], needs = null) {
       title: item.title || "Needs attention",
       detail: item.detail || "",
       tone: item.tone === "bad" ? "bad" : "warn",
+      kitTone: ["bad", "attention", "warn"].includes(item.tone) ? item.tone : "warn",
       about: item.about || "",
       since: item.since || byId.get(item.record)?.since || null,  // the record it stands for knows since when
-      act: item.act || null,
+      as_of: typeof item.as_of === "string" ? item.as_of : "",
+      source: item.source || "",
+      action: item.action && typeof item.action.key === "string" ? item.action : null,
       link: typeof item.link === "string" ? item.link : "",
     });
   }
@@ -198,6 +202,24 @@ export function mergeProblems(records = [], needs = null) {
     });
   }
   return out;
+}
+
+// A record's page, opened by its verb (the same table as the server's needs.PAGE_VERB). A page with no verb yet gets
+// none: its row is the link, with no words, never "Open" or "Inspect" alone (A7 P2).
+const PAGE_VERB = { "/workshop": "open_printer", "/network": "open_network" };
+
+// The Problems list as the kit's Needs you items (ApplianceNeeds.renderList): title, detail, "since … · area" and a verb.
+export function problemItems(probs = []) {
+  return probs.map((p) => {
+    const iso = Number(p.since) > 0 ? new Date(p.since * 1000).toISOString() : undefined;
+    if (p.kind === "need") {
+      return { id: p.id, tone: p.kitTone || p.tone, title: p.title, detail: p.detail, link: p.link || undefined,
+        action: p.action || undefined, as_of: p.as_of || iso, area: p.source && p.source !== "Pi Hub" ? p.source : undefined };
+    }
+    const verb = PAGE_VERB[p.href];
+    return { id: p.id, tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
+      link: p.href || undefined, action: verb ? { key: verb, link: p.href } : undefined, as_of: iso };
+  });
 }
 
 // What the Home tab's badge counts: the whole Problems list. `undefined` while Needs you hasn't been asked, so the badge
@@ -297,58 +319,33 @@ function renderActiveItem(r, state, onReload) {
       actionsWrap));
 }
 
-function renderProblemRow(p, state, onReload) {
-  const actButtons = [];
-  if (p.kind === "need" && !p.act && p.link) {
-    // Without its own action a need still opens where it is dealt with (the lab's judging page, Settings, Help).
-    const resolved = resolveLink(p.link);
-    const external = /^https?:\/\//i.test(resolved) && !resolved.startsWith(location.origin);
-    actButtons.push(h("a", {
-      class: "action ghost",
-      href: resolved,
-      ...(external ? { target: "_blank", rel: "noopener" } : { "data-link": true }),
-    }, /[?&]do=judge\b/.test(p.link) ? "Judge" : "Open"));
-  } else if (p.kind === "need" && p.act) {
-    if (p.act.href) {
-      const resolved = resolveLink(p.act.href);
-      const external = /^https?:\/\//i.test(resolved) && !resolved.startsWith(location.origin);
-      actButtons.push(h("a", {
-        class: "btn btn--primary",
-        href: resolved,
-        ...(external ? { target: "_blank", rel: "noopener" } : { "data-link": true }),
-      }, p.act.label || "Open"));
-    } else if (p.act.printer) {
-      const btn = h("button", { type: "button", class: "btn btn--primary" }, p.act.label || "Run");
-      btn.addEventListener("click", () => runPrinterAction(p.act.printer, [btn], onReload));
-      actButtons.push(btn);
-    } else if (p.act.fix) {
-      const btn = h("button", { type: "button", class: "btn btn--primary" }, p.act.label || "Fix it");
-      btn.addEventListener("click", () => fix(p.act.fix, p.act.label || "Fix it", { onResult: () => onReload() }));
-      actButtons.push(btn);
-    }
-  } else if (p.kind === "record") {
-    if (p.actions?.includes("clear")) {
-      const btn = h("button", { type: "button", class: "btn btn--primary" }, "Clear the plate");
-      btn.addEventListener("click", () => runPrinterAction("clear", [btn], onReload));
-      actButtons.push(btn);
-    }
-    if (p.fix) {
-      const btn = h("button", { type: "button", class: "btn ghost" }, p.fix.label);
-      btn.addEventListener("click", () => fix(p.fix.name, p.fix.label, { onResult: () => onReload() }));
-      actButtons.push(btn);
-    }
-    if (p.href) {
-      actButtons.push(h("a", { class: "action ghost", href: p.href, "data-link": true }, "Inspect"));
-    }
+// The buttons a row keeps beside its link: Clear the plate, and the record's own fix (Remount the drive, …).
+function problemButtons(p, onReload) {
+  const out = [];
+  if (p.kind === "record" && p.actions?.includes("clear")) {
+    const btn = h("button", { type: "button", class: "btn btn--primary" }, "Clear the plate");
+    btn.addEventListener("click", () => runPrinterAction("clear", [btn], onReload));
+    out.push(btn);
   }
+  if (p.kind === "record" && p.fix) {
+    const btn = h("button", { type: "button", class: "btn ghost" }, p.fix.label);
+    btn.addEventListener("click", () => fix(p.fix.name, p.fix.label, { onResult: () => onReload() }));
+    out.push(btn);
+  }
+  return out;
+}
 
-  return h("li", { class: "log-row cr-problem-row", dataset: { tone: p.tone } },
-    h("span", { class: "dot", dataset: { tone: p.tone }, "aria-hidden": "true" }),
-    h("div", { class: "log-main" },
-      h("strong", {}, p.title),
-      p.detail ? h("span", { class: "meta" }, p.detail) : null,
-      p.since ? h("span", { class: "meta" }, `Since ${shortWhen(p.since)}`) : null),
-    actButtons.length ? h("div", { class: "cr-row-side" }, ...actButtons) : null);
+// The kit draws the list (one Needs you everywhere, A7 P2); same-origin links go through the SPA router.
+export function renderProblems(probs, onReload) {
+  const list = ApplianceNeeds.renderList(problemItems(probs), { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub" });
+  for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
+  probs.forEach((p, i) => {
+    const li = list.children[i], btns = problemButtons(p, onReload);
+    if (!li) return;
+    li.dataset.key = p.id;
+    if (btns.length) li.append(h("div", { class: "ui-need__buttons" }, ...btns));
+  });
+  return list;
 }
 
 function renderControlRoom(state) {
@@ -394,7 +391,7 @@ function renderControlRoom(state) {
       tone: probs.some((p) => p.tone === "bad") ? "bad" : probs.length ? "warn" : "ok",
     },
       probs.length
-        ? h("ul", { class: "log cr-list" }, probs.map((p) => renderProblemRow(p, state, reload)))
+        ? renderProblems(probs, reload)
         : empty("No problems or waiting tasks across the house."))
   );
 

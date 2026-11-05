@@ -52,3 +52,29 @@ test("a record's page: its own, a release record's Versions, and System for one 
   assert.equal(recordPath("something_new"), "/system");
   assert.equal(recordPath(undefined), "/system");
 });
+
+// A7 P2: Home's Needs you is the kit's list, each action named by its verb.
+test("Home's Needs you items carry the kit's verb keys, never a bare Open", async () => {
+  const { problemItems } = await import("../hub/static/js/control-room.js");
+  const recs = [
+    { id: "printer", state: "finished", severity: "attention", headline: "Finished, plate not cleared", actions: ["clear"], since: 1_800_000_000 },
+    { id: "internet", state: "down", severity: "problem", headline: "Internet is down", since: 1_800_000_100 },
+    { id: "backups", state: "late", severity: "attention", headline: "Backups are late" },
+  ];
+  const needs = { items: [
+    { id: "pi:lab:hex:E-025", title: "E-025: Judge the print", detail: "Look at the face.", tone: "attention", source: "Print lab",
+      link: "/lab?p=hex&e=E-025&do=judge", action: { key: "judge_it", link: "/lab?p=hex&e=E-025&do=judge" }, as_of: "2026-11-04T10:00:00Z" },
+  ] };
+  const items = problemItems(mergeProblems(recs, needs));
+  const by = Object.fromEntries(items.map((i) => [i.id, i]));
+  assert.deepEqual(by["pi:lab:hex:E-025"].action, { key: "judge_it", link: "/lab?p=hex&e=E-025&do=judge" });
+  assert.equal(by["pi:lab:hex:E-025"].tone, "attention");
+  assert.equal(by["pi:lab:hex:E-025"].as_of, "2026-11-04T10:00:00Z");
+  assert.equal(by["pi:lab:hex:E-025"].area, "Print lab");
+  assert.deepEqual(by["rec:printer"].action, { key: "open_printer", link: "/workshop" });
+  assert.equal(by["rec:printer"].as_of, new Date(1_800_000_000 * 1000).toISOString());
+  assert.deepEqual(by["rec:internet"].action, { key: "open_network", link: "/network" });
+  assert.equal(by["rec:backups"].action, undefined);  // no verb for it yet: the row is its link, with no words
+  assert.equal(by["rec:backups"].link, "/backups");
+  assert.equal(by["rec:backups"].as_of, undefined);
+});

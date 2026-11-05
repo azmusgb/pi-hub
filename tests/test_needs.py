@@ -187,6 +187,27 @@ def test_lab_kinds_tone_title_link_as_of():
     assert all(i["as_of"] == "2026-10-28T10:00:00+00:00" for i in got.values())
 
 
+def test_lab_items_are_named_by_their_verb():  # A7 P2: Judge it, Approve or drop, …; never "Open" alone
+    lab = _lab(_need("E-001", "Judge the print"), _need("E-002", "Approve or drop"),
+               _need("E-003", "Send it to the printer"), _need("E-004", "Fix the plan", urgency=3))
+    got = {i["id"][-5:]: i["action"] for i in _labitems(needs.build([], None, NOW, lab=lab))}
+    assert got == {"E-001": {"key": "judge_it", "link": "/lab?p=hex-tile&e=E-001&do=judge"},
+                   "E-002": {"key": "approve", "link": "/lab?p=hex-tile&e=E-002"},
+                   "E-003": {"key": "send", "link": "/lab?p=hex-tile&e=E-003"},
+                   "E-004": {"key": "fix_plan", "link": "/lab?p=hex-tile&e=E-004"}}
+
+
+def test_hub_items_open_their_page_by_verb():  # A7 P2: Open printer, Open Network
+    got = {i.get("thing") or i["id"]: i for i in needs.build([], None, NOW, problems(b=FAILED, pi={"internet": {"ok": False}}))["items"]}
+    printer = next(i for i in got.values() if i["link"] == "/workshop")
+    assert printer["action"] == {"key": "open_printer", "link": "/workshop"}
+    for i in got.values():
+        if i["link"] == "/network":
+            assert i["action"] == {"key": "open_network", "link": "/network"}
+        elif i["link"] not in ("/workshop",) and i.get("action"):
+            assert i["action"]["key"] in {"open_bambuddy", "see_usage", "judge_it", "approve", "send", "fix_plan"}
+
+
 def test_lab_skips_run_the_check_keeps_fix_the_plan():
     lab = _lab(_need("E-001", "Run the check", urgency=3), _need("E-002", "Run the build", urgency=3),
                _need("E-003", "Fix the plan", urgency=3))
@@ -325,7 +346,8 @@ def test_mac_disk_full_offers_what_is_using_it():  # IMG_1047, 28 Oct: "Mac disk
     by_id = {i["id"]: i for i in needs.build([], feed, NOW, [])["items"]}
     mac = by_id["localai:watch-mac-disk"]
     assert mac["title"] == "Worth a look"
-    assert mac["detail"] == "Mac disk is 95% full · What's using it"
+    assert mac["detail"] == "Mac disk is 95% full"  # A7 P2: the verb is the kit's see_usage, not words in the detail
+    assert mac["action"] == {"key": "see_usage", "link": mac["link"]}
     assert mac["link"].startswith("tool:assistant/#ask?context=")
     assert unquote(mac["link"].split("context=", 1)[1]) == "Pi Hub › Mac disk is 95% full. What's using the space?"
     assert by_id["localai:watch-disk"]["link"] == "tool:assistant/#inbox"  # other watch cards open the Inbox

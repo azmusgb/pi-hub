@@ -42,7 +42,7 @@ export function writeOpen(key, open, store = storage()) {
 
 export function mount(state) {
   // One line when Bambuddy is down, instead of the same sentence on every section that reads from it.
-  state.sources = h("div", { role: "status" });
+  state.sourceNotice = h("div", { role: "status" });
   // Loading: a band and a camera of their final size, so nothing jumps when the first answer lands.
   state.bandBox = h("div", { class: "ws-band" },
     h("div", { class: "band ws-skeleton", "aria-busy": "true" },
@@ -73,7 +73,7 @@ export function mount(state) {
       state.more[key] = { el, pill, body };
       return el;
     }));
-  state.root.append(state.sources, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
+  state.root.append(state.sourceNotice, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
   // A new frame every 2 seconds while this page is open and visible.
   state.camTimer = setInterval(() => {
     const img = state.root.querySelector(".cam-img");
@@ -391,6 +391,16 @@ function redraw(state, name, el, sig, draw) {
   if (key && !el.contains(globalThis.document.activeElement)) el.querySelector(`[data-key="${key}"]`)?.focus();
 }
 
+// The sources line at the foot of the page (A7 P1, P8): Bambuddy by the printer card's telemetry, in the phrase table's
+// words when it isn't answering, and the camera.
+export function workshopSources(printer, cam) {
+  const status = printer?.telemetry?.status;
+  const bambuddy = status === "live" ? { name: "Bambuddy", tone: "ok" }
+    : status === "degraded" ? { name: "Bambuddy", tone: "warn", word: "not connected; the Pi's readings" }
+      : { name: "Bambuddy", tone: "bad", word: "isn't answering" };
+  return [bambuddy, cam?.ok ? { name: "Camera", tone: "ok" } : { name: "Camera", tone: "unknown", word: "unavailable" }];
+}
+
 export async function load(state) {
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
   // read-only.
@@ -423,7 +433,8 @@ export async function load(state) {
   }
   const notice = nextSourceNotice(state.notice, v.down, v.seen);
   state.notice = notice.state;
-  if (notice.changed) state.sources.replaceChildren(...(notice.text ? [h("p", {
+  state.sources = workshopSources(d.printer, cam);
+  if (notice.changed) state.sourceNotice.replaceChildren(...(notice.text ? [h("p", {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
 
   // Needs you here: only when something waits, never an empty section.

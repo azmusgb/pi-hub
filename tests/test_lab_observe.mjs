@@ -7,7 +7,7 @@ import {
   loadDraft, saveDraft, clearDraft, draftKey,
 } from '../hub/static/js/lab-observe.js';
 import { refreshPlan, changedIds, snapshot, restore } from '../hub/static/js/lab-refresh.js';
-import { fetchLab, cardSignatures, syncedHtml } from '../hub/static/js/lab.js';
+import { fetchLab, cardSignatures, labSources, syncedHtml } from '../hub/static/js/lab.js';
 import { setDeps } from '../hub/static/js/lab-net.js';
 
 const golden = JSON.parse(readFileSync(new URL('./fixtures/lab-requests/observation.json', import.meta.url), 'utf8'));
@@ -129,8 +129,22 @@ test('changed cards flash, new ones too, equal ones not, and the first render ne
 });
 
 test('the sync line can be redrawn on its own', () => {
-  assert.match(syncedHtml({ synced_at: new Date().toISOString() }), /class="meta lab-synced" aria-live="off">Synced from the Mac just now/);
-  assert.match(syncedHtml({ synced_at: '2020-01-01T00:00:00Z' }), /lab-synced--stale/);
+  // Fresh: nothing above the faceplate (the sources line says when the Mac synced, A7 P1).
+  assert.match(syncedHtml({ synced_at: new Date().toISOString() }), /^<p class="lab-synced" hidden><\/p>$/);
+  // Stale: a warn notice above the faceplate saying how old and why (A7 P8).
+  const old = syncedHtml({ synced_at: new Date(Date.now() - 12 * 3600e3).toISOString() });
+  assert.match(old, /class="ui-notice ui-notice--warn lab-synced"/);
+  assert.match(old, /Synced from the Mac 12 h ago\. The Mac may be asleep/);
+  assert.doesNotMatch(old, /hasn't picked/);
+  // Requests waiting: the phrase table's mac_waiting words.
+  const waiting = syncedHtml({ synced_at: new Date(Date.now() - 12 * 3600e3).toISOString() }, Date.now(), [{ status: 'pending' }, { status: 'applied' }]);
+  assert.match(waiting, /The Mac hasn't picked this up\. It runs when the Mac is awake\./);
+});
+
+test('the lab tells the sources line when the Mac synced', () => {
+  assert.deepEqual(labSources({ synced_at: new Date().toISOString() }), [{ name: 'The Mac', tone: 'ok', word: 'synced just now' }]);
+  assert.deepEqual(labSources({ synced_at: new Date(Date.now() - 12 * 3600e3).toISOString() }), [{ name: 'The Mac', tone: 'warn', word: 'synced 12 h ago' }]);
+  assert.deepEqual(labSources({}), [{ name: 'The Mac', tone: 'unknown', word: 'never synced' }]);
 });
 
 const res = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });

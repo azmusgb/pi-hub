@@ -24,14 +24,9 @@
   }
 }
 
+/* The stale notice above the faceplate (A7 P8): the kit's ui-notice draws it. */
 .lab-synced {
   margin: 0 0 12px;
-  font-size: var(--ui-fs-2, 13px);
-  color: var(--ui-muted, #93a1b3);
-}
-
-.lab-synced--stale {
-  color: var(--ui-warn, #f5b03d);
 }
 
 .lab-problems {
