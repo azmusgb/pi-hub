@@ -249,6 +249,9 @@ body::before {
    hidden needs saying again. */
 #page-sources { flex-basis: 100%; }
 #page-sources[hidden] { display: none; }
+/* The kit sets .ui-section to grid, which beats the hidden attribute: a hidden section (Needs you here with nothing in
+   it) must not draw its heading. */
+.ui-section[hidden] { display: none; }
 .link-btn, #wall-link, #map-link {
   display: inline-flex; align-items: center; gap: .45rem;
   padding: .4rem .7rem; border-radius: var(--r-full);
