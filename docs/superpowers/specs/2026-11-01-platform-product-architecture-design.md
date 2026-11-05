@@ -488,7 +488,7 @@ registry, feeds the rail, the "Open in …" links and the display's links.
 
 ### 5.5 Home
 
-Home keeps the control-room order with one rename: **Now → Needs you → Since you last looked**. Needs you is hidden
+*Amended by A8 (5 Nov 2026): Home is a dashboard: Today, Needs you and Systems.* Home keeps the control-room order with one rename: **Now → Needs you → Since you last looked**. Needs you is hidden
 when empty (`one-home`:113). The "Problems" heading and the separate Needs you card merge into this one list
 (K6, Report l.218). The Home tab's badge counts the same list. The wall, the Assistant's Home and the display render
 this list with one component each (`one-needs-you` N3; `display-card`:8-19).
@@ -767,7 +767,7 @@ Internal ids never appear in the UI.
 
 | Term | Means | Do not use for | Resolves |
 |---|---|---|---|
-| **Home** | The first screen: Now, Needs you, Since you last looked | The section "Home & network"; the product | Report l.268 (`now.js`, key `now`, title "Home") |
+| **Home** | The first screen: Today, Needs you, Systems (A8) | The section "Home & network"; the product | Report l.268 (`now.js`, key `now`, title "Home") |
 | **Home & network** | The area for devices, internet and ad blocking | — | K14 |
 | **home-platform** | The product, in documents | Any UI string | — |
 | **Pi Hub** | The runtime and its hostname in documents and System pages | The word users read on the rail ("Home") | `one-home`:21 (labels describe plumbing) |
@@ -1031,3 +1031,6 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   (head, strip, one faceplate, Needs you here, at most six sections, Open in, sources), Needs you is the kit's
   `.ui-needs` everywhere with verb actions, one strip style, plain words, grouped repeats, risky fixes ask first, and
   every page designs its loading, stale and source-down states. Approved by the owner on 4 Nov 2026 ("Yes").
+- **A8. Home is a dashboard** (`2026-11-05-amendment-a8-home-dashboard.md`): Home leaves A7's anatomy for a 24-hour
+  Today band, Needs you beside a rack of systems with meter readouts, and one layout from phone to TV, fed by a new
+  `/api/today`. Approved by the owner on 5 Nov 2026 ("lets go with it!").
