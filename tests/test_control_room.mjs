@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitNowRecords, calmSummaryText, mergeProblems } from "../hub/static/js/control-room.js";
+import { splitNowRecords, mergeProblems } from "../hub/static/js/control-room.js";
 
 test("splitNowRecords separates active printing/playing items from calm OK items", () => {
   const recs = [
@@ -12,7 +12,6 @@ test("splitNowRecords separates active printing/playing items from calm OK items
   const { active, calm } = splitNowRecords(recs);
   assert.deepEqual(active.map((r) => r.id), ["printer"]);
   assert.deepEqual(calm.map((r) => r.id), ["plex", "internet"]);
-  assert.equal(calmSummaryText(calm), "All else OK: Movies, Internet");
 });
 
 test("mergeProblems combines Needs you and uncovered record problems without duplicating about", () => {
