@@ -23,6 +23,7 @@ import * as devicesPage from "./devices.js";
 import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
 import { pageHeading, pageStrip, revealCurrent } from "./system-strip.js";
+import { renderSources } from "./sources.js";
 import { SECTIONS, sectionFor, redirectFor, toolUrl, assistantHref, assistantButton } from "./sections.js";
 
 // The Assistant button goes to Local AI by the address the hub was opened by, with the open page and its key facts
@@ -179,6 +180,7 @@ applyTheme();
 
 function tick() {
   if (current) renderFreshness(current);
+  renderSources(document.getElementById("page-sources"), current?.state.sources);
   const d = new Date();
   const c = document.getElementById("clock");
   c.textContent = d.toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" });
