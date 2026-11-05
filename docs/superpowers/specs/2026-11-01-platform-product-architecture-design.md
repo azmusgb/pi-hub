@@ -1034,3 +1034,6 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A8. Home is a dashboard** (`2026-11-05-amendment-a8-home-dashboard.md`): Home leaves A7's anatomy for a 24-hour
   Today band, Needs you beside a rack of systems with meter readouts, and one layout from phone to TV, fed by a new
   `/api/today`. Approved by the owner on 5 Nov 2026 ("lets go with it!").
+- **A9. Home's Today band on a phone shows the day so far** (`2026-11-05-amendment-a9-phone-band.md`): a band narrower
+  than 520 px runs from midnight to an hour after Now (at least six hours), the counts keep one row with short labels,
+  and the TV scales once (1.2×). Approved by the owner on 5 Nov 2026.
