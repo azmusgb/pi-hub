@@ -46,10 +46,8 @@ since the 3 Nov reading is marked **(changed)**.
   hypothetical.
 - **(changed) Healthchecks.io is a registry tool:** `hub/static/ui/tools.js:20`, id `healthchecks`, "Outside alarms: the
   house heartbeat and the off-site backup" (kit 2.4.0). Health's "Open in" can link it; that link is not the status.
-- **The key file:** on 3 Nov, `/etc/pi-hub/secrets/` had no `healthchecks_ro.env`; the files the hub reads there are
-  `root:pi-hub 0640`. On 5 Nov the folder (`root:pi-hub 750`) can't be listed without sudo from the SSH user, and no
-  one has reported creating the key. The plan assumes it is still absent; 2a.6 step 2 confirms that on the live page
-  before the owner creates it.
+- **The key file is still absent.** `sudo ls -l /etc/pi-hub/secrets/` (owner, 5 Nov) lists no `healthchecks_ro.env`.
+  The files the hub reads there are `root:pi-hub 0640`, the mode decision 8 uses.
 - **(changed) Where the row goes.** Step 7 is done: Health is `/system` (`hub/static/js/health.js`); `/pi` is only a
   redirect (`routes.js`). A7 H4 drew Health on the page anatomy, with a closed "Fixes" section
   (`health.js:585-614`). Its **"Other systems"** section (`health.js:838-870`, `otherSystemRows`) already reads
