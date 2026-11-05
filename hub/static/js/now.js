@@ -72,16 +72,25 @@ export function networkPanel(net, { links = true } = {}) {
       h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Uptime Kuma ↗")) : null);
 }
 
-function telemetryAge(iso) {
+// How old the readings are: "checked …" while the source answers, "last seen …" once it has stopped.
+export function telemetryAge(iso, stale = false) {
+  const word = stale ? "last seen" : "checked";
   const parsed = Date.parse(iso || "");
   const ms = Date.now() - parsed;
-  if (!Number.isFinite(parsed) || !Number.isFinite(ms) || ms < 0) return "checked now";
+  if (!Number.isFinite(parsed) || !Number.isFinite(ms) || ms < 0) return stale ? "last seen a while ago" : "checked now";
   const sec = Math.floor(ms / 1000);
-  if (sec < 10) return "checked now";
-  if (sec < 60) return `checked ${sec}s ago`;
+  if (sec < 10) return stale ? "last seen just now" : "checked now";
+  if (sec < 60) return `${word} ${sec}s ago`;
   const min = Math.floor(sec / 60);
-  if (min < 60) return `checked ${min}m ago`;
-  return `checked ${Math.floor(min / 60)}h ago`;
+  if (min < 60) return `${word} ${min}m ago`;
+  return `${word} ${Math.floor(min / 60)}h ago`;
+}
+
+// A temperature and its target. The printer reports a target of 0 when that heater is off: that is no target, so one
+// number (A7 decision 6), not "27°C / 0°C".
+export function tempText(now, target) {
+  if (now === null || now === undefined || now === "") return null;
+  return `${now}°C${target ? ` / ${target}°C` : ""}`;
 }
 
 function printerMetric(label, value) {
@@ -94,9 +103,14 @@ function printerMetric(label, value) {
 // A file name as a title: no extension, and "RIFT_MARKED_10IN_SINGLE" as "Rift marked 10in single". Mixed-case names
 // are kept as they were written.
 export function jobTitle(name) {
-  const base = String(name || "").replace(/\.(gcode\.3mf|3mf|gcode)$/i, "").trim();
+  // A print started from the printer's own storage names its file by path ("/data/Metadata/plate 1"): the name is the
+  // last part, said like a name (A7 P5: no paths in page text).
+  const raw = String(name || "");
+  const path = /[\\/]/.test(raw);
+  const base = raw.split(/[\\/]/).pop().replace(/\.(gcode\.3mf|3mf|gcode)$/i, "").trim();
   if (!base) return "";
   const spaced = base.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  if (path && spaced === spaced.toLowerCase()) return spaced[0].toUpperCase() + spaced.slice(1);
   if (spaced !== spaced.toUpperCase()) return spaced;
   const lower = spaced.toLowerCase();
   return lower[0].toUpperCase() + lower.slice(1);
@@ -106,6 +120,10 @@ export function jobTitle(name) {
 // no source answering says nothing about the printer, so that is "No answer" in the neutral colour (spec section 9).
 export function telemetryLabel(p) {
   const telemetry = p?.telemetry || {};
+  // The source stopped answering (a stale record): the readings shown are its last, so "No answer", whatever they say.
+  if (telemetry.status === "stale") {
+    return { state: "none", label: "No answer", why: `${telemetry.source || "The printer's source"} isn't answering; these are its last readings.`, stale: true };
+  }
   const reported = telemetry.status === "offline" && telemetry.source && telemetry.source !== "No source";
   let state = ["live", "degraded"].includes(telemetry.status) ? telemetry.status : reported ? "offline" : "none";
   // A printer that is printing or paused is physically there, whatever the telemetry says.
@@ -164,15 +182,11 @@ export function band(p, cam = null) {
     printerMetric("Layer", layerValue),
     printerMetric(
       "Nozzle",
-      p.nozzle_temp != null
-        ? `${p.nozzle_temp}°C${p.nozzle_target != null ? ` / ${p.nozzle_target}°C` : ""}`
-        : null
+      tempText(p.nozzle_temp, p.nozzle_target)
     ),
     printerMetric(
       "Bed",
-      p.bed_temp != null
-        ? `${p.bed_temp}°C${p.bed_target != null ? ` / ${p.bed_target}°C` : ""}`
-        : null
+      tempText(p.bed_temp, p.bed_target)
     ),
     printerMetric("AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null),
     printerMetric("Material", p.filament_type || null),
@@ -218,7 +232,7 @@ export function band(p, cam = null) {
             }, ...metrics)
           : null,
         h("p", { class: "printer-freshness" },
-          `${source.source || "Pi Hub"} · ${telemetryAge(source.observed_at)}`),
+          `${source.source || "Pi Hub"} · ${telemetryAge(source.observed_at, source.status === "stale")}`),
         lab
           ? h("a", {
               class: "tool-link",

@@ -6,7 +6,9 @@ read the records (build, printer_from); printer() and issues() read pi-status di
 for the morning digest, which does not read the records yet.
 """
 import time
+from datetime import datetime, timezone
 from .printer_telemetry import normalize_printer
+from .records import SOURCE_NAMES
 
 
 def _tone(ok, warn=False):
@@ -188,11 +190,29 @@ def _printer_detail(rec, actions):
             "offline": "Check that the printer is on and Bambuddy can reach it."}.get(state, "")
 
 
+def _telemetry(rec):
+    """Where the card's readings came from, for the page's lamp (A7 H2): live from Bambuddy, backup from the Pi's status
+    service, stale (the source stopped answering; the readings are its last), offline (Bambuddy said so), or none."""
+    if rec is None:
+        return {"status": "none", "source": "", "observed_at": None}
+    as_of = rec.get("as_of")
+    seen = datetime.fromtimestamp(as_of, timezone.utc).isoformat() if isinstance(as_of, (int, float)) else None
+    if rec.get("stale"):
+        status = "stale"
+    elif rec["state"] == "offline":
+        status = "offline"
+    elif rec["state"] == "unknown":
+        status = "none"
+    else:
+        status = "live" if rec.get("source") == "bambuddy" else "degraded"
+    return {"status": status, "source": SOURCE_NAMES.get(rec.get("source"), rec.get("source") or ""), "observed_at": seen}
+
+
 def printer_from(rec):
     """The printer card from the printer record, in the keys the page has always read."""
     if rec is None:
         return {"state": "none", "headline": "No status yet", "detail": "Bambuddy hasn't answered yet.",
-                "left": "", "minutes_left": None, "actions": []}
+                "left": "", "minutes_left": None, "actions": [], "telemetry": _telemetry(None)}
     d = rec["detail"]
     stale = bool(rec.get("stale"))
     actions = [] if stale else [a["name"] for a in rec.get("actions") or []]
@@ -209,7 +229,8 @@ def printer_from(rec):
            "layer_num": d.get("layer"), "total_layers": d.get("total_layers"), "job_name": d.get("job"),
            "filament_type": d.get("filament_type"), "filament_color": d.get("filament_color"),
            "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions,
-           "as_of": rec.get("as_of")}  # when the record was last read: the page's "last seen" while it is stale
+           "as_of": rec.get("as_of"),  # when the record was last read: the page's "last seen" while it is stale
+           "telemetry": _telemetry(rec)}
     if d.get("lab") and state in ("printing", "paused"):
         res["lab"] = d["lab"]
     return res

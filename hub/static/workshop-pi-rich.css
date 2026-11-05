@@ -95,7 +95,7 @@
 .lab-need-act { justify-self: start; margin-top: .5rem; }
 .band .printer-actions { margin-top: .75rem; }
 
-/* Workshop › Printer (workshop flow W.2): Now, Needs you here, Materials, This week, More in the workshop. */
+/* Workshop › Printer (workshop flow W.2): Now, Needs you here, Filament loaded, This week, More in the workshop. */
 .ws-now { display: grid; gap: 1.25rem; align-items: start; }
 @media (min-width: 1024px) {
   .ws-now { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
