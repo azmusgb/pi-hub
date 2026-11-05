@@ -147,9 +147,15 @@ def history(limit=200):
                      "ORDER BY ts DESC, id DESC LIMIT ?", limit):
         label = SOURCES.get(r["source"], (r["source"],))[0]
         note = SAID.get(r["outcome"])
+        # The Mac watchdog's "back" recovers its "outage": they share a cause, so the Alerts page can group them. Any other
+        # notice is its own cause by its title (two different failed jobs are not "the same alert").
+        kind = r["kind"]
+        cause = f"{r['source']}:outage" if kind in ("outage", "back") else f"{r['source']}:{kind}:{r['title']}"
+        side = "recovery" if kind == "back" else "problem" if TAGS.get(kind) in ("warning", "rotating_light") else "event"
         out.append({"ts": int(r["ts"]), "title": f"{label}: {r['title']}"[:120],
                     "body": (r["body"] + (f" ({note})" if note else "")).strip()[:240],
-                    "tag": TAGS.get(r["kind"], "incoming_envelope")})
+                    "tag": TAGS.get(kind, "incoming_envelope"),
+                    "cause": cause[:160], "side": side})
     return out
 
 

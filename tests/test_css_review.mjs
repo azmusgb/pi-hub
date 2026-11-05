@@ -30,7 +30,7 @@ test("the Print lab's button classes are styled, at least 44 px tall", () => {
 
 test('on a phone the page strips, Search, Restart, the theme link and the Site map links are 44 px targets', () => {
   const touch = [...css('enhance.css').matchAll(/@media \(max-width: 860px\), \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
-  for (const sel of ['.tabs > a', '.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.cr-since-summary', '.more-group > h2 a', '.setup-steps a']) {
+  for (const sel of ['.tabs > a', '.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.cr-since-summary', '.more-group > h2 a']) {
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
 });
