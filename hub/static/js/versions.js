@@ -1,6 +1,6 @@
 // System › Versions (platform step 3; spec D1, D7): what is live where, read only from the release:<target> records
 // each target's deploy writes. Read-only for every target; going back is Pi Hub's alone, and needs the owner.
-import { api, card, empty, h, post, toast, when, whoami } from "./core.js";
+import { api, askFirst, card, empty, h, post, toast, when, whoami } from "./core.js";
 import { firstFew } from "./section-links.js";
 import { ASSISTANT_URL } from "./sections.js";
 
@@ -54,6 +54,18 @@ export function versionRows(records = []) {
 }
 
 // Pi Hub's own history (the release runner's log), with "Go back to this" for a retained live version.
+// A version by its change (A7 P5, decision 4). The release script records "PR title #N"; versions recorded before it
+// did still say "Merge pull request #N from owner/branch", so those are named from the branch: never the merge line.
+export function versionName(x) {
+  const subject = String(x?.subject || "").trim();
+  const m = subject.match(/^Merge pull request #(\d+) from [^/\s]+\/(\S+)/);
+  if (m) {
+    const words = m[2].replace(/^(feat|fix|docs|chore|refactor|test)[/-]/i, "").replace(/[/_-]+/g, " ").trim();
+    return `${words ? words[0].toUpperCase() + words.slice(1) : "Change"} #${m[1]}`;
+  }
+  return subject.replace(/\s*\((#\d+)\)$/, " $1") || x?.sha || "A version";
+}
+
 export function historyRows(releases) {
   const STATUS = { live: ["Live", "ok"], failed: ["Didn't pass", "bad"], "rolled-back": ["Went back", "warn"] };
   return (releases?.log || []).map((x) => {
@@ -87,8 +99,9 @@ export function mount(state) {
     card("Pi Hub versions", { cls: "wide" }, state.history));
 }
 
-async function goBack(state, x) {
-  if (!confirm(`Go back to “${x.subject || x.sha}”? The hub restarts.`)) return;
+// Asks inline under its button (A7 P7), naming the version by its change (decision 4).
+async function goBack(state, x, trigger) {
+  if (!(await askFirst(trigger, `The hub goes back to “${versionName(x)}” and restarts. Pages reload in about a minute.`, { confirm: "Go back" }))) return;
   try {
     const r = await post("/api/settings/rollback", { to: x.sha });
     toast(r.message);
@@ -115,8 +128,8 @@ async function loadHistory(state) {
     h("p", { class: "meta" }, "New versions run the hub's tests on the Pi and go live only if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
     ...(rows.length ? firstFew(rows.map((x) => h("li", { class: "log-row" },
       h("span", { class: "dot", dataset: { tone: x.tone }, "aria-hidden": "true" }),
-      h("span", { class: "log-main" }, h("strong", {}, x.subject || x.sha), h("span", { class: "meta" }, `${x.label}. ${x.message} ${when(x.ts)}`)),
-      x.canGoBack ? h("button", { class: "ghost small", onclick: () => goBack(state, x) }, "Go back to this")
+      h("span", { class: "log-main" }, h("strong", {}, versionName(x)), h("span", { class: "meta" }, `${x.label}. ${x.message} ${when(x.ts)}`)),
+      x.canGoBack ? h("button", { class: "ghost small", onclick: (e) => goBack(state, x, e.currentTarget) }, "Go back to this")
         : h("span", { class: "log-side" }, x.running ? "Running" : ""))), { n: 3, noun: "versions" })
       : [empty("No versions recorded yet.")]));
 }

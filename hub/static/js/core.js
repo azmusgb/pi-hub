@@ -1177,12 +1177,41 @@ function passwordSheet() {
 }
 
 // Runs a Fix-it action after confirmation and reports what happened.
+// A risky action asks first, in place (A7 P7): the kit's inline confirm opens under `trigger` (the button pressed, or
+// the palette's input), repeating its verb. With no trigger or no kit there is nowhere to ask, so nothing runs.
+export function askFirst(trigger, what, { confirm, danger } = {}) {
+  const kit = globalThis.ApplianceConfirm;
+  if (!trigger || typeof kit?.ask !== "function") return Promise.resolve(false);
+  return kit.ask(trigger, { what, ...(confirm ? { confirm } : {}), ...(typeof danger === "boolean" ? { danger } : {}) });
+}
+
+// What each fix will do, said before it runs (A7 P7). The server's own words say when it's done ("Plex restarted.").
+export const FIX_WHAT = {
+  "restart:plex": "Plex stops and starts again. Anyone watching is cut off for a moment.",
+  "restart:homebridge": "Homebridge stops and starts again. Lights and plugs don't answer for a moment.",
+  "remount:movies": "The movies drive is mounted again. Plex can't play from it while that happens.",
+  "rescan:plex": "Plex looks through the movies drive for new films. Nothing stops.",
+  "updates:install": "All waiting updates install now. Plex or Homebridge may restart.",
+  "restart:pi": "The Pi restarts. Plex, Homebridge and the hub go away for about a minute.",
+  "selfcheck:run": "The hub checks its own services and writes the result on Health. Nothing stops.",
+  "mirror:movies": "New movies are copied from the PC to the movies drive. Plex keeps playing.",
+  "restart:ntfy": "The alert service stops and starts again. An alert sent in that moment may be late.",
+  "restart:bambuddy": "Bambuddy stops and starts again. The printer's readings pause for a moment; a print carries on.",
+  "restart:homebox": "Homebox stops and starts again for a moment.",
+  "restart:backrest": "Backrest stops and starts again. A backup running now may have to run again.",
+  "restart:adguard": "AdGuard stops and starts again. Name lookups fail for a few seconds.",
+  "restart:scanserv": "The scanner service stops and starts again for a moment.",
+};
+
+// `trigger`: the button that asked for the fix; `asked`: the caller already asked (the palette does, under its input).
 export async function fix(
   name,
   label,
   {
     confirmText,
     onResult,
+    trigger = null,
+    asked = false,
     isCurrent = () =>
       true,
   } = {},
@@ -1198,12 +1227,16 @@ export async function fix(
 
   const question =
     confirmText ||
+    FIX_WHAT[name] ||
     `${label}?`;
 
   if (
-    !window.confirm(
+    !asked &&
+    !(await askFirst(
+      trigger,
       question,
-    )
+      { confirm: label, danger: name === "restart:pi" },
+    ))
   ) {
     return false;
   }

@@ -1,6 +1,6 @@
 // Clear the plate, pause and resume the X2D (one home, step 3): the buttons that fit the printer's state now
 // (printer.actions from /api/now and /api/workshop), sent to /api/printer/<action>, which goes through Bambuddy.
-import { ensure, h, post, toast } from "./core.js";
+import { askFirst, ensure, h, post, toast } from "./core.js";
 
 export const PRINTER_ACTIONS = {
   clear: { label: "Clear the plate", ask: "Is the plate empty? Bambuddy may start the next print in the queue." },
@@ -12,7 +12,9 @@ export function printerActionList(p) {
   return (p?.actions || []).filter((a) => PRINTER_ACTIONS[a]).map((action) => ({ action, ...PRINTER_ACTIONS[action] }));
 }
 
-const DEPS = { confirm: (q) => window.confirm(q), ensure, post, toast };
+// Asking is inline, under the button pressed (A7 P7); the palette asks under its own input and passes confirm: () => true.
+const DEPS = { confirm: (q, trigger) => askFirst(trigger, q), ensure, post, toast };
+export const PRINTER_DEPS = DEPS;
 
 // One action at a time, for the whole page: a refresh redraws the buttons, so the flag lives here, not on them.
 let busy = false;
@@ -21,7 +23,7 @@ export const printerBusy = () => busy;
 export async function runPrinterAction(action, buttons, onDone, deps = DEPS) {
   if (busy) return;
   const ask = PRINTER_ACTIONS[action]?.ask;
-  if (ask && !deps.confirm(ask)) return;
+  if (ask && !(await deps.confirm(ask, buttons[0]))) return;
   if (busy) return;  // another action started while the question was open
   busy = true;
   buttons.forEach((b) => { b.disabled = true; });

@@ -1,4 +1,4 @@
-import { api, ensure, h, post, toast } from './core.js';
+import { api, askFirst, ensure, h, post, toast } from './core.js';
 import { section } from './page-parts.js';
 import { plexUrl } from './sections.js';
 
@@ -65,8 +65,8 @@ export async function refreshMovieNight(state, force=false) {
             'data-focus':`vote:${item.key}`, 'aria-label':`${item.voted?'Remove your vote for':'Vote for'} ${item.title}`,onclick:()=>change(state,'kid',()=>post(`/api/movie-night/${item.key}/vote`,{vote:!item.voted}))},`${item.voted?'✓ Voted':'Vote'} · ${item.votes}`),
           item.key===d.chosen ? h('a',{class:'action',href:watchUrl(state.machine,item.key),target:'_blank',rel:'noopener'},'Watch in Plex')
             : h('button',{type:'button',class:'ghost',onclick:()=>change(state,'household',()=>post(`/api/movie-night/${item.key}/choose`))},'Choose for tonight'),
-          h('button',{type:'button',class:'ghost small','aria-label':`Remove ${item.title} from shortlist`,onclick:()=>{
-            if(confirm(`Remove ${item.title} and its votes from tonight’s shortlist?`)) change(state,'household',()=>post(`/api/movie-night/${item.key}/remove`));
+          h('button',{type:'button',class:'ghost small','aria-label':`Remove ${item.title} from shortlist`,onclick:async(e)=>{
+            if(await askFirst(e.currentTarget, `${item.title} and its votes leave tonight’s shortlist.`, {confirm:'Remove'})) change(state,'household',()=>post(`/api/movie-night/${item.key}/remove`));
           }},'Remove'))))) : [h('div',{class:'feature-empty'},h('h3',{},'Give tonight a shortlist'),h('p',{},'Add up to 12 films. Votes stay here even when Plex is temporarily unavailable.'))]));
     ui.suggestions.replaceChildren(...(d.suggestions.length ? d.suggestions.map(item=>h('article',{class:'night-suggestion'},
       h('div',{class:'night-art'},art(item)),h('div',{class:'night-copy'},h('h4',{},item.title),h('p',{class:'meta'},meta(item)),

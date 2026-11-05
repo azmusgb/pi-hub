@@ -1,5 +1,5 @@
 // Preview describes decisions. Only real household events execute automations.
-import { api, card, empty, ensure, h, post, toast, when } from './core.js';
+import { api, askFirst, card, empty, ensure, h, post, toast, when } from './core.js';
 import { firstFew } from './section-links.js';
 export const every=30;
 const STATUS={succeeded:['Completed','ok'],failed:['Failed','bad'],blocked:['Blocked','warn'],skipped:['Skipped','warn'],running:['No completion recorded','warn'],would_run:['Would run','ok']};
@@ -77,8 +77,9 @@ export async function load(state) {
         try{await post(`/api/rules/${r.id}/toggle`);await load(state);}catch(x){e.target.checked=!e.target.checked;toast(x.message,'bad');}
       }}),h('span',{class:'switch-track','aria-hidden':'true'})),
       h('span',{class:'rule-main'},h('strong',{},r.text),h('span',{class:'meta'},r.last_run?`${when(r.last_run)} · ${r.last_result}`:'Waiting for its first matching event.')),
-      h('div',{class:'feature-actions'},h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async()=>{
-        if(!(await ensure('household'))||!confirm(`Remove automation “${r.text}”? Its run history will remain.`))return;
+      h('div',{class:'feature-actions'},h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async(e)=>{
+        const btn=e.currentTarget;
+        if(!(await ensure('household'))||!(await askFirst(btn,`The automation “${r.text}” stops and is removed. Its run history stays.`,{confirm:'Remove'})))return;
         try{await post(`/api/rules/${r.id}/delete`);await load(state);}catch(x){toast(x.message,'bad');}
       }},'Remove'))))):empty('No automations yet. Build and preview one below.'),
     d.alerts_ready?null:h('p',{class:'note'},'Phone alerts need an alert topic in Settings. Preview will explain which alerts would be blocked.')));

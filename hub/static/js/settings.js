@@ -1,6 +1,6 @@
 // Settings: first-time setup, owner sign-in, and the owner's controls.
 import { firstFew } from "./section-links.js";
-import { api, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
+import { api, askFirst, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
 import { displayCard } from "./display-pair.js";
 
 export const every = 60;
@@ -54,7 +54,7 @@ function shortcutsCard(state, keys, save) {
     keys.length ? h("ul", { class: "log" }, keys.map((k) => h("li", { class: "log-row" },
       h("span", { class: "dot", dataset: { tone: "ok" } }),
       h("span", { class: "log-main" }, h("strong", {}, k.name), h("span", { class: "meta" }, k.last_used ? `Last used ${when(k.last_used)}` : "Not used yet")),
-      h("button", { class: "ghost small", onclick: async () => { if (confirm(`Remove the key for ${k.name}?`)) await save("shortcut-remove")({ id: k.id }); } }, "Remove")))) : null,
+      h("button", { class: "ghost small", onclick: async (e) => { if (await askFirst(e.currentTarget, `The Shortcut key for ${k.name} stops working.`, { confirm: "Remove" })) await save("shortcut-remove")({ id: k.id }); } }, "Remove")))) : null,
     form(async (v) => {
       const r = await post("/api/settings/shortcut-add", v);
       state.newKey = r.key;
@@ -145,8 +145,8 @@ function devicesCard(v, save) {
       h("span", { class: "dot", dataset: { tone: "ok" } }),
       h("span", { class: "log-main" }, h("strong", {}, x.name, v.this?.stable_id === x.stable_id ? " (this device)" : ""),
         h("span", { class: "meta" }, x.last_seen ? `Last seen ${when(x.last_seen)}` : "Not seen yet")),
-      h("button", { class: "ghost small", onclick: async () => {
-        if (confirm(`Remove ${x.name}? It needs the owner password from now on.`)) await save("device-remove")({ stable_id: x.stable_id });
+      h("button", { class: "ghost small", onclick: async (e) => {
+        if (await askFirst(e.currentTarget, `${x.name} is forgotten and needs the owner password from now on.`, { confirm: "Remove" })) await save("device-remove")({ stable_id: x.stable_id });
       } }, "Remove")))) : null,
     v.this
       ? (mine ? null : h("button", { class: "primary", onclick: () => save("device-add")({}) }, `Add this device (${v.this.name})`))
@@ -261,7 +261,11 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
       h("h2", { class: "group-title", id: `group-${id}-title` }, title),
       h("div", { class: "cards" }, names.map((n) => byTitle[n]).filter(Boolean)))),
-    h("button", { class: "ghost", onclick: async () => { await post("/api/signout"); forgetMe(); toast("Signed out on this device."); load(state); } }, "Sign out on this device"),
+    // Sign out is the danger button and asks first (A7 P7); the toast repeats its verb in the past tense.
+    h("button", { type: "button", class: "ui-btn ui-btn--danger", onclick: async (e) => {
+      if (!(await askFirst(e.currentTarget, "This device forgets its sign-in. You'll need the password to change things again.", { confirm: "Sign out" }))) return;
+      await post("/api/signout"); forgetMe(); toast("Signed out on this device."); load(state);
+    } }, "Sign out on this device"),
   );
   showGroup(state);
 }
