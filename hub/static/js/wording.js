@@ -80,46 +80,6 @@ export function laundryLine(m, clock = (s) => new Date(s * 1000).toLocaleTimeStr
   return `${m.name}: ${said}`;
 }
 
-// Alert pairs that mean "it dropped out, then came back". Only subjects that have a recovery alert are merged (a
-// stopped print or a Plex crash has none, and stays as it is). Many dropouts in a day become one line, and whether
-// it is back now is judged from that subject's newest alert, even if that came after midnight.
-const DOWN = [/^(.+) went offline$/, /^(.+) dropped out$/, /^(.+) isn't answering$/, /^(.+) is down$/, /^(.+) stopped$/];
-const UP = [/^(.+) is back$/, /^(.+) is running again$/];
-const subjectOf = (title, patterns) => patterns.map((r) => r.exec(title)).find(Boolean)?.[1] || null;
-const dayOf = (ts) => new Date(ts * 1000).toDateString();
-
-export function mergeDropouts(alerts) {
-  const recovers = new Set(alerts.map((a) => subjectOf(a.title, UP)).filter(Boolean));
-  const subject = (a) => {
-    const s = subjectOf(a.title, DOWN) || subjectOf(a.title, UP);
-    return s && recovers.has(s) ? s : null;
-  };
-  const newest = new Map();  // subject → its newest alert (alerts come newest first)
-  const groups = new Map();  // day|subject → alerts
-  for (const a of alerts) {
-    const s = subject(a);
-    if (!s) continue;
-    if (!newest.has(s)) newest.set(s, a);
-    const key = `${dayOf(a.ts)}|${s}`;
-    groups.set(key, [...(groups.get(key) || []), a]);
-  }
-  const out = [];
-  const done = new Set();
-  for (const a of alerts) {
-    const s = subject(a);
-    const key = s && `${dayOf(a.ts)}|${s}`;
-    const list = key ? groups.get(key) : null;
-    const drops = list ? list.filter((x) => subjectOf(x.title, DOWN)).length : 0;
-    if (!list || drops < 2) { out.push(a); continue; }
-    if (done.has(key)) continue;
-    done.add(key);
-    const back = Boolean(subjectOf(newest.get(s).title, UP));
-    out.push({ ts: list[0].ts, title: `${s} dropped out ${drops} times`, body: back ? "Back now" : "Still out",
-      tag: back ? "warning" : "rotating_light", count: 1 });
-  }
-  return out;
-}
-
 // A print-log row: Bambuddy's own word for how it ended, in a tone (finished and printing ok, failed bad, the rest warn).
 const PRINT_TONES = { completed: "ok", printing: "ok", failed: "bad" };
 export function printWords(p) {

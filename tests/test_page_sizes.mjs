@@ -252,10 +252,11 @@ test('a #group- address, and a tap on a tab, switch the screen; a refresh keeps 
   } finally { dom.uninstall(); }
 });
 
-test("the setup steps' links open the group they name", async () => {
+test("the setup faceplate's steps open the group they name (A7 P1: no checklist)", async () => {
   const { dom, state } = await settings();
   try {
-    const link = state.root.querySelector('.setup-steps a[href="#group-home"]');
+    assert.ok(!state.root.querySelector('.setup-steps'), 'the checklist is gone');
+    const link = state.root.querySelector('.ui-faceplate a[href="#group-home"]');
     assert.ok(link, 'a step links to the Home group');
     assert.ok(state.root.querySelector('#group-home'), 'and that group exists');
   } finally { dom.uninstall(); }

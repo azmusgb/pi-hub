@@ -2,8 +2,32 @@
 import { firstFew } from "./section-links.js";
 import { api, askFirst, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
 import { displayCard } from "./display-pair.js";
+import { faceplate } from "./page-parts.js";
 
 export const every = 60;
+
+// One setting (A7 P1): a section on the page with its state as a chip beside the heading, not a card. The sign-in and
+// first-time setup screens keep their single panel.
+function setting(title, { pill, tone } = {}, ...body) {
+  return h("section", { class: "ui-section setting" },
+    h("div", { class: "setting__head" }, h("h2", {}, title),
+      pill ? h("span", { class: `ui-chip ui-chip--${tone === "warn" ? "warn" : tone === "bad" ? "bad" : "ok"}` }, pill) : null),
+    ...body.flat().filter(Boolean));
+}
+
+// The faceplate (A7 P1): how much of the setup is done, and a button for each step left. It replaces the checklist the
+// page used to open on.
+export function setupPlate(steps) {
+  const done = steps.filter((x) => x[1]).length;
+  const left = steps.filter((x) => !x[1]);
+  return faceplate({
+    name: "Setup",
+    lamp: left.length ? ["warn", `${left.length} step${left.length > 1 ? "s" : ""} left`] : ["ok", "All set"],
+    readout: `${done} of ${steps.length}`, unit: "done",
+    caption: left.length ? `Next: ${left[0][0].toLowerCase()}, ${left[0][3]}.` : "Everything the hub needs is connected.",
+    actions: left.map(([label, , group, why]) => h("a", { class: "ui-btn", href: `#group-${group}`, title: why }, label)),
+  });
+}
 
 // Phones capitalise the first letter and password managers fill in saved logins; neither
 // is wanted for logins to other systems, so text fields switch both off.
@@ -46,7 +70,7 @@ function shortcutsCard(state, keys, save) {
       h("li", {}, "For “Ask the house”: URL ", h("code", {}, `${base}/api/shortcut/ask`), ", Method POST, JSON ", h("code", {}, "question"), " from an “Ask for Input”, the same header."),
       h("li", {}, "End each with “Speak Text” on the result, and name them what you'll say: “Hey Siri, add to shopping”."),
       h("li", {}, "Away from home, use the Tailscale address ", h("code", {}, "http://pi"), " in place of this one.")));
-  return card("Siri and Shortcuts", { cls: "wide", pill: keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : null, tone: "ok" },
+  return setting("Siri and Shortcuts", { cls: "wide", pill: keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : null, tone: "ok" },
     h("p", { class: "meta" }, "A key lets a phone's Shortcuts add to the lists, hear the house's status, and ask Local AI, with no sign-in. Make one per phone; remove it if the phone is lost."),
     shown ? h("div", { class: "new-key" }, h("p", {}, h("strong", {}, "Copy this key now. It won't be shown again.")),
       h("code", { class: "key", tabindex: 0 }, shown),
@@ -139,7 +163,7 @@ function signIn(state, m) {
 
 function devicesCard(v, save) {
   const mine = v.this && v.listed.some((x) => x.stable_id === v.this.stable_id);
-  return card("Your devices", { cls: "wide", pill: v.listed.length ? `${v.listed.length}` : "None yet", tone: v.listed.length ? "ok" : "warn" },
+  return setting("Your devices", { cls: "wide", pill: v.listed.length ? `${v.listed.length}` : "None yet", tone: v.listed.length ? "ok" : "warn" },
     h("p", { class: "meta" }, "Your own Tailscale devices open the hub and every house tool as the owner, with no password. Tailscale proves which device is asking. Remove a device here, or from Tailscale, and it needs the owner password again."),
     v.listed.length ? h("ul", { class: "log" }, v.listed.map((x) => h("li", { class: "log-row" },
       h("span", { class: "dot", dataset: { tone: "ok" } }),
@@ -168,12 +192,12 @@ export async function load(state) {
     load(state);
   };
   const parts = [
-    card("Homebridge", { pill: d.homebridge.connected ? "Connected" : "Not connected", tone: d.homebridge.connected ? "ok" : "warn" },
+    setting("Homebridge", { pill: d.homebridge.connected ? "Connected" : "Not connected", tone: d.homebridge.connected ? "ok" : "warn" },
       h("p", { class: "meta" }, "Use the login for Homebridge's own page at port 8581. The hub keeps it on the Pi and never shows it again."),
       form(save("homebridge"), d.homebridge.connected ? "Update login" : "Connect",
         field("hb-user", "Homebridge username", { name: "username", value: d.homebridge.username || "bjrmc", required: true, autocomplete: "off", "data-1p-ignore": true, "data-lpignore": "true" }),
         field("hb-pw", "Homebridge password", { name: "password", type: "password", required: true, autocomplete: "new-password", "data-1p-ignore": true, "data-lpignore": "true" }))),
-    card("Guest Wi-Fi", { pill: d.wifi ? d.wifi.ssid : "Not set", tone: d.wifi ? "ok" : "warn" },
+    setting("Guest Wi-Fi", { pill: d.wifi ? d.wifi.ssid : "Not set", tone: d.wifi ? "ok" : "warn" },
       h("p", { class: "meta" }, "Guests scan the QR code on the Now page to join."),
       form(save("wifi"), "Save Wi-Fi",
         field("wifi-ssid", "Network name", { name: "ssid", value: d.wifi?.ssid || "", required: true, autocomplete: "off" }),
@@ -183,35 +207,35 @@ export async function load(state) {
             ["WPA", "WEP", "nopass"].map((v) => h("option", { value: v, selected: (d.wifi?.security || "WPA") === v },
               { WPA: "WPA2 or WPA3 (most networks)", WEP: "WEP (old)", nopass: "No password" }[v]))))),
       d.wifi ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/wifi", { clear: true }); toast("Wi-Fi details removed."); load(state); } }, "Remove Wi-Fi details") : null),
-    card("Morning digest", { pill: d.digest.on ? `On, ${d.digest.at}` : "Off", tone: d.digest.on ? "ok" : "warn" },
+    setting("Morning digest", { pill: d.digest.on ? `On, ${d.digest.at}` : "Off", tone: d.digest.on ? "ok" : "warn" },
       h("p", { class: "meta" }, "One phone message each morning: weather, overnight prints, dropouts, what needs a look, today's calendar and the shopping list."),
       form(async (v) => save("digest")({ on: v.on === "on", at: v.at }), "Save",
         h("label", { class: "check", for: "digest-on" }, h("input", { type: "checkbox", id: "digest-on", name: "on", checked: !!d.digest.on }), "Send the digest"),
         field("digest-at", "Time", { name: "at", type: "time", value: d.digest.at, required: true })),
       h("button", { class: "ghost", onclick: async () => { try { const r = await post("/api/settings/digest-test", {}); toast(r.message); } catch (x) { toast(x.message, "bad"); } } }, "Send one now"),
       d.alerts_ready ? null : h("p", { class: "note" }, "Phone alerts aren't set up on this Pi yet.")),
-    card("Quiet hours", { pill: d.quiet.on ? `${d.quiet.from} to ${d.quiet.to}` : "Off", tone: d.quiet.on ? "ok" : "warn" },
+    setting("Quiet hours", { pill: d.quiet.on ? `${d.quiet.from} to ${d.quiet.to}` : "Off", tone: d.quiet.on ? "ok" : "warn" },
       h("p", { class: "meta" }, "Rules don't send phone alerts in these hours. The morning digest still arrives."),
       form(async (v) => save("quiet")({ on: v.on === "on", from: v.from, to: v.to }), "Save",
         h("label", { class: "check", for: "quiet-on" }, h("input", { type: "checkbox", id: "quiet-on", name: "on", checked: !!d.quiet.on }), "Hold alerts at night"),
         h("div", { class: "two" },
           field("quiet-from", "From", { name: "from", type: "time", value: d.quiet.from, required: true }),
           field("quiet-to", "To", { name: "to", type: "time", value: d.quiet.to, required: true })))),
-    card("Weather", { pill: d.place || "Not set", tone: d.place ? "ok" : "warn" },
+    setting("Weather", { pill: d.place || "Not set", tone: d.place ? "ok" : "warn" },
       h("p", { class: "meta" }, "For the weather on Now, the wall display and the morning digest."),
       form(save("place"), d.place ? "Change town" : "Set town",
         field("place-name", "Town or city", { name: "name", placeholder: "Springfield, Illinois", required: true, autocomplete: "address-level2" })),
       h("div", { class: "seg", role: "group", "aria-label": "Temperature units" }, ["F", "C"].map((x) =>
         h("button", { class: "seg-btn", "aria-pressed": String((d.units || "F") === x), onclick: () => save("units")({ units: x }) }, `°${x}`)))),
-    card("Calendar", { pill: d.calendar_set ? "Connected" : "Not set", tone: d.calendar_set ? "ok" : "warn" },
+    setting("Calendar", { pill: d.calendar_set ? "Connected" : "Not set", tone: d.calendar_set ? "ok" : "warn" },
       h("p", { class: "meta" }, "Paste a calendar's secret iCal address. In Google Calendar: Settings, your calendar, “Secret address in iCal format”. In iCloud: share the calendar publicly and copy the link."),
       form(save("calendar"), d.calendar_set ? "Replace calendar" : "Connect calendar",
         field("cal-url", "Calendar address", { name: "url", type: "url", placeholder: "https://…/basic.ics", required: true, autocomplete: "off" })),
       d.calendar_set ? h("button", { class: "ghost", onclick: async () => { await post("/api/settings/calendar", { clear: true }); toast("Calendar removed."); state.force = true; load(state); } }, "Remove calendar") : null),
-    card("Owner password", {},
+    setting("Owner password", {},
       form(save("password"), "Change password",
         field("new-pw", "New owner password", { name: "password", type: "password", minlength: 8, required: true, autocomplete: "new-password" }))),
-    card("Backups", { pill: d.backups.length ? `${d.backups.length} kept` : "None yet", tone: d.backups.length ? "ok" : "warn" },
+    setting("Backups", { pill: d.backups.length ? `${d.backups.length} kept` : "None yet", tone: d.backups.length ? "ok" : "warn" },
       d.backups.length
         ? h("ul", { class: "log" }, d.backups.slice(0, 5).map((b) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: "ok" } }),
           h("span", { class: "log-main" }, h("strong", {}, when(b.ts))), h("span", { class: "log-side" }, `${b.mb} MB`))))
@@ -224,7 +248,7 @@ export async function load(state) {
     // Made once: a refresh every minute would otherwise drop a pairing code off the screen.
     state.display ??= displayCard(),
     shortcutsCard(state, d.shortcut_keys, save),
-    card("Activity", { cls: "wide" },
+    setting("Activity", { cls: "wide" },
       d.log.length
         ? firstFew(d.log.map((l) => h("li", { class: "log-row" }, h("span", { class: "dot", dataset: { tone: /didn't|isn't/.test(l.result) ? "bad" : "ok" } }),
           h("span", { class: "log-main" }, h("strong", {}, l.result), h("span", { class: "meta" }, `${l.device || "A device"}, ${l.role === "owner" ? "owner" : "household"}`)),
@@ -232,11 +256,11 @@ export async function load(state) {
         : [empty("Nothing yet. Every restart, fix and settings change is listed here.")]),
   ];
   
-  const appearanceCard = card("Appearance", {},
+  const appearanceCard = setting("Appearance", {},
     h("p", { class: "meta" }, "Theme and display settings."),
     h("div", { class: "row" },
-      h("button", { class: "btn", onclick: () => document.getElementById('theme-btn').click() }, "Toggle Theme"),
-      h("a", { href: "/wall", class: "btn btn--ghost", target: "_blank" }, "Open Wall Display")
+      h("button", { type: "button", class: "ui-btn", onclick: () => document.getElementById("theme-btn")?.click() }, "Change the theme"),
+      h("a", { href: "/wall", class: "ui-btn", target: "_blank", rel: "noopener" }, "Open the wall display ↗")
     )
   );
   parts.unshift(appearanceCard);
@@ -248,19 +272,13 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["Connect a calendar", d.calendar_set, "outside", "for “Coming up” and the digest"],
     ["Add your devices", d.devices.listed.length > 0, "people", "so the hub opens as you, with no password"],
   ];
-  const left = steps.filter((x) => !x[1]);
   state.body.replaceChildren(
-    left.length ? h("section", { class: "setup-steps", "aria-labelledby": "setup-title" },
-      h("h2", { class: "section-title", id: "setup-title" }, `Finish setting up: ${left.length} step${left.length > 1 ? "s" : ""} left`),
-      h("ol", {}, steps.map(([label, done, group, why]) => h("li", { dataset: { done: String(done) } },
-        h("span", { class: "dot", dataset: { tone: done ? "ok" : "warn" } }),
-        done ? h("span", {}, h("s", {}, label)) : h("a", { href: `#group-${group}` }, label),
-        h("span", { class: "meta" }, done ? "Done" : why))))) : null,
+    setupPlate(steps),
     h("nav", { class: "ui-chips settings-tabs", "aria-label": "Settings sections" },
       GROUPS.map(([id, title]) => h("a", { href: `#group-${id}` }, title))),
     ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
       h("h2", { class: "group-title", id: `group-${id}-title` }, title),
-      h("div", { class: "cards" }, names.map((n) => byTitle[n]).filter(Boolean)))),
+      h("div", { class: "stack" }, names.map((n) => byTitle[n]).filter(Boolean)))),
     // Sign out is the danger button and asks first (A7 P7); the toast repeats its verb in the past tense.
     h("button", { type: "button", class: "ui-btn ui-btn--danger", onclick: async (e) => {
       if (!(await askFirst(e.currentTarget, "This device forgets its sign-in. You'll need the password to change things again.", { confirm: "Sign out" }))) return;

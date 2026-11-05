@@ -231,20 +231,8 @@ body.wall .link-btn { display: none; }
 :root[data-theme="light"] .poster-art { box-shadow: 0 1px 0 rgb(28 34 38 / 0.08), 0 6px 18px rgb(28 34 38 / 0.10); }
 
 /* Settings: a short checklist first, then sections you can jump to */
-.setup-steps { padding: 1rem 1.15rem; border-radius: 18px; background: rgb(var(--pei-rgb) / 0.08); border: 1px solid rgb(var(--pei-rgb) / 0.3); }
-.setup-steps ol { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
-.setup-steps li { display: grid; grid-template-columns: 0.6rem auto 1fr; gap: 0.7rem; align-items: baseline; }
-.setup-steps li .dot { transform: translateY(-1px); }
-.setup-steps a { font-weight: 700; color: var(--ink); text-decoration-color: rgb(var(--pei-rgb) / 0.6); text-underline-offset: 3px; }
-.setup-steps s { color: var(--muted); }
 .jump { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .settings-group { scroll-margin-top: 1rem; }
-.group-title { margin: 0.4rem 0 0.7rem; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.015em; }
-.settings-group .cards { margin: 0; }
-@media (max-width: 520px) {
-  .setup-steps li { grid-template-columns: 0.6rem 1fr; row-gap: 0.05rem; }
-  .setup-steps li .meta { grid-column: 2; font-size: 0.9rem; }
-}
 
 /* Lists: reminders and printing */
 .add .remind-toggle { grid-column: 1 / -1; }
@@ -411,3 +399,7 @@ details.ui-section > summary::marker { color: var(--muted); }
 details.ui-section > summary > h2 { display: inline; margin: 0; }
 details.ui-section:not([open]) { gap: 0; }
 .health-fixes .ui-row--lamp > .ui-btn { justify-self: end; white-space: nowrap; }
+
+/* Settings (A7 P1): each setting is a section; its state chip sits beside the heading. */
+.setting__head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.setting__head > h2 { margin: 0; font: inherit; font-size: var(--ui-fs-5, 1.25rem); font-weight: 650; }

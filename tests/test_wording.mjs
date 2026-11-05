@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agoText, applianceControls, applianceLabel, groupAppliances, laundryLine, mergeDropouts, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
+import { agoText, applianceControls, applianceLabel, groupAppliances, laundryLine, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -37,24 +37,6 @@ test('an appliance card switches only its power: no program or running switch to
   assert.deepEqual(applianceControls({ power: null, running: null, programs: [] }), []);
 });
 
-test('a device that drops out and comes back many times in a day is one line', () => {
-  const day = new Date(2026, 9, 24, 12).getTime() / 1000;
-  const alerts = [];  // newest first, as /api/alerts gives them
-  for (let i = 0; i < 4; i++) {
-    alerts.push({ ts: day - i * 600, title: 'Workshop display is back', body: '', tag: 'white_check_mark' });
-    alerts.push({ ts: day - i * 600 - 300, title: 'Workshop display went offline', body: '', tag: 'warning' });
-  }
-  alerts.push({ ts: day - 5000, title: 'X2D print finished', body: 'Cube', tag: 'tada' });
-  const out = mergeDropouts(alerts);
-  assert.equal(out.length, 2);
-  assert.equal(out[0].title, 'Workshop display dropped out 4 times');
-  assert.equal(out[0].body, 'Back now');
-  assert.equal(out[0].tag, 'warning');
-  assert.equal(out[1].title, 'X2D print finished');
-  const once = mergeDropouts(alerts.slice(0, 2));
-  assert.deepEqual(once.map((a) => a.title), ['Workshop display is back', 'Workshop display went offline']);
-});
-
 test('the internet summary is in plain words', () => {
   assert.equal(plainInternet({ status: 'ok', wan_ms: 9.5, orbi_down_mbps: 20.96, orbi_up_mbps: 2.5 }), 'Internet OK · using 21 Mbps down, 2.5 up');
   assert.equal(plainInternet({ status: 'ok', wan_ms: 400 }), 'Internet slow');
@@ -64,34 +46,6 @@ test('the internet summary is in plain words', () => {
 
 const at = (y, m, d, hh, mm) => new Date(y, m, d, hh, mm).getTime() / 1000;
 const alert = (ts, title, tag = 'warning') => ({ ts, title, body: '', tag });
-
-test('only things that come back are merged as dropouts; stopped prints and crashes stay as they are', () => {
-  const out = mergeDropouts([
-    alert(at(2026, 9, 24, 18, 0), 'X2D print stopped'), alert(at(2026, 9, 24, 17, 0), 'X2D print stopped'),
-    alert(at(2026, 9, 24, 16, 0), 'Plex stopped'), alert(at(2026, 9, 24, 15, 0), 'Plex stopped'),
-  ]);
-  assert.deepEqual(out.map((a) => a.title), ['X2D print stopped', 'X2D print stopped', 'Plex stopped', 'Plex stopped']);
-});
-
-test('the PC going down and coming back merges too', () => {
-  const out = mergeDropouts([
-    alert(at(2026, 9, 24, 12, 30), 'Windows PC is back', 'white_check_mark'), alert(at(2026, 9, 24, 12, 20), 'Windows PC is down'),
-    alert(at(2026, 9, 24, 12, 10), 'Windows PC is back', 'white_check_mark'), alert(at(2026, 9, 24, 12, 0), 'Windows PC is down'),
-  ]);
-  assert.deepEqual(out.map((a) => [a.title, a.body]), [['Windows PC dropped out 2 times', 'Back now']]);
-});
-
-test('back after midnight counts as back for the day before', () => {
-  const out = mergeDropouts([
-    alert(at(2026, 9, 25, 0, 10), 'Movies drive is back', 'white_check_mark'),
-    alert(at(2026, 9, 24, 23, 50), 'Movies drive dropped out'),
-    alert(at(2026, 9, 24, 23, 45), 'Movies drive is back', 'white_check_mark'),
-    alert(at(2026, 9, 24, 23, 40), 'Movies drive dropped out'),
-  ]);
-  const merged = out.find((a) => a.title === 'Movies drive dropped out 2 times');
-  assert.equal(merged.body, 'Back now');
-  assert.equal(merged.tag, 'warning');
-});
 
 test('only known appliances are grouped; three switches from one maker are not', () => {
   const tp = ['Fountain Power', 'Kitchen Lamp', 'Fan'].map((n, i) => ({ id: `t${i}`, name: n, room: 'TP-Link', kind: 'switch', on: false }));
