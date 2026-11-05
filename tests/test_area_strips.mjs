@@ -37,10 +37,10 @@ test('every strip page belongs to the section of its strip, and the section list
   }
 });
 
-test('no page is hidden: every page is on a strip, except Home, the wall and the phone-only More', () => {
+test('no page is hidden: every page is on a strip, except Home, the wall, the phone-only More and the Assistant (level 0, A4)', () => {
   const on = new Set(Object.values(STRIPS).flatMap((s) => s.entries.map(([href]) => href)));
   const hidden = ROUTES.pages.filter((p) => !on.has(p));
-  assert.deepEqual(hidden.sort(), ['/', '/more', '/wall']);
+  assert.deepEqual(hidden.sort(), ['/', '/assistant', '/more', '/wall']);
 });
 
 test('the strip marks the current page and nothing else, on every strip page', () => {

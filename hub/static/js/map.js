@@ -5,6 +5,7 @@ import ROUTES from "./routes.js";
 import { SECTIONS, toolUrl } from "./sections.js";
 import { STRIPS } from "./system-strip.js";
 import { TOOLS } from "../ui/tools.js";
+import { ASSISTANT_PAGES, addressFor } from "./assistant.js";
 
 export const every = 600;
 
@@ -18,11 +19,12 @@ const pageNames = () => new Map([
 ]);
 
 // The map as data: one group per area (the rail's six, in its order), the Assistant, pages in no area, and the tools that
-// are machine-facing. Pure, so it is tested without a page.
+// are machine-facing. Pure, so it is tested without a page. The Assistant's areas are pages in the shell (/assistant,
+// A4); its registry entry stays as the tool, Local AI opened on its own.
 export function siteMap(routes = ROUTES, tools = TOOLS) {
   const names = pageNames();
   const named = (href) => ({ href, label: names.get(href) || href });
-  const placed = new Set();
+  const placed = new Set(["/assistant"]);
   const groups = SECTIONS.map((s) => {
     const pages = s.pages.filter((p) => routes.pages.includes(p));
     pages.forEach((p) => placed.add(p));
@@ -38,7 +40,8 @@ export function siteMap(routes = ROUTES, tools = TOOLS) {
   const rest = tools.filter((t) => !used.has(t.id));
   return [
     ...groups,
-    { key: "assistant", title: "Assistant", path: "", pages: [], tools: assistant },
+    { key: "assistant", title: "Assistant", path: "/assistant",
+      pages: ASSISTANT_PAGES.map(([to, label]) => ({ href: addressFor(to), label })), tools: assistant },
     ...(loose.length || rest.length ? [{ key: "other", title: "Other", path: "", pages: loose.map(named), tools: rest }] : []),
     { key: "machine", title: "Machine-facing, not for browsing", path: "", pages: [], tools: machine, machine: true },
   ];

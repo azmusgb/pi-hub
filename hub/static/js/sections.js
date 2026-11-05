@@ -23,6 +23,7 @@ const REDIRECTS = ROUTES.redirects;
 
 export function sectionFor(path) {
   if (path === "/more") return "more";
+  if (path === "/assistant") return "assistant";  // level 0 (A4): no rail area of its own, the button marks it
   return SECTIONS.find((s) => s.pages.includes(path))?.key || "home";
 }
 
@@ -62,25 +63,28 @@ export function printLabUrl(exp, project = "", act = "") {
   return `/lab?${p}e=${encodeURIComponent(String(exp ?? ""))}${LAB_ACTIONS.has(act) ? `&do=${act}` : ""}`;
 }
 
-// The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by).
+// The server names tools as "tool:<name>[/path]" (it can't know which address the page was opened by). The Assistant
+// opens in the shell (A4 requirement 7, A7 decision 8): tool:assistant/#run/<id> is /assistant?to=run/<id>.
 export function resolveLink(href, host = globalThis.location?.hostname || "") {
   const m = /^tool:([a-z]+)\/?(.*)$/.exec(href || "");
   if (!m) return href;
+  if (m[1] === "assistant") { const to = m[2].replace(/^#\/?/, ""); return to ? `/assistant?to=${encodeURIComponent(to)}` : "/assistant"; }
   const base = toolUrl(m[1], host);
   return base ? base + m[2] : "";
 }
 
 // The Assistant button hands Local AI the page and its key facts (one home, step 4): Local AI shows them over its
-// composer and sends them with the next question. At most 300 characters, as the design says.
+// composer and sends them with the next question. At most 300 characters, as the design says. It opens /assistant in
+// the shell (A4), which puts them in the frame's #ask?context=. `host` stays for the callers.
 const CONTEXT_MAX = 300;
-export function assistantHref(host, title, facts) {
+export function assistantHref(host, title, facts) {  // eslint-disable-line no-unused-vars
   let text = `Pi Hub › ${title}${facts ? `: ${facts}` : ""}`.replace(/\s+/g, " ").trim();
   if (text.length > CONTEXT_MAX) {
     let cut = CONTEXT_MAX - 1;
     if (/[\uD800-\uDBFF]/.test(text[cut - 1])) cut -= 1;  // never half an emoji: encodeURIComponent throws on one
     text = text.slice(0, cut) + "…";
   }
-  return `${toolUrl("assistant", host)}#ask?context=${encodeURIComponent(text)}`;
+  return `/assistant?context=${encodeURIComponent(text)}`;
 }
 
 // The phrase table's two unavailable states (section 9): `pc_off` when the `pc` record is off, `assistant_down` when

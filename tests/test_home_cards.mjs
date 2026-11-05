@@ -164,13 +164,15 @@ test("the blind failure-detection item's link opens Bambuddy's Failure detection
   assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');  // step 6: links name the gate only
 });
 
-test("the Mac disk item's link opens the Assistant with the question (its #ask?context= hand-off)", async () => {
+test("the Mac disk item's link opens the Assistant in the shell with the question (its #ask?context= hand-off, A4)", async () => {
   const { resolveLink } = await import('../hub/static/js/sections.js');
+  const { frameSrc } = await import('../hub/static/js/assistant.js');
   const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
-  const url = new URL(resolveLink(link, '10.0.0.30'));
-  assert.equal(url.origin, 'https://assistant.rahe-home.duckdns.org');  // step 6: links name the gate only
-  assert.equal(decodeURIComponent(url.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?");
-  assert.ok(resolveLink(link, 'hub.rahe-home.duckdns.org').startsWith('https://assistant.rahe-home.duckdns.org/#ask?context='));
+  const href = resolveLink(link, '10.0.0.30');
+  assert.ok(href.startsWith('/assistant?to='), 'a page in the shell, not another origin');
+  const src = new URL(frameSrc(new URL(href, 'https://hub.rahe-home.duckdns.org').search));
+  assert.equal(src.origin, 'https://assistant.rahe-home.duckdns.org');
+  assert.equal(decodeURIComponent(src.hash.split('context=')[1]), "Pi Hub › Mac disk is 95% full. What's using the space?", 'encoded once, not twice');
 });
 
 test("a Local AI item about another printer leaves the X2D card green (review, 28 Oct)", () => {
