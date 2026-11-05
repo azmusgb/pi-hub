@@ -1,5 +1,7 @@
 # Amendment A8: Home is a dashboard
 
+*Amended by A9 (5 Nov 2026): on a phone the band shows the day so far; the TV scales once.*
+
 Date: 2026-11-05 · Status: **approved by the owner on 5 Nov 2026 ("lets go with it!")**, from the prototype
 https://claude.ai/artifact/2YFCdUfzb7ajwRMoWRe25M · Amends: the platform baseline
 (`2026-11-01-platform-product-architecture-design.md`, section 5.5 (Home's order) and section 9 (the term "Home")) and
