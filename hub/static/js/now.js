@@ -1,4 +1,4 @@
-// Home: the one-line answer, then the control room (Now, Needs you, Since you last looked; control-room.js). The wall
+// Home: the one-line answer, then the dashboard (amendment A8: Today, Needs you, Systems; home-dashboard.js). The wall
 // display keeps its own layout and the house cards (home-cards.js).
 import { api, clockTime, h, post, settle, toast, weatherIcon } from "./core.js";
 import { tile } from "./control.js";
@@ -6,7 +6,8 @@ import { homeCards, labLink, needsSummary } from "./home-cards.js";
 import { plainInternet, tileState, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
-import { mountControlRoom, loadControlRoom, leaveControlRoom, setControlNeeds, problemsBadge } from "./control-room.js";
+import { problemsBadge } from "./control-room.js";
+import { leaveDashboard, mountDashboard, renderDashboard } from "./home-dashboard.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
@@ -1197,15 +1198,12 @@ export function mount(state) {
     state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
-    // Home is the control room: Now (the printer leads it), Needs you, Since you last looked (platform 5.5). The
-    // rail reaches every area, so Home carries no area cards or shortcut chips. The Home tab's badge counts Needs you
-    // once it has answered.
+    // Home is the dashboard (amendment A8): the Today band, Needs you and the Systems rack. The rail reaches every
+    // area, so Home carries no area cards or shortcut chips. The Home tab's badge counts Needs you once it answers.
     state.homeMode = true;
-    state.control = h("div", { class: "home-control" });
-    mountControlRoom(state, state.control, { search: false });
-    state.homeNeedsAnswered = false;
-    state.onProblems = (probs) => { if (state.homeNeedsAnswered) setNeeds(problemsBadge(state.needs, probs)); };
-    state.root.append(state.hero, state.control);
+    state.dash = h("div", { class: "home-dash" });
+    mountDashboard(state, state.dash);
+    state.root.append(state.hero, state.dash);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -1215,7 +1213,7 @@ export function mount(state) {
 
   if (state._camTimer) clearInterval(state._camTimer);
   state._camTimer = setInterval(() => {
-    const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img, .kiosk-cam-img, .cr-hero-cam-img");
+    const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img, .kiosk-cam-img");
     if (imgs.length && !document.hidden) {
       const ts = Date.now();
       imgs.forEach(img => { img.src = `/api/camera.jpg?t=${ts}`; });
@@ -1259,26 +1257,35 @@ export async function load(state) {
 
   if (isWallMode()) return loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
 
-  // Now's printer camera opens the full view; the camera answered or not decides whether Now shows it at all.
-  state.cameraOk = !!cam?.ok;
-  state.openCamera = () => openCameraModal(d.printer);
-
-  // The line holds the hub's own words until Needs you answers; while the hub counts problems, it waits for Needs you
-  // (the card and the badge carry the count), so no count flashes up and goes.
+  // The line holds the hub's own words until Needs you answers (no count flashes up and goes).
   const line = (text) => {
     state.summary.textContent = text;
     state.summary.hidden = !text;
     if (state.hero) state.hero.hidden = state.summary.hidden && state.outside.childElementCount === 0;
   };
-  line(state.extra ? needsSummary(state.extra.needs, d.summary) : d.issues.length ? "" : d.summary);  // a refresh: the last answer
-  // Needs you fills in when it answers (it gives up after 4 s), so the page never waits on it.
-  loadControlRoom(state, state.extra ? state.extra.needs : null).catch(() => {});
-  settle(api("/api/needs"), 4000, null).then((needs) => {
-    state.homeNeedsAnswered = true;
-    setControlNeeds(state, needs);  // renders Needs you, which sets the badge
-    if (state.summary.isConnected) line(needsSummary(needs, d.summary));
-    state.extra = { needs };
-  });
+  // The dashboard's sources, each allowed 6 s (Needs you 4 s); one that doesn't answer is null and its lane or row says
+  // so. Storage, the self-check and the week change slowly: they are read once a minute (plan decision 8).
+  const slowDue = !state.slowAt || Date.now() - state.slowAt > 60_000;
+  const [today, recs, needs, slow] = await Promise.all([
+    settle(api("/api/today"), 6000, null),
+    settle(api("/api/records"), 6000, null),
+    settle(api("/api/needs"), 4000, null),
+    slowDue
+      ? Promise.all([settle(api("/api/pi?hours=1"), 6000, null), settle(api("/api/system/backups"), 6000, null),
+        settle(api("/api/workshop"), 6000, null)]).then(([pi, backups, workshop]) => ({ pi, backups, workshop }))
+      : Promise.resolve(state.slow),
+  ]);
+  // a slow read that failed is tried again on the next refresh, not held for a minute
+  if (slowDue) { state.slow = slow; state.slowAt = slow.pi && slow.backups && slow.workshop ? Date.now() : 0; }
+  const records = Array.isArray(recs?.records) ? recs.records : null;
+  renderDashboard(state, { today, records, needs, now: d, ...slow }, () => load(state));
+  // The badge counts the list Home shows; with no list (neither source answered) the shell's own count stands.
+  if (state.probs) setNeeds(problemsBadge(needs, state.probs));
+  const probs = state.probs || [];
+  state.facts = probs.length
+    ? `${probs.length} problem${probs.length === 1 ? "" : "s"}: ${probs.map((p) => p.title).slice(0, 3).join("; ")}`
+    : d.summary;
+  line(needsSummary(needs, d.summary));
 }
 
 export function failed(state) {
@@ -1408,7 +1415,7 @@ export function leave(state) {
     activeCamModal.remove();
     activeCamModal = null;
   }
-  if (state.homeMode) leaveControlRoom(state);
+  if (state.homeMode) leaveDashboard(state);
   clearInterval(state._eyebrowTimer);
   clearInterval(state._camTimer);
   if (state._clockTimer) clearInterval(state._clockTimer);

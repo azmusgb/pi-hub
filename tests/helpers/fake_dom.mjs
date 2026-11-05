@@ -141,6 +141,7 @@ export function install({ fetch: routes = {}, confirm = true } = {}) {
   const doc = {
     documentElement, body, activeElement: body, hidden: false,
     createElement: (t) => new Element(t),
+    createElementNS: (_ns, t) => new Element(t),
     createTextNode: (t) => new Text(t),
     getElementById: (id) => documentElement.querySelector(`#${id}`),
     querySelector: (s) => documentElement.querySelector(s),

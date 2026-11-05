@@ -631,136 +631,6 @@ body.wall .source-freshness { display: none; }
   gap: 1.25rem;
   max-width: 960px;
 }
-.cr-command-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  width: 100%;
-  padding: .85rem 1.1rem;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  color: var(--text-2);
-  font: inherit;
-  font-size: .9375rem;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: var(--sh-1);
-}
-.cr-command-bar:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-.cr-command-placeholder {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cr-quiet-lead {
-  margin: 0 0 .5rem;
-  color: var(--text-2);
-}
-.cr-calm-details {
-  margin-top: .75rem;
-  padding-top: .75rem;
-  border-top: 1px solid var(--line);
-}
-.cr-calm-summary {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  cursor: pointer;
-  color: var(--text-2);
-  font-size: .875rem;
-  font-weight: 500;
-}
-.cr-calm-grid {
-  margin-top: .75rem;
-}
-.cr-row-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  flex-wrap: wrap;
-}
-.cr-item-actions,
-.cr-row-side {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  flex-wrap: wrap;
-  margin-top: .35rem;
-}
-.log-row[data-new="true"] {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  border-radius: var(--r-xs);
-  padding-inline: .5rem;
-}
-
-/* Home's control room (Now, Needs you, Since you last looked). */
-.home-control { display: grid; gap: var(--space-3, .75rem); margin-block: var(--space-3, .75rem); }
-
-/* Now's printer: the page's one loud thing. A condensed readout carries it; everything around it stays quiet. */
-.cr-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem 1.5rem;
-  padding: .25rem 0 1rem;
-  border-bottom: 1px solid var(--line);
-}
-.cr-hero:last-child { border-bottom: 0; padding-bottom: .25rem; }
-.cr-hero-main { display: grid; gap: .5rem; min-width: 0; align-content: start; }
-.cr-hero-name { display: flex; align-items: center; gap: .5rem; margin: 0; }
-.cr-hero-name .meta { color: var(--text-2); }
-.cr-hero-readout {
-  margin: 0;
-  font-size: clamp(3.5rem, 9vw, 5.75rem);
-  font-weight: 700;
-  font-stretch: var(--ui-stretch-readout, 75%);
-  font-feature-settings: var(--tabular-numbers);
-  line-height: .9;
-  letter-spacing: -.02em;
-}
-/* A state word ("Finished", "Failed") instead of a percentage: still big, not poster-sized. */
-.cr-hero-readout[data-long="true"] { font-size: clamp(1.75rem, 5vw, 2.5rem); line-height: 1.05; }
-.cr-hero[data-tone="bad"] .cr-hero-readout { color: var(--bad); }
-.cr-hero-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
-.cr-hero-bar > span { display: block; height: 100%; background: var(--accent); transition: width .4s var(--ease); }
-.cr-hero[data-tone="warn"] .cr-hero-bar > span { background: var(--warn); }
-.cr-hero-facts { display: flex; flex-wrap: wrap; gap: .15rem 1.25rem; margin: 0; padding: 0; list-style: none; color: var(--text-2); font-feature-settings: var(--tabular-numbers); }
-.cr-hero-facts > li { overflow-wrap: anywhere; }
-.cr-hero .cr-item-actions { margin-top: .25rem; }
-.cr-hero-cam {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface-3);
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  cursor: zoom-in;
-}
-.cr-hero-cam:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cr-hero-cam-img { display: block; width: 100%; height: 100%; object-fit: cover; }
-@media (min-width: 760px) {
-  .cr-hero[data-cam="true"] { grid-template-columns: minmax(0, 1fr) minmax(220px, 38%); align-items: start; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cr-hero-bar > span { transition: none; }
-}
-
-/* Since you last looked: a timeline, the time in its own column so the eye runs down it. */
-.cr-since-row { grid-template-columns: 7.75rem minmax(0, 1fr) auto; align-items: baseline; }
-@media (max-width: 480px) { .cr-since-row { grid-template-columns: minmax(0, 1fr) auto; } .cr-since-when { grid-column: 1 / -1; } }
-.cr-since-when { white-space: nowrap; color: var(--text-2); font-size: .875rem; font-feature-settings: var(--tabular-numbers); }
-.cr-since-row > .dot { align-self: center; }
-.cr-since-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .6rem; cursor: pointer; padding: .25rem 0; }
-.cr-since-summary .meta { color: var(--text-2); }
-.cr-since-summary:focus-visible { outline: 2px solid var(--ui-accent, currentColor); outline-offset: 2px; border-radius: 4px; }
-.cr-since-details[open] > .cr-since-summary { margin-bottom: var(--space-2, .5rem); }
 
 /* Media › Add a movie (movie-upload.js) */
 .movie-upload-row { display: flex; justify-content: flex-end; margin-block: var(--space-2, .5rem); }
@@ -787,7 +657,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
   a.button, a.tool-link, button.chip, button.ghost, .print-photo-link,
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select { min-height: 44px; }
   a.button, a.tool-link, .print-photo-link { display: inline-flex; align-items: center; }
-  .status-list li a, .cr-calm-grid a { display: inline-flex; align-items: center; min-height: 44px; }
+  .status-list li a { display: inline-flex; align-items: center; min-height: 44px; }
   input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }  /* WCAG 2.2 minimum; the label is the big target */
   input[type=range] { min-height: 44px; }
 }
@@ -799,9 +669,9 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Search sits at the right, beside the Assistant button, the same place on every page; it is a button, not a link. */
 .top-cmd-btn { margin-left: auto; text-decoration: none; min-height: 36px; padding-inline: .75rem; }
 /* Touch, after the compact sizes above and in the component sheets, so it wins: page strips, Search, Restart, the
-   theme link, Home's "Since you last looked", the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
+   theme link, the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
 @media (max-width: 860px), (pointer: coarse) {
-  .tabs > a, .tabs > button, .top-cmd-btn, .service-list .status-side .btn, .link-btn, .cr-since-summary,
+  .tabs > a, .tabs > button, .top-cmd-btn, .service-list .status-side .btn, .link-btn,
   .more-group > h2 a { min-height: 44px; }
   .tabs > a, .tabs > button, .more-group > h2 a { display: inline-flex; align-items: center; }
   .tabs > a, .tabs > button { justify-content: center; }
