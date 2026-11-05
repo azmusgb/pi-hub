@@ -1,9 +1,9 @@
-// Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Materials,
+// Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Filament loaded,
 // This week, More in the workshop (filament, history, projects, the lab queue) and one "Open in" row. The touchscreen's
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
 import { api, card, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { band } from "./now.js";
-import { printLabUrl, sourceDown, toolPath } from "./sections.js";
+import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerActionList, printerBusy, printerButtons, runPrinterAction } from "./printer-actions.js";
@@ -57,7 +57,7 @@ export function mount(state) {
   state.now = now;
   state.needs = section("needs", "Needs you here");
   state.needs.hidden = true;
-  state.materials = section("materials", "Materials", h("div", { class: "skeleton ws-skel-line" }));
+  state.materials = section("materials", "Filament loaded", h("div", { class: "skeleton ws-skel-line" }));
   state.week = section("week", "This week", h("div", { class: "skeleton ws-skel-line" }));
   state.more = {};
   const opened = readOpen();
@@ -214,7 +214,8 @@ export function workshopView(d, { role = "none", last = null } = {}) {
     const judge = n.action === "Judge the print";
     needs.push({ kind: "lab", id: n.id, title: `${n.id}: ${n.action}`,
       detail: n.judge_on ? `Look at: ${n.judge_on}` : n.question_text || "",
-      href: owner ? printLabUrl(n.id, n.project, judge ? "judge" : "") : null, label: judge ? `Judge ${n.id}` : "Open" });
+      href: owner ? printLabUrl(n.id, n.project, judge ? "judge" : "") : null, label: judge ? `Judge ${n.id}` : n.action,
+      verb: LAB_VERBS[n.action] || "" });
   }
   const prints = Array.isArray(d.prints) ? d.prints : [];
   const latest = prints.find((x) => x.status !== "printing");
@@ -261,16 +262,26 @@ function lastKnown(asOf) {
   return asOf ? h("p", { class: "note" }, `Last known, from ${when(asOf)}.`) : null;
 }
 
+// A lab step's own words are the kit's verb phrases (A7 P2): the action says what it does, never "Open" alone.
+const LAB_VERBS = { "Judge the print": "judge_it", "Approve or drop": "approve", "Send it to the printer": "send", "Fix the plan": "fix_plan" };
+
+// The kit's Needs-you list, the same as Home's (A7 P2). Clear the plate is done here, so its row has the button, not a link.
 function needsList(state, v) {
-  const rows = v.needs.map((n) => h("li", { class: "log-row lab-need" },
-    h("span", { class: "dot", dataset: { tone: "warn" }, "aria-hidden": "true" }),
-    h("span", { class: "log-main" },
-      h("strong", {}, n.title),
-      // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab).
-      n.detail ? h("span", { class: "meta clamp-2", title: n.detail }, n.detail) : null,
-      n.kind === "clear" && n.action ? clearButton(state)
-        : n.href ? h("a", { class: "btn btn--primary lab-need-act", href: n.href, "data-link": true, dataset: { key: `lab-${n.id}` } }, n.label) : null)));
-  return [h("ul", { class: "log" }, rows),
+  const items = v.needs.map((n) => n.kind === "clear"
+    ? { id: "clear", source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail }
+    : { id: `lab-${n.id}`, source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail,
+      link: n.href || undefined, action: n.href && n.verb ? { key: n.verb, link: n.href } : undefined });
+  const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub" });
+  v.needs.forEach((n, i) => {
+    const li = list.children[i];
+    if (!li) return;
+    li.dataset.key = n.kind === "clear" ? "clear-need" : `lab-${n.id}`;
+    // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab).
+    const detail = li.querySelector(".ui-need__detail");
+    if (detail && n.detail) { detail.classList.add("clamp-2"); detail.title = n.detail; }
+    if (n.kind === "clear" && n.action) li.firstChild.append(clearButton(state));
+  });
+  return [list,
     v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
       h("button", { type: "button", class: "ghost small", dataset: { key: "sign-in" }, onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
 }
@@ -420,7 +431,7 @@ export async function load(state) {
   redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.signIn, busy]), () =>
     state.needs.replaceChildren(state.needs.firstChild, ...(v.needs.length ? needsList(state, v).filter(Boolean) : [])));
 
-  // Materials and This week: one line each. While Bambuddy is down they have nothing current, and the notice covers it.
+  // Filament loaded and This week: one line each. While Bambuddy is down they have nothing current, and the notice covers it.
   const heading = (el) => el.firstChild;
   state.materials.hidden = !v.materials;
   state.week.hidden = !v.materials;

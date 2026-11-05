@@ -83,3 +83,25 @@ test("while Bambuddy is down its cards carry no pill of their own: the one notic
   assert.deepEqual(cardPills({ prints_available: false, spools: null, week: null }), { history: null, filament: null });
   assert.equal(cardPills({ prints_available: true, spools: [], week: { finished: 2 } }).history.pill, '2 finished this week');
 });
+
+test('A7 H2: a stale reading says No answer with when it was last seen, never Backup readings while printing', async () => {
+  const { telemetryLabel, telemetryAge } = await import('../hub/static/js/now.js');
+  const s = telemetryLabel({ state: 'printing', telemetry: { status: 'stale', source: 'Bambuddy' } });
+  assert.equal(s.label, 'No answer');
+  assert.equal(s.state, 'none');
+  assert.match(s.why, /Bambuddy isn't answering/);
+  const ago = new Date(Date.now() - 12 * 60000).toISOString();
+  assert.equal(telemetryAge(ago, true), 'last seen 12m ago');
+  assert.equal(telemetryAge(ago), 'checked 12m ago');
+});
+
+test('A7 H2 (P5): the job is the plate name, not its path; a target of 0 is no target', async () => {
+  const { jobTitle, tempText } = await import('../hub/static/js/now.js');
+  assert.equal(jobTitle('/data/Metadata/plate 1'), 'Plate 1');
+  assert.equal(jobTitle('/sdcard/RIFT_marked.gcode.3mf'), 'RIFT marked');
+  assert.equal(jobTitle('christmas tree coaster'), 'christmas tree coaster');
+  assert.equal(tempText(27, 0), '27°C');
+  assert.equal(tempText(25, null), '25°C');
+  assert.equal(tempText(220, 220), '220°C / 220°C');
+  assert.equal(tempText(null, 220), null);
+});

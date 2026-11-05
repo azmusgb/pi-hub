@@ -1,6 +1,7 @@
 // W.2 review (#91): the Printer page rendered with a small DOM (tests/helpers/fake_dom.mjs) and stubbed APIs: a refresh
 // keeps focus and a busy button, Bambuddy down is one notice, stale trays aren't shown as current, and the loading,
 // camera off and page-order states as drawn.
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { install, text } from './helpers/fake_dom.mjs';
@@ -21,6 +22,10 @@ const workshop = (over = {}) => ({
 async function page(routes) {
   const dom = install({ fetch: { '/api/camera': { ok: true, source: 'Pi', sources: {} }, '/api/projects': { available: true, projects: [] },
     '/api/me': { role: 'owner' }, ...routes } });
+  // The kit's Needs-you renderer is a classic script in the page (index.html): load it the same way here (A7 P2).
+  const kit = { exports: {} };
+  new Function('module', readFileSync(new URL('../hub/static/ui/needs.js', import.meta.url), 'utf8'))(kit);
+  globalThis.ApplianceNeeds = kit.exports;
   const toast = dom.document.createElement('div');
   toast.id = 'toast';
   dom.document.body.append(toast);
@@ -183,5 +188,27 @@ test('missing numbers are left out, never "undefined h" or "null g left"', async
     assert.doesNotMatch(all, /undefined|null|NaN/);
     assert.match(text(p.state.root.querySelector('.ws-week')), /2 finished this week/);
     assert.match(text(p.state.root.querySelector('.ws-materials')), /Grey running low/);
+  } finally { p.done(); }
+});
+
+test("A7 P2: Workshop's Needs you here is the kit's list, each action named by its verb, never \"Open\" alone", async () => {
+  const approve = { project: 'hex-tile', id: 'E-008', action: 'Approve or drop', question_text: 'Wider walls?' };
+  const other = { project: 'hex-tile', id: 'E-009', action: 'Look it over', question_text: 'Check the notes' };
+  const p = await page({ '/api/workshop': workshop({ printer: printer('stopped', { actions: ['clear'] }),
+    lab: { needs: [judge, approve, other], active: [], questions: [] } }) });
+  try {
+    await p.ws.load(p.state);
+    const list = p.state.root.querySelector('.ws-needs .ui-needs');
+    assert.ok(list, 'the kit list');
+    const rows = list.children;
+    assert.equal(rows.length, 4);
+    assert.equal(text(rows[0].querySelector('.ui-need__title')), 'Done: clear the plate');
+    assert.equal(text(rows[0].querySelector('button')), 'Clear the plate', 'cleared here, with its button');
+    const actions = [1, 2, 3].map((i) => rows[i].querySelector('.ui-need__action'));
+    assert.equal(text(actions[0]), 'Judge it');
+    assert.equal(text(actions[1]), 'Approve or drop');
+    assert.equal(actions[2], null, 'an unknown step gets no words: the whole row is the link');
+    assert.ok(![...p.state.root.querySelectorAll('.ws-needs *')].some((el) => el.children.length === 0 && text(el) === 'Open'));
+    assert.equal(text(p.state.root.querySelector('.ws-materials h2')), 'Filament loaded', 'section 9: Filament, not Materials');
   } finally { p.done(); }
 });

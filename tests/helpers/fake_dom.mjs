@@ -151,7 +151,7 @@ export function install({ fetch: routes = {} } = {}) {
   globalThis.window = { confirm: () => true };
   globalThis.document = doc;
   globalThis.Node = Node;
-  globalThis.location = { hostname: "hub.test", protocol: "http:", host: "hub.test", pathname: "/", search: "" };
+  globalThis.location = { hostname: "hub.test", protocol: "http:", host: "hub.test", pathname: "/", search: "", href: "http://hub.test/" };
   globalThis.fetch = async (url, opts = {}) => {
     const path = String(url).split("?")[0];
     const r = typeof routes === "function" ? routes(String(url), opts) : routes[path];
