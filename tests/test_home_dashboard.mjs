@@ -32,14 +32,16 @@ test("the band puts lane names beside the tracks when wide and above them on a p
   assert.equal(narrow.width, 390);
 });
 
-test("every mark is at least a 24 x 40 target, however thin it is drawn", () => {
+test("every mark is at least a 44 x 44 target, however thin it is drawn, and targets don't cross lanes", () => {
   const d = day();
   d.lanes[2].marks = [{ at: START + 3600, kind: "warn", title: "Low voltage seen" }];
   d.lanes[0].marks = [{ start: START + 7200, end: START + 7210, kind: "ok", title: "Clip: Finished" }];
   for (const w of [320, 390, 820, 1440]) {
     for (const lane of bandLayout(d, w).lanes) for (const m of lane.marks) {
-      assert.ok(m.hit.w >= 24 && m.hit.h >= 40, `${w}px ${m.title}: ${m.hit.w}x${m.hit.h}`);
+      assert.ok(m.hit.w >= 44 && m.hit.h >= 44, `${w}px ${m.title}: ${m.hit.w}x${m.hit.h}`);
     }
+    const ls = bandLayout(d, w).lanes;
+    for (let i = 1; i < ls.length; i++) assert.ok(ls[i].cy - 22 >= ls[i - 1].cy + 22, `${w}px: lanes ${i - 1} and ${i} overlap`);
   }
 });
 
@@ -147,8 +149,24 @@ test("every rack row stays when its source doesn't answer, and says which source
   assert.match(by.network.state, /isn't answering/);
   assert.match(by.storage.state, /isn't answering/);
   assert.match(by.week.state, /Bambuddy isn't answering/);
-  assert.ok(rows.every((r) => r.lamp === "unknown" || r.id === "pi"), "no row shows fine without an answer");
-  assert.equal(by.pi.state, "No status yet");
+  assert.ok(rows.every((r) => r.lamp === "unknown"), "no row shows fine without an answer");
+  assert.match(by.pi.state, /isn't answering/);
+});
+
+test("Storage says which part didn't answer instead of Fine", () => {
+  const rows = (src) => rackRows({ now: {}, nowTs: START + 3600, records: [], ...src }).find((r) => r.id === "storage");
+  const helperDown = rows({ pi: { storage: [] }, backups: { available: false, repos: [] } });
+  assert.equal(helperDown.state, "Backrest isn't answering");
+  assert.equal(helperDown.lamp, "unknown");
+  assert.equal(rows({ pi: null, backups: { available: true, repos: [] } }).state, "The Pi's status isn't answering");
+  assert.equal(rows({ pi: { storage: [] }, backups: { available: true, repos: [] } }).state, "Backed up");
+});
+
+test("the Pi row says when its record or its self-check didn't answer", () => {
+  const pi = (src) => rackRows({ now: {}, nowTs: START + 3600, ...src }).find((r) => r.id === "pi");
+  assert.equal(pi({ records: null, pi: {} }).state, "Pi Hub's records isn't answering");
+  const r = pi({ records: [{ id: "pi", state: "ok", severity: "ok" }], pi: null });
+  assert.deepEqual(r.readings.find((x) => x.label === "Self-check"), { label: "Self-check", value: "Not answering", warn: true });
 });
 
 test("a stale printer record says when it was last seen and offers no buttons", () => {
@@ -211,6 +229,51 @@ test("Home renders the band, Needs you and the rack, with no camera", async () =
     assert.equal(state.hd, null);
     renderDashboard(state, { today: d }, () => {});  // a read that lands after leaving draws nothing
   } finally { env.uninstall(); delete globalThis.ApplianceNeeds; }
+});
+
+const kitInstall = () => {
+  const env = install();
+  const kit = { exports: {} };
+  new Function("module", readFileSync(new URL("../hub/static/ui/needs.js", import.meta.url), "utf8"))(kit);
+  globalThis.ApplianceNeeds = kit.exports;
+  return { env, done() { env.uninstall(); delete globalThis.ApplianceNeeds; } };
+};
+
+test("Needs you never says all clear when its sources didn't answer, and leaves the badge alone with no list", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    renderDashboard(state, { today: null, records: null, needs: null }, () => {});
+    assert.equal(state.probs, null);
+    assert.doesNotMatch(text(state.hd.needs), /Nothing needs you/);
+    assert.match(text(state.hd.needs), /Needs you isn't answering/);
+    renderDashboard(state, { today: null, records: [], needs: null }, () => {});
+    assert.deepEqual(state.probs, []);
+    assert.doesNotMatch(text(state.hd.needs), /Nothing needs you/);
+    assert.match(text(state.hd.needs), /Needs you isn't answering/);
+    renderDashboard(state, { today: null, records: null, needs: { count: 1, unread: [], items: [{ id: "x", title: "E-026: Send it", tone: "warn", source: "Print lab" }] } }, () => {});
+    assert.match(text(state.hd.needs), /E-026: Send it/);
+    assert.match(text(state.hd.needs), /Pi Hub's records isn't answering/);
+    renderDashboard(state, { today: null, records: [], needs: { count: 0, unread: [], items: [] } }, () => {});
+    assert.match(text(state.hd.needs), /Nothing needs you right now/);
+  } finally { k.done(); }
+});
+
+test("a refresh puts keyboard focus back where it was", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    const src = { today: null, records: [], needs: { count: 0, unread: [], items: [] }, now: {} };
+    renderDashboard(state, src, () => {});
+    const links = () => [...parent.querySelectorAll(".hd-unit__go")];
+    links()[2].focus();
+    renderDashboard(state, src, () => {});
+    assert.equal(document.activeElement, links()[2], "the Network row's link has focus again");
+  } finally { k.done(); }
 });
 
 test("the control room's page code is gone: nothing mounts it, and Home's camera timer doesn't look for it", () => {

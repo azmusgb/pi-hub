@@ -1275,10 +1275,12 @@ export async function load(state) {
         settle(api("/api/workshop"), 6000, null)]).then(([pi, backups, workshop]) => ({ pi, backups, workshop }))
       : Promise.resolve(state.slow),
   ]);
-  if (slowDue) { state.slow = slow; state.slowAt = Date.now(); }
+  // a slow read that failed is tried again on the next refresh, not held for a minute
+  if (slowDue) { state.slow = slow; state.slowAt = slow.pi && slow.backups && slow.workshop ? Date.now() : 0; }
   const records = Array.isArray(recs?.records) ? recs.records : null;
   renderDashboard(state, { today, records, needs, now: d, ...slow }, () => load(state));
-  setNeeds(problemsBadge(needs, state.probs || []));
+  // The badge counts the list Home shows; with no list (neither source answered) the shell's own count stands.
+  if (state.probs) setNeeds(problemsBadge(needs, state.probs));
   const probs = state.probs || [];
   state.facts = probs.length
     ? `${probs.length} problem${probs.length === 1 ? "" : "s"}: ${probs.map((p) => p.title).slice(0, 3).join("; ")}`

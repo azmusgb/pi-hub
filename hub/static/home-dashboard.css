@@ -67,9 +67,10 @@ p.hd-band__down { padding: 12px 0; }
 .hd-band__detail b { color: var(--ui-text); font-weight: 650; }
 
 /* Needs you: the kit's list (ui-needs), headed by its count */
-.hd-needs { grid-area: needs; display: grid; gap: 12px; position: sticky; top: calc(var(--ui-header-total) + 16px); min-width: 0; }
+.hd-needs { grid-area: needs; display: grid; gap: 12px; min-width: 0; }
 .hd-needs__count { font-size: var(--ui-fs-6); color: var(--ui-warn); }
-.hd-needs__list { min-width: 0; }
+.hd-needs__list { display: grid; gap: 8px; min-width: 0; }
+.hd-needs__down { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 
 /* Systems: the rack */
 .hd-rack { grid-area: rack; display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
@@ -166,13 +167,12 @@ p.hd-band__down { padding: 12px 0; }
 }
 .hd-others__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .hd-others__list li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ui-line); }
-.hd-others__list a { display: inline-flex; align-items: center; min-height: 32px; color: var(--ui-text); font-weight: 600; }
+.hd-others__list a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ui-text); font-weight: 600; }
 .hd-others__list span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 
 /* Phone and portrait iPad: one column, the day first, then Needs you, then the rack */
 @media (max-width: 1000px) {
   .hd { grid-template-columns: minmax(0, 1fr); grid-template-areas: "today" "needs" "rack"; }
-  .hd-needs { position: static; }
 }
 @media (max-width: 640px) {
   .hd { gap: 20px; }
@@ -192,7 +192,6 @@ p.hd-band__down { padding: 12px 0; }
    across the room. Last, so it wins over the rules above. */
 @media (min-width: 1800px) and (orientation: landscape) {
   .hd { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "today rack" "needs rack"; gap: 20px 24px; }
-  .hd-needs { position: static; }
   .hd-unit { padding-block: 12px; }
   .home-context, .home-dash { zoom: 1.2; }
 }

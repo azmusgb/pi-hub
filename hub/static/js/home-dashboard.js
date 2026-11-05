@@ -39,7 +39,7 @@ export function bandLayout(day, width) {
   const W = Math.max(240, Math.round(width));
   const narrow = W < NARROW;
   const LABEL = narrow ? 0 : 132, PAD = narrow ? 2 : 16, TOP = 24;
-  const NAME = narrow ? 18 : 0, ROW = narrow ? 44 : 36, BAR = narrow ? 14 : 16;
+  const NAME = narrow ? 18 : 0, ROW = narrow ? 52 : 44, BAR = narrow ? 14 : 16;  // rows fit a 44 px target
   const span = Math.max(1, day.end - day.start);
   const x = (ts) => LABEL + (Math.min(Math.max(ts, day.start), day.end) - day.start) / span * (W - LABEL - PAD);
   const nowX = x(day.now);
@@ -64,8 +64,8 @@ export function bandLayout(day, width) {
           x: x(Number.isFinite(m.at) ? m.at : m.start),
           w: Number.isFinite(m.at) ? 0 : Math.max(4, x(m.end) - x(m.start)),
           ghost: Number.isFinite(m.until) ? { x: x(m.end), w: Math.max(0, x(m.until) - x(m.end)) } : null,
-          // a finger-sized target around every mark, however thin it is drawn (at least 24 × 40)
-          hit: { x: Math.min(x(a), x(b)) - 12, w: Math.max(24, x(b) - x(a) + 24), y: cy - 20, h: 40 },
+          // a finger-sized target around every mark, however thin it is drawn (at least 44 × 44)
+          hit: { x: Math.min(x(a), x(b)) - 22, w: Math.max(44, x(b) - x(a) + 44), y: cy - 22, h: 44 },
         };
       }),
     };
@@ -221,11 +221,13 @@ export function rackRows(src) {
     if (Number.isFinite(pd.mem_total_gb) && Number.isFinite(pd.mem_free_gb)) readings.push({ label: "Memory", value: `${gb(pd.mem_total_gb - pd.mem_free_gb)} of ${gb(pd.mem_total_gb)} GB` });
     const sc = pi?.selfcheck;
     if (sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed)) readings.push({ label: "Self-check", value: `${sc.total - sc.failed} of ${sc.total}`, warn: sc.failed > 0 });
+    else if (!pi) readings.push({ label: "Self-check", value: "Not answering", warn: true });
     if (upFor(pd.uptime_h)) readings.push({ label: "Up", value: upFor(pd.uptime_h) });
     if (Number.isFinite(pd.updates)) readings.push({ label: "Updates", value: pd.updates ? `${pd.updates} waiting` : "Up to date" });
     const power = typeof pd.power === "string" && pd.power !== "Good" ? pd.power : "";
     rows.push({ id: "pi", name: "Raspberry Pi", lamp: piRec ? lampOf(piRec.severity) : "unknown",
-      state: !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine"), readings, href: "/system", link: "Open System" });
+      state: !records ? sourceDown("Pi Hub's records") : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine"),
+      readings, href: "/system", link: "Open System" });
   }
 
   // Network
@@ -259,10 +261,13 @@ export function rackRows(src) {
     }
     for (const b of Array.isArray(backups?.repos) ? backups.repos : []) readings.push({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) });
     const recs = ["backups", "movies_drive", "movie_copy"].map(rec).filter(Boolean);
-    const down = !pi && !backups;
+    // Each part says when it didn't answer: the drives (the Pi's status), the backup times (Backrest, through the
+    // helper; it answers 200 with available false when the helper fails) and the records.
+    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"),
+      records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const bad = recs.find((r) => recordTone(r.severity) !== "ok");
-    rows.push({ id: "storage", name: "Storage", lamp: down ? "unknown" : lampOf(worst(recs)),
-      state: down ? sourceDown("The Pi's status") : bad ? (bad.headline || RECORD_LABELS[bad.id]) : backups?.available ? "Backed up" : "Fine",
+    rows.push({ id: "storage", name: "Storage", lamp: bad ? lampOf(worst(recs)) : down.length ? "unknown" : lampOf(worst(recs)),
+      state: bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up",
       readings, href: "/drives", link: "Open Drives" });
   }
 
@@ -311,14 +316,15 @@ function reading(r) {
   if (r.kind === "fill") {
     return h("div", { class: "hd-rd hd-gauge" },
       h("dt", { class: "hd-gauge__lbl" }, h("span", {}, r.label), h("span", {}, h("b", {}, r.value), ` ${r.note}`)),
-      h("dd", { class: "hd-gauge__bar", role: "img", "aria-label": `${r.label} ${Math.round(r.pct)}% full` }, h("span", { class: "hd-gauge__fill", style: `width:${Math.max(0, Math.min(100, r.pct))}%` })));
+      h("dd", {}, h("span", { class: "hd-gauge__bar", role: "img", "aria-label": `${r.label} ${Math.round(r.pct)}% full` },
+        h("span", { class: "hd-gauge__fill", style: `width:${Math.max(0, Math.min(100, r.pct))}%` }))));
   }
   if (r.kind === "bars") {
     const max = Math.max(...r.bars.map((b) => b.seconds), 1);
     const fails = r.bars.filter((b) => b.failed).length;
     return h("div", { class: "hd-rd" }, h("dt", {}, r.label),
-      h("dd", { class: "hd-bars", role: "img", "aria-label": `${r.bars.length - fails} finished, ${fails} failed or cancelled` },
-        ...r.bars.map((b) => h("span", { class: b.failed ? "hd-bars__bad" : "", style: `height:${Math.round(b.seconds / max * 100)}%`, title: `${b.name}: ${b.word}` }))));
+      h("dd", {}, h("span", { class: "hd-bars", role: "img", "aria-label": `${r.bars.length - fails} finished, ${fails} failed or cancelled` },
+        ...r.bars.map((b) => h("span", { class: b.failed ? "hd-bars__bad" : "", style: `height:${Math.round(b.seconds / max * 100)}%`, title: `${b.name}: ${b.word}` })))));
   }
   return h("div", { class: "hd-rd" }, h("dt", {}, r.label),
     h("dd", { class: [r.meter ? "hd-meter" : "", r.warn ? "hd-warn" : ""].filter(Boolean).join(" ") || null },
@@ -386,6 +392,20 @@ function light(hd, target) {
   if (target) hd.marks[target.lane]?.[target.index]?.classList.add("is-lit");
 }
 
+// What has focus inside Home, as its position among Home's focusable things, so a refresh that redraws the page can
+// put it back (a keyboard user is not dropped to the top every 15 s).
+const FOCUSABLE = "a[href], button, summary, [tabindex='0']";
+function focusSpot(hd) {
+  const el = document.activeElement;
+  if (!el || !hd.root.contains(el)) return -1;
+  return [...hd.root.querySelectorAll(FOCUSABLE)].indexOf(el);
+}
+function refocus(hd, spot) {
+  if (spot < 0 || hd.root.contains(document.activeElement)) return;
+  const all = [...hd.root.querySelectorAll(FOCUSABLE)];
+  all[Math.min(spot, all.length - 1)]?.focus?.({ preventScroll: true });
+}
+
 function redrawBand(state) {
   const hd = state.hd;
   const width = hd.plot.clientWidth || 0;
@@ -403,6 +423,7 @@ export function renderDashboard(state, src, onReload) {
   const hd = state.hd;
   if (!hd) return;
   const nowTs = Math.floor(Date.now() / 1000);
+  const spot = focusSpot(hd);
 
   // Today
   if (src.today) {
@@ -417,13 +438,20 @@ export function renderDashboard(state, src, onReload) {
     hd.counts.replaceChildren(...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), h("span", {}, c.label))));
   }
 
-  // Needs you: the same merged list as before, ordered by tone; the badge counts it (baseline 5.5)
-  if (src.records || src.needs !== undefined) {
-    const probs = needsOrder(mergeProblems(src.records || [], src.needs));
+  // Needs you: the same merged list as before, ordered by tone; the badge counts it (baseline 5.5). With neither of
+  // its sources answering there is no list (state.probs null: the badge is left alone); with one, the list says which
+  // part is missing, and never "Nothing needs you".
+  {
+    const down = [src.needs ? "" : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
-    hd.needsCount.textContent = probs.length ? String(probs.length) : "";
-    hd.needs.replaceChildren(probs.length ? renderProblems(probs, onReload) : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now."));
-    probs.forEach((p, i) => {
+    hd.needsCount.textContent = probs?.length ? String(probs.length) : "";
+    const note = down.length ? h("p", { class: "hd-needs__down" }, `${down.join(". ")}. It will keep trying.`) : null;
+    hd.needs.replaceChildren(...[
+      probs?.length ? renderProblems(probs, onReload) : null,
+      note || (probs?.length ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
+    ].filter(Boolean));
+    (probs || []).forEach((p, i) => {
       const li = hd.needs.querySelector(".ui-needs")?.children?.[i];
       const target = hd.day ? needMark(p, hd.day) : null;
       if (!li || !target) return;
@@ -445,5 +473,6 @@ export function renderDashboard(state, src, onReload) {
     h("summary", { class: "hd-others__summary" }, `${fine.length} other thing${fine.length === 1 ? " is" : "s are"} fine`),
     h("ul", { class: "hd-others__list" }, ...fine.map((r) => h("li", {},
       h("a", { href: recordPath(r.id), "data-link": true }, RECORD_LABELS[r.id] || r.id), h("span", {}, r.headline || r.state)))))] : []));
+  refocus(hd, spot);
   return rows;
 }
