@@ -11,7 +11,12 @@ found before a real outage goes unreported.
 (failure boundaries). It waits on: "It comes after step 2 (done 1 Nov 2026) and is independent of steps 3-10." Step 2 is
 accepted (operations.md "Accepted 2 Nov 2026"). Nothing waits on 2a, and 2a is not a gate for step 3, 5 or C1.
 C1 only has to appear in this view when its `offsite-backup` check exists ("`home-platform-alive` now, and C1's
-`offsite-backup` when it exists").
+`offsite-backup` when it exists"). It exists since 4 Nov (C1 set up on Google Drive, A5), so 2a reads two checks from its
+first day.
+
+> **Refreshed 5 Nov 2026** against `main` `a44ef20`: Health is now `/system` on A7's page anatomy, so 2a.4 is
+> rewritten for its "Other systems" section; C1's `offsite-backup` check is live, which makes decision 6's wording
+> question real; kit 2.6's phrase table carries item wording, which settles decision 10. Marked **(changed)** below.
 
 ## Done means
 
@@ -24,39 +29,49 @@ A1's own acceptance list, quoted and numbered. Step 2a is accepted only when all
 3. "With the key file absent, the row shows `unknown` ('not set up'), with no Needs-you item and no errors in the log."
 4. "No response, log line or page ever contains a ping URL or the API key."
 
-## What exists today (read on 3 Nov 2026)
+## What exists today (read on 5 Nov 2026; first read 3 Nov)
 
-- **Nothing of A1 is built.** `git grep outside_alarm origin/main -- hub deploy tests docs` (origin/main `0a77d0b`)
-  matches only the amendment and the baseline's Amendments list. No open pi-hub PR plans or builds it (`gh pr list`:
-  newest is #71, the C1 plan). No earlier plan for 2a in `docs/superpowers/plans/`.
-- **Live records (`mcp__home__hub_now`, 09:18 EST):** 19 hub records and 7 `release:*` records. No `outside_alarm`.
-- **The alarm itself works.** `ssh pi`: `pi-hub-heartbeat.timer` next fires 09:20:58, last ran 09:15:58, and the
-  service finished "successfully"; `/etc/pi-hub/healthchecks.env` exists (root, 0600, 69 bytes). Pi Hub cannot read it,
-  by design (`docs/operations.md` "Outside heartbeat"). Check `home-platform-alive`: period 5 min, grace 5 min; step 2's
-  acceptance saw Down 10 min after the last ping.
-- **The key file does not exist.** `/etc/pi-hub/secrets/` (read as a listing, no contents) has 23 entries and no
-  `healthchecks_ro.env`. Files the hub reads there are `root:pi-hub 0640` (for example `bambuddy_api_key`,
-  `plex_token`). So today A1 acceptance 3 (key absent) is the natural state, and the owner action (create the key) has
-  not happened.
-- **Where the row goes.** There is no `/health` route yet. Health is today `/pi` ("Help & system", `hub/static/js/pi.js`,
-  loaded by `loadDiagnostics` at pi.js:1343 from `/api/pi` and `/api/actions`); `now.py:127-131` already sends issues
-  to `/pi`. Step 7 (independent of 2-6) moves `/pi` into Health.
+Refreshed on 5 Nov against `origin/main` `a44ef20` (Pi Hub live at the same commit, `mcp__home__releases`). What changed
+since the 3 Nov reading is marked **(changed)**.
+
+- **Nothing of A1 is built.** `git grep outside_alarm origin/main -- hub deploy tests` matches nothing. The only open
+  pi-hub PR is this plan (#74). No other plan for 2a in `docs/superpowers/plans/`.
+- **Live records:** `mcp__home__hub_now` (5 Nov) lists the hub's records and 7 `release:*` records. No `outside_alarm`.
+- **The alarm itself works.** `ssh pi`, 5 Nov 17:58: `pi-hub-heartbeat.timer` last ran 17:58:16 and next fires
+  18:03:16. `/etc/pi-hub/healthchecks.env` exists. Pi Hub cannot read it, by design (`docs/operations.md`, "Outside
+  heartbeat"). Check `home-platform-alive`: period 5 min, grace 5 min; step 2's acceptance saw Down 10 min after the
+  last ping.
+- **(changed) C1's check exists.** Backrest's `pi-offsite` plan pings `offsite-backup` on snapshot success (period 1 day,
+  grace 6 h; operations write-up #101). C1 was accepted on 5 Nov (#109) after its alarm test. So the project holds two checks today, and decision 6's wording question is no longer
+  hypothetical.
+- **(changed) Healthchecks.io is a registry tool:** `hub/static/ui/tools.js:20`, id `healthchecks`, "Outside alarms: the
+  house heartbeat and the off-site backup" (kit 2.4.0). Health's "Open in" can link it; that link is not the status.
+- **The key file:** on 3 Nov, `/etc/pi-hub/secrets/` had no `healthchecks_ro.env`; the files the hub reads there are
+  `root:pi-hub 0640`. On 5 Nov the folder (`root:pi-hub 750`) can't be listed without sudo from the SSH user, and no
+  one has reported creating the key. The plan assumes it is still absent; 2a.6 step 2 confirms that on the live page
+  before the owner creates it.
+- **(changed) Where the row goes.** Step 7 is done: Health is `/system` (`hub/static/js/health.js`); `/pi` is only a
+  redirect (`routes.js`). A7 H4 drew Health on the page anatomy, with a closed "Fixes" section
+  (`health.js:585-614`). Its **"Other systems"** section (`health.js:838-870`, `otherSystemRows`) already reads
+  records, in its own slot that stays when the Pi's diagnostics fail (`health.js:114`). Every Needs-you item about the
+  hub now links `/system` (`now.py:55-111`).
+- **(changed) The phrase table carries item wording.** The kit's `needs.js` PHRASES (Pi Hub synced at kit 2.6.0,
+  `hub/static/ui/VERSION`; appliance-ui `main` is at 2.7.0) holds "the platform's terms (spec section 9)": `pc_off`,
+  `assistant_down`, `source_down` (`hub/static/ui/needs.js:11-12`). That settles the 3 Nov open question in decision 10.
 - **Record plumbing to follow** (`origin/main`):
-  - `hub/releases.py:22-48` is the precedent for a record kind outside `KINDS`: its own `ids()`, severities, `put()` under
-    a lock that calls `merge` + `store`, labels and hrefs registered at import, and records exempt from the stale
-    marking on load (`records.py:241-249`, `startswith("release:")`).
-  - `records.py:141` `merge`, `records.py:92-95` (`_not_answering` raises an unreadable record to `attention`, which is
-    wrong for this kind: spec says `unknown` is Health-only), `records.py:262-265` `problems()` (attention and up feeds
-    Home and Needs-you).
-  - `needs.py:128` builds the Needs item id and takes `key.startswith(("source:", "release:"))`; `now.py:127-131`
-    `issue_from` uses `LABELS.get(rec["id"], rec["id"])` as the item title, which would print a raw id for a dynamic id.
-  - `app.py:142-144` `records_body` lists `[*records.KINDS, *releases.ids()]`; `freshness.py:82` and `ask.py:39` iterate
-    only `KINDS`, so a kind outside `KINDS` stays out of them.
-  - `app.py:36-40` starts the loop threads; `events.py:564` `run` is the 30 s loop and must not block on a slow outside call.
-  - `bambuddy.py:12-22` reads a key file once per call with `OSError` tolerated; `sources.py:53` `_get_json`.
-  - `needs.js` PHRASES is generated: "generated by appliance-ui v1.4.0 … do not edit; change appliance-ui and sync"
-    (`hub/static/ui/needs.js:1`; source `appliance-ui/src/needs.js:7`).
-- **Python on the Pi:** 3.13.5. `pi-hub.service`: `User=pi-hub`, `ProtectSystem=strict`, writes only to
+  - `hub/releases.py` is the precedent for a record kind outside `KINDS`: its own `ids()`, severities, `put()` under the
+    records lock (`merge` + `store`), labels and hrefs registered at import, and records exempt from the stale marking on
+    load (`records.py:249`, `startswith("release:")`).
+  - `records.py:142` `merge`; `records.py:109` `_not_answering` (raises an unreadable record to `attention`, wrong for this
+    kind: `unknown` is Health-only); `records.py:263` `problems()` (attention and up feed Home and Needs you).
+  - `needs.py:139` builds the item id and takes `key.startswith(("source:", "release:"))`; `now.py:130-133` `issue_from`
+    titles an item `LABELS.get(rec["id"], rec["id"])`, which would print a raw id for a dynamic id.
+  - `app.py:148-150` `records_body` lists `[*records.KINDS, *releases.ids()]`. `freshness.py:66` and `ask.py` iterate only
+    `KINDS`. **(changed)** `today.py:59` (A8's Today, another session's work) iterates `releases.ids()` only, so a kind
+    outside both stays out of it too.
+  - `app.py:36-40` starts the loop threads; `events.run` is the 30 s loop and must not block on a slow outside call.
+  - `bambuddy.py` reads a key file once per call with `OSError` tolerated; `sources.py` `_get_json`.
+- **Python on the Pi:** 3.13. `pi-hub.service`: `User=pi-hub`, `ProtectSystem=strict`, writes only to
   `/var/lib/pi-hub`. Reading a 0640 `root:pi-hub` file and calling out over HTTPS (Open-Meteo already does) need no unit
   change and no firewall change.
 - **The API contract is the amendment's**, not re-verified live (no key exists to call it with, and calling it is out of
@@ -100,11 +115,12 @@ None changes the spec. If the owner disagrees with one, it changes here.
    project: `home-platform-alive` now, and C1's `offsite-backup` when it exists"). This is the spec's rule, so the
    project's scope is part of the integration contract: the project holds only Pi Hub's outside alarms, and
    `docs/operations.md` (2a.5) says so beside the key. A check added later appears without a code change, which is how
-   C1's `offsite-backup` arrives. Cost: an unrelated check someone adds to that project would show, and would raise
-   the alarm wording if Late. *Open question for the owner:* A1's phrase ("isn't hearing from the Pi") is right for
-   `home-platform-alive` but wrong for `offsite-backup`, where silence means the backup didn't run. This plan uses the
-   phrase as A1 says and names the check in the item's detail. C1's own plan, or an amendment, gives that check its
-   wording. Rejected: an allow-list by name (breaks the rename rule). Display label is the check's `name`; two checks with the same name are told apart by their order of
+   C1's `offsite-backup` arrived (4 Nov). Cost: an unrelated check someone adds to that project would show, and would
+   raise the alarm wording if Late. *Open question for the owner, now live:* A1's phrase ("isn't hearing from the Pi")
+   is right for `home-platform-alive` but wrong for `offsite-backup`, where silence means the off-site backup didn't
+   finish. As written, a late backup would read "The outside alarm isn't hearing from the Pi", with "offsite-backup:
+   Late, last check-in 31 h ago" as its detail. This plan uses the phrase as A1 says and names the check in the detail;
+   giving `offsite-backup` its own wording needs an amendment to A1, which this plan doesn't assume. Rejected: an allow-list by name (breaks the rename rule). Display label is the check's `name`; two checks with the same name are told apart by their order of
    `unique_key`, shown as "name (2)".
 7. **A separate daemon thread reads every 5 minutes (spec's interval), with a 5 s timeout,** started beside the others at
    `app.py:36-40`. The 30 s `events.run` loop reads the printer and must not wait on the internet, and the internet being
@@ -124,15 +140,21 @@ None changes the spec. If the owner disagrees with one, it changes here.
    parser drops it and never stores or logs it; it does not change behaviour.
 10. **The Needs-you title is the phrase, the detail names the check.** Item title: "The outside alarm isn't hearing from
     the Pi" (spec). Detail: "<check name>: Late, last check-in 12 min ago." One item per check, id
-    `pi:outside_alarm:<unique_key>`, link `/pi` (Health today). The phrase is added to appliance-ui first and synced,
-    because that table has one owner. `needs.js` PHRASES are action labels keyed by `action.key`, and A1 calls
-    `outside_alarm_quiet` a phrase-table key without saying whether it labels an action or the item. That is settled
-    in 2a.1's first task, before any code: read appliance-ui's phrase contract. If the table takes item copy, the key is
-    used once, and the hub reads its title from the synced table (one runtime source). If it doesn't, 2a.1 extends the
-    contract on purpose, or the question goes back as an amendment. A server-side constant checked against the table by
-    a test is allowed only if the hub can't read the synced table, and then its removal is part of 2a.3's completion.
-11. **The row lives on `/pi` now,** which step 7 turns into Health. Building it on `/pi` keeps 2a independent of step 7;
-    step 7's move carries it. Rejected: waiting for step 7 or building a second Health page.
+    `pi:outside_alarm:<unique_key>`, link `/system` (Health). **(Settled on 5 Nov.)** The 3 Nov question was whether the
+    kit's phrase table labels actions only or also carries item wording. Since kit 2.6.0 it carries section 9's terms
+    as item wording (`pc_off`, `assistant_down`, `source_down`, beside the action verbs), so `outside_alarm_quiet` joins
+    them as a term: added in appliance-ui first, then synced, because the table has one owner. The item is built by
+    the server (`now.py`, Python), which can't load the synced JS table at run time, so the hub keeps the title as a
+    Python constant and a test asserts it equals the synced `hub/static/ui/needs.js` entry; a sync that changes the
+    words fails that test until the constant follows. `sections.js:92` already keeps a local copy of `pc_off` and
+    `assistant_down` with no such test; this plan doesn't repeat that gap (fixing that copy is out of scope).
+    Rejected: parsing `needs.js` at start-up (a JS file as a runtime config).
+11. **The rows live in Health's "Other systems" section** (`/system`, `health.js` `otherSystemRows`), one per check,
+    beside Local AI, the Workshop display and the PC. **(Changed on 5 Nov:** the 3 Nov plan put them on `/pi`, before
+    step 7 made it Health.) That section already reads records and survives the Pi's diagnostics failing, which is the
+    situation this row has to report in. Rows follow A7's anatomy: text left, the lamp (dot and word) and the
+    "last check-in" on the right (P3); no new section, no card, no control. Rejected: a new "Outside alarms" section
+    (Health keeps at most six, A7 P1) and the faceplate (the faceplate is the Pi's own state).
 
 ## Read-from-another-system answers
 
@@ -179,8 +201,10 @@ rule for migration PRs).
 ### PR 2a.1 (appliance-ui): the phrase key
 
 - **Requirement:** A1 change 5 (`outside_alarm_quiet`, spec §9). **Partial:** the wording only.
-- Add `outside_alarm_quiet: "The outside alarm isn't hearing from the Pi"` to PHRASES in `src/needs.js:7` and the
-  matching list in `tests/needs.test.mjs:18`; bump the kit version.
+- Add `outside_alarm_quiet: "The outside alarm isn't hearing from the Pi"` to PHRASES in `src/needs.js`, among the
+  section 9 terms, and to the matching list in `tests/needs.test.mjs`; bump the kit to the next minor (2.8.0; `main` is
+  2.7.0). Pi Hub's sync in 2a.3 then takes 2.6.0 → 2.8.0, which also brings 2.7's table and icon button: no Pi Hub
+  page uses them yet, so the sync changes no page.
 - **Evidence:** the appliance-ui test suite output with a new test for the key. Merges alone.
 - Not an owner step.
 
@@ -188,9 +212,10 @@ rule for migration PRs).
 
 - **Requirement:** A1 changes 1 and 2, §4 `outside_alarm`. **Partial:** backend and records. Done-means 3 and 4 (the
   tests), and the machinery for 1 and 2.
-- **Files:** create `hub/outside_alarm.py` and `tests/test_outside_alarm.py`; modify `hub/app.py` (start the thread near
-  line 36-40; add `outside_alarm.ids()` to `records_body`, line 144), `hub/records.py` (load: convert `outside_alarm:*` to
-  `unknown` with `last_seen`; leave `_not_answering` alone by never routing this kind through it).
+- **Files:** create `hub/outside_alarm.py` and `tests/test_outside_alarm.py`; modify `hub/app.py` (start the thread beside
+  lines 36-40; add `outside_alarm.ids()` to `records_body`, lines 148-150), `hub/records.py` (load, near line 249:
+  convert `outside_alarm:*` to `unknown` with `last_seen`; leave `_not_answering` alone by never routing this kind
+  through it). Not `today.py` (A8's Today lists releases, not outside alarms).
 - **Interfaces:** `parse(body) -> list[dict] | None`; `read_key(path) -> str | None`; `fetch(key, timeout) -> body | error
   class`; `put(checks_or_failure, now)` under the lock; `poll_once(now, fetch=…)`; `run()`.
 - **Named tests:**
@@ -206,7 +231,7 @@ rule for migration PRs).
     `test_check_absent_from_good_read_becomes_unknown_not_stale_down`; `test_placeholder_removed_after_first_read`; `test_placeholder_never_coexists_with_checks`; `test_restart_before_first_read_keeps_one_placeholder`; `test_failed_read_after_discovery_does_not_recreate_placeholder`; `test_known_check_malformed_is_unreadable_not_unlisted`; `test_long_name_stored_whole`.
   - secrets: `test_key_and_ping_url_never_in_api_records_logs_or_exceptions` (scans `/api/records`, captured stderr and
     the SQLite `records` table for the key string, `ping_url`, `uuid` and `healthchecks.io/ping`).
-  - infrastructure: `test_slow_fetch_does_not_block_loop_pass`; `test_pass_exception_does_not_kill_the_thread`; `test_passes_never_overlap`; `test_stale_last_pass_shows_reader_stopped`; `test_outside_alarm_is_not_in_freshness_or_ask`.
+  - infrastructure: `test_slow_fetch_does_not_block_loop_pass`; `test_pass_exception_does_not_kill_the_thread`; `test_passes_never_overlap`; `test_stale_last_pass_shows_reader_stopped`; `test_outside_alarm_is_not_in_freshness_ask_or_today`.
 - **Test commands:** `HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests`; `node --test tests/*.mjs`.
 - **Evidence:** pytest output with the file's tests named. Merges independently of 2a.1, 2a.3 and 2a.4. After deploy,
   `mcp__home__hub_now` (and `/api/records`) lists `outside_alarm` as `unknown`, "not set up", which is also live
@@ -217,28 +242,32 @@ rule for migration PRs).
 
 - **Requirement:** A1 change 4 and 5. **Partial:** the alert path. Done-means 2 (the item half).
 - **Depends on:** 2a.2 (records) and 2a.1 (phrase), merged first so the sync has no temporary copy.
-- **Files:** sync `hub/static/ui/needs.js` from appliance-ui (via its sync, not by hand); `hub/needs.py:128` (prefix
-  `outside_alarm:` joins `source:` and `release:` for the item id); `hub/now.py` (`issue_from`, lines 127-131: for this kind
-  the title is the phrase and the detail names the check, href `/pi`); `tests/test_needs.py`.
+- **Files:** sync the kit from appliance-ui (`node ~/dev/appliance-ui/scripts/sync.mjs`, not by hand);
+  `hub/needs.py:139` (prefix `outside_alarm:` joins `source:` and `release:` for the item id); `hub/now.py`
+  (`issue_from`, lines 130-133: for this kind the title is the phrase and the detail names the check, href `/system`);
+  `hub/outside_alarm.py` (the title constant, decision 10); `tests/test_needs.py`.
 - **Named tests:** `test_late_down_paused_raise_one_item_each`; `test_up_new_and_unknown_raise_nothing`;
   `test_unknown_after_down_clears_the_item`; `test_two_late_checks_two_items_with_distinct_ids`;
-  `test_title_matches_the_synced_phrase`; `test_item_links_to_pi`; `test_up_does_not_appear_on_home`;
+  `test_title_matches_the_synced_phrase`; `test_item_links_to_health`; `test_up_does_not_appear_on_home`;
   `test_item_detail_never_contains_a_url_or_key`.
-- **Evidence:** pytest output; the sw.js `SHELL` bump (`tests/test_appliance_ui.py:63-65`) because a static file changed.
+- **Evidence:** pytest output; the sw.js `SHELL` bump (from `pi-hub-shell-v155`, `tests/test_appliance_ui.py`) because
+  a static file changed.
   Merges after 2a.1 and 2a.2.
 
-### PR 2a.4 (pi-hub): the Outside alarm row on Health
+### PR 2a.4 (pi-hub): the outside alarm rows on Health
 
 - **Requirement:** A1 change 3, §7. **Partial:** the page. Done-means 1 (display half).
-- **Files:** `hub/static/js/pi.js` (a row in `loadDiagnostics` rendering from `/api/records`; one line per check;
-  "Up · last check-in 2 min ago"; unknown rows show last seen and the cause), `hub/static/sw.js` (`SHELL`, currently
-  `pi-hub-shell-v132`, and its file list), `tests/*.mjs`.
+- **Files:** `hub/static/js/health.js` (`otherSystemRows` gains one row per `outside_alarm` record, from the records it
+  already reads; label "Outside alarm · <check name>"; right side "Up · last check-in 2 min ago"; unknown rows show last
+  seen and the cause), drawn as A7's lamp-right row (decision 11); `hub/static/sw.js` (`SHELL` bump from
+  `pi-hub-shell-v155`); `tests/test_health_other_systems.mjs`.
 - **States designed:** loading, not set up, never read, up/late/down/paused, last seen while unreachable, no longer listed, two
   checks, a long check name (clipped on the page only, full name in `title`), records fetch failing (row says "couldn't read", not blank).
   Keyboard: the row is plain text, with no new controls. Late/down/paused use text, not colour alone.
 - **Named tests:** `test_row_renders_each_state`; `test_unknown_row_never_says_up`; `test_two_checks_two_lines`;
   `test_long_name_is_clipped`; `test_row_survives_a_failed_records_fetch`; `test_time_ago_uses_last_ping_not_as_of`.
-- **Evidence:** node test output and a screenshot of each state from the test fixtures. Merges independently of 2a.3.
+- **Evidence:** node test output, and screenshots of each state from the test fixtures at 390 and 1440 px, dark and
+  light, with axe over Health (A7's check for a Pi Hub page). Merges independently of 2a.3.
 
 ### PR 2a.5 (pi-hub): operations doc
 
@@ -255,7 +284,7 @@ rule for migration PRs).
 The sequence matters: criterion 3 needs the key absent, so it is observed before the key exists.
 
 1. **Deploy** 2a.2-2a.4 to the Pi. (Deploy preflight first; deploys need no confirmation.) Record: deployed.
-2. **Runtime check, key absent (done-means 3).** `mcp__home__hub_now` and the Health page show the row `unknown`, "not set up";
+2. **Runtime check, key absent (done-means 3).** `mcp__home__hub_now` and Health's Other systems show the row `unknown`, "not set up";
    no Needs-you item; `ssh pi 'journalctl -u pi-hub --since "10 min ago" -p warning'` shows no new errors.
 3. **Owner:** create the project's read-only key in Healthchecks.io and put it on the Pi at the path above, without
    pasting it in chat. (Owner's account; no service restart is needed because the thread re-reads the file every cycle.
@@ -286,5 +315,9 @@ step 5; 3 to 2a.2 + step 2; 4 to the 2a.2 secrets test + step 6.
 - A read that is refused (401) or a rotated key also shows only on Health, by the spec's own rule that `unknown` is not a
   Needs-you item. A key silently revoked therefore reaches the owner only by looking at Health.
 - Pi Hub does not watch the outside alarm's email delivery (an un-delivered "down" email is not visible to anyone); that is outside A1.
-- Step 7's move of `/pi` to Health is separate; this plan builds on `/pi` as it is.
+- Health's other "Other systems" rows (Local AI, Workshop display, PC) are still drawn as log rows; A7's lamp-right
+  row applies to the new rows here, and converting the existing three belongs to A7's own follow-ups, not this plan.
+- `offsite-backup`'s own wording (decision 6) needs an amendment to A1 if the owner wants it.
+- `sections.js:92`'s local copy of the section 9 terms has no test against the synced table; a follow-up issue, not
+  this plan.
 - Additional Healthchecks.io notification channels beyond the email are not part of A1.
