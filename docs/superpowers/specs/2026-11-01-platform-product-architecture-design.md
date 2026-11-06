@@ -353,6 +353,8 @@ flowchart LR
 | **Print** | Bambuddy print-log entry id (`one-print` P1) | Bambuddy (third party, read-only except A12's staged lab prints) | Bambuddy; read by Pi Hub's `bambuddy.prints()` and by print-lab `lab pull` | Print-log shape inside `printer-record.v1`. Lab prints recognised by the P2 name pattern |
 | **Lab experiment chain**: question → experiment → build → run → observation → verdict | `lab:<project>:<experiment>`, with `BLD-…`, `PR-…`, `OBS-…` below it (`household`:74-76) | print-lab on the Mac (git JSON, SHA-frozen). Pi Hub holds a mirror, never authoritative | print-lab `projects/<p>/`; mirror in `hub.db` `lab_projects` | `print-lab-index.v1` (the `print-lab-index/1` mirror) |
 | **Lab request** | `request_id`, idempotent. Kinds: verdict, photos, start, approve, abandon, observation (`lab-on-hub` L6) | Pi Hub holds the pending queue. print-lab applies it and owns the result | `hub.db` request tables; `lab pull` applies | `lab-request.v1` |
+| **Pull request** | Repo and PR number (A13) | GitHub; published to Pi Hub by the Mac's `pr-agent` | `pr-agent`, with the Mac key; Pi Hub holds the latest list | Inside `pr-request.v1` |
+| **PR request** | `request_id`, idempotent; one live request per PR. Kinds: ship, merge; carries the head commit the owner saw (A13) | Pi Hub holds the pending queue. `pr-agent` applies it and owns the result | `hub.db` request table; `pr-agent` applies | `pr-request.v1` |
 | **Assistant run** | Run id, with `threadId` and `projectId` (`evolution`:56-60) | LocalAI | `localai.db` run ledger; `/api/runs` | None at platform level. It reaches the platform only as a Needs-you item or a `#run/<id>` link |
 | **Backlog item** (and its Signal) | Board id (`signal-<issueId>` for promoted signals) | LocalAI | `localai.db` settings under the Claude board prefix; `/api/claude/priorities` | None at platform level. It joins a Release by `shipped.commit` (`improve`:28-37) |
 | **Release** | Target plus commit SHA | The deploy target owns the facts (commit, result, time). Pi Hub owns the record, which its deploy mechanism writes on each deploy, and derives its state. It is the canonical deployment state (D1, D7) | Scattered today: Pi Hub `releases.json`; LocalAI `.deploy/state.json` and `/healthz` `releaseCommit`; firmware `release.json`; netmon none (Report l.558, 567, 575) | `record.v1`, kind `release:<target>`. Runtime probes (`healthz.v1`, home-mcp's SSH) verify it; they are not the source |
@@ -614,6 +616,7 @@ targets).
 |---|---|---|
 | Where the change is decided and worked | LocalAI Improve | Unchanged. It is coupled to the run ledger and the Claude relay (`improve`) |
 | Where "what is live where" is shown | Improve › Deployments, Settings › Versions, home-mcp (K7) | System › Versions, from the `release:<target>` records. home-mcp reads the same records; its probes only verify them |
+| Where a PR is merged or shipped | The Mac terminal (`npm run ship`, `gh pr merge`) | Pi Hub's Needs you (Ship or Merge), carried out by the Mac's `pr-agent` with no forge credential on the Pi (A13) |
 | Targets covered | LocalAI fully; pi-hub in Settings; firmware and netmon not at all | All five targets, each as far as it can report, with "unknown" shown as unknown |
 | Join between a change and a release | Only inside LocalAI (`shipped.commit`) | The commit SHA. Versions links to the Shipped entry and to the Atlas snapshot |
 | Works while the PC sleeps | No: Deployments needs LocalAI | Yes: Pi Hub shows the last known release records, marked stale |
@@ -751,7 +754,7 @@ without the Pi (section 10).
 | **Ask** | "Ask the Assistant: …" | Hand-off (`sections.js:63-74`) | No: the row reads "The PC is off" |
 | **Cross-search** | "Search the Assistant for …" from Pi Hub. "Search the house for …" from the Assistant | The other app's own palette, opened with the query | Per target |
 
-**Actions that confirm.** Stop print, restore, and restart always confirm (`control-room`:184-185); Start a staged lab print confirms through its sheet, never from the palette (A12). Host-level actions
+**Actions that confirm.** Stop print, restore, and restart always confirm (`control-room`:184-185); Start a staged lab print confirms through its sheet, never from the palette (A12); Ship and Merge a pull request confirm through their sheet, never from the palette or a notification (A13). Host-level actions
 in the Assistant keep typed confirmation (`evolution`:72-73). Approving an Assistant run is never a one-key palette
 action: it opens the approval sheet. Every action is owner-only and logs the device.
 
@@ -1048,3 +1051,8 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   read-only except that the lab's Mac uploads checked builds into its `print-lab` folder and Pi Hub's printer-control
   path queues and starts them, through a new owner-only action, Start a staged lab print, that confirms through its
   sheet. Proposed on 6 Nov 2026 with print-lab's one-tap spec (print-lab #48).
+- **A13. Ship or merge a pull request from Pi Hub** (`2026-11-06-amendment-a13-pr-actions.md`): open PRs on the
+  home-platform repos show in Needs you with Ship (Local AI, `npm run ship`) or Merge. Pi Hub only queues the owner's
+  request, pinned to the head commit they saw; the Mac's `pr-agent` carries it out, so no forge credential is on the Pi
+  and nothing happens while the Mac sleeps. Pi Hub's own deploy stays with the owner's Claude session. Approved by the
+  owner on 6 Nov 2026 (pi-hub #145).
