@@ -1,8 +1,9 @@
 // Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Filament loaded,
 // This week, More in the workshop (filament, history, projects, the lab queue) and one "Open in" row. The touchscreen's
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
-import { api, card, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
-import { band } from "./now.js";
+import { api, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
+import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./now.js";
+import { faceplate, faceplateLoading } from "./page-parts.js";
 import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
@@ -43,17 +44,9 @@ export function writeOpen(key, open, store = storage()) {
 export function mount(state) {
   // One line when Bambuddy is down, instead of the same sentence on every section that reads from it.
   state.sourceNotice = h("div", { role: "status" });
-  // Loading: a band and a camera of their final size, so nothing jumps when the first answer lands.
-  state.bandBox = h("div", { class: "ws-band" },
-    h("div", { class: "band ws-skeleton", "aria-busy": "true" },
-      h("span", { class: "sr" }, "Loading the printer…"),
-      h("div", { class: "skeleton ws-skel-line", style: "width: 30%" }),
-      h("div", { class: "skeleton ws-skel-head" }),
-      h("div", { class: "skeleton ws-skel-line" })));
-  state.cam = h("div", { class: "ws-cam" }, h("section", { class: "card wide", "aria-hidden": "true" },
-    h("div", { class: "skeleton ws-skel-head", style: "width: 30%" }), h("div", { class: "skeleton ws-skel-line", style: "width: 25%" }),
-    h("div", { class: "ws-cam-placeholder" })));
-  const now = h("div", { class: "ws-now" }, state.bandBox, state.cam);
+  // Loading: the faceplate's shape in skeletons (A7 P8), so nothing jumps when the first answer lands.
+  state.bandBox = h("div", { class: "ws-band" }, faceplateLoading("Bambu X2D"));
+  const now = h("div", { class: "ws-now" }, state.bandBox);
   state.now = now;
   state.needs = section("needs", "Needs you here");
   state.needs.hidden = true;
@@ -106,29 +99,68 @@ function section(key, title, ...body) {
     h("h2", { class: "section-title", id: `ws-${key}-title` }, title), ...body);
 }
 
-function camera(c) {
-  const src = c.source === "Pi" ? "From the Pi" : c.source === "MacBook" ? "From the MacBook (backup)" : null;
-  if (!c.ok) {
+// The camera, as the faceplate's aside (A7 P1: "aside: camera, if any"). With no picture it says why, in words.
+export function cameraAside(c) {
+  if (!c?.ok) {
     // The camera's own reason says the most: its video switched off (common after the printer restarts) or the
-    // printer not answering. Either way it is the camera that's unavailable; the band says what the printer is doing.
-    const why = c.reason === "liveview_off"
+    // printer not answering. Either way it is the camera that's unavailable; the faceplate says what the printer is doing.
+    const why = c?.reason === "liveview_off"
       ? ["The X2D isn't sharing its camera on the network. On the printer's screen, turn on ", h("strong", {}, "LAN Only Liveview"),
         " (Settings › Network). The picture comes back here within a minute."]
-      : c.reason === "printer_unreachable" ? ["The camera isn't answering on the network. The printer may be restarting."]
+      : c?.reason === "printer_unreachable" ? ["The camera isn't answering on the network. The printer may be restarting."]
       : null;
     const tips = [];
-    if (c.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't getting pictures");
-    if (c.sources?.MacBook && !c.sources.MacBook.fresh) tips.push("the MacBook is asleep or Bambu Studio's live view is closed");
-    return card("Camera", { cls: "wide", pill: "Camera unavailable", tone: "warn" },
+    if (c?.sources?.Pi && !c.sources.Pi.up) tips.push("the Pi's camera link isn't getting pictures");
+    if (c?.sources?.MacBook && !c.sources.MacBook.fresh) tips.push("the MacBook is asleep or Bambu Studio's live view is closed");
+    return h("div", { class: "ws-cam ws-cam--none" },
+      h("p", { class: "ws-cam-word" }, "Camera unavailable"),
       why ? h("p", {}, ...why) : null,
       h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the camera right now."));
   }
-  const hint = c.source === "MacBook"
-    ? h("p", { class: "meta", style: "margin-top: .5rem;" }, "Streaming via MacBook bridge. For direct streaming without the Mac, enable LAN Only Liveview on the printer screen.")
-    : null;
-  return card("Camera", { cls: "wide", pill: src, tone: c.source === "Pi" ? "ok" : "warn" },
+  return h("figure", { class: "ws-cam" },
     h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }),
-    hint);
+    h("figcaption", { class: "meta" }, c.source === "MacBook"
+      ? "From the MacBook (backup). For a picture without the Mac, turn on LAN Only Liveview on the printer's screen."
+      : c.source === "Pi" ? "From the Pi" : "Live"));
+}
+
+const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
+const STATE_WORD = { printing: "Printing", paused: "Paused", error: "Needs a look", stopped: "Stopped", idle: "Idle", offline: "Offline" };
+
+// The printer as the faceplate (A7 P1), pure so it is tested without a page. A printer no source answers for is
+// unknown, never idle; a stale source keeps its last readings and says so. A heater with no target shows one number
+// (decision 6).
+export function printerPlate(p, cam, { lastPrint = null, actions = null } = {}) {
+  p ||= {};
+  const tel = telemetryLabel(p);
+  const busy = p.state === "printing" || p.state === "paused";
+  const pct = Number.isFinite(Number(p.progress)) ? Math.max(0, Math.min(100, Number(p.progress))) : null;
+  // Stale: the notice above the page says the source isn't answering; the lamp says only what these readings are.
+  const lamp = tel.stale || p.stale ? ["unknown", "Last readings"] : tel.state === "none" ? ["unknown", tel.label]
+    : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
+  const job = jobTitle(p.job_name);
+  const finish = p.state === "printing" && Number.isFinite(p.minutes_left)
+    ? new Date(Date.now() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const caption = p.state === "printing" && p.left ? `Done in about ${p.left}${finish ? `, around ${finish}` : ""}.` : p.detail || null;
+  const t = p.telemetry || {};
+  const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
+  return faceplate({
+    name: "Bambu X2D", lamp,
+    // Idle or stopped, the lamp already says it: no readout repeats it, and the last job is the "Last print" line.
+    readout: busy && pct !== null ? String(pct) : null, unit: busy && pct !== null ? "%" : "",
+    caption,
+    readings: [["Print", busy ? job || null : null], ["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
+      ["Bed", tempText(p.bed_temp, p.bed_target)], ["AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null],
+      ["Material", p.filament_type || null]],
+    extra: [
+      busy && pct !== null ? h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+        h("div", { class: "line-track" }), h("div", { class: "line-bead", style: `width:${pct}%` })) : null,
+      h("p", { class: "meta ws-freshness", title: tel.why }, `${t.source || "Pi Hub"} · ${telemetryAge(t.observed_at, t.status === "stale")}`),
+      lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
+    ],
+    actions: actions ? [actions] : [],
+    aside: cameraAside(cam),
+  });
 }
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.
@@ -410,25 +442,18 @@ export async function load(state) {
   if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
   const busy = printerBusy();
 
-  // Now: the band (with pause or resume for the owner, under the readings they act on) and the camera. While Bambuddy
-  // is down the notice above says so, with when it was last seen; the band doesn't say it again.
+  // Now: the faceplate (with pause or resume for the owner, under the readings they act on) and the camera beside it.
+  // While Bambuddy is down the notice above says so, with when it was last seen; the faceplate doesn't say it again.
   const shown = v.down && d.printer.stale ? { ...d.printer, detail: "" } : d.printer;
   // Its readings change while printing; its "checked" age is redrawn at least once a minute.
-  redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, Math.floor(Date.now() / 60000)]), () => {
-    const printerBand = band(shown);
+  const camSig = [cam.ok, cam.source, cam.reason];
+  redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, camSig, Math.floor(Date.now() / 60000)]), () => {
     const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));
     const listed = printerActionList({ actions: v.bandActions });
     buttons?.querySelectorAll("button").forEach((b, i) => { b.dataset.key = `printer-${listed[i]?.action}`; });
-    const info = printerBand.querySelector(".band-info") || printerBand;
-    if (v.lastPrint) info.append(h("p", { class: "meta ws-last-print" }, v.lastPrint));
-    if (buttons) info.append(buttons);
-    state.bandBox.replaceChildren(printerBand);
+    state.bandBox.replaceChildren(printerPlate(shown, cam, { lastPrint: v.lastPrint, actions: buttons }));
   });
   state.facts = d.printer.headline;
-  if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
-    state.cam.replaceChildren(camera(cam));
-    state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;
-  }
   const notice = nextSourceNotice(state.notice, v.down, v.seen);
   state.notice = notice.state;
   state.sources = workshopSources(d.printer, cam);
@@ -486,3 +511,11 @@ export async function load(state) {
   setPill(lab, ...labPill(d.lab));
   redraw(state, "lab", lab.body, JSON.stringify(d.lab ?? null), () => lab.body.replaceChildren(...labQueue(d.lab).filter(Boolean)));
 }
+
+// The workshop status didn't answer: the faceplate says so, as unknown, instead of a skeleton that never settles (P8).
+export function failed(state) {
+  state.sigs = { ...(state.sigs || {}), band: null };
+  state.bandBox.replaceChildren(faceplate({ name: "Bambu X2D", lamp: ["unknown", "No answer"], readout: "—",
+    caption: "The hub's workshop status didn't answer. This page tries again in 15 seconds." }));
+}
+

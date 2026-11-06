@@ -43,11 +43,8 @@
   overflow-wrap: anywhere;
 }
 
-.lab-needs-card {
-  border-left: 4px solid var(--ui-warn, #f5b03d);
-}
-
-.lab-needs-card .lab-needs {
+/* A7 P1: Needs you here, the questions and the experiments are sections, not cards: a rule between them, no panel. */
+.lab-needs-here .lab-needs {
   margin: 0;
   padding: 0;
   border: 0;
@@ -173,8 +170,24 @@
 }
 
 .lab-exp {
-  margin-bottom: 12px;
+  gap: 8px;
+  margin: 0;
+  padding: 16px 0 16px 14px;
+  border-top: 1px solid var(--ui-line, #1f2a38);
   scroll-margin-top: 72px;
+}
+
+.lab-question,
+.lab-outside {
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-line, #1f2a38);
+}
+
+.lab-question > *,
+.lab-exp > *,
+.lab-outside > * {
+  margin-block: 0;
 }
 
 .lab-exp__head {
@@ -987,3 +1000,12 @@
 .lab-start__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .lab-start__steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 2px; }
 .lab-start__note { font-size: var(--ui-fs-2); margin: 4px 0 0; }
+
+/* Notes in the lab's sections read as supporting text, as they did inside the old cards (A7 P1). */
+.lab-needs-here .meta,
+.lab-question .meta,
+.lab-exp .meta,
+.lab-outside .meta {
+  font-size: var(--ui-fs-2, 13px);
+  color: var(--ui-muted);
+}

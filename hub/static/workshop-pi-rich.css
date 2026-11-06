@@ -96,15 +96,17 @@
 .band .printer-actions { margin-top: .75rem; }
 
 /* Workshop › Printer (workshop flow W.2): Now, Needs you here, Filament loaded, This week, More in the workshop. */
-/* The status and the camera side by side where each gets about 26 rem, stacked otherwise; the status always leads
-   (A10 plan decision 17). */
-.ws-now { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 1.25rem; align-items: start; }
-.ws-now .band, .ws-now .card { margin: 0; }
+/* The printer's faceplate with the camera as its aside (A7 P1): the kit puts them side by side where each gets about
+   20 rem, stacked otherwise; the status always leads (A10 plan decision 17). */
+.ws-now .ui-faceplate { margin: 0; }
+.ws-cam { margin: 0; display: grid; gap: .5rem; align-content: start; }
+.ws-cam-word { margin: 0; font-weight: 650; color: var(--ui-unknown); }
+.ws-now .line-bead { background: var(--ui-accent); }
+.ws-now .ui-faceplate .meta, .ws-cam figcaption { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 /* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
 .ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--surface-3); }
 .ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
 .ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
-.ws-cam .card[aria-hidden] { display: grid; gap: .75rem; }
 .ws-skel-line { height: .9rem; }
 .ws-skel-head { height: 2.2rem; width: 60%; }
 @media (prefers-reduced-motion: reduce) {

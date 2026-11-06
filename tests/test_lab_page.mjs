@@ -196,7 +196,7 @@ test('jump chips link to section anchors that exist', () => {
   const chips = [...html.matchAll(/<a href="#(lab-[a-z-]+)" class="lab-jump__chip"/g)].map((m) => m[1]);
   assert.deepEqual(chips, ['lab-sec-needs', 'lab-sec-questions', 'lab-sec-notebook', 'lab-earlier']);
   for (const id of chips) assert.match(html, new RegExp(`id="${id}"`));
-  assert.match(html, /<section class="card lab-outside">/);
+  assert.match(html, /<section class="ui-section lab-outside">/);
   assert.ok(html.indexOf('lab-outside') > html.indexOf('id="lab-earlier"'), 'Outside the lab comes after Earlier');
 });
 
