@@ -137,6 +137,64 @@ def test_a_stale_printer_record_gives_no_remaining_time():
     assert marks == [{"start": at(14), "end": NOW, "kind": "run", "title": "Tile: Printing"}]
 
 
+# Bambuddy's print log gets a row only when a print ends, so a print in progress is drawn from the printer record.
+def test_a_print_with_no_log_row_yet_is_drawn_from_the_printer_record():
+    done = pr("Coaster", "completed", at(8), at(9))
+    printer = {"state": "printing", "detail": {"job": "SpiralHelix", "started": at(13), "progress": 68, "minutes_left": 36}}
+    marks = lane(today.build(NOW, inputs(prints=[done], printer=printer)), "printer")["marks"]
+    assert marks == [{"start": at(8), "end": at(9), "kind": "ok", "title": "Coaster: Finished"},
+                     {"start": at(13), "end": NOW, "until": NOW + 36 * 60, "kind": "run", "title": "SpiralHelix: Printing, 68%"}]
+    # 6 Nov at 1 AM: begun before midnight, so drawn from midnight
+    printer["detail"]["started"] = MIDNIGHT - 85 * 60
+    late = lane(today.build(at(1), inputs(prints=[], printer=printer)), "printer")["marks"]
+    assert late == [{"start": MIDNIGHT, "end": at(1), "until": at(1) + 36 * 60, "kind": "run", "title": "SpiralHelix: Printing, 68%"}]
+
+
+def test_a_paused_print_from_the_record_says_paused():
+    printer = {"state": "paused", "detail": {"job": "Tile", "started": at(14), "progress": 40, "minutes_left": 50}}
+    marks = lane(today.build(NOW, inputs(printer=printer)), "printer")["marks"]
+    assert [(m["kind"], m["title"]) for m in marks] == [("run", "Tile: Paused, 40%")]
+
+
+def test_a_record_print_without_a_start_or_a_name_still_shows():
+    printer = {"state": "printing", "detail": {"progress": 10, "minutes_left": 90}}
+    marks = lane(today.build(NOW, inputs(printer=printer)), "printer")["marks"]
+    assert marks == [{"start": NOW, "end": NOW, "until": NOW + 90 * 60, "kind": "run", "title": "Untitled: Printing, 10%"}]
+
+
+def test_a_stale_record_draws_no_running_print_of_its_own():
+    printer = {"state": "printing", "stale": True, "detail": {"job": "Tile", "started": at(14), "progress": 50, "minutes_left": 30}}
+    assert lane(today.build(NOW, inputs(printer=printer)), "printer")["marks"] == []
+
+
+def test_a_log_row_and_the_record_draw_the_running_print_once():
+    p = pr("Tile", "printing", at(14, 47), None)
+    printer = {"state": "printing", "detail": {"job": "Tile", "started": at(14, 48), "progress": 81, "minutes_left": 9}}
+    marks = lane(today.build(NOW, inputs(prints=[p], printer=printer)), "printer")["marks"]
+    assert [m["start"] for m in marks if m["kind"] == "run"] == [at(14, 47)]
+
+
+def test_an_unclosed_old_log_row_does_not_stand_in_for_the_record_print():
+    orphan = pr("Old", "printing", MIDNIGHT - 3 * 86400, None)  # a row Bambuddy never closed
+    printer = {"state": "printing", "detail": {"job": "Tile", "started": at(14), "progress": 50, "minutes_left": 30}}
+    marks = lane(today.build(NOW, inputs(prints=[orphan], printer=printer)), "printer")["marks"]
+    assert marks == [{"start": at(14), "end": NOW, "until": NOW + 30 * 60, "kind": "run", "title": "Tile: Printing, 50%"}]
+
+
+def test_a_print_just_logged_as_finished_is_not_also_drawn_running():
+    done = pr("Tile", "completed", at(13), at(15, 20))  # the log has it; the record hasn't caught up
+    printer = {"state": "printing", "detail": {"job": "Tile", "started": at(13), "progress": 100, "minutes_left": 0}}
+    marks = lane(today.build(NOW, inputs(prints=[done], printer=printer)), "printer")["marks"]
+    assert [(m["kind"], m["title"]) for m in marks] == [("ok", "Tile: Finished")]
+
+
+def test_a_paused_print_with_a_log_row_says_paused():
+    p = pr("Tile", "printing", at(14), None)
+    printer = {"state": "paused", "detail": {"job": "Tile", "started": at(14), "progress": 40, "minutes_left": 50}}
+    marks = lane(today.build(NOW, inputs(prints=[p], printer=printer)), "printer")["marks"]
+    assert [m["title"] for m in marks] == ["Tile: Paused, 40%"]
+
+
 def test_an_unknown_print_status_is_drawn_neutral_and_not_counted():
     body = today.build(NOW, inputs(prints=[pr("Odd", "aborted", at(9), at(10))]))
     assert lane(body, "printer")["marks"] == [{"start": at(9), "end": at(10), "kind": "other", "title": "Odd: Aborted"}]
