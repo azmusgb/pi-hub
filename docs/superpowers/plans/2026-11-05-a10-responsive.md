@@ -2,7 +2,8 @@
 
 Date: 2026-11-05 · Status: **proposed** · Baseline: `2026-11-01-platform-product-architecture-design.md` plus amendment
 A10 (`2026-11-05-amendment-a10-responsive.md`, #129), which amends the page rules as restated in A6 and A7, A8 D5, A9,
-and the appliance-ui design contract (`DESIGN.md`).
+and the appliance-ui design contract (`DESIGN.md`). Updated 2026-11-06: amendment A11 (the phone's day dial, #135) folds
+into P4, and the owner's iPhone review of every other page adds decisions 12-17 to P5-P9.
 
 **Goal:** every Pi Hub page fills the screen it is on. Type and space grow smoothly from a phone to a TV, columns appear
 where they fit and stack where they don't, and no screen gets the cramped end of a fixed layout, as on the owner's iPad
@@ -20,6 +21,11 @@ and iPhone ("squished").
   (1cfcc26); their acceptance is still open (see Acceptance).
 - **LocalAI:** "The Assistant's own pages pick up the fluid tokens through the kit; replacing its breakpoints is a
   follow-up in LocalAI's own plan."
+- **A11 (`2026-11-05-amendment-a11-phone-dial.md`, #135), Delivery:** folded into this plan's P4. Its D1-D6 are A11's
+  completion criteria and P4 evidences them (Coverage).
+- **The owner's iPhone review (6 Nov 2026, "Improve all"):** a look at every non-Home page at 390 px after P3. What
+  it found that is layout lands in P5-P9 under decisions 12-17. What it found that is a defect is fixed on its own
+  (the tab bar badge covering its icon: #136), and what belongs elsewhere is listed under Out of scope.
 
 ## Done means
 
@@ -152,6 +158,42 @@ None changes the spec. If the owner disagrees with one, it changes here.
 11. **LocalAI picks up the kit** in one small LocalAI PR syncing kit 2.9.0, shipped by the owner's usual
     `npm run ship -- <PR>` after local CI. Replacing LocalAI's breakpoints is its own plan, as A10 says.
 
+### From the iPhone review (decisions 12-17)
+
+A10 keeps "the anatomy of every page (A7) … and the words". Each decision below changes layout only: every section,
+action and word stays on its page. Where a choice would move or drop one, it says so and stays out.
+
+12. **No text under the kit's smallest size.** The review counted 141 runs of 11 px text on Print lab, 89 under 12 px on
+    Media and 10.4 px history on Automations. Text uses the kit's `fs1` (0.75rem, fluid) at the least. The sweep gains a
+    check: no visible text under 12 px at any width, for pages not pending. Each area PR clears its pages. The wall and
+    the workshop display are excepted (A10, Not changed). Rejected: a site-wide `min()` floor in one rule, which hides
+    which component was small.
+13. **Long pages keep their sections, but show their start.** Print lab (about 9,400 px on a phone) and Media (about
+    7,000 px) are long because every list renders in full. A list longer than eight entries shows the newest eight and a
+    "Show all (n)" disclosure, the pattern `movies.js` and `section-links.js` already use. Sections and their order are unchanged.
+    Rejected: per-section tabs, which change A7's anatomy.
+14. **Print lab's Needs-you commands** (`uv run lab exp …`) stay, inside a "Command" disclosure on each card, with the
+    text selectable. The card leads with what needs doing. The chip row wraps instead of clipping. The stray experiment
+    named "t" is print-lab data, not layout (Out of scope).
+15. **Media's posters:** the title and year sit under the poster, not over it. White text on a photo fails contrast on
+    light posters. The grid is `repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr))`, so a phone gets two or three across.
+    Rejected: keeping the overlay with a scrim, which still hides the poster's own art.
+16. **System's strip** became two rows on a phone after P3 made strips wrap. It becomes one line that scrolls
+    sideways when the pages don't fit, at every width, with the current page scrolled into view. Rejected: moving
+    Settings and Site map off the strip, which drops pages from it (A6).
+17. **Smaller layout fixes found by the review:**
+    - **Workshop:** the camera stops jumping first while printing. `workshop-pi-rich.css`'s 1023 px `order: -1` goes
+      with that file's queries, so the status leads at every width, as on the desktop. Rejected: the same rule by
+      container, which keeps the phone's camera-first screen the owner didn't want.
+    - **Automations:** each rule's Preview and Remove move into the rule's row disclosure on a narrow row (a container
+      under 34rem). They stay buttons with the same names. That covers the page's length (about 5,000 px).
+    - **Open-in links:** these come from `section-links.js:38`, joined with " · ". They become a wrapping list with gaps,
+      so no line starts with a dot.
+    - **The "Home & network" title** wraps to two lines at 390 px. P8 finds why, and the evidence is one line at 360 px
+      and up.
+    - **Health's diagnostics line** ("System checks updated.", `health.js:1339`) still announces success, but is shown
+      only when the checks fail or are stale.
+
 ## PRs, one at a time
 
 Every Pi Hub PR below bumps `sw.js`'s shell cache, attaches the sweep report and the named-size screenshots, and is
@@ -193,31 +235,42 @@ merges.
 - **Evidence:** criterion 3's page cap and the shell half of 2; screenshots of Home at 820, 1024 and 1366 before and
   after.
 
-### P4. Pi Hub: Home (A10 D4)
+### P4. Pi Hub: Home (A10 D4, A11)
 
-- **Covers:** A10 D4 in full; decision 6; Home's non-wall rules in `home.css`.
+- **Covers:** A10 D4 in full; A11 D1-D6 in full; decisions 6 and 12 (the sweep's small-text check, Home passing it);
+  Home's non-wall rules in `home.css`.
 - **Waits on:** P3 merged.
 - **Change:** `home-dashboard.css` (container columns, row containers, tally by container, zoom removed),
   `home-dashboard.js` (`bandLayout` from the band's width and font size, `NARROW` removed), `home.css`'s six non-wall
   queries replaced. The wall's five rules are untouched.
-- **Tests (written first, `tests/test_home_dashboard.mjs`):** names beside vs above at the measured threshold; the span
+- **A11:** where decision 6's band can't give 24 px per hour with names beside (A11 D1), Home draws the day dial
+  instead (D2-D4), the counts under it and the rack as compact rows (D5); where the band fits, nothing changes (D6). The
+  prototype's geometry (rings from the inside: X2D, Workshop display, Raspberry Pi, Backups, Updates) is the starting
+  point, scaled from the dial's own width (up to about 22rem).
+- **Tests (written first, `tests/test_home_dashboard.mjs`):** dial vs band at exactly A11 D1's threshold; the dial's
+  arcs for a print across midnight, a down source (dashed ring, `source_down` words), a quiet day and loading; the
+  nearest mark wins on a tap and keyboard order is by time; names beside vs above at the measured threshold; the span
   is the whole day exactly when an hour gets 24 px and A9's span below it, at 1 AM, 6 PM and 11:30 PM; row and bar
   heights scale with the font size; hit boxes stay 44 × 44; hour labels don't touch at every band width from 280 to
   2400 px in 20 px steps; no zoom rule. A9's tests that assert 520 px and 640 px change in their own commit.
 - **Browser:** the sweep for `/`, and screenshots at the named sizes plus 1920 × 1080 for the TV.
-- **Evidence:** criterion 4; the owner's IMG_1578 (iPad) and IMG_1553 (iPhone) screens against the same views after.
+- **Evidence:** criterion 4 and A11's criteria; the owner's IMG_1578 (iPad) and IMG_1553 (iPhone) screens against the
+  same views after.
 
 ### P5-P9. Pi Hub: the other pages, one area per PR
 
 Each covers A10 D2 and D3 for its area, waits on P3, leaves the lint's pending list, and passes the sweep for its pages.
 They can merge in any order after P3; the spec's order is kept unless one is blocked.
 
-- **P5 Workshop:** `lab.css` (960, 640, 641, 640, 760) and `workshop-pi-rich.css` (1024/1023).
-- **P6 Documents:** the sweep for `/documents` and any fix it finds (decision 10).
+- **P5 Workshop:** `lab.css` (960, 640, 641, 640, 760) and `workshop-pi-rich.css` (1024/1023); decisions 12, 13 and
+  14 for `/lab`, 17's Workshop order. Evidence: `/lab`'s height at 390 px before and after, and no text under 12 px.
+- **P6 Documents:** the sweep for `/documents` and any fix it finds (decision 10), including 12 and 17's Open-in links
+  (`section-links.js` is shared, so this PR changes it for every area).
 - **P7 Media:** `movies.css` (720, 540, 560); `movies-print-rules-alerts-rich.css` is already query-free and only
-  needs the sweep.
-- **P8 Home & network:** `household-features.css` (1280, 600 ×2) and its `pages.css` rules.
-- **P9 System:** `settings-rich.css` and `lists-rich.css` are query-free; the sweep for `/system` and any fix.
+  needs the sweep; decisions 12, 13 and 15. Evidence: posters in light and dark at 390 and 1024 px.
+- **P8 Home & network:** `household-features.css` (1280, 600 ×2) and its `pages.css` rules; decision 12 and 17's title.
+- **P9 System:** `settings-rich.css` and `lists-rich.css` are query-free; the sweep for `/system` and any fix;
+  decisions 12, 16 and 17's Automations and Health line.
 
 After P9 the lint's and the sweep's pending lists are empty; that PR asserts they are.
 
@@ -240,16 +293,26 @@ After P9 the lint's and the sweep's pending lists are empty; that PR asserts the
 | 5 D5 display unchanged | P1 test (`tokens.h` identical) |
 | 6 D6 sweep passes | P2 tool; P9 asserts no pending pages |
 | The Assistant follows the kit | P10 |
+| A11 D1-D6 the phone's dial | P4 tests and sweep; acceptance on the iPhone |
+| Review: no text under 12 px (12) | the sweep's check, P4-P9 |
+| Review: Print lab, Media, System, Workshop (13-17) | P5, P7, P9, P6/P8 as listed; acceptance on the iPhone |
 
 ## Acceptance
 
 After P4 is deployed, the owner opens Home on the iPhone, the iPad (both orientations), the Mac and the TV and checks
 criterion 4 and that nothing is squished; after P9, the same for the other pages on the iPad and the iPhone. A8 and A9's
 acceptance is still open and A10 amends A8 D5 and A9, so this plan proposes one record covering all three after P4's
-look: "A8, A9 and A10 (Home) accepted <date>" in `docs/operations.md`, then "A10 accepted <date>" after P9's. Until
+look: "A8, A9, A10 (Home) and A11 accepted <date>" in `docs/operations.md`, then "A10 accepted <date>" after P9's. Until
 then A10 is merged, deployed or runtime verified, never done.
 
 ## Out of scope (noted, not gated)
+
+- **The tab bar badge covering its icon** is a defect, fixed on its own (#136), not part of this plan.
+- **The Assistant's composer overlapping its list on a phone** is LocalAI's layout. It goes to LocalAI's own
+  responsive plan (A10's follow-up), not to P10's kit sync.
+- **The experiment named "t" on Print lab** is print-lab data. It is the owner's to archive or delete in print-lab.
+- **Devices and Print loading in 3-10 s** on the phone finished every time. That is speed, not layout. If it matters,
+  it needs its own issue.
 
 - **The wall's board** (`/wall`, five rules in `home.css`) keeps its own fixed layout (A10, Not changed).
 - **The workshop display** (D5).
