@@ -19,9 +19,14 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
 
 - Never push to `main`, and never push to the `pi` remote. Branch, open a PR, stop. The Pi's deploy repo refuses a tip that isn't a
   merged PR; never use `-o allow-direct`, which is the owner's.
+- Base every PR on `main`. Never stack one PR on another's branch: a PR merged into a branch that isn't `main` never
+  ships.
 - Every migration PR says: the baseline requirement it implements, full or partial coverage, and acceptance evidence.
 - Run both suites before opening the PR and paste the counts:
   `HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests` and `node --test tests/*.mjs`.
+- If a change makes an existing test wrong, change that test in its own commit and say why in the PR. Never loosen or
+  delete an assertion to get a pass.
+- A PR that changes anything under `hub/static` bumps `SHELL` in `hub/static/sw.js`, or phones keep the old files.
 - Browser checks (`tests/browser`: the width sweep, `structure.mjs` with axe, `tabbar.mjs`) run from the Mac against
   `python3 tests/browser/preview.py`. Run `npm install` in `tests/browser` in each worktree (Playwright 1.63): the main
   checkout's copy is 1.55, whose Chromium crashes on this Mac. After the PR merges, `git worktree remove --force` is fine
@@ -35,4 +40,7 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
   the owner's Pi Hub session.
 - `deploy/caddy/Caddyfile`, `deploy/`, auth (`hub/auth.py`, `hub/gate.py`) and printer control routes change only in a
   PR that names the baseline decision allowing it.
+- Layouts adapt by their own width (container queries, `auto-fit` grids, `clamp()`), never by window-width media
+  queries. The exceptions are the marked shell switch and the wall display (A10, enforced by
+  `tests/test_css_responsive.mjs`).
 - "Merged" is not "live", and "live" is not "accepted": acceptance is the check the plan defines, seen and recorded.
