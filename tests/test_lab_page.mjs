@@ -83,6 +83,8 @@ test('outside the lab: eight shown, the rest behind Show all', () => {
   const [shown, rest] = html.split('<details');
   assert.equal((shown.match(/<p class="meta">/g) || []).length, 8);
   assert.match(rest, /<summary>Show all \(11\)<\/summary>/);
+  // An id, so the quiet refresh (lab-refresh.js) keeps it open.
+  assert.match(rest, /^ class="lab-more" id="lab-outside-more">/);
   assert.equal((rest.match(/<p class="meta">/g) || []).length, 3);
   assert.doesNotMatch(outsideHtml(items.slice(0, 8)), /<details/, 'eight or fewer: no disclosure');
 });

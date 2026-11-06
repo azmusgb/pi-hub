@@ -223,7 +223,7 @@ export function outsideHtml(items) {
   const row = (o) => `<p class="meta">${[esc(o.name || `Print #${o.print}`), esc(o.status_word), esc(when(o.started)), bambuLink(o.print)].filter(Boolean).join(" · ")}</p>`;
   const rest = items.slice(SHOWN);
   return `<section class="card lab-outside"><h2>Outside the lab</h2>${items.slice(0, SHOWN).map(row).join("")}` +
-    (rest.length ? `<details class="lab-more"><summary>Show all (${items.length})</summary>${rest.map(row).join("")}</details>` : "") + `</section>`;
+    (rest.length ? `<details class="lab-more" id="lab-outside-more"><summary>Show all (${items.length})</summary>${rest.map(row).join("")}</details>` : "") + `</section>`;
 }
 
 function meter(label, spent, next, total, unit) {

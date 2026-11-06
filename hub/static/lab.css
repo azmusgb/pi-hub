@@ -322,7 +322,7 @@
 .lab-sheet {
   box-sizing: border-box;
   width: min(520px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   padding: 0;
   border: 1px solid var(--ui-line-2, #2e3d50);
   border-radius: var(--ui-r-3, 12px);
