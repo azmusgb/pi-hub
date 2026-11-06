@@ -1,6 +1,7 @@
 // System › Versions (platform step 3; spec D1, D7): what is live where, read only from the release:<target> records
 // each target's deploy writes. Read-only for every target; going back is Pi Hub's alone, and needs the owner.
-import { api, askFirst, card, empty, h, post, toast, when, whoami } from "./core.js";
+import { api, askFirst, empty, h, post, toast, when, whoami } from "./core.js";
+import { faceplate, faceplateLoading, fillNeedsHere, needsHere, section } from "./page-parts.js";
 import { firstFew } from "./section-links.js";
 
 export const every = 60;
@@ -74,28 +75,53 @@ export function historyRows(releases) {
   });
 }
 
+// A lamp-right row (A7 P3): the part and its commit on the left; its state on the right. Behind and Ahead are plain
+// words, with no lamp colour: neither is wrong by itself.
+const chipEl = (word, tone) => (word ? h("span", { class: tone ? `ui-chip ui-chip--${tone}` : "ui-chip" }, word) : null);
+
 function rowEl(v) {
-  return h("li", { class: "log-row", dataset: { target: v.target } },
-    h("span", { class: "dot", dataset: { tone: v.tone }, "aria-hidden": "true" }),
-    h("span", { class: "log-main" },
-      h("strong", {}, v.label),
-      h("span", { class: "meta" }, v.unknown ? v.line
+  return h("li", { class: "ui-row ui-row--lamp", dataset: { target: v.target } },
+    h("div", {},
+      h("span", { class: "ui-row__title" }, v.label),
+      h("span", { class: "ui-row__detail" }, v.unknown ? v.line
         : [v.href ? h("a", { href: v.href, target: "_blank", rel: "noopener" }, h("code", {}, v.commit)) : h("code", {}, v.commit || "—"),
           v.dirty ? " + local changes" : "", v.line ? ` ${v.line}` : "",
           v.atlas ? [" · ", h("a", { href: v.atlas, "data-link": true }, "Architecture at this commit")] : ""]),
-      v.note ? h("span", { class: "meta version-note" }, v.note) : null),
-    h("span", { class: "log-side" }, v.chip));
+      v.note ? h("span", { class: "ui-row__detail version-note" }, v.note) : null),
+    chipEl(v.chip || (v.unknown ? "Unknown" : ""), v.unknown ? "unknown" : v.tone));
+}
+
+// The faceplate (A7 P1): how many parts run what they last reported, from the same rows. Records that can't be read are
+// unknown, never "all live".
+export function versionsPlate(rows) {
+  if (!rows) {
+    return faceplate({ name: "Versions", lamp: ["unknown", "Not answering"], readout: "—",
+      caption: "Couldn't read the release records just now." });
+  }
+  const known = rows.filter((v) => !v.unknown);
+  if (!known.length) {
+    return faceplate({ name: "Versions", lamp: ["unknown", "No reports yet"], readout: "—",
+      caption: "Each part's own deploy reports here when it finishes. None has reported yet." });
+  }
+  const live = known.filter((v) => v.chip === "Live").length;
+  const look = known.filter((v) => v.tone === "warn" || v.tone === "bad").length;
+  return faceplate({
+    name: "Versions",
+    lamp: look ? ["warn", `${look} need${look === 1 ? "s" : ""} a look`] : ["ok", "No problems"],
+    readout: `${live} of ${known.length}`, unit: "live", size: "md",
+    caption: "Each part's own deploy reports here when it finishes. A failed deploy, or a part running something other than its report, also shows in Needs you.",
+  });
 }
 
 export function mount(state) {
-  state.list = h("div", {}, h("p", { class: "meta" }, "Checking…"));
-  state.notice = h("p", { class: "note", role: "status", hidden: true });
+  state.plate = h("div", {}, faceplateLoading("Versions"));
+  state.needs = needsHere();
+  state.list = h("div");
+  state.notice = h("p", { class: "ui-notice ui-notice--warn", role: "status", hidden: true });
   state.history = h("div");
-  state.root.append(
-    card("What is live where", { cls: "wide" },
-      h("p", { class: "meta" }, "Each part's own deploy reports here when it finishes. A failed deploy, or a part running something other than its report, also shows in Needs you."),
-      state.notice, state.list),
-    card("Pi Hub versions", { cls: "wide" }, state.history));
+  state.root.append(state.notice, state.plate, state.needs,
+    section("What is live where", state.list),
+    section("Pi Hub versions", state.history));
 }
 
 // Asks inline under its button (A7 P7), naming the version by its change (decision 4).
@@ -114,32 +140,33 @@ async function goBack(state, x, trigger) {
 async function loadHistory(state) {
   const me = await whoami().catch(() => null);
   if (me?.role !== "owner") {
-    state.history.replaceChildren(h("p", { class: "meta" }, "Sign in as the owner in Settings to see Pi Hub's earlier versions and go back to one."));
+    state.history.replaceChildren(h("p", { class: "ui-section__note" }, "Sign in as the owner in Settings to see Pi Hub's earlier versions and go back to one."));
     return;
   }
   const d = await api("/api/settings").catch(() => null);
   if (!d?.releases) {
-    state.history.replaceChildren(h("p", { class: "meta" }, "Couldn't read Pi Hub's versions just now."));
+    state.history.replaceChildren(h("p", { class: "ui-section__note" }, "Couldn't read Pi Hub's versions just now."));
     return;
   }
   const rows = historyRows(d.releases);
   state.history.replaceChildren(
-    h("p", { class: "meta" }, "New versions run the hub's tests on the Pi and go live only if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
-    ...(rows.length ? firstFew(rows.map((x) => h("li", { class: "log-row" },
-      h("span", { class: "dot", dataset: { tone: x.tone }, "aria-hidden": "true" }),
-      h("span", { class: "log-main" }, h("strong", {}, versionName(x)), h("span", { class: "meta" }, `${x.label}. ${x.message} ${when(x.ts)}`)),
-      x.canGoBack ? h("button", { class: "ghost small", onclick: (e) => goBack(state, x, e.currentTarget) }, "Go back to this")
-        : h("span", { class: "log-side" }, x.running ? "Running" : ""))), { n: 3, noun: "versions" })
+    h("p", { class: "ui-section__note" }, "New versions run the hub's tests on the Pi and go live only if every page and API answers. If one fails its checks, the hub goes back to the version before by itself."),
+    ...(rows.length ? firstFew(rows.map((x) => h("li", { class: "ui-row ui-row--lamp" },
+      h("div", {}, h("span", { class: "ui-row__title" }, versionName(x)), h("span", { class: "ui-row__detail" }, `${x.message} ${when(x.ts)}`)),
+      chipEl(x.running ? "Running" : x.label, x.running ? "ok" : x.tone === "ok" ? "" : x.tone),
+      x.canGoBack ? h("button", { class: "ui-btn", onclick: (e) => goBack(state, x, e.currentTarget) }, "Go back to this") : null)), { n: 3, noun: "versions" })
       : [empty("No versions recorded yet.")]));
 }
 
 export async function load(state) {
-  const recs = await api("/api/records").catch(() => null);
+  const [recs] = await Promise.all([api("/api/records").catch(() => null), fillNeedsHere(state.needs, "/versions")]);
   const rows = recs ? versionRows(recs.records) : null;
   if (rows) state.rows = rows;
-  state.notice.hidden = !!rows;
+  state.sources = [rows ? { name: "Release records", tone: "ok" } : { name: "Release records", tone: "bad", word: "aren't answering" }];
+  state.notice.hidden = !!rows || !state.rows;
   state.notice.textContent = rows ? "" : state.rows ? "Couldn't read the release records. This is the last list." : "";
-  if (state.rows?.length) state.list.replaceChildren(h("ul", { class: "log" }, state.rows.map(rowEl)));
+  state.plate.replaceChildren(versionsPlate(rows));
+  if (state.rows?.length) state.list.replaceChildren(h("ul", { class: "ui-rows" }, state.rows.map(rowEl)));
   else state.list.replaceChildren(h("p", { class: "meta" }, rows ? "No release records yet." : "Couldn't read the release records just now."));
   await loadHistory(state);
 }

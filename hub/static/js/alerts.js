@@ -2,7 +2,7 @@
 // count and a time range; a problem and its recovery are one row ("The Pi ran hot, then cooled down · 6 times").
 import { markAlertsSeen } from "./navigation.js";
 import { api, empty, h } from "./core.js";
-import { lampRows, section } from "./page-parts.js";
+import { faceplate, faceplateLoading, fillNeedsHere, lampRows, needsHere, section } from "./page-parts.js";
 import { rememberOpen } from "./section-links.js";
 
 export const every = 30;
@@ -71,24 +71,49 @@ function days(byDay) {
     h("summary", {}, h("h2", {}, `Older alerts (${older.reduce((n, [, l]) => n + l.length, 0)})`)), ...older.map(daySection)), "alerts-older") : null];
 }
 
+// The faceplate (A7 P1): how many groups are still a problem, lit by the worst of them. A failed read is unknown.
+const RANK = { bad: 2, warn: 1 };
+export function alertsPlate(groups) {
+  if (!groups) {
+    return faceplate({ name: "Alerts", lamp: ["unknown", "Not answering"], readout: "—",
+      caption: "Couldn't read the alert history just now. Alerts still reach your phone." });
+  }
+  const open = groups.filter((g) => g.problem);
+  const worst = open.reduce((t, g) => ((RANK[g.tone] || 0) > (RANK[t] || 0) ? g.tone : t), open.length ? "warn" : "ok");
+  return faceplate({
+    name: "Alerts",
+    lamp: open.length ? [worst, worst === "bad" ? "Problem" : "Warning"] : ["ok", "All clear"],
+    readout: String(open.length), unit: "still open", size: "md",
+    caption: groups.length ? `${groups.length - open.length} over or fine, in recent history.` : "No alerts yet. When something changes, it shows here and on your phone.",
+  });
+}
+
 export function mount(state) {
   state.filter = "all";
-  state.intro = h("p", { class: "page-intro", role: "status" }, "Checking recent alerts…");
+  state.plate = h("div", {}, faceplateLoading("Alerts"));
+  state.needs = needsHere();
   state.tabs = h("div", { class: "ui-chips alerts-filter", role: "group", "aria-label": "Show" });
   state.body = h("div", { class: "stack" });
-  state.root.append(state.intro, state.tabs, state.body, section("Get these on your phone", h("ol", { class: "steps" },
+  state.root.append(state.plate, state.needs, state.tabs, state.body, section("Get these on your phone", h("ol", { class: "steps" },
     h("li", {}, "Install the free ntfy app on your iPhone or Android."),
     h("li", {}, "Tap +, then subscribe to your Pi's private topic. Ask Claude for the name if you've lost it."),
     h("li", {}, "Alerts arrive when the movies drive, Plex, Homebridge, the PC or the display changes, and when a print finishes."))));
 }
 
 export async function load(state) {
-  const d = await api("/api/alerts");
+  const [d] = await Promise.all([api("/api/alerts").catch(() => null), fillNeedsHere(state.needs, "/alerts")]);
+  state.sources = [d ? { name: "Alert history", tone: "ok" } : { name: "Alert history", tone: "bad", word: "isn't answering" }];
+  if (!d) {
+    state.plate.replaceChildren(alertsPlate(null));
+    if (!state.shown) { state.tabs.replaceChildren(); state.body.replaceChildren(); }
+    return;
+  }
   if (state.root.isConnected) markAlertsSeen(d.alerts);
   const groups = groupAlerts(d.alerts);
+  state.shown = true;
+  state.plate.replaceChildren(alertsPlate(groups));
   const problemCount = groups.filter((g) => g.problem).length;
   const okCount = groups.length - problemCount;
-  state.intro.textContent = groups.length ? `${problemCount} still a problem or warning, ${okCount} over or fine, in recent history.` : "";
 
   // Filters are chips (A7 P4), each pressed or not; the count is part of its name.
   const filters = [["all", "All", groups.length], ["problems", "Needs you", problemCount], ["recovery", "Over", okCount]];

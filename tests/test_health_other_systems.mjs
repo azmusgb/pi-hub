@@ -23,8 +23,13 @@ test('with /api/pi failing, Health still shows Other systems from the records', 
   const { dom, state } = await renderHealth({ '/api/records': RECORDS, '/api/actions': { actions: [], log: [], updates: {} } });
   try {
     const page = text(state.root);
-    assert.match(page, /Couldn’t check the system/);  // the diagnostics card still says so
-    const card = state.root.querySelector('[data-system="local_ai"]')?.closest('.card');
+    // the faceplate says so, as unknown (A7 P8), never as healthy
+    const plate = state.root.querySelector('.ui-faceplate');
+    assert.match(text(plate), /Not answering/);
+    assert.match(text(plate), /diagnostic service didn’t answer/);
+    assert.equal(plate.querySelector('.ui-chip').className, 'ui-chip ui-chip--unknown');
+    assert.match(page, /Retry system checks/);
+    const card = state.root.querySelector('[data-system="local_ai"]')?.closest('.ui-section');
     assert.ok(card, 'the Other systems card is on the page');
     assert.match(text(card), /Local AI isn't answering/);
     assert.match(text(card), /The touchscreen is online/);

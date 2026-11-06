@@ -42,9 +42,9 @@ test('Workshop links to Bambuddy once, in its "Open in" row', () => {
   assert.equal(src.match(/"Open Bambuddy ↗"/g), null);
 });
 
-test('Health says the checks failed once: the status line is for screen readers, the card is what is seen', () => {
+test('Health says the checks failed once: the status line is for screen readers, the faceplate is what is seen', () => {
   const src = read('hub/static/js/health.js');
-  assert.match(src, /state\.diagnostic\.classList\.toggle\("sr", true\)/);
+  assert.match(src, /class: "sr",\n\s+role: "status"/);
   assert.match(src, /The help guides below still work\./);
 });
 
