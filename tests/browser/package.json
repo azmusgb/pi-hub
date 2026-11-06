@@ -4,6 +4,6 @@
   "description": "Pi Hub browser check, run from the Mac (not by releases): node tests/browser/structure.mjs [base-url]",
   "devDependencies": {
     "@axe-core/playwright": "4.10.1",
-    "playwright": "1.55.1"
+    "playwright": "1.63.0"
   }
 }

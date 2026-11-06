@@ -41,6 +41,8 @@ JavaScript tests use Node's built-in test runner. The browser modules declare `t
 
 The wall display has its own browser check across phone, tablet, laptop, TV and portrait-monitor sizes: start the app locally as above, then `cd tests/browser && node wall.mjs http://127.0.0.1:8765 --stub` (stubbed data; without `--stub` it reads the given hub's live data).
 
+Every page is also swept from 320 to 2560 px in 20 px steps, dark and light (amendment A10 D6): `python3 tests/browser/preview.py &` serves this checkout's pages with the live hub's data, read-only (anything but GET is refused), then `cd tests/browser && npm install && node sweep.mjs`. It fails on horizontal overflow, clipped text, a control under 44 px, or overlapping labels on any page whose A10 PR has merged, and writes `out/sweep.json` with screenshots at the named sizes. `tests/test_css_responsive.mjs` keeps window-width switches out of the stylesheets, apart from the shell's rail and tab bar.
+
 For interface changes, also check phone, tablet and desktop layouts, keyboard navigation, unavailable-service feedback and refresh behaviour. The release gate checks HTTP responses; it does not replace browser or hardware acceptance checks.
 
 

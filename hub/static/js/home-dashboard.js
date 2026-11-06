@@ -93,7 +93,9 @@ function svg(tag, attrs, parent) {
 export function drawBand(host, day, width, onMark) {
   const L = bandLayout(day, width);
   const root = svg("svg", { class: "hd-band__svg", viewBox: `0 0 ${L.width} ${L.height}`, width: L.width, height: L.height,
-    role: "group", "aria-label": "Today from midnight, one row per system" });
+    role: "group", "aria-label": "Today from midnight, one row per system",
+    // A10 D6: the sweep checks these never overlap each other at any width.
+    "data-no-overlap": ".hd-band__hour, .hd-band__nowlabel, .hd-band__lane" });
   const defs = svg("defs", {}, root);
   const pat = svg("pattern", { id: "hd-hatch", width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
   svg("line", { x1: 0, y1: 0, x2: 0, y2: 6, class: "hd-band__hatch" }, pat);
@@ -371,10 +373,10 @@ function rackRow(row, onReload) {
     if (row.printer.lab) extra.push(h("a", { class: "action", href: printLabUrl(row.printer.lab, row.printer.labProject), "data-link": true }, `Open ${row.printer.lab} in Print lab`));
   }
   if (row.action?.href) extra.push(h("a", { class: "action", href: row.action.href, target: "_blank", rel: "noopener" }, row.action.label));
-  return h("li", { class: "hd-unit", dataset: { lamp: row.lamp, row: row.id } },
+  return h("li", { class: "hd-unit", dataset: { lamp: row.lamp, row: row.id, noOverlap: ":scope > *" } },
     h("p", { class: "hd-unit__name" }, h("span", { class: "hd-lamp", dataset: { lamp: row.lamp }, "aria-hidden": "true" }),
       h("span", {}, row.name, h("small", {}, row.state))),
-    h("dl", { class: "hd-unit__readings" }, ...row.readings.map(reading)),
+    h("dl", { class: "hd-unit__readings", dataset: { noOverlap: ":scope > *" } }, ...row.readings.map(reading)),
     h("a", { class: "hd-unit__go", href: row.href, "data-link": true }, row.link),
     extra.length ? h("div", { class: "hd-unit__actions" }, ...extra) : null);
 }
@@ -388,7 +390,7 @@ function skeletonRows(n) {
 export function mountDashboard(state, parent) {
   state.hd = {};
   const hd = state.hd;
-  hd.counts = h("ol", { class: "hd-tally" }, ...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, h("span", { class: "ui-skeleton", style: "width:1ch" })), tallyLabel(c))));
+  hd.counts = h("ol", { class: "hd-tally", dataset: { noOverlap: ":scope > li" } }, ...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, h("span", { class: "ui-skeleton", style: "width:1ch" })), tallyLabel(c))));
   hd.plot = h("div", { class: "hd-band__plot" }, h("span", { class: "ui-skeleton", style: "height:180px" }));
   hd.detail = h("p", { class: "hd-band__detail", "aria-live": "polite" }, "Tap, point at or tab to anything on the band to see what it was.");
   hd.needs = h("div", { class: "hd-needs__list" }, h("span", { class: "ui-skeleton", style: "height:4em" }));
