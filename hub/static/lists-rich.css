@@ -167,6 +167,6 @@
   margin: 0 0 0.25rem;
 }
 
-.page-lists > .tabs { max-width: 800px; margin: 0 auto; }
+.page-lists > .tabs { max-width: 800px; margin: 0 0 1.5rem; }
 .add-bar .remind-toggle, .add-bar .remind-row { grid-column: 1 / -1; }
 .list-card .remove-btn, .list-card .note-remove { opacity: 1; min-width: 44px; min-height: 44px; }

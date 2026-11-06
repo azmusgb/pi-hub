@@ -107,3 +107,13 @@
   text-transform: none;
   letter-spacing: .01em;
 }
+
+/* Automations (A10 plan decision 17): on a narrow list each rule's Preview and Remove sit in the row's disclosure, which
+   keeps the page short on a phone; on a wide one they are the row's buttons. The rules container is declared above. */
+.page-rules .rule-more { display:none; }
+.page-rules .rule-more > summary { display:flex; align-items:center; min-height:44px; cursor:pointer; color:var(--text-2); font-size:.875rem; }
+.page-rules .rule-more > .feature-actions { margin:.25rem 0 0; }
+@container rules (max-width:34rem) {
+ .page-rules .rule > .feature-actions { display:none; }
+ .page-rules .rule-more { display:block; grid-column:2 / -1; }
+}

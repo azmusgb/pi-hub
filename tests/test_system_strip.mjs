@@ -69,3 +69,18 @@ test('one Services card: a unit and the app of the same name share a row', () =>
   assert.deepEqual(mergeServices(null, null), []);
   assert.deepEqual(mergeServices([], []), []);
 });
+
+// A10 plan decision 16: System's strip is one line that scrolls sideways at every width, with the current page brought
+// into view and a faded edge where more pages sit past it.
+test("System's strip keeps one line and scrolls; the edge fades only where more pages are hidden", async () => {
+  const css = read('hub/static/app.css');
+  assert.match(css, /\.ui-strip\.page-strip\.system-strip\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow-x:\s*auto/);
+  // A link reached by Tab stops clear of the 2.5rem fade, and forced colours draw no fade at all.
+  assert.match(css, /\.ui-strip\.page-strip\.system-strip\s*\{[^}]*scroll-padding-inline:\s*2\.5rem/);
+  assert.match(css, /@media \(forced-colors: active\) \{ \.ui-strip\.page-strip\.system-strip\[data-more\] \{ mask-image: none; \} \}/);
+  const { moreEdges } = await import('../hub/static/js/system-strip.js');
+  assert.equal(moreEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 300 }), '');
+  assert.equal(moreEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 520 }), 'end');
+  assert.equal(moreEdges({ scrollLeft: 100, clientWidth: 300, scrollWidth: 520 }), 'both');
+  assert.equal(moreEdges({ scrollLeft: 220, clientWidth: 300, scrollWidth: 520 }), 'start');
+});
