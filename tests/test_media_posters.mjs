@@ -26,3 +26,12 @@ test('no text over the photo: the words are in the flow, in the theme colours, a
   assert.doesNotMatch(css, /\.poster-card \.poster-(meta|title)[^{]*\{[^}]*#fff/);
   assert.match(rule('.poster-shelf'), /repeat\(auto-fill, minmax\(min\(100%, 8rem\), 1fr\)\)/);
 });
+
+test('a narrow poster keeps its parts apart: one track the cell wide, time left clear of the badges', () => {
+  // A word longer than the cell would widen an auto track past its neighbour; minmax(0, 1fr) holds it to the cell.
+  assert.match(rule('.poster-card'), /grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(rule('.poster-title'), /overflow-wrap:\s*anywhere/);
+  // On an 8rem poster "170m left" at the top right ran into "★ 8.3" at the top left.
+  assert.match(rule('.poster-left'), /bottom:/);
+  assert.doesNotMatch(rule('.poster-left'), /top:/);
+});

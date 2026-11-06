@@ -118,7 +118,9 @@ for (const colorScheme of ['dark', 'light']) {
   const page = await ctx.newPage();
   // A page whose own scripts failed to load draws part of itself and would read as clean: that is a failed load.
   let broken = [];
-  page.on('requestfailed', (r) => { if (r.url().startsWith(BASE + '/static/')) broken.push(`${r.url().slice(BASE.length)} ${r.failure()?.errorText}`); });
+  // A navigation cancels the last page's requests (net::ERR_ABORTED): those aren't this page's failures.
+  page.on('requestfailed', (r) => { if (r.url().startsWith(BASE + '/static/') && r.failure()?.errorText !== 'net::ERR_ABORTED') broken.push(`${r.url().slice(BASE.length)} ${r.failure()?.errorText}`); });
+  page.on('response', (r) => { if (r.url().startsWith(BASE + '/static/') && r.status() >= 400) broken.push(`${r.url().slice(BASE.length)} ${r.status()}`); });
   page.on('pageerror', (e) => broken.push(`script error: ${e.message.split('\n')[0]}`));
   for (const [path, key] of Object.entries(PAGES)) {
     broken = [];

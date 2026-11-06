@@ -6,7 +6,7 @@
 /* ---------- Poster ---------- */
 /* The artwork, then the title and year under it in the theme's colours: no words over the photo (A10 plan decision 15). */
 .poster-card {
-  display: grid; gap: .45rem; align-content: start; color: inherit; text-decoration: none;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: .45rem; align-content: start; color: inherit; text-decoration: none;
   border-radius: var(--r-lg);
 }
 .poster-card .poster-art {
@@ -19,7 +19,7 @@
 .poster-meta { color: var(--text-2); font-size: .8125rem; }
 .poster-title {
   color: var(--text); font-size: .9375rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
 .poster-sub { display: block; font-size: .8125rem; margin-top: .15rem; }
 .poster-badge {
@@ -36,17 +36,17 @@
 }
 
 @media (prefers-contrast: more) {
-  .poster-card {
+  .poster-card .poster-art {
     box-shadow: none;
     border-width: 1.5px;
   }
-  .poster-card:hover {
+  .poster-card:hover .poster-art {
     transform: none;
   }
 }
 
 @media (forced-colors: active) {
-  .poster-card {
+  .poster-card .poster-art {
     border: 1px solid ButtonBorder;
   }
 }
@@ -136,7 +136,7 @@
 /* Half-watched poster: "Xm left" badge */
 .poster-left {
   position: absolute;
-  top: .5rem;
+  bottom: 1rem;
   right: .5rem;
   padding: .2rem .55rem;
   border-radius: 999px;
