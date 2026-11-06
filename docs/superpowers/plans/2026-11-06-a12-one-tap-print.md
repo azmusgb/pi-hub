@@ -1,6 +1,6 @@
 # A12 One tap to print: approve and start a checked lab build from the phone — Plan
 
-Date: 2026-11-06 · Status: **proposed** · Baseline: `2026-11-01-platform-product-architecture-design.md` plus amendment
+Date: 2026-11-06 · Status: **approved; decisions 1-9 as written (owner merged #140, 6 Nov 2026)** · Baseline: `2026-11-01-platform-product-architecture-design.md` plus amendment
 A12 (`2026-11-06-amendment-a12-lab-one-tap.md`, #137, merged), which amends the Print row, the printer-control row and
 "Actions that confirm".
 
