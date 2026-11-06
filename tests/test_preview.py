@@ -115,3 +115,23 @@ def test_an_unreachable_hub_is_a_502_not_a_crash(tmp_path):
         assert _call(base + "/api/now")[0] == 502
     finally:
         srv.shutdown()
+
+
+def _with_host(url, host, method="GET"):
+    req = urllib.request.Request(url, method=method, headers={"Host": host})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def test_another_host_name_is_refused_before_anything_is_read(hub):
+    # DNS rebinding: a page on evil.example resolved to 127.0.0.1 must not read the hub's answers through the preview.
+    port = hub.rsplit(":", 1)[1]
+    for host in ("evil.example", f"evil.example:{port}", "10.0.0.30", f"127.0.0.1:{int(port) + 1}"):
+        assert _with_host(hub + "/api/now", host) == 421, host
+        assert _with_host(hub + "/workshop", host) == 421, host
+    assert _Upstream.seen == []
+    for host in (f"127.0.0.1:{port}", f"localhost:{port}"):
+        assert _with_host(hub + "/api/now", host) == 200, host

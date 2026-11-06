@@ -2,7 +2,9 @@
 
 Serves hub/static from this checkout (or --static), the shell's index.html for page routes, and forwards GET /api/* to
 the live hub (--upstream). Every other method is refused with 405 and never reaches the hub, so no button on a
-previewed page can act on the house. --fixture DIR answers GET /api/<path> from DIR/<path>.json when that file
+previewed page can act on the house. A request for any host but 127.0.0.1 or localhost on the preview's own port is
+refused with 421 before anything is read, so a page elsewhere can't reach the hub's answers through it by DNS
+rebinding. --fixture DIR answers GET /api/<path> from DIR/<path>.json when that file
 exists (the long-content and empty states). The record stream is answered 404: the shell falls back to polling.
 
 Usage (from the Mac): python3 tests/browser/preview.py [--port 8799] [--upstream https://hub.rahe-home.duckdns.org]
@@ -46,10 +48,16 @@ def handler(static: Path, upstream: str, fixture: Path | None, timeout: float = 
 
         do_POST = do_PUT = do_PATCH = do_DELETE = refuse
 
+        def local(self) -> bool:
+            port = self.server.server_address[1]
+            return self.headers.get("Host", "").lower() in (f"127.0.0.1:{port}", f"localhost:{port}")
+
         def do_HEAD(self):
             self.do_GET()
 
         def do_GET(self):
+            if not self.local():
+                return self.send(421, b'{"detail":"the preview answers only 127.0.0.1 and localhost"}')
             path = self.path.split("?", 1)[0]
             if path.startswith(STREAMS):
                 return self.send(404, b'{"detail":"no stream in the preview"}')
