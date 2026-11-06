@@ -82,11 +82,15 @@ def _lab_items(lab, now, printer_done):
             if urgency >= 3 and action != "Fix the plan":
                 continue
             judge = action == "Judge the print"
-            link = f"/lab?p={project}&e={eid}&do=judge" if judge else f"/lab?p={project}&e={eid}"
+            ready = action == "Send it to the printer" and n.get("staged") is True  # A12: Start from the lab page
+            link = (f"/lab?p={project}&e={eid}&do=judge" if judge else f"/lab?p={project}&e={eid}&do=start" if ready
+                    else f"/lab?p={project}&e={eid}")
             if judge and n.get("due_at") is not None and not printer_done and not _due(n["due_at"], now):
                 continue  # not yet due (or an unreadable time): the verdict waits for the print
             out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
-                        "title": f"{eid}: {action}"[:80], "detail": _clip(n.get("why"), 200),
+                        "title": f"{eid}: {'Ready to print' if ready else action}"[:80],
+                        "detail": _clip("Staged in Bambuddy and checked. Tick the plate and filament, then Start."
+                                        if ready else n.get("why"), 200),
                         "link": link, "action": {"key": LAB_VERB[action], "link": link},
                         "as_of": str(as_of or ""), "ts": now})
     return out

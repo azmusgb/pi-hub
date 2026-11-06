@@ -422,3 +422,33 @@ def test_hms_items_say_bambuddys_words_and_what_happens_to_the_print():
     [item] = [i for i in needs.build([], {"cards": []}, NOW, problems(b=b))["items"] if i["id"].startswith("pi:source:hms:")]
     assert item["title"] == "X2D: The front door is open"
     assert item["detail"] == "The print carries on. Alert 0x30001."
+
+
+def test_a_staged_build_is_ready_to_print_and_opens_the_start_sheet():  # A12 P4
+    lab = _lab(_need("E-026", "Send it to the printer", staged=True), _need("E-027", "Send it to the printer"),
+               _need("E-028", "Approve or drop", staged=True))
+    got = {i["id"][-5:]: i for i in _labitems(needs.build([], None, NOW, lab=lab))}
+    assert got["E-026"]["title"] == "E-026: Ready to print"
+    assert got["E-026"]["detail"] == "Staged in Bambuddy and checked. Tick the plate and filament, then Start."
+    assert got["E-026"]["action"] == {"key": "send", "link": "/lab?p=hex-tile&e=E-026&do=start"}
+    assert got["E-027"]["title"] == "E-027: Send it to the printer" and got["E-027"]["link"] == "/lab?p=hex-tile&e=E-027"
+    assert got["E-028"]["link"] == "/lab?p=hex-tile&e=E-028", "only a Send need becomes Ready to print"
+
+
+def test_stored_needs_marks_a_need_staged_only_while_its_build_can_print(monkeypatch):
+    import json
+    from hub import db, lab
+    monkeypatch.setenv("HUB_DB", os.path.join(tempfile.mkdtemp(), "cache.db"))
+    lab.ready()
+    lab._needs_cache.clear()
+    staged = {"library_file": 7}
+    ix = {"generated_at": "g",
+          "needs": [{"id": "E-1"}, {"id": "E-2"}, {"id": "E-3"}, {"id": "E-4"}, "junk"],
+          "experiments": [{"id": "E-1", "status": "ready", "staged": staged},
+                          {"id": "E-2", "status": "approved", "staged": staged},
+                          {"id": "E-3", "status": "printing", "staged": staged},
+                          {"id": "E-4", "status": "ready", "staged": None}, "junk"]}
+    db.run("INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, ?, ?, ?)",
+           "p", "{}", json.dumps(ix), "t1")
+    [(_, _, got)] = lab.stored_needs()
+    assert got == [{"id": "E-1", "staged": True}, {"id": "E-2", "staged": True}, {"id": "E-3"}, {"id": "E-4"}, "junk"]
