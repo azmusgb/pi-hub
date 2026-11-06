@@ -1,5 +1,7 @@
-// Print: send a file to the HP DeskJet from any device, watch the queue, check the ink.
-import { api, card, empty, h, post, toast } from "./core.js";
+// Print: send a file to the HP DeskJet from any device, watch the queue, check the ink. A7 P1: the printer is the
+// faceplate (its state, ink and Scan); printing a file and the queue are sections.
+import { api, empty, h, post, toast } from "./core.js";
+import { faceplate, faceplateLoading, fillNeedsHere, lampRows, needsHere, section } from "./page-parts.js";
 import { toolUrl } from "./sections.js";
 
 export const every = 10;
@@ -14,7 +16,7 @@ export function mount(state) {
   state.sending = false;
   const help = h("p", { id: "print-help", class: "meta", role: "status" }, "Checking the printer…");
   state.updateButton = () => {
-    const f = file.files[0];
+    const f = file.files?.[0];
     const valid = f && f.size > 0 && f.size <= 25 * 1024 * 1024 && /\.(pdf|jpe?g|png|txt)$/i.test(f.name);
     button.disabled = state.sending || !state.ready || !valid;
     if (!state.ready) help.textContent = "Printer unavailable. Check that the HP DeskJet is on and connected to your home network.";
@@ -23,13 +25,13 @@ export function mount(state) {
     else help.textContent = state.sending ? "Sending your file…" : "Ready to print your selected file.";
   };
   file.addEventListener("change", () => {
-    const f = file.files[0];
+    const f = file.files?.[0];
     chosen.textContent = f ? `${f.name}, ${(f.size / 1e6).toFixed(1)} MB` : "PDF, photo (JPG or PNG) or text file, up to 25 MB.";
     state.updateButton();
   });
   const form = h("form", { class: "print-form", onsubmit: async (e) => {
     e.preventDefault();
-    const f = file.files[0];
+    const f = file.files?.[0];
     if (button.disabled) return;
     if (!f) { toast("Choose a file to print first.", "warn"); return; }
     state.sending = true;
@@ -67,51 +69,68 @@ export function mount(state) {
     file.dispatchEvent(new Event("change"));
   });
   if (matchMedia("(hover: hover)").matches) drop.querySelector(".drop-title").textContent = "Choose a file, or drop one here";
-  state.printer = h("div", { class: "cards" });
-  state.status = h("div", { class: "cards" });
-  state.root.append(state.printer, card("Print something", { cls: "wide" }, form),
-    h("details", { class: "supporting-details", open: false }, h("summary", {}, "Print queue & recent jobs"), state.status));
+  state.printer = h("div", {}, faceplateLoading("HP DeskJet 4200"));
+  state.needs = needsHere();
+  state.status = h("div");
+  state.queue = h("details", { class: "ui-section print-queue" }, h("summary", {}, h("h2", {}, "Print queue and recent jobs")), state.status);
+  state.root.append(state.printer, state.needs, section("Print something", form), state.queue);
 }
 
+// A waiting job can be cancelled; a printed one only says so. Waiting is neutral work, not a warning (DESIGN.md).
 function job(j, cancellable, state) {
-  return h("li", { class: "log-row" },
-    h("span", { class: "dot", dataset: { tone: cancellable ? "warn" : "ok" } }),
-    h("span", { class: "log-main" }, h("strong", {}, `Job ${j.number}`), h("span", { class: "meta" }, j.when)),
-    cancellable
-      ? h("button", { class: "ghost", onclick: async () => {
-        try { await post(`/api/print/${encodeURIComponent(j.id)}/cancel`); toast(`Cancelled job ${j.number}.`); load(state); }
-        catch (e) { toast(e.message, "bad"); }
-      } }, "Cancel")
-      : h("span", { class: "log-side" }, "Printed"));
+  return { title: `Job ${j.number}`, detail: j.when, ...(cancellable ? { value: "Waiting" } : { tone: "ok", word: "Printed" }),
+    action: cancellable ? h("button", { type: "button", class: "ui-btn", onclick: async () => {
+      try { await post(`/api/print/${encodeURIComponent(j.id)}/cancel`); toast(`Cancelled job ${j.number}.`); load(state); }
+      catch (e) { toast(e.message, "bad"); }
+    } }, "Cancel") : null };
+}
+
+const INK_NAME = { "Colour": "Tri-color", "Color": "Tri-color", "Black": "Black" };
+
+// The faceplate from /api/print, pure so it is tested without a page. No answer is unknown, never ready.
+export function printerPlate(d) {
+  const scan = h("a", { class: "ui-btn", href: toolUrl("scan"), target: "_blank", rel: "noopener" }, "Scan a document ↗");
+  if (!d?.printer) {
+    return faceplate({ name: "HP DeskJet 4200", lamp: ["unknown", "Not answering"], readout: "—",
+      caption: "The hub can't reach the printer just now. Check that the HP DeskJet is on and connected to your home network.", actions: [scan] });
+  }
+  const st = d.printer.state || "Unknown";
+  const ready = st === "Ready" || st === "Printing";
+  const ink = Array.isArray(d.ink) ? d.ink : [];
+  const waiting = d.jobs?.waiting?.length || 0;
+  const meters = ink.length ? h("div", { class: "ink" }, ink.map((i) => h("div", { class: "ink-row" },
+    h("span", {}, INK_NAME[i.name] || i.name),
+    h("span", { class: "ink-bar", role: "meter", "aria-label": `${INK_NAME[i.name] || i.name} ink`, "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": i.level },
+      h("i", { style: `width:${i.level}%`, dataset: { tone: i.level < 15 ? "bad" : i.level < 30 ? "warn" : "ok", ink: String(i.name).toLowerCase() } })),
+    h("span", { class: "ink-pct" }, `${i.level}%`)))) : null;
+  return faceplate({
+    name: "HP DeskJet 4200",
+    lamp: ready ? ["ok", st, st === "Printing"] : ["bad", st],
+    readout: String(waiting), unit: "waiting to print", size: "md",
+    caption: ink.some((i) => i.level < 15) ? "Ink is low. Order a cartridge soon."
+      : ink.length ? null : "Ink levels show once the printer answers.",
+    extra: [meters],
+    actions: [scan],
+  });
 }
 
 export async function load(state) {
-  const d = await api("/api/print");
-  const ink = d.ink || [];
-  const queue = state.status.parentElement;
-  if (!state.hadWaiting && d.jobs.waiting.length) queue.open = true;
+  const [d] = await Promise.all([api("/api/print"), fillNeedsHere(state.needs, "/print")]);
+  if (!state.hadWaiting && d.jobs.waiting.length) state.queue.open = true;
   state.hadWaiting = d.jobs.waiting.length > 0;
   state.ready = ["Ready", "Printing"].includes(d.printer.state);
   state.updateButton();
-  state.printer.replaceChildren(
-    card("HP DeskJet 4200", { pill: d.printer.state, tone: d.printer.state === "Ready" || d.printer.state === "Printing" ? "ok" : "bad" },
-      ink.length
-        ? h("div", { class: "ink" }, ink.map((i) => h("div", { class: "ink-row" },
-          h("span", {}, ({ "Colour": "Tri-color", "Color": "Tri-color", "Black": "Black" })[i.name] || i.name),
-          h("span", { class: "ink-bar", role: "meter", "aria-label": `${i.name} ink`, "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": i.level },
-            h("i", { style: `width:${i.level}%`, dataset: { tone: i.level < 15 ? "bad" : i.level < 30 ? "warn" : "ok", ink: i.name.toLowerCase() } })),
-          h("span", { class: "ink-pct" }, `${i.level}%`))))
-        : h("p", { class: "meta" }, "Ink levels show once the printer answers."),
-      ink.some((i) => i.level < 15) ? h("p", { class: "note" }, "Ink is low. Order a cartridge soon.") : null,
-      h("a", { class: "action", href: toolUrl("scan"), target: "_blank", rel: "noopener" }, "Scan a document ↗")));
-  state.status.replaceChildren(
-    card("Queue", { pill: d.jobs.waiting.length ? `${d.jobs.waiting.length} waiting` : "Empty", tone: d.jobs.waiting.length ? "warn" : "ok" },
-      d.jobs.waiting.length ? h("ul", { class: "log" }, d.jobs.waiting.map((j) => job(j, true, state))) : empty("Nothing waiting to print."),
-      d.jobs.done.length ? [h("h3", { class: "sub" }, "Recently printed"), h("ul", { class: "log" }, d.jobs.done.map((j) => job(j, false, state)))] : null),
-  );
+  state.sources = [{ name: "The printer", tone: "ok" }];
+  state.printer.replaceChildren(printerPlate(d));
+  state.status.replaceChildren(...[
+    d.jobs.waiting.length ? lampRows(d.jobs.waiting.map((j) => job(j, true, state))) : empty("Nothing waiting to print."),
+    ...(d.jobs.done.length ? [h("h3", { class: "sub" }, "Recently printed"), lampRows(d.jobs.done.map((j) => job(j, false, state)))] : []),
+  ].filter(Boolean));
 }
 
 export function failed(state) {
   state.ready = false;
   state.updateButton();
+  state.sources = [{ name: "The printer", tone: "bad", word: "isn't answering" }];
+  state.printer.replaceChildren(printerPlate(null));
 }
