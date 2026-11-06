@@ -1041,3 +1041,6 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   screen, layouts flow from their content and their container instead of 30-odd fixed widths, the page cap moves to
   `rem`, Home's columns, rack and band flow (the TV zoom goes), and pages are checked across a width sweep. Proposed by
   the owner on 5 Nov 2026 ("use Responsive Design not adaptive -- for full site").
+- **A11. Home's day is a dial on a phone** (`2026-11-05-amendment-a11-phone-dial.md`): where the band can't show the
+  whole day, Home draws the day as a 24-hour dial with one ring per system, the counts under it and the rack as compact
+  rows; the band stays everywhere it fits. Proposed by the owner on 5 Nov 2026, who chose the dial from a prototype.
