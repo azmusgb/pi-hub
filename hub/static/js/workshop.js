@@ -227,7 +227,6 @@ export function workshopView(d, { role = "none", last = null } = {}) {
     needs,
     signIn: !owner && (actions.length > 0 || labNeeds.length > 0),
     bandActions: owner ? actions.filter((a) => a !== "clear") : [],
-    camFirst: ["printing", "paused"].includes(p.state),
     lastPrint: p.state === "idle" && latest ? `Last print: ${latest.name}, ${printWords(latest)[0]}, ${when(latest.started)}` : null,
     // Trays read from a stale printer record are last known, not current: left out rather than shown as now.
     materials: down ? null : { trays: !p.stale && Array.isArray(d.ams_trays) ? d.ams_trays : [], low: (spools || []).filter((s) => s.low) },
@@ -426,7 +425,6 @@ export async function load(state) {
     state.bandBox.replaceChildren(printerBand);
   });
   state.facts = d.printer.headline;
-  state.now.dataset.camFirst = String(v.camFirst);
   if (state.camOk !== cam.ok || state.camSource !== cam.source || state.camReason !== cam.reason) {
     state.cam.replaceChildren(camera(cam));
     state.camOk = cam.ok; state.camSource = cam.source; state.camReason = cam.reason;

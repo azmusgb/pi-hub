@@ -76,6 +76,19 @@ test('outside the lab: nothing when empty or absent, a nameless print by its num
   assert.match(html, /Print #32 · Finished/);
 });
 
+// A10 plan decision 13: a list longer than eight shows the newest eight and the rest behind "Show all (n)".
+test('outside the lab: eight shown, the rest behind Show all', () => {
+  const items = Array.from({ length: 11 }, (_, i) => ({ print: 100 - i, name: `P${i}`, status_word: 'Finished', started: '2026-10-28T10:00:00Z' }));
+  const html = outsideHtml(items);
+  const [shown, rest] = html.split('<details');
+  assert.equal((shown.match(/<p class="meta">/g) || []).length, 8);
+  assert.match(rest, /<summary>Show all \(11\)<\/summary>/);
+  // An id, so the quiet refresh (lab-refresh.js) keeps it open.
+  assert.match(rest, /^ class="lab-more" id="lab-outside-more">/);
+  assert.equal((rest.match(/<p class="meta">/g) || []).length, 3);
+  assert.doesNotMatch(outsideHtml(items.slice(0, 8)), /<details/, 'eight or fewer: no disclosure');
+});
+
 test('spoolColour picks the longest colour name and only ever returns #rrggbb', () => {
   const { colours } = fresh();
   assert.equal(spoolColour('Kexcelled K5 PLA M, Light Matte Terracotta', colours), '#D9825B');
@@ -280,6 +293,12 @@ test('needs-you buttons follow the action', () => {
   assert.match(appr, /lab-drop[^>]*>Drop</);
   assert.doesNotMatch(needsPart(needsPage('Fix the plan')), /<button type="button" class="btn-(primary|danger)/);
   assert.match(needsPart(needsPage('Judge the print', [], (ix) => { ix.experiments[1].criteria = []; })), /^(?:(?!Judge it)[\s\S])*$/);
+});
+
+// A10 plan decision 14: a need only the Mac can do keeps its command, behind a "Command" disclosure.
+test('a Mac-only need puts its command behind a Command disclosure', () => {
+  const html = needsPart(needsPage('Fix the plan', [], (ix) => { ix.needs[0].command = 'uv run lab exp fix E-102'; }));
+  assert.match(html, /<details class="lab-mac" id="lab-mac-E-102"><summary>Command<\/summary><div class="lab-cmd"><code>uv run lab exp fix E-102<\/code>/);
 });
 
 test('buttons are disabled while that experiment has a pending request, and the status says so', () => {

@@ -216,9 +216,14 @@ export function runLines(x) {
   }).join("");
 }
 
+// The newest eight, the rest behind "Show all (n)" (A10 plan decision 13).
+const SHOWN = 8;
 export function outsideHtml(items) {
   if (!Array.isArray(items) || !items.length) return "";
-  return `<section class="card lab-outside"><h2>Outside the lab</h2>${items.map((o) => `<p class="meta">${[esc(o.name || `Print #${o.print}`), esc(o.status_word), esc(when(o.started)), bambuLink(o.print)].filter(Boolean).join(" · ")}</p>`).join("")}</section>`;
+  const row = (o) => `<p class="meta">${[esc(o.name || `Print #${o.print}`), esc(o.status_word), esc(when(o.started)), bambuLink(o.print)].filter(Boolean).join(" · ")}</p>`;
+  const rest = items.slice(SHOWN);
+  return `<section class="card lab-outside"><h2>Outside the lab</h2>${items.slice(0, SHOWN).map(row).join("")}` +
+    (rest.length ? `<details class="lab-more" id="lab-outside-more"><summary>Show all (${items.length})</summary>${rest.map(row).join("")}</details>` : "") + `</section>`;
 }
 
 function meter(label, spent, next, total, unit) {
@@ -272,7 +277,8 @@ function needsHtml(ix, byId, now, requests = []) {
       ? `<div class="lab-acts">${acts}</div>${x.action === "Send it to the printer" ? `<p class="meta">Only once it's actually printing.</p>` : ""}` +
         `<p class="lab-act-status" data-act-status="${esc(x.id)}" role="status"${r ? ` data-tone="${r.status === "refused" ? "bad" : "ok"}"` : " hidden"}>${r ? esc(actText(r, now)) : ""}</p>` +
         (cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Run it on the Mac instead</summary>${cmd}</details>` : "")
-      : cmd;
+      // only the Mac can do it: the card leads with what needs doing, the command one tap away (decision 14)
+      : cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Command</summary>${cmd}</details>` : "";
     return `<li class="list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
       `<div class="list-row__sub">${esc(byId[x.id]?.question_text)}</div><div class="list-row__sub">${esc(x.why)}</div>${tail}</div></li>`;
   }).join("")}</ul>`;

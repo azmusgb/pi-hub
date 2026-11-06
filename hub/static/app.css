@@ -720,7 +720,7 @@ html {
 
 .printer-metric__label {
   color: var(--text-3);
-  font-size: .6875rem;
+  font-size: .75rem;
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -754,6 +754,7 @@ html {
    it wraps instead of scrolling, so none of System's seven pages hides off the edge (A6: every page on a visible strip). */
 /* The strip wraps rather than scrolls where its links don't fit on one line (A10 D2: it needs no width rule). */
 .ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
+.ui-strip.page-strip a { min-width: 44px; justify-content: center; }
 /* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
 .ui-chips.settings-tabs { margin: 0 0 1.25rem; }
 

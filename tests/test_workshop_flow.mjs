@@ -44,10 +44,12 @@ test('loading: no view until the first answer (the drawn skeleton is checked in 
   assert.match(css, /\.ws-cam-placeholder \{[^}]*aspect-ratio: 16 \/ 9/);
 });
 
-test('printing: progress stays in the band, the camera comes first on a phone, Needs you holds only lab items', () => {
+test('printing: progress stays in the band, Needs you holds only lab items', () => {
   const v = workshopView(base({ printer: printer('printing', { progress: 42, left: '1 h 13 min', actions: ['pause'] }),
     lab: { needs: [judge], active: [], questions: [] } }), owner);
-  assert.equal(v.camFirst, true);
+  // A10 plan decision 17: the status leads at every width; the camera no longer jumps first while printing
+  assert.equal(v.camFirst, undefined);
+  assert.doesNotMatch(read('hub/static/workshop-pi-rich.css'), /order:\s*-1/);
   assert.deepEqual(v.bandActions, ['pause']);
   assert.deepEqual(v.needs.map((n) => n.kind), ['lab']);
   assert.equal(v.needs[0].href, '/lab?p=hex-tile&e=E-007&do=judge');
@@ -64,7 +66,6 @@ test('finished: Clear the plate comes first in Needs you, with the one Clear but
   assert.equal(v.needs[0].title, 'Done: clear the plate');
   assert.equal(v.needs[0].action, 'clear');
   assert.deepEqual(v.bandActions, []);
-  assert.equal(v.camFirst, false);
 });
 
 test('idle: the band says Idle with the last print, and Needs you is empty (so hidden) without lab items', () => {

@@ -11,11 +11,11 @@ const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const BASE = (args.find((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--pages') || 'http://127.0.0.1:8799').replace(/\/$/, '');
 const OUT = new URL('./out/', import.meta.url).pathname;
-const ALL = { '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
+const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.
-const PENDING = new Set(['/workshop', '/documents', '/media', '/system']);
+const PENDING = new Set(['/documents', '/media', '/system']);
 const SHOTS = [320, 390, 820, 1024, 1180, 1366, 1440, 1920, 2560];
 // The 20 px steps, plus the named sizes that fall between them (390, 1024, 1366).
 const WIDTHS = [...new Set([...Array.from({ length: (2560 - 320) / 20 + 1 }, (_, i) => 320 + i * 20), ...SHOTS])].sort((a, b) => a - b);
