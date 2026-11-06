@@ -113,7 +113,7 @@ test('Uptime Kuma is called Uptime Kuma, and the Open in rows name tools by thei
 });
 
 test('Storage is three names today and Drives, Movies drive and Pi disks after A6', async () => {
-  assert.match(read('hub/static/js/drives.js'), /card\("Drives"/);
+  assert.match(read('hub/static/js/drives.js'), /name: "Drives"/);
   assert.match(read('hub/static/js/drives.js'), /"Movies drive"/);
   assert.ok(!/"Movies drive \(Pi\)"/.test(read('hub/static/js/drives.js')));
   const { driveCard } = await import('../hub/static/js/movies.js');

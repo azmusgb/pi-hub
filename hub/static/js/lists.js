@@ -1,5 +1,7 @@
-// Lists: shopping, to do and notes, shared by everyone in the house.
+// Lists: shopping, to do and notes, shared by everyone in the house. A7 P1: the faceplate counts what is open on each
+// list; the tabs and the open list sit below it, with no card.
 import { api, ensure, h, post, toast, when } from "./core.js";
+import { faceplate, faceplateLoading } from "./page-parts.js";
 
 export const every = 20;
 
@@ -9,9 +11,23 @@ const PLACEHOLDER = { shopping: "Add something to buy", todo: "Add a job", notes
 export function mount(state) {
   state.active = "shopping";
   try { const saved = sessionStorage.getItem("hub-list"); if (ORDER.includes(saved)) state.active = saved; } catch {}
+  state.plate = h("div", {}, faceplateLoading("Lists"));
   state.tabs = h("div", { class: "tabs", role: "tablist", "aria-label": "Lists" });
-  state.panel = h("section", { class: "card list-card", role: "tabpanel", id: "list-panel" });
-  state.root.append(state.tabs, state.panel);
+  state.panel = h("section", { class: "list-card", role: "tabpanel", id: "list-panel" });
+  state.root.append(state.plate, state.tabs, state.panel);
+}
+
+// The faceplate from /api/lists, pure so it is tested without a page. Lists have no state to light, so no lamp; the
+// next reminder is a reading when there is one.
+export function listsPlate(data) {
+  const open = (key) => (data?.[key]?.items || []).filter((i) => !i.done);
+  const buy = open("shopping").length;
+  const due = open("todo").map((i) => i.due).filter((t) => Number.isFinite(t)).sort((a, b) => a - b)[0];
+  return faceplate({
+    name: "Lists", readout: String(buy), unit: "to buy", size: "md",
+    caption: buy ? null : "Nothing on the shopping list.",
+    readings: [["To do", String(open("todo").length)], ["Notes", String((data?.notes?.items || []).length)], ["Next reminder", due ? when(due) : null]],
+  });
 }
 
 function render(state) {
@@ -106,7 +122,14 @@ function render(state) {
 
 async function refresh(state) {
   state.data = await api("/api/lists");
+  state.plate.replaceChildren(listsPlate(state.data));
   render(state);
+}
+
+export function failed(state) {
+  if (state.data) return;  // the lists on the page are the last ones read; the next refresh tries again
+  state.plate.replaceChildren(faceplate({ name: "Lists", lamp: ["unknown", "Not answering"], readout: "—",
+    caption: "Couldn't read the lists just now. This page tries again in a few seconds." }));
 }
 
 export async function load(state) {

@@ -1,13 +1,9 @@
 
 /* lists-rich.css — Utility layout for shared lists */
+/* A7 P1: the open list is a plain region under the faceplate, not a card. */
 .list-card {
   width: 100%;
   max-width: 800px;
-  margin: 0 auto;
-  padding: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
 }
 
 /* Refined Tabs */
