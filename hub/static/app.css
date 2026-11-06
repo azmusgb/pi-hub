@@ -756,6 +756,14 @@ html {
 /* The strip wraps rather than scrolls where its links don't fit on one line (A10 D2: it needs no width rule). */
 .ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
 .ui-strip.page-strip a { min-width: 44px; justify-content: center; }
+/* System's seven pages keep one line and scroll sideways at every width (A10 plan decision 16); an edge with pages past it
+   fades, so the hidden ones are hinted, not lost. */
+/* The scroll padding matches the fade, so a link brought into view by Tab stops clear of it. */
+.ui-strip.page-strip.system-strip { flex-wrap: nowrap; overflow-x: auto; scroll-padding-inline: 2.5rem; }
+.ui-strip.page-strip.system-strip[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+.ui-strip.page-strip.system-strip[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
+.ui-strip.page-strip.system-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+@media (forced-colors: active) { .ui-strip.page-strip.system-strip[data-more] { mask-image: none; } }
 /* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
 .ui-chips.settings-tabs { margin: 0 0 1.25rem; }
 

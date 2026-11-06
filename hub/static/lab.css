@@ -994,6 +994,11 @@
   min-height: 44px;
 }
 
+/* A short experiment id ("E-26") is still a 44 px target. */
+.lab-now a[data-lab-open] {
+  min-width: 44px;
+}
+
 /* Start a staged lab print (A12): what will print, then Sent / Accepted / Printing as each happens. */
 .lab-start__facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; }
 .lab-start__facts dt { color: var(--ui-muted); }

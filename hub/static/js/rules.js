@@ -81,16 +81,25 @@ export async function load(state) {
         try{await post(`/api/rules/${r.id}/toggle`);await load(state);}catch(x){e.target.checked=!e.target.checked;toast(x.message,'bad');}
       }}),h('span',{class:'switch-track','aria-hidden':'true'})),
       h('span',{class:'rule-main'},h('strong',{},r.text),h('span',{class:'meta'},r.last_run?`${when(r.last_run)} · ${r.last_result}`:'Waiting for its first matching event.')),
-      h('div',{class:'feature-actions'},h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async(e)=>{
-        const btn=e.currentTarget;
-        if(!(await ensure('household'))||!(await askFirst(btn,`The automation “${r.text}” stops and is removed. Its run history stays.`,{confirm:'Remove'})))return;
-        try{await post(`/api/rules/${r.id}/delete`);await load(state);}catch(x){toast(x.message,'bad');}
-      }},'Remove'))))):empty('No automations yet. Build and preview one below.'),
+      ...ruleActions(state,r)))):empty('No automations yet. Build and preview one below.'),
     d.alerts_ready?null:h('p',{class:'ui-notice ui-notice--warn'},'Phone alerts need an alert topic in Settings. Preview will explain which alerts would be blocked.')]));
   renderHistory(state);
   state.events.replaceChildren(section('What the hub noticed',
     d.events.length?h('ul',{class:'log'},d.events.slice(0,12).map(e=>h('li',{class:'log-row'},h('span',{class:'dot',dataset:{tone:/dropped|failed|down|stopped|hot/.test(e.kind)?'warn':'ok'}}),h('span',{class:'log-main'},h('strong',{},e.text.charAt(0).toUpperCase()+e.text.slice(1)),e.detail?h('span',{class:'meta'},e.detail):null),h('span',{class:'log-side'},when(e.ts)))))
       :empty('Household events appear here as the hub observes them.')));
+}
+
+// A rule's Preview and Remove: the row's buttons on a wide row, and the same two inside the row's disclosure on a narrow
+// one (A10 plan decision 17; the list's own width decides, household-features.css). The hidden copy is display: none, so
+// only one pair is ever in the tab order or read out.
+export function ruleActions(state,r){
+  const pair=()=>[h('button',{type:'button',class:'ghost small',onclick:()=>preview(state,r)},'Preview'),h('button',{type:'button',class:'ghost small','aria-label':`Remove ${r.text}`,onclick:async(e)=>{
+    const btn=e.currentTarget;
+    if(!(await ensure('household'))||!(await askFirst(btn,`The automation “${r.text}” stops and is removed. Its run history stays.`,{confirm:'Remove'})))return;
+    try{await post(`/api/rules/${r.id}/delete`);await load(state);}catch(x){toast(x.message,'bad');}
+  }},'Remove')];
+  return [h('div',{class:'feature-actions'},...pair()),
+    h('details',{class:'rule-more'},h('summary',{},'Preview or remove'),h('div',{class:'feature-actions'},...pair()))];
 }
 
 // The faceplate (A7 P1): how many automations are on, and whether a recent run needs a look.
