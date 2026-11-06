@@ -201,6 +201,12 @@ def stored_needs() -> list:
                 idx = json.loads(row["index_json"])
                 needs = idx.get("needs")
                 if isinstance(needs, list):
+                    # A staged build can start from Pi Hub (A12): its need says so, from the experiment's `staged`.
+                    staged = {x.get("id") for x in idx.get("experiments") or []
+                              if isinstance(x, dict) and isinstance(x.get("staged"), dict)
+                              and x.get("status") in ("ready", "approved")}
+                    needs = [dict(n, staged=True) if isinstance(n, dict) and n.get("id") in staged else n
+                             for n in needs]
                     entry = (project, str(idx.get("generated_at") or ""), needs)
             except Exception:
                 entry = None

@@ -231,6 +231,15 @@ def test_the_page_can_ask_whether_it_can_start(client, fake, printer):
     assert fake.calls == []
 
 
+def test_the_check_reports_the_printer_state_and_trays_for_the_sheet(client, printer):  # A12 P4
+    trays = [{"slot": 1, "type": "PLA", "color": "057748", "name": "PLA Basic", "remain": 80}]
+    printer["ams_trays"] = trays
+    assert client.get("/api/printer/start/hex-tile/E-026").json()["printer"] == {"state": "FINISH", "trays": trays}
+    printer.clear()  # Bambuddy unreachable: no state, no trays, and a reason
+    got = client.get("/api/printer/start/hex-tile/E-026").json()
+    assert got["printer"] == {"state": None, "trays": []} and got["reasons"]
+
+
 def test_the_phone_cannot_send_a_one_tap_request_itself(client):
     r = client.post("/api/lab/hex-tile/requests", headers=SAME,
                     json={"id": "rq-0123456789abcdef", "kind": "one_tap", "experiment": "E-026", "payload": {}})

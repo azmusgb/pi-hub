@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook, verdictPayload, verdictChoices, requestsHtml, judgeOnOpen,
+  startFilament, startReady,
 } from '../hub/static/js/lab.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
@@ -338,4 +339,39 @@ test('do=judge opens the verdict sheet only for an experiment with a due "Judge 
   assert.equal(judgeOnOpen(ix([judge]), 'E-022', 'other', NOW), false);
   assert.equal(judgeOnOpen({}, 'E-022', 'judge', NOW), false);
   assert.equal(judgeOnOpen(null, 'E-022', 'judge', NOW), false);
+});
+
+// A12 P4: a staged build gets Start; the manual "It's printing now" stays for a print sent another way.
+test('a staged experiment offers Start first and keeps It\'s printing now as the outline fallback', () => {
+  const html = needsPart(needsPage('Send it to the printer', [], (ix) => { exp(ix, 'E-102').staged = { library_file: 9 }; }));
+  assert.match(html, /class="btn-primary lab-start-print" data-exp="E-102">Start E-102…</);
+  assert.match(html, /class="btn-outline lab-start" data-exp="E-102">It's printing now</);
+  assert.match(html, /Staged in Bambuddy: Start sends exactly the checked build\./);
+  const pend = [{ id: 'rq-1', kind: 'start', experiment: 'E-102', status: 'pending', at: new Date(NOW - 5000).toISOString() }];
+  assert.match(needsPart(needsPage('Send it to the printer', pend, (ix) => { exp(ix, 'E-102').staged = { library_file: 9 }; })),
+    /lab-start-print" data-exp="E-102" disabled/);
+  assert.doesNotMatch(needsPart(needsPage('Send it to the printer')), /lab-start-print/, 'not staged: no Start');
+});
+
+test('startFilament compares the build\'s filament type with slot 1', () => {
+  const trays = [{ slot: 1, type: 'PLA', color: '057748', name: 'PLA Basic' }, { slot: 2, type: 'PETG' }];
+  assert.equal(startFilament('Kexcelled PLA Matte Terracotta', trays).state, 'match');
+  const bad = startFilament('PETG HF black', trays);
+  assert.equal(bad.state, 'mismatch');
+  assert.match(bad.text, /Slot 1 has PLA \(PLA Basic\), but the build is set for PETG HF black/);
+  assert.equal(startFilament(null, trays).state, 'unknown');
+  assert.equal(startFilament('terracotta', trays).state, 'unknown');
+  assert.equal(startFilament('PLA', []).state, 'unknown');
+  assert.equal(startFilament('PLA', null).state, 'unknown');
+  assert.equal(startFilament('PLA', [{ slot: 2, type: 'PLA' }]).state, 'unknown', 'only slot 1 counts');
+  assert.equal(startFilament('PLAIN', trays).state, 'unknown', 'whole words only');
+});
+
+test('startReady needs a check with no reasons, no mismatch and both ticks', () => {
+  const both = { plate: true, filament: true };
+  assert.deepEqual(startReady(null, both), { ok: false, why: 'Checking the printer…' });
+  assert.deepEqual(startReady({ reasons: ['The bed is 52 °C.'] }, both), { ok: false, why: 'The bed is 52 °C.' });
+  assert.equal(startReady({ reasons: [] }, both, { state: 'mismatch', text: 'wrong' }).why, 'wrong');
+  assert.equal(startReady({ reasons: [] }, { plate: true, filament: false }).ok, false);
+  assert.deepEqual(startReady({ reasons: [] }, both, { state: 'match' }), { ok: true, why: '' });
 });
