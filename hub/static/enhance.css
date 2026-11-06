@@ -126,7 +126,8 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline-o
   font-size: .75rem; font-weight: 500; color: var(--text-3);
   letter-spacing: .02em; text-transform: uppercase;
 }
-@media (max-width: 640px) { .clock-date { display: none; } }
+/* A10 D2: the date goes when the top bar is narrow, by the bar's own width. */
+@container top (max-width: 37.5rem) { .clock-date { display: none; } }
 
 /* ---------- Hero ---------- */
 .hero {
@@ -548,6 +549,7 @@ body::after {
 #updated::before { background: currentColor; }
 button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) { .stage { padding-bottom: 0; } }
 
 input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
@@ -591,6 +593,7 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .fix-result[data-tone="bad"] { border-color: var(--danger); }
 .fix-result p { margin: .5rem 0 0; }
 .rail a[data-page] .nav-badge { margin-left: auto; border-radius: 999px; background: var(--accent-soft); color: var(--text); padding: .1rem .35rem; font-size: .6875rem; white-space: nowrap; }
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   .rail a[data-page] .nav-badge { position: absolute; top: 0; right: 4px; margin: 0; font-size: .625rem; padding: 0 .25rem; }
 }
@@ -649,8 +652,8 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 .wifi-qr { max-width: 100%; height: auto; aspect-ratio: 1; }
 /* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
    changing how it reads. Desktop with a mouse keeps the compact sizes. */
-@media (max-width: 860px), (pointer: coarse) {
-  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+@media (pointer: coarse) {
+  .rail a[data-page], .rail-assistant, #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
   a.action { display: inline-flex; align-items: center; }
   .hud-cam-btn, .tile-fav { min-width: 44px; }
   kbd { font-size: .75rem; }
@@ -670,7 +673,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 .top-cmd-btn { margin-left: auto; text-decoration: none; min-height: 36px; padding-inline: .75rem; }
 /* Touch, after the compact sizes above and in the component sheets, so it wins: page strips, Search, Restart, the
    theme link, the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
-@media (max-width: 860px), (pointer: coarse) {
+@media (pointer: coarse) {
   .tabs > a, .tabs > button, .top-cmd-btn, .service-list .status-side .btn, .link-btn,
   .more-group > h2 a { min-height: 44px; }
   .tabs > a, .tabs > button, .more-group > h2 a { display: inline-flex; align-items: center; }

@@ -14,8 +14,8 @@ const OUT = new URL('./out/', import.meta.url).pathname;
 const ALL = { '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
-// 'shell' covers the rail, tab bar and page head on every page (P3).
-const PENDING = new Set(['shell', '/', '/workshop', '/documents', '/media', '/network', '/system']);
+// 'shell' (the rail, tab bar and page head on every page) is gated from P3.
+const PENDING = new Set(['/', '/workshop', '/documents', '/media', '/system']);
 const SHOTS = [320, 390, 820, 1024, 1180, 1366, 1440, 1920, 2560];
 // The 20 px steps, plus the named sizes that fall between them (390, 1024, 1366).
 const WIDTHS = [...new Set([...Array.from({ length: (2560 - 320) / 20 + 1 }, (_, i) => 320 + i * 20), ...SHOTS])].sort((a, b) => a - b);
@@ -121,7 +121,14 @@ for (const colorScheme of ['dark', 'light']) {
         if (!found.has(id)) found.set(id, { page: gate, scheme: colorScheme, kind: p.kind, where: p.where, detail: p.detail, widths: [] });
         found.get(id).widths.push(width);
       }
-      if (!args.includes('--no-shots') && SHOTS.includes(width)) {
+    }
+    // Screenshots after the checks: a full-page screenshot turns Chromium's touch emulation off until the next load
+    // (pointer: coarse stops matching), so each one gets a fresh load and none comes before a check.
+    if (!args.includes('--no-shots')) {
+      for (const width of SHOTS) {
+        await page.setViewportSize({ width, height: width >= 1920 ? 1080 : 900 });
+        await page.reload({ waitUntil: 'load' });
+        await page.waitForTimeout(1500);
         await page.screenshot({ path: `${OUT}sweep-${key}-${width}-${colorScheme}.png`, fullPage: true });
       }
     }

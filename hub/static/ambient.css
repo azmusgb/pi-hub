@@ -78,6 +78,7 @@ body[data-house="cinema"] .ambient-layer::after {
 }
 /* Dim the side rail while a movie plays; the phone's bottom bar sits over the page and must stay opaque, or the
    page shows through its labels (31 Oct 2026 report). */
+/* A10 D2: shell switch: rail or tab bar. */
 @media (min-width: 861px) {
   body[data-house="cinema"] .rail {
     opacity: 0.65;

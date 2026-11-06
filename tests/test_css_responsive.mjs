@@ -10,10 +10,7 @@ import { fileURLToPath } from 'node:url';
 const STATIC = fileURLToPath(new URL('../hub/static/', import.meta.url));
 const MARK = 'A10 D2: shell switch';
 const PENDING = new Set([
-  'ambient.css', 'app.css', 'components.css', 'enhance.css', 'home-dashboard.css', 'home.css', 'household-features.css',
-  'lab.css', 'movies.css', 'pages.css', 'workshop-pi-rich.css',
-  // The kit's synced copy (2.6.0); P3 syncs 2.9.0, which has none.
-  'ui/components.css', 'ui/needs.css', 'ui/palette.css', 'ui/tokens.css',
+  'home-dashboard.css', 'home.css', 'household-features.css', 'lab.css', 'movies.css', 'workshop-pi-rich.css',
 ]);
 
 // The block after an at-rule's "{", by matching braces (comments and strings are short here and hold no braces).

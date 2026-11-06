@@ -696,7 +696,9 @@ input:focus-visible {
 .status-list .dot[data-tone="warn"] { background: var(--warn); }
 .status-list .dot[data-tone="bad"] { background: var(--danger); }
 .status-list .status-side { font-variant-numeric: tabular-nums; color: var(--text-2); }
-@media (max-width: 480px) { .status-list li { grid-template-columns: auto 1fr auto; } .status-list li .meta { display: none; } }
+/* A10 D2: a narrow list drops the meta column, by the list's own width. */
+.status-list { container-type: inline-size; }
+@container (max-width: 27.5rem) { .status-list li { grid-template-columns: auto 1fr auto; } .status-list li .meta { display: none; } }
 .net-panel { display: grid; gap: .5rem; padding: 1rem 1.1rem; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
 .net-headline { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .net-headline[data-tone="warn"] { color: var(--warn); }
