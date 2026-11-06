@@ -3,8 +3,8 @@
 /* Navigation is owned by app.css so its breakpoints stay consistent. */
 
 /* Content width grows with the screen; very wide screens get room for a third column of cards. */
-.stage .top, .stage main, .stage .foot { max-width: 1120px; }
-@media (min-width: 1680px) { .stage .top, .stage main, .stage .foot { max-width: 1440px; } }
+/* A10 D3: the page's cap is in rem, so it grows with the type: 1120 px at a 16 px root, 1400 px from a 1920 px window. */
+.stage .top, .stage main, .stage .foot { max-width: 70rem; }
 
 body.wall .rail { display: none; }
 body.wall .shell { display: block; }
@@ -163,9 +163,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile-fav[aria-pressed="true"] { color: var(--pei); }
 
 /* Wi-Fi */
-.wifi { display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: center; }
 .secret { user-select: all; }
-@media (max-width: 420px) { .wifi { grid-template-columns: 1fr; justify-items: start; } }
 
 /* Settings forms */
 .form { display: grid; gap: 0.8rem; margin-top: 0.4rem; }
@@ -351,8 +349,6 @@ body.wall .link-btn { display: none; }
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
 }
 .grid--tight { gap: .75rem; }
-.grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 640px) { .grid--2 { grid-template-columns: 1fr; } }
 
 .section-head {
   display: flex; align-items: baseline; justify-content: space-between;

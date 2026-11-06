@@ -192,11 +192,13 @@ body::before {
 }
 
 .phone-only { display: none; }
+/* A10 D2: shell switch: rail or tab bar. */
 @media (min-width: 861px) { .rail li.extra { display: block; } }
 
 .stage { display: flex; flex-direction: column; min-width: 0; min-height: 100dvh; }
 
 .top {
+  container: top / inline-size;
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 1rem 2rem; flex-wrap: wrap;
   padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 3.5rem) 1rem;
@@ -280,6 +282,7 @@ body::before {
 .toast[hidden] { display: block; }
 .toast:not([hidden]) { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 
+/* A10 D2: shell switch: the compact rail. */
 @media (max-width: 1180px) and (min-width: 861px) {
   .shell { grid-template-columns: 196px minmax(0, 1fr); }
   .rail { padding: 1rem .65rem; gap: 1rem; }
@@ -288,6 +291,7 @@ body::before {
   .brand-sub { display: none; }
 }
 
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
@@ -598,19 +602,22 @@ html {
 .rail-assistant svg, .top-assistant svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 .rail-assistant:focus-visible, .top-assistant:focus-visible { outline: none; box-shadow: var(--ring); }
 .top-assistant { display: none; }
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   .rail-assistant { display: none; }
   .top-assistant { display: inline-flex; }
 }
 
 /* Phone top bar, the same on every page: title, Search and Assistant on one line, the clock under them. */
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   .top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .35rem .5rem; }
   .top .clock { grid-column: 1 / -1; justify-self: start; }
   .top .top-cmd-btn { margin-left: 0; }
 }
-/* Narrow phones: the Assistant keeps its icon and its accessible name, and gives the title the room. */
-@media (max-width: 480px) {
+/* A narrow top bar: the Assistant keeps its icon and its accessible name, and gives the title the room (A10 D2: by the
+   bar's own width). */
+@container top (max-width: 27.5rem) {
   .top-assistant { width: 44px; padding: 0; justify-content: center; }
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
@@ -632,6 +639,7 @@ html {
 }
 .assistant-frame:focus-visible { outline: none; box-shadow: var(--ring); }
 .assistant-down { max-width: 40rem; }
+/* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   [data-assistant] .stage { height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); }
   [data-assistant] #view { padding: 0 0 .5rem; }
@@ -688,7 +696,8 @@ html {
 
 .printer-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Three across where each gets 8 rem, fewer where they don't (A10 D2). */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
   gap: .5rem;
   margin-top: .75rem;
 }
@@ -730,11 +739,6 @@ html {
   font-size: .75rem;
 }
 
-@media (max-width: 640px) {
-  .printer-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .printer-source__dot,
@@ -748,10 +752,8 @@ html {
 
 /* An area's page strip is the kit's underlined .ui-strip (A7 P4), the current page underlined in the accent. On a phone
    it wraps instead of scrolling, so none of System's seven pages hides off the edge (A6: every page on a visible strip). */
-.ui-strip.page-strip { margin: 0 0 1.25rem; }
-@media (max-width: 560px) {
-  .ui-strip.page-strip { flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
-}
+/* The strip wraps rather than scrolls where its links don't fit on one line (A10 D2: it needs no width rule). */
+.ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
 /* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
 .ui-chips.settings-tabs { margin: 0 0 1.25rem; }
 
