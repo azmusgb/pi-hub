@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const STATIC = fileURLToPath(new URL('../hub/static/', import.meta.url));
 const MARK = 'A10 D2: shell switch';
 const PENDING = new Set([
-  'household-features.css', 'movies.css',
+  'household-features.css',
 ]);
 
 // The block after an at-rule's "{", by matching braces (comments and strings are short here and hold no braces).

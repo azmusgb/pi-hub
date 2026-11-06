@@ -50,7 +50,7 @@ function remainingMinutes(item) {
   return Math.max(0, Math.round(minutes * (1 - progress / 100)));
 }
 
-function poster(item, machine) {
+export function poster(item, machine) {
   const title = item?.title || "Untitled";
   const progress = clampPercent(item?.progress);
   const left = remainingMinutes(item);
@@ -119,7 +119,8 @@ function poster(item, machine) {
         rel: "noopener noreferrer",
         "aria-label": subtitle ? `${title}, ${subtitle}` : title,
       },
-      h("div", { class: "poster-art" }, art),
+      // The badges, progress and time left sit on the artwork; the title and year follow it (A10 plan decision 15).
+      h("div", { class: "poster-art" }, art,
 
       badges.length
         ? h(
@@ -153,7 +154,7 @@ function poster(item, machine) {
             },
             `${left}m left`,
           )
-        : null,
+        : null),
 
       h(
         "div",

@@ -88,8 +88,15 @@ def handler(static: Path, upstream: str, fixture: Path | None, timeout: float = 
     return Preview
 
 
+class _Server(http.server.ThreadingHTTPServer):
+    # A page asks for its 40-odd modules at once; the default listen backlog of 5 reset some of those connections, and
+    # a page that loaded half its scripts looked clean to the width sweep.
+    request_queue_size = 128
+    daemon_threads = True
+
+
 def serve(port: int, static: Path, upstream: str, fixture: Path | None) -> http.server.ThreadingHTTPServer:
-    return http.server.ThreadingHTTPServer(("127.0.0.1", port), handler(static, upstream.rstrip("/"), fixture))
+    return _Server(("127.0.0.1", port), handler(static, upstream.rstrip("/"), fixture))
 
 
 def main() -> None:

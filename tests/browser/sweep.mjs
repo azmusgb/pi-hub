@@ -15,7 +15,7 @@ const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/documents':
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.
-const PENDING = new Set(['/documents', '/media', '/system']);
+const PENDING = new Set(['/documents', '/system']);
 const SHOTS = [320, 390, 820, 1024, 1180, 1366, 1440, 1920, 2560];
 // The 20 px steps, plus the named sizes that fall between them (390, 1024, 1366).
 const WIDTHS = [...new Set([...Array.from({ length: (2560 - 320) / 20 + 1 }, (_, i) => 320 + i * 20), ...SHOTS])].sort((a, b) => a - b);
@@ -77,7 +77,9 @@ function check({ TARGET, SMALL }) {
     const s = getComputedStyle(el);
     // WCAG 2.5.8's inline exception: a link inside a sentence is sized by the line it sits in.
     if (el.tagName === 'A' && s.display === 'inline' && [...el.parentElement.childNodes].some((n) => n !== el && n.nodeType === 3 && n.textContent.trim())) continue;
-    const r = el.getBoundingClientRect();
+    // A checkbox or radio is 24 px by design (enhance.css): the label wrapping it is the target, so the label is measured.
+    const box = /^(checkbox|radio)$/.test(el.type) && el.closest('label');
+    const r = (box || el).getBoundingClientRect();
     if (r.width < TARGET - 0.5 || r.height < TARGET - 0.5) add('target', el, `${Math.round(r.width)} × ${Math.round(r.height)}`);
   }
 
@@ -114,10 +116,18 @@ for (const colorScheme of ['dark', 'light']) {
   // A touch context: pointer: coarse and the 44 px floor apply at every width, since any width can be a tablet.
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme, hasTouch: true, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
+  // A page whose own scripts failed to load draws part of itself and would read as clean: that is a failed load.
+  let broken = [];
+  // A navigation cancels the last page's requests (net::ERR_ABORTED): those aren't this page's failures.
+  page.on('requestfailed', (r) => { if (r.url().startsWith(BASE + '/static/') && r.failure()?.errorText !== 'net::ERR_ABORTED') broken.push(`${r.url().slice(BASE.length)} ${r.failure()?.errorText}`); });
+  page.on('response', (r) => { if (r.url().startsWith(BASE + '/static/') && r.status() >= 400) broken.push(`${r.url().slice(BASE.length)} ${r.status()}`); });
+  page.on('pageerror', (e) => broken.push(`script error: ${e.message.split('\n')[0]}`));
   for (const [path, key] of Object.entries(PAGES)) {
+    broken = [];
     const res = await page.goto(BASE + path, { waitUntil: 'load' }).catch((e) => ({ ok: () => false, status: () => e.message }));
     if (!res.ok()) { console.error(`${path}: could not load (${res.status()})`); process.exitCode = 2; continue; }
     await page.waitForTimeout(2500);
+    if (broken.length) { console.error(`${path}: loaded broken (${broken.slice(0, 3).join('; ')})`); process.exitCode = 2; continue; }
     loaded++;
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: width >= 1920 ? 1080 : 900 });

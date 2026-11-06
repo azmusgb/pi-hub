@@ -29,10 +29,11 @@ def test_notes_on_a_warning_tint_use_body_text():
     assert ".wx-alert strong" not in home
 
 
-def test_poster_titles_over_the_artwork_are_white():
+def test_poster_titles_sit_under_the_artwork_in_the_theme_colours():
+    # A10 plan decision 15 replaced the white titles over the photo, which failed contrast on light posters.
     m = css("movies.css")
-    over = rule(m, ".poster-card .poster-meta,\n.poster-card .poster-title")
-    assert "color: #fff" in over
+    assert ".poster-card .poster-meta,\n.poster-card .poster-title" not in m
+    assert "var(--text)" in rule(m, ".poster-title")
 
 
 def test_no_warm_leftovers():
