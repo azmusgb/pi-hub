@@ -615,9 +615,10 @@ html {
   .top .clock { grid-column: 1 / -1; justify-self: start; }
   .top .top-cmd-btn { margin-left: 0; }
 }
-/* A narrow top bar: the Assistant keeps its icon and its accessible name, and gives the title the room (A10 D2: by the
-   bar's own width). */
+/* A narrow top bar: the Assistant keeps its icon and its accessible name, and Search its word on less padding, so the
+   title has the room for one line from 360 px ("Home & network", A10 plan decision 17; by the bar's own width, A10 D2). */
 @container top (max-width: 27.5rem) {
+  .top .top-cmd-btn { padding-inline: .5rem; }
   .top-assistant { width: 44px; padding: 0; justify-content: center; }
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
