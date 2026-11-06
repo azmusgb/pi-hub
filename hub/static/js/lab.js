@@ -251,12 +251,43 @@ export function judgeOnOpen(ix, id, doParam) {
   return list(ix && ix.needs).some((n) => n && n.id === id && n.action === "Judge the print");
 }
 
+const FILAMENT_TYPES = ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"];
+
+// Decision 8 of the A12 plan: the build's filament against the AMS tray in slot 1. "match" pre-ticks the check, "mismatch"
+// blocks Start (the build names another type), "unknown" leaves the tick to the owner. Only the type can be compared:
+// Bambuddy reports a tray's type and colour, the lab records a filament as free text.
+export function startFilament(filament, trays) {
+  const tray = list(trays).find((t) => t && t.slot === 1);
+  const loaded = tray ? `${tray.type || "Filament"}${tray.name && tray.name !== tray.type ? ` (${tray.name})` : ""}` : "";
+  if (!tray) return { state: "unknown", text: "The printer doesn't report what's in slot 1." };
+  const words = String(plain(filament) || "").toUpperCase().split(/[^A-Z]+/);
+  const named = FILAMENT_TYPES.filter((t) => words.includes(t));
+  const type = String(tray.type || "").toUpperCase();
+  if (!named.length) return { state: "unknown", text: `Slot 1 has ${loaded}.${filament ? ` The build is set for ${plain(filament)}.` : ""} Check it matches.`, color: tray.color };
+  if (named.includes(type)) return { state: "match", text: `Slot 1 has ${loaded}, as the build needs.`, color: tray.color };
+  return { state: "mismatch", text: `Slot 1 has ${loaded}, but the build is set for ${plain(filament)}. Load the right filament first.`, color: tray.color };
+}
+
+// What the sheet's Start button says and whether it can be pressed: both ticks, no reason from the hub, no mismatch.
+export function startReady(check, ticks, filament) {
+  const reasons = list(check && check.reasons);
+  if (!check) return { ok: false, why: "Checking the printer…" };
+  if (reasons.length) return { ok: false, why: reasons.join(" ") };
+  if (filament && filament.state === "mismatch") return { ok: false, why: filament.text };
+  if (!(ticks && ticks.plate && ticks.filament)) return { ok: false, why: "Tick both to start." };
+  return { ok: true, why: "" };
+}
+
 // The button(s) for a Needs you item, or "" when it needs the Mac (Fix the plan, Run the check or build).
 function actButtons(x, exp, busy) {
   const id = esc(x.id), off = busy ? " disabled" : "";
   if (x.action === "Judge the print") {
     return (exp && exp.criteria && exp.criteria.length ? `<button type="button" class="btn-primary lab-record-verdict" data-exp="${id}"${off}>Judge it</button>` : "") +
       `<button type="button" class="btn-outline lab-add-photos" data-exp="${id}"${off}>Add photos</button><input type="file" accept="image/*" multiple class="visually-hidden" aria-label="Add photos for ${id}" data-exp="${id}">`;
+  }
+  if (x.action === "Send it to the printer" && exp && exp.staged) {
+    return `<button type="button" class="btn-primary lab-start-print" data-exp="${id}"${off}>Start ${id}…</button>` +
+      `<button type="button" class="btn-outline lab-start" data-exp="${id}"${off}>It's printing now</button>`;
   }
   if (x.action === "Send it to the printer") return `<button type="button" class="btn-primary lab-start" data-exp="${id}"${off}>It's printing now</button>`;
   if (x.action === "Approve or drop") return `<button type="button" class="btn-primary lab-approve" data-exp="${id}"${off}>Approve</button><button type="button" class="btn-danger lab-drop" data-exp="${id}"${off}>Drop</button>`;
@@ -274,7 +305,7 @@ function needsHtml(ix, byId, now, requests = []) {
     const r = latestAct(requests, x.id), busy = Boolean(r && r.status === "pending");
     const acts = actButtons(x, byId[x.id], busy);
     const tail = acts
-      ? `<div class="lab-acts">${acts}</div>${x.action === "Send it to the printer" ? `<p class="meta">Only once it's actually printing.</p>` : ""}` +
+      ? `<div class="lab-acts">${acts}</div>${x.action === "Send it to the printer" ? `<p class="meta">${byId[x.id]?.staged ? "Staged in Bambuddy: Start sends exactly the checked build. Use It's printing now only for a print sent from Bambu Connect." : "Only once it's actually printing."}</p>` : ""}` +
         `<p class="lab-act-status" data-act-status="${esc(x.id)}" role="status"${r ? ` data-tone="${r.status === "refused" ? "bad" : "ok"}"` : " hidden"}>${r ? esc(actText(r, now)) : ""}</p>` +
         (cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Run it on the Mac instead</summary>${cmd}</details>` : "")
       // only the Mac can do it: the card leads with what needs doing, the command one tap away (decision 14)
@@ -511,6 +542,28 @@ function sheetsHtml() {
     </div>
   </form>
 </dialog>
+<dialog id="labStartSheet" class="lab-sheet" aria-labelledby="labStartTitle">
+  <form method="dialog" class="lab-sheet__form">
+    <div class="lab-sheet__head">
+      <h2 id="labStartTitle" class="lab-sheet__title">Start</h2>
+      <button type="button" id="labStartCancel" class="btn-outline" aria-label="Close without starting">Cancel</button>
+    </div>
+    <dl id="labStartFacts" class="lab-start__facts"></dl>
+    <ul id="labStartReasons" class="lab-guards" hidden></ul>
+    <fieldset class="lab-checklist__set">
+      <legend>Before it starts</legend>
+      <label class="lab-checkbox-label"><input type="checkbox" id="labStartPlate"><span>The plate is clear and dry</span></label>
+      <label class="lab-checkbox-label"><input type="checkbox" id="labStartFilament"><span>The filament matches</span></label>
+      <p id="labStartFilamentNote" class="meta lab-start__note"></p>
+    </fieldset>
+    <p id="labStartWhy" class="meta lab-sheet__hint" aria-live="polite"></p>
+    <ol id="labStartSteps" class="lab-start__steps" aria-live="polite" hidden></ol>
+    <p id="labStartError" class="lab-sheet__error" role="alert" hidden></p>
+    <div class="lab-sheet__actions">
+      <button type="button" id="labStartSend" class="primary" disabled>Start</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="labDropSheet" class="lab-sheet" aria-labelledby="labDropTitle">
   <form method="dialog" class="lab-sheet__form">
     <div class="lab-sheet__head">
@@ -568,6 +621,7 @@ export function mount(state) {
   state.currentPhotosExp = null;
   state.approveCtx = null;
   state.dropCtx = null;
+  state.startCtx = null;
 
   state.box = h("div", { class: "lab-body", id: "labBody", "aria-live": "polite" });
   state.sheetsContainer = h("div", { id: "labSheets" });
@@ -901,6 +955,101 @@ export function mount(state) {
     catch (err) { setStatus(sheetEl("labApproveError"), err.message || "Couldn't send it to the Mac.", true); validateApprove(); }
   }
 
+  // Start a staged lab print (A12): the hub's checks at open and again at the tap, both ticks, then Sent, Accepted,
+  // Printing as each happens. The hub refuses anything the sheet missed; the sheet only explains it first.
+  const startUrl = (id) => `/api/printer/start/${encodeURIComponent(state.currentProject)}/${encodeURIComponent(id)}`;
+
+  function renderStart() {
+    const c = state.startCtx;
+    if (!c) return;
+    const reasons = sheetEl("labStartReasons");
+    reasons.replaceChildren(...list(c.check && c.check.reasons).map((r) => h("li", { class: "lab-guard--attention" }, r)));
+    reasons.hidden = !reasons.children.length;
+    const note = sheetEl("labStartFilamentNote");
+    note.textContent = c.filament ? c.filament.text : "";
+    const ready = startReady(c.check, { plate: sheetEl("labStartPlate").checked, filament: sheetEl("labStartFilament").checked }, c.filament);
+    const sending = Boolean(c.sent);
+    sheetEl("labStartPlate").disabled = sheetEl("labStartFilament").disabled = sending;
+    sheetEl("labStartWhy").textContent = sending || reasons.children.length ? "" : ready.why;  // the list says it already
+    sheetEl("labStartSend").disabled = sending || !ready.ok;
+  }
+
+  async function openStart(id) {
+    const sheet = sheetEl("labStartSheet"), x = expById(id);
+    if (!sheet || !x) return;
+    const ctx = state.startCtx = { id, check: null, filament: null, sent: false, poll: null };
+    sheetEl("labStartTitle").textContent = `Start · ${id}`;
+    const est = x.estimate || {};
+    const facts = [["Build", x.shown_build], ["Time", est.minutes != null ? `${Math.round(est.minutes)} min` : null],
+      ["Filament", est.g != null ? `${Math.round(est.g)} g${x.filament ? ` of ${plain(x.filament)}` : ""}` : plain(x.filament)]];
+    sheetEl("labStartFacts").replaceChildren(...facts.filter(([, v]) => v).flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))]));
+    sheetEl("labStartPlate").checked = false;
+    sheetEl("labStartFilament").checked = false;
+    const steps = sheetEl("labStartSteps");
+    steps.replaceChildren(); steps.hidden = true;
+    setStatus(sheetEl("labStartError"), "", true);
+    sheetEl("labStartSend").textContent = `Start ${id}`;
+    renderStart();
+    if (!sheet.open) sheet.showModal();
+    try {
+      const check = await labFetch(startUrl(id));
+      if (ctx !== state.startCtx) return;
+      ctx.check = check;
+      ctx.filament = startFilament(x.filament, check.printer && check.printer.trays);
+      sheetEl("labStartFilament").checked = ctx.filament.state === "match";
+    } catch (err) {
+      if (ctx === state.startCtx) ctx.check = { reasons: [err.message || "Couldn't read the printer. Try again."] };
+    }
+    renderStart();
+  }
+
+  function startStep(text) {
+    const steps = sheetEl("labStartSteps");
+    steps.hidden = false;
+    steps.append(h("li", {}, text));
+  }
+
+  async function sendStart() {
+    const c = state.startCtx;
+    if (!c || c.sent) return;
+    c.sent = true;
+    renderStart();
+    setStatus(sheetEl("labStartError"), "", true);
+    startStep("Sent");
+    try {
+      const r = await labFetch("/api/printer/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project: state.currentProject, experiment: c.id, plate_clear: true, filament_ok: true }),
+      });
+      if (c !== state.startCtx) return;
+      startStep(`Accepted by Bambuddy (queue item ${r.queue_item})`);
+      let tries = 0;
+      c.poll = setInterval(async () => {
+        tries += 1;
+        try {
+          const now = await labFetch(startUrl(c.id), {}, { prompt: false });
+          const st = now && now.printer && now.printer.state;
+          if (st === "RUNNING" || st === "PREPARE") {
+            clearInterval(c.poll); c.poll = null;
+            startStep("Printing. The lab records it at its next pull.");
+          }
+        } catch { /* the next try reads it again */ }
+        if (c.poll && tries >= 24) {  // 2 minutes
+          clearInterval(c.poll); c.poll = null;
+          startStep("The printer hasn't reported printing yet. Check it on the Workshop page.");
+        }
+      }, 5000);
+    } catch (err) {
+      if (c !== state.startCtx) return;
+      c.sent = false;
+      sheetEl("labStartSteps").replaceChildren(); sheetEl("labStartSteps").hidden = true;
+      setStatus(sheetEl("labStartError"), err.message || "Couldn't start it.", true);
+      try { c.check = await labFetch(startUrl(c.id)); } catch { /* keep the last check */ }
+      renderStart();
+    }
+  }
+  state.openStart = openStart;
+
   // Drop closes the experiment, so it needs a reason and a second tap.
   function openDrop(id) {
     const sheet = sheetEl("labDropSheet");
@@ -1023,6 +1172,8 @@ export function mount(state) {
       }
       return;
     }
+    const startPrintBtn = e.target.closest(".lab-start-print");
+    if (startPrintBtn) { openStart(startPrintBtn.dataset.exp); return; }
     const startBtn = e.target.closest(".lab-start");
     if (startBtn) { startPrint(startBtn); return; }
     const apprBtn = e.target.closest(".lab-approve");
@@ -1058,6 +1209,18 @@ export function mount(state) {
   mountEvidenceStudio(state);
 
   // Sheet handlers
+  const startSheet = sheetEl("labStartSheet");
+  if (startSheet) {
+    startSheet.addEventListener("click", (e) => {
+      if (e.target.closest("#labStartCancel")) startSheet.close();
+      else if (e.target.closest("#labStartSend")) sendStart();
+    });
+    startSheet.addEventListener("change", renderStart);
+    startSheet.addEventListener("close", () => {
+      if (state.startCtx && state.startCtx.poll) clearInterval(state.startCtx.poll);
+      state.startCtx = null;
+    });
+  }
   const apprSheet = sheetEl("labApproveSheet"), dropSheet = sheetEl("labDropSheet");
   if (apprSheet) {
     apprSheet.addEventListener("click", (e) => {
@@ -1237,6 +1400,8 @@ export async function load(state) {
     if (judgeOnOpen(labData?.index, e, state.context.get("do"))) {
       const exp = labData.index.experiments?.find((x) => x.id === e);
       if (exp) state.openVerdictSheet(exp);
+    } else if (state.context.get("do") === "start" && labData?.index?.experiments?.find((x) => x.id === e)?.staged) {
+      state.openStart(e);  // Needs you's "Ready to print" (A12)
     }
   }
 }
