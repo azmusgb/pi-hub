@@ -35,8 +35,9 @@ const FRONT_DOOR = { status: "status/home" };
 export function openInRow(area, only = null) {
   const tools = toolsFor(area).filter((t) => !only || only.includes(t.id));
   if (!tools.length) return null;
-  return h("p", { class: "open-in" }, "Open in ", ...tools.flatMap((t, i) => [i ? " · " : "",
-    h("a", { class: "tool-link", href: toolPath(t.id, FRONT_DOOR[t.id] || ""), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)]));
+  // A wrapping row with gaps, not joined with " · ", so no wrapped line starts with a dot (A10 plan decision 17).
+  return h("p", { class: "open-in" }, h("span", {}, "Open in"), ...tools.map((t) =>
+    h("a", { class: "tool-link", href: toolPath(t.id, FRONT_DOOR[t.id] || ""), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)));
 }
 
 // A "More" list (A6): a heading and one native <details> per item, closed until this viewer opens one. Which are open is
