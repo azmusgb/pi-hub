@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -422,10 +422,73 @@ _printer_busy = printer_control.BUSY  # shared with the workshop display's Clear
 PRINTER_WORDS = {"clear": "clear the plate", "pause": "pause", "resume": "resume"}
 
 
+LAB_PROJECT_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+LAB_EXPERIMENT_RE = re.compile(r"^E-\d{1,6}$")
+
+
+def _start_target(project, experiment):
+    if not isinstance(project, str) or not LAB_PROJECT_RE.match(project) or \
+            not isinstance(experiment, str) or not LAB_EXPERIMENT_RE.match(experiment):
+        raise HTTPException(400, "Name a print lab project and experiment.")
+
+
+def _printer_now():
+    sources._cache.pop("bambuddy_printer", None)  # the printer as it is now, not as the page last saw it
+    return sources.bambuddy_printer(timeout=3)
+
+
+@app.get("/api/printer/start/{project}/{experiment}")
+def api_printer_start_check(project: str, experiment: str, request: Request):
+    """Whether a staged lab build can start now (S5), for the sheet: {"reasons", "staged", "build"} (owner only)."""
+    need(request, "owner")
+    _start_target(project, experiment)
+    x = lab_start.mirror(project, experiment)
+    return fresh({"reasons": lab_start.refusals(_printer_now(), x), "staged": (x or {}).get("staged"),
+                  "build": (x or {}).get("shown_build")})
+
+
+@app.post("/api/printer/start")
+async def api_printer_start(request: Request):
+    """Start a staged lab print (A12): owner only, both ticks, the checks at the tap, then Bambuddy's queue with the
+    control key. The device is logged and lab pull is told who started it."""
+    role, device = need(request, "owner")
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Send the project, the experiment and both ticks.")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Send the project, the experiment and both ticks.")
+    project, experiment = body.get("project"), body.get("experiment")
+    _start_target(project, experiment)
+    if body.get("plate_clear") is not True or body.get("filament_ok") is not True:
+        raise HTTPException(400, "Tick both: the plate is clear and dry, and the filament matches.")
+    if printer_control.hold("start") is not None:
+        raise HTTPException(409, "The hub is already sending the printer a command. Wait a moment.")
+    try:
+        x = lab_start.mirror(project, experiment)
+        reasons = lab_start.refusals(await asyncio.to_thread(_printer_now), x)
+        if reasons:
+            raise HTTPException(409, " ".join(reasons) + " Nothing was sent.")
+        ck = lab_start.control_key()
+        if not ck:
+            raise HTTPException(503, printer_control._say("no key"))
+        tapped = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+        r = await asyncio.to_thread(lab_start.start, x, ck, lab_start.read_key())
+    finally:
+        printer_control.release()
+    sources._cache.pop("bambuddy_printer", None)
+    auth.log(role, device, f"printer:start:{project}:{experiment}", r["say"])
+    if not r["ok"]:
+        raise HTTPException(502, r["say"])
+    lab.queue_one_tap(project, experiment, {"tapped_at": tapped, "build": x.get("shown_build"),
+                                            "queue_item": r["queue_item"], "library_file": r["library_file"]}, device)
+    return fresh({"ok": True, "say": r["say"], "queue_item": r["queue_item"]})
+
+
 @app.post("/api/printer/{action}")
 def api_printer_action(action: str, request: Request):
     """Clear the plate, pause or resume, through Bambuddy with the hub's control key (owner only)."""
-    need(request, "owner")
+    role, device = need(request, "owner")
     if action not in printer_control.STEPS:
         raise HTTPException(404, "The printer can clear, pause or resume.")
     if printer_control.hold(action) is not None:
@@ -444,6 +507,7 @@ def api_printer_action(action: str, request: Request):
         printer_control.release()
     if "no key" not in r["steps"].values():  # Bambuddy was asked: the next refresh reads its state again
         sources._cache.pop("bambuddy_printer", None)
+    auth.log(role, device, f"printer:{action}", r["say"])  # every action logs the device (baseline; A12 plan 9)
     if not r["ok"]:
         raise HTTPException(503 if "no key" in r["steps"].values() else 502, r["say"])
     return fresh({"ok": True, "say": r["say"]})
