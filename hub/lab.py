@@ -47,6 +47,8 @@ DATA_KINDS = ("verdict", "photos")
 ACT_KINDS = ("start", "approve", "abandon")
 OBS_KINDS = ("observation", "observation_correction")
 KINDS = DATA_KINDS + ACT_KINDS + OBS_KINDS
+# Sent only by Pi Hub itself, never through POST /requests: Start a staged lab print (A12), for lab pull's S6.
+HUB_KINDS = ("one_tap",)
 ACT_EXPERIMENT_RE = re.compile(r"^E-\d{1,6}$")
 BUILD_ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}-\d{1,4}$")
 GUARD_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -671,6 +673,22 @@ def queue_request(project: str, data: dict, by: str) -> dict:
     return {"ok": True, "id": req_id, "status": "pending"}
 
 
+def queue_one_tap(project: str, experiment: str, payload: dict, by: str) -> str:
+    """Queue Pi Hub's own record of a one-tap start for lab pull (A12 plan, decision 6): the request id. The caller
+    has already started the print; this only tells the lab, so it never refuses for the pending caps."""
+    import secrets
+    ready()
+    check_project(project)
+    if not _full(ACT_EXPERIMENT_RE, experiment):
+        raise ValueError("Invalid experiment id")
+    req_id = "rq-" + secrets.token_hex(8)
+    db.run(
+        "INSERT INTO lab_requests (id, project, kind, experiment, run, run_seen, payload, status, created_at, "
+        "by_device) VALUES (?, ?, 'one_tap', ?, '', NULL, ?, 'pending', ?, ?)",
+        req_id, project, experiment, json.dumps(payload), now_iso(), (by or "")[:80])
+    return req_id
+
+
 @router.get("/{project}/requests")
 def list_requests(project: str, request: Request, status: Optional[str] = None):
     # The pending queue is the Mac's (its key only); the recent history is for people, or the Mac with its key.
@@ -692,7 +710,7 @@ def list_requests(project: str, request: Request, status: Optional[str] = None):
                 "id": r["id"],
                 "kind": r["kind"],
                 "experiment": r["experiment"],
-                "run": None if r["kind"] in ACT_KINDS else r["run"],
+                "run": None if r["kind"] in ACT_KINDS + HUB_KINDS else r["run"],
                 "payload": json.loads(r["payload"]) if r["payload"] else {},
                 "status": r["status"],
                 "at": r["created_at"],
