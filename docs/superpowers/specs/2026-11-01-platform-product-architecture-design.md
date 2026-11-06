@@ -1037,3 +1037,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A9. Home's Today band on a phone shows the day so far** (`2026-11-05-amendment-a9-phone-band.md`): a band narrower
   than 520 px runs from midnight to an hour after Now (at least six hours), the counts keep one row with short labels,
   and the TV scales once (1.2×). Approved by the owner on 5 Nov 2026.
+- **A10. Responsive, not adaptive** (`2026-11-05-amendment-a10-responsive.md`): the kit's type and space scale with the
+  screen, layouts flow from their content and their container instead of 30-odd fixed widths, the page cap moves to
+  `rem`, Home's columns, rack and band flow (the TV zoom goes), and pages are checked across a width sweep. Proposed by
+  the owner on 5 Nov 2026 ("use Responsive Design not adaptive -- for full site").
