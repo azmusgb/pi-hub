@@ -22,6 +22,10 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
 - Every migration PR says: the baseline requirement it implements, full or partial coverage, and acceptance evidence.
 - Run both suites before opening the PR and paste the counts:
   `HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests` and `node --test tests/*.mjs`.
+- Browser checks (`tests/browser`: the width sweep, `structure.mjs` with axe, `tabbar.mjs`) run from the Mac against
+  `python3 tests/browser/preview.py`. Run `npm install` in `tests/browser` in each worktree (Playwright 1.63): the main
+  checkout's copy is 1.55, whose Chromium crashes on this Mac. After the PR merges, `git worktree remove --force` is fine
+  when the only untracked files are `tests/browser/node_modules` and `tests/browser/out`.
 - Deploys (`git push pi main`) are done by the owner's Claude Code session after the deploy preflight
   (`deploy_state` for pi-hub), never by an agent working a feature.
 
