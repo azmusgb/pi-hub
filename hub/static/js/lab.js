@@ -222,7 +222,7 @@ export function outsideHtml(items) {
   if (!Array.isArray(items) || !items.length) return "";
   const row = (o) => `<p class="meta">${[esc(o.name || `Print #${o.print}`), esc(o.status_word), esc(when(o.started)), bambuLink(o.print)].filter(Boolean).join(" · ")}</p>`;
   const rest = items.slice(SHOWN);
-  return `<section class="card lab-outside"><h2>Outside the lab</h2>${items.slice(0, SHOWN).map(row).join("")}` +
+  return `<section class="ui-section lab-outside"><h2>Outside the lab</h2>${items.slice(0, SHOWN).map(row).join("")}` +
     (rest.length ? `<details class="lab-more" id="lab-outside-more"><summary>Show all (${items.length})</summary>${rest.map(row).join("")}</details>` : "") + `</section>`;
 }
 
@@ -299,7 +299,7 @@ const latestAct = (requests, id) => list(requests).find((r) => ACT.has(r.kind) &
 function needsHtml(ix, byId, now, requests = []) {
   const needs = list(ix.needs);
   if (!needs.length) return '<p class="meta">Nothing needs you right now.</p>';
-  return `<ul class="list-group lab-needs">${needs.map((raw) => {
+  return `<ul class="ui-rows lab-needs">${needs.map((raw) => {
     const x = { ...raw, ...needView(raw, now, byId) };
     const cmd = x.command ? `<div class="lab-cmd"><code>${esc(x.command)}</code><button type="button" class="btn-outline lab-copy" data-copy="${esc(x.command)}" aria-label="Copy the command for ${esc(x.id)}">Copy</button></div>` : "";
     const r = latestAct(requests, x.id), busy = Boolean(r && r.status === "pending");
@@ -310,7 +310,7 @@ function needsHtml(ix, byId, now, requests = []) {
         (cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Run it on the Mac instead</summary>${cmd}</details>` : "")
       // only the Mac can do it: the card leads with what needs doing, the command one tap away (decision 14)
       : cmd ? `<details class="lab-mac" id="lab-mac-${esc(x.id)}"><summary>Command</summary>${cmd}</details>` : "";
-    return `<li class="list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
+    return `<li class="ui-row list-row"><div class="list-row__main"><div class="list-row__title"><a href="#lab-${esc(x.id)}" data-lab-open="${esc(x.id)}">${esc(x.action)} · ${esc(x.id)}</a></div>` +
       `<div class="list-row__sub">${esc(byId[x.id]?.question_text)}</div><div class="list-row__sub">${esc(x.why)}</div>${tail}</div></li>`;
   }).join("")}</ul>`;
 }
@@ -330,7 +330,7 @@ export function questionHtml(q, ix) {
     ? `<p class="lab-stop lab-stop--${st.kind === "owner" ? "bad" : "attention"}">${esc(text.charAt(0).toUpperCase() + text.slice(1))}</p>`
     : '<p class="lab-stop">Continue: nothing has stopped this question.</p>';
   const head = [esc(q.id), `${Number(q.answered) || 0} of ${ids.length} answered`, ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
-  return `<section class="card lab-question"><p class="meta">${head}</p><h2>${esc(q.question)}</h2>` +
+  return `<section class="ui-section lab-question"><p class="meta">${head}</p><h2>${esc(q.question)}</h2>` +
     meter("Time", s.minutes, nx && nx.minutes, b.minutes, "min") + meter("Material", s.g, nx && nx.g, b.g, "g") +
     (nx ? `<p class="meta">${esc(nx.id)} would add ${n(nx.minutes)} min, ${n(nx.g)} g</p>` : "") + stop + plansHtml(q) +
     (cur ? `<div class="lab-now"><p class="meta"><a href="#lab-${esc(cur.id)}" data-lab-open="${esc(cur.id)}">${esc(cur.id)}</a> ${badge(STATUS[cur.status] || [cur.status, "neutral"])}</p><p class="lab-now__q">${esc(cur.question_text)}</p>${cur.why_this_test ? `<p class="meta"><b>Why this test?</b> ${esc(cur.why_this_test)}</p>` : ""}</div>` : "") +
@@ -400,7 +400,7 @@ export function experimentHtml(x, ix, requests = []) {
   }
 
   const spine = spoolColour(plain(x.filament), ix && ix.colours);
-  return `<article class="card lab-exp" id="lab-${esc(x.id)}" style="--spine:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
+  return `<article class="ui-section lab-exp" id="lab-${esc(x.id)}" style="--spine:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
     (meta ? `<p class="meta">${esc(meta)}</p>` : "") +
     (vars ? `<ul class="lab-variants">${vars}</ul>` : "") +
     (cost ? `<p class="meta">${esc(cost)}</p>` : "") +
@@ -458,8 +458,9 @@ export function renderNotebook(data, requests = [], now = Date.now()) {
   return syncedHtml(meta, now, requests) +
     (problems.length ? `<div class="lab-problems" role="alert"><strong>Records the Mac can't read</strong><ul>${problems.map((p) => `<li><b>${esc(p.file)}</b> ${esc(p.error)}</li>`).join("")}</ul></div>` : "") +
     (jumps ? `<nav class="lab-jump" aria-label="Jump to section">${jumps}</nav>` : "") +
-    `<div class="lab-layout"><div class="lab-side"><section class="card lab-needs-card" id="lab-sec-needs"><h2>Needs you</h2>${needsHtml(ix, byId, now, requests)}</section>` +
-    `<div class="lab-questions" id="lab-sec-questions">${open.map((q) => questionHtml(q, ix)).join("") || '<section class="card"><div class="empty-state"><div class="empty-state__title">No open question.</div><div>Start one on the Mac with lab question new.</div></div></section>'}</div>` +
+    // Needs you here (A7 P1, P2): only when something waits; the section stays, hidden, as the jump's target.
+    `<div class="lab-layout"><div class="lab-side"><section class="ui-section lab-needs-here" id="lab-sec-needs" aria-labelledby="lab-needs-title"${needs.length ? "" : " hidden"}><h2 id="lab-needs-title">Needs you here</h2>${needsHtml(ix, byId, now, requests)}</section>` +
+    `<div class="lab-questions" id="lab-sec-questions">${open.map((q) => questionHtml(q, ix)).join("") || '<section class="ui-section"><div class="empty-state"><div class="empty-state__title">No open question.</div><div>Start one on the Mac with lab question new.</div></div></section>'}</div>` +
     `</div><div class="lab-notebook" id="lab-sec-notebook"><h2>Notebook</h2>${active.map(cardOf).join("") || '<p class="meta">No open experiments.</p>'}` +
     (earlier.length ? `<details class="lab-earlier" id="lab-earlier"><summary>Earlier (${earlier.length})</summary>${earlier.map(cardOf).join("")}</details>` : "") +
     outsideHtml(ix.outside) +

@@ -8,7 +8,7 @@ import { install, text } from './helpers/fake_dom.mjs';
 
 const T = Math.floor(Date.now() / 1000);
 const printer = (state, extra = {}) => ({ state, headline: state === 'stopped' ? 'Finished: clear the plate' : state, detail: '',
-  progress: 0, left: '', minutes_left: null, stale: false, actions: [], ...extra });
+  progress: 0, left: '', minutes_left: null, stale: false, actions: [], telemetry: { status: 'live', source: 'Bambuddy' }, ...extra });
 const judge = { project: 'hex-tile', id: 'E-007', action: 'Judge the print', judge_on: 'Top surface gloss', question_text: '' };
 const prints = [{ id: 40, name: 'Cable clip x4', status: 'completed', word: 'Finished', started: T - 86400, ended: T - 80000, seconds: 6400 }];
 const workshop = (over = {}) => ({
@@ -40,13 +40,12 @@ async function page(routes) {
 const answers = (root) => root.querySelectorAll('*').filter((el) => el.children.length === 0 || el.tagName === 'P')
   .map(text).filter((t) => /answer/i.test(t));
 
-test('loading: before the first answer the band is a busy skeleton and the camera a placeholder of its size', async () => {
+test('loading: before the first answer the faceplate is a busy skeleton under the printer\'s name (A7 P8)', async () => {
   const p = await page({});
   try {
-    const band = p.state.root.querySelector('.ws-band .band');
-    assert.equal(band.getAttribute('aria-busy'), 'true');
-    assert.match(text(band), /Loading the printer/);
-    assert.ok(p.state.root.querySelector('.ws-cam .ws-cam-placeholder'));
+    const plate = p.state.root.querySelector('.ws-band .ui-faceplate');
+    assert.equal(plate.getAttribute('aria-busy'), 'true');
+    assert.equal(plate.getAttribute('aria-label'), 'Bambu X2D');
     assert.equal(p.state.root.querySelector('.ws-needs').hidden, true);
   } finally { p.done(); }
 });
