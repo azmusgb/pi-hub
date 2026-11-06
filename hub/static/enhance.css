@@ -440,6 +440,7 @@ kbd {
 }
 @media (forced-colors: active) {
   .rail a[aria-current="page"] { outline: 2px solid Highlight; }
+  .rail a[data-page] .nav-badge { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   body::after, body::before { display: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -595,7 +596,18 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .rail a[data-page] .nav-badge { margin-left: auto; border-radius: 999px; background: var(--accent-soft); color: var(--text); padding: .1rem .35rem; font-size: .6875rem; white-space: nowrap; }
 /* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
-  .rail a[data-page] .nav-badge { position: absolute; top: 0; right: 4px; margin: 0; font-size: .625rem; padding: 0 .25rem; }
+  /* Beside the tab's icon, above its name: a count stays a number; a word ("Print") has no room there, so it is a dot,
+     and the tab's accessible name and title carry it ("Workshop, Printing 42%"). */
+  .rail a[data-page] .nav-badge { position: absolute; top: .35rem; left: calc(50% + 11px); margin: 0; min-width: .875rem; padding: 0 .2rem; box-sizing: border-box; font-size: .625rem; line-height: 1rem; text-align: center; font-weight: 700; background: var(--accent); color: var(--on-accent); }
+  .rail a[data-page] { container: tab / inline-size; }
+  .rail a[data-page] .nav-badge:not([data-count]) { top: .45rem; width: .5rem; min-width: 0; height: .5rem; padding: 0; overflow: hidden; font-size: 0; background: var(--accent); }
+}
+
+/* A tab under 4.5rem (a phone under about 390 px) has no room beside its icon for "99+": it shows "9+", which is still
+   true; the full count is in the tab's name. */
+@container tab (max-width: 4.5rem) {
+  .rail a[data-page] .nav-badge[data-short] { font-size: 0; }
+  .rail a[data-page] .nav-badge[data-short]::after { content: attr(data-short); font-size: .625rem; }
 }
 
 .source-freshness { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line-strong); }
