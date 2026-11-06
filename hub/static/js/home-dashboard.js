@@ -56,10 +56,12 @@ export function bandLayout(day, width, fs = 16) {
   const room = 5.25 * fs;
   const step = [1, 2, 3, 6].find((s) => s * 3600 / span * track >= room) || 6;
   const LABEL_W = 3.75 * fs;  // the widest label, so one at either end stays inside the band
-  // Now's label, and an hour label's extent, from a generous character width (0.6em of the labels' 0.75em type)
-  const textW = (s) => s.length * 0.45 * fs;
-  const nowLabelEnd = nowX + 6 + textW("Now") > W;
-  const nowBox = nowLabelEnd ? [nowX - 6 - textW("Now"), nowX] : [nowX, nowX + 6 + textW("Now")];
+  // Now's label, and an hour label's extent, from generous character widths of the labels' 0.75em type: Now is set in
+  // 800 weight and draws about 0.74em a character, an hour label about 0.62em (Archivo, measured in Chromium).
+  const textW = (s) => s.length * 0.5 * fs;
+  const NOW_W = 3 * 0.6 * fs;
+  const nowLabelEnd = nowX + 6 + NOW_W > W;
+  const nowBox = nowLabelEnd ? [nowX - 6 - NOW_W, nowX] : [nowX, nowX + 6 + NOW_W];
   const hours = [];
   for (let i = 0; i * 3600 <= span; i++) {
     const ts = day.start + i * 3600;
