@@ -350,7 +350,7 @@ flowchart LR
 |---|---|---|---|---|
 | **Record** (a "thing": printer, pc, local_ai, pi, backups, plex, display, …) | `id` such as `printer`. State, headline, cause, severity, since, as_of, source, stale, actions, detail (`control-room`:89-101) | Pi Hub assembles it. Each field's designated source owns the fact | `hub.db` `records` table and memory; `GET /api/records` and `/api/records/stream` (`hub/app.py:133,165`) | `record.v1`: the existing record shape, named. Kind-specific `detail` carries `printer-record.v1`. Errors use `error.v1` |
 | **Needs-you item** | `id`: producer prefix plus object id (`pi:<key>`, `pi:lab:<project>:<experiment>`, `localai:<id>`) | The producer owns the fact. Pi Hub builds the one list | `hub/needs.py:105`, `GET /api/needs` (`hub/app.py:171`); LocalAI `GET /api/attention` | `needs-item.v1`: the kit's `needs.schema.json` (`one-needs-you`:66-77) |
-| **Print** | Bambuddy print-log entry id (`one-print` P1) | Bambuddy (third party, read-only) | Bambuddy; read by Pi Hub's `bambuddy.prints()` and by print-lab `lab pull` | Print-log shape inside `printer-record.v1`. Lab prints recognised by the P2 name pattern |
+| **Print** | Bambuddy print-log entry id (`one-print` P1) | Bambuddy (third party, read-only except A12's staged lab prints) | Bambuddy; read by Pi Hub's `bambuddy.prints()` and by print-lab `lab pull` | Print-log shape inside `printer-record.v1`. Lab prints recognised by the P2 name pattern |
 | **Lab experiment chain**: question → experiment → build → run → observation → verdict | `lab:<project>:<experiment>`, with `BLD-…`, `PR-…`, `OBS-…` below it (`household`:74-76) | print-lab on the Mac (git JSON, SHA-frozen). Pi Hub holds a mirror, never authoritative | print-lab `projects/<p>/`; mirror in `hub.db` `lab_projects` | `print-lab-index.v1` (the `print-lab-index/1` mirror) |
 | **Lab request** | `request_id`, idempotent. Kinds: verdict, photos, start, approve, abandon, observation (`lab-on-hub` L6) | Pi Hub holds the pending queue. print-lab applies it and owns the result | `hub.db` request tables; `lab pull` applies | `lab-request.v1` |
 | **Assistant run** | Run id, with `threadId` and `projectId` (`evolution`:56-60) | LocalAI | `localai.db` run ledger; `/api/runs` | None at platform level. It reaches the platform only as a Needs-you item or a `#run/<id>` link |
@@ -595,7 +595,7 @@ flowchart TB
 
 | | Today | Target |
 |---|---|---|
-| Implementations of printer control | 4: Pi Hub, display (raw HTTP to Bambuddy), LocalAI workshop routes, Bambuddy's own UI (Report l.932) | 1 server path: Pi Hub `POST /api/printer/{action}` (`hub/app.py:379`). The Bambuddy UI stays as "Open in …" |
+| Implementations of printer control | 4: Pi Hub, display (raw HTTP to Bambuddy), LocalAI workshop routes, Bambuddy's own UI (Report l.932) | 1 server path: Pi Hub `POST /api/printer/{action}` (`hub/app.py:379`), including Start a staged lab print (A12). The Bambuddy UI stays as "Open in …" |
 | Surfaces that can act | Pi Hub, display, LocalAI, Bambuddy | Pi Hub and the display (display → Pi Hub → Bambuddy, `display-on-hub`:76-78) |
 | Unauthenticated plain-HTTP control path | 1 (`tabs_pages.cppfrag:47-60`, Report l.1006) | 0, once the display switches |
 | Printer state on the display | Direct MQTT | Direct MQTT. Do not move telemetry behind Pi Hub (Report l.1050) |
@@ -751,7 +751,7 @@ without the Pi (section 10).
 | **Ask** | "Ask the Assistant: …" | Hand-off (`sections.js:63-74`) | No: the row reads "The PC is off" |
 | **Cross-search** | "Search the Assistant for …" from Pi Hub. "Search the house for …" from the Assistant | The other app's own palette, opened with the query | Per target |
 
-**Actions that confirm.** Stop print, restore, and restart always confirm (`control-room`:184-185). Host-level actions
+**Actions that confirm.** Stop print, restore, and restart always confirm (`control-room`:184-185); Start a staged lab print confirms through its sheet, never from the palette (A12). Host-level actions
 in the Assistant keep typed confirmation (`evolution`:72-73). Approving an Assistant run is never a one-key palette
 action: it opens the approval sheet. Every action is owner-only and logs the device.
 
@@ -1044,3 +1044,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A11. Home's day is a dial on a phone** (`2026-11-05-amendment-a11-phone-dial.md`): where the band can't show the
   whole day, Home draws the day as a 24-hour dial with one ring per system, the counts under it and the rack as compact
   rows; the band stays everywhere it fits. Proposed by the owner on 5 Nov 2026, who chose the dial from a prototype.
+- **A12. Pi Hub may start a print the lab staged** (`2026-11-06-amendment-a12-lab-one-tap.md`): Bambuddy stays
+  read-only except that the lab's Mac uploads checked builds into its `print-lab` folder and Pi Hub's printer-control
+  path queues and starts them, through a new owner-only action, Start a staged lab print, that confirms through its
+  sheet. Proposed on 6 Nov 2026 with print-lab's one-tap spec (print-lab #48).
