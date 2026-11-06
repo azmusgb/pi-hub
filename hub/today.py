@@ -88,12 +88,21 @@ def _print_marks(prints, printer, start, end, now):
     Only the newest "printing" row is the running print: an older one is a log entry Bambuddy never closed, and is left
     out rather than drawn as a bar running all day. Its remaining time and percent come from the printer record only
     while that record is printing (or paused) and fresh: a stale record's numbers may be hours old. A status this map
-    doesn't know is still drawn, in the neutral kind, so a print is never silently missing."""
+    doesn't know is still drawn, in the neutral kind, so a print is never silently missing. Bambuddy's log gets a row
+    only when a print ends, so with no "printing" row the running print comes from that fresh record alone: its job,
+    the time the hub first saw it live, and its percent and remaining time."""
     marks = []
     rec = printer if isinstance(printer, dict) and printer.get("state") in ("printing", "paused") and not printer.get("stale") else None
     detail = (rec or {}).get("detail") or {}
     running = [p for p in prints if p.get("status") == "printing"]
     newest = max(running, key=lambda p: (p.get("started") or 0, p.get("id") or 0)) if running else None
+    # The record's start is when the hub first saw the print live. A log row that began more than half an hour away
+    # from it is an older row Bambuddy never closed, not this print.
+    seen = detail.get("started") if isinstance(detail.get("started"), (int, float)) else None
+    if newest is not None and rec and seen is not None and isinstance(newest.get("started"), (int, float)) \
+            and abs(newest["started"] - seen) > 30 * 60:
+        newest = None
+    word_now = "Paused" if rec and rec.get("state") == "paused" else bambuddy.status_word("printing")
     for p in prints:
         kind = PRINT_KIND.get(p.get("status"), "other")
         name, word = p.get("name") or "Untitled", bambuddy.status_word(p.get("status"))
@@ -103,7 +112,7 @@ def _print_marks(prints, printer, start, end, now):
             began = p.get("started")
             left = detail.get("minutes_left")
             pct = detail.get("progress")
-            title = f"{name}: {word}" + (f", {round(pct)}%" if rec and isinstance(pct, (int, float)) else "")
+            title = f"{name}: {word_now}" + (f", {round(pct)}%" if rec and isinstance(pct, (int, float)) else "")
             mark = {"start": max(began, start) if isinstance(began, (int, float)) else now, "end": now}
             if isinstance(left, (int, float)) and left > 0:
                 mark["until"] = int(now + left * 60)
@@ -116,6 +125,16 @@ def _print_marks(prints, printer, start, end, now):
             continue
         began = began if isinstance(began, (int, float)) else ended
         marks.append({"start": max(began, start), "end": ended, "kind": kind, "title": f"{name}: {word}"})
+    # The log already has the print as ended while the record still says printing: the record is behind, not a new print.
+    ended_since = seen is not None and any(p.get("status") != "printing" and isinstance(p.get("ended"), (int, float))
+                                           and p["ended"] >= seen for p in prints)
+    if rec and newest is None and not ended_since:
+        began, left, pct = detail.get("started"), detail.get("minutes_left"), detail.get("progress")
+        mark = {"start": max(began, start) if isinstance(began, (int, float)) else now, "end": now}
+        if isinstance(left, (int, float)) and left > 0:
+            mark["until"] = int(now + left * 60)
+        title = f"{detail.get('job') or 'Untitled'}: {word_now}" + (f", {round(pct)}%" if isinstance(pct, (int, float)) else "")
+        marks.append({**mark, "kind": "run", "title": title})
     return sorted(marks, key=lambda m: m["start"])
 
 
