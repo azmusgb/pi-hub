@@ -71,6 +71,24 @@ test("hour labels never touch each other, from a phone to a wide desktop", () =>
   }
 });
 
+// The sweep caught "Noon" touching "Now" (10:55 on a 1,174 px band): the layout guessed "Now" at 0.6em a character, but it
+// is set in 800 weight and draws about 0.74em (26.7 px at 12 px type); an hour label draws about 0.62em.
+test("no hour label touches Now, at any time of day and any band width", () => {
+  const fs = 16, type = 0.75 * fs;
+  const NOW_W = 2.25 * type, HOUR_CH = 0.65 * type;  // measured in Chromium with Archivo, rounded up
+  for (let w = 724; w <= 2400; w += 10) {
+    for (let m = 0; m < 24 * 60; m += 5) {
+      const L = bandLayout(day({ now: START + m * 60 }), w, fs);
+      const nowL = L.nowLabelEnd ? L.nowX - 6 - NOW_W : L.nowX + 6;
+      for (const h of L.hours.filter((x) => x.label)) {
+        const len = h.label.length * HOUR_CH;
+        const left = h.anchor === "start" ? h.x : h.anchor === "end" ? h.x - len : h.x - len / 2;
+        assert.ok(left + len < nowL || left > nowL + NOW_W, `${w}px at ${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}: ${h.label} touches Now`);
+      }
+    }
+  }
+});
+
 // A11 D1: the switch is A10 D4's measure: the band, with names beside, gives an hour at least 24 px, or Home draws the
 // dial. 8.25em of names and 1em of padding leave 24 x 24 px of track at 724 px for 16 px type.
 test("the band is drawn only where an hour gets 24 px with names beside; elsewhere the dial", () => {
