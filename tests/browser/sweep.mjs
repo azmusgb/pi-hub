@@ -116,10 +116,16 @@ for (const colorScheme of ['dark', 'light']) {
   // A touch context: pointer: coarse and the 44 px floor apply at every width, since any width can be a tablet.
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme, hasTouch: true, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
+  // A page whose own scripts failed to load draws part of itself and would read as clean: that is a failed load.
+  let broken = [];
+  page.on('requestfailed', (r) => { if (r.url().startsWith(BASE + '/static/')) broken.push(`${r.url().slice(BASE.length)} ${r.failure()?.errorText}`); });
+  page.on('pageerror', (e) => broken.push(`script error: ${e.message.split('\n')[0]}`));
   for (const [path, key] of Object.entries(PAGES)) {
+    broken = [];
     const res = await page.goto(BASE + path, { waitUntil: 'load' }).catch((e) => ({ ok: () => false, status: () => e.message }));
     if (!res.ok()) { console.error(`${path}: could not load (${res.status()})`); process.exitCode = 2; continue; }
     await page.waitForTimeout(2500);
+    if (broken.length) { console.error(`${path}: loaded broken (${broken.slice(0, 3).join('; ')})`); process.exitCode = 2; continue; }
     loaded++;
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: width >= 1920 ? 1080 : 900 });

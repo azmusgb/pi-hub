@@ -135,3 +135,19 @@ def test_another_host_name_is_refused_before_anything_is_read(hub):
     assert _Upstream.seen == []
     for host in (f"127.0.0.1:{port}", f"localhost:{port}"):
         assert _with_host(hub + "/api/now", host) == 200, host
+
+
+def test_a_burst_of_module_requests_is_served_not_reset(hub):
+    # A page asks for its 40-odd modules at once. With the socket's default backlog of 5, some connections were reset
+    # (ERR_CONNECTION_RESET in Chromium), the page drew half of itself, and the width sweep called it clean.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def get(_):
+        try:
+            return _call(f"{hub}/static/js/app.js")[0]
+        except OSError as e:
+            return repr(e)
+
+    with ThreadPoolExecutor(max_workers=120) as pool:
+        codes = list(pool.map(get, range(240)))
+    assert [c for c in codes if c != 200] == []
