@@ -1,13 +1,15 @@
 /* Home as a dashboard (amendment A8; home-dashboard.js): the house's day as a 24-hour band (the one bold thing), then
    Needs you beside a rack of systems, one full-width row each, read across like the front of a server rack. Kit tokens
-   only (plan decision 9); readouts use Archivo at its readout width, like a panel meter. Phone, iPad and desktop come
-   from the grid and container queries; a TV (wide landscape) gets two columns and a larger scale, last so it wins. */
+   only (plan decision 9); readouts use Archivo at its readout width, like a panel meter. A10 D4: Home flows by its own
+   width (container queries) and grows with the fluid root, with no window switch and no zoom. A11: where the band
+   can't give an hour 24 px, home-dashboard.js draws the dial and compact rows (.hd[data-day="dial"]). */
 
+.home-dash { container: home / inline-size; }
 .hd {
   display: grid;
-  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
-  grid-template-areas: "today today" "needs rack";
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "today" "needs" "rack";
+  gap: clamp(1.25rem, 2.5cqi, 1.5rem);
   align-items: start;
   font-variant-numeric: tabular-nums;
 }
@@ -15,7 +17,11 @@
 .hd p, .hd dl, .hd dd, .hd ol { margin: 0; }
 .hd-meter { font-weight: 720; font-stretch: var(--ui-stretch-readout); letter-spacing: -.005em; line-height: .9; }
 .hd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.hd-head { display: flex; align-items: baseline; gap: 10px; min-height: 30px; }
+.hd-head { display: flex; align-items: baseline; gap: .625rem; min-height: 1.875rem; }
+/* Two columns where Needs you gets about 22 rem and Systems about 36 rem (A10 D4), the day across both. */
+@container home (min-width: 59.5rem) {
+  .hd { grid-template-columns: minmax(22rem, 2fr) minmax(36rem, 3fr); grid-template-areas: "today today" "needs rack"; }
+}
 
 /* Mark kinds: one colour per meaning, in the band, the tally and the rack */
 .hd-k-ok { color: var(--ui-ok); fill: var(--ui-ok); }
@@ -27,30 +33,32 @@
 /* Today: the hero */
 .hd-band {
   grid-area: today;
+  container: band / inline-size;
   display: grid;
-  gap: 14px;
-  padding: 20px 20px 16px;
+  gap: .875rem;
+  padding: clamp(1rem, 3cqi, 1.25rem) clamp(.875rem, 3cqi, 1.25rem) clamp(.75rem, 2cqi, 1rem);
   background: var(--ui-bar);
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-r-3);
   min-width: 0;
 }
-.hd-band__head { display: flex; align-items: flex-end; gap: 12px 28px; flex-wrap: wrap; }
+.hd-band__head { display: flex; align-items: flex-end; gap: .75rem 1.75rem; flex-wrap: wrap; }
 .hd-band__head h2 { margin-right: auto; }
-.hd-tally { display: flex; gap: 28px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
-.hd-tally li { display: grid; gap: 4px; }
+.hd-tally { display: flex; gap: 1.75rem; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.hd-tally li { display: grid; gap: .25rem; }
 .hd-tally .hd-meter { font-size: var(--ui-fs-7); }
 .hd-tally li > span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
-.hd-band__plot { min-width: 0; min-height: 120px; }
+.hd-band__plot { min-width: 0; min-height: 7.5rem; }
 .hd-band__svg { display: block; max-width: 100%; height: auto; touch-action: manipulation; }
-.hd-band__lane { fill: var(--ui-muted); font: 600 12.5px var(--ui-font); }
-.hd-band__hour { fill: var(--ui-muted); font: 500 11px var(--ui-font); }
+/* The band is drawn 1:1 at its width, so its type is in em of the band's: it grows with the fluid root. */
+.hd-band__lane { fill: var(--ui-muted); font: 600 .78125em var(--ui-font); }
+.hd-band__hour { fill: var(--ui-muted); font: 500 .75em var(--ui-font); }
 .hd-band__grid { stroke: var(--ui-line); stroke-width: 1; }
 .hd-band__grid--minor { opacity: .45; }
 .hd-band__track { fill: var(--ui-surface-2); opacity: .6; }
 .hd-band__ghost { fill: none; stroke: var(--ui-accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
 .hd-band__now { stroke: var(--ui-text); stroke-width: 2; }
-.hd-band__nowlabel { fill: var(--ui-text); font: 800 12px var(--ui-font); }
+.hd-band__nowlabel { fill: var(--ui-text); font: 800 .75em var(--ui-font); }
 .hd-band__future { fill: url(#hd-hatch); }
 .hd-band__hatch { stroke: var(--ui-line); stroke-width: 1; }
 .hd-band__hit { fill: transparent; }
@@ -62,18 +70,62 @@
 .hd-band__halo { fill: none; stroke: var(--ui-text); stroke-width: 1.5; opacity: 0; }
 .hd-band__mark.is-lit .hd-band__halo { opacity: 1; }
 .hd-band__down { fill: var(--ui-muted); color: var(--ui-muted); font: 500 var(--ui-fs-2) var(--ui-font); }
-p.hd-band__down { padding: 12px 0; }
+p.hd-band__down { padding: .75rem 0; }
 .hd-band__detail { min-height: 1.45em; color: var(--ui-muted); font-size: var(--ui-fs-3); }
 .hd-band__detail b { color: var(--ui-text); font-weight: 650; }
 
+/* The dial (A11 D2-D4): rings inside to outside in lane order, the hours to come hatched, Now as a hand. Where it is
+   drawn, the counts sit under it, then the line it writes to. */
+.hd[data-day="dial"] .hd-band__head { display: contents; }
+.hd[data-day="dial"] .hd-band__head h2 { order: 0; }
+.hd[data-day="dial"] .hd-band__plot { order: 1; }
+.hd[data-day="dial"] .hd-band__detail { order: 2; }
+.hd[data-day="dial"] .hd-tally { order: 3; }
+.hd-dial { position: relative; margin-inline: auto; max-width: 100%; }
+.hd-dial__svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
+.hd-dial__ring { fill: none; stroke: var(--ui-surface-2); }
+.hd-dial__ring--down { stroke: var(--ui-line-2); stroke-dasharray: 3 4; stroke-width: 1.5; }
+.hd-dial__future { fill: none; stroke: url(#hd-dial-hatch); }
+.hd-dial__tick { stroke: var(--ui-line); stroke-width: 1; }
+.hd-dial__tick--minor { opacity: .45; }
+.hd-dial__hour { fill: var(--ui-muted); font: 500 .75rem var(--ui-font); }
+.hd-dial__hand { stroke: var(--ui-text); stroke-width: 2; stroke-linecap: round; }
+.hd-dial__fill { fill: none; stroke: currentColor; stroke-linecap: round; }
+.hd-dial__ghost { fill: none; stroke: var(--ui-accent); stroke-dasharray: 3 3; }
+.hd-dial__halo { fill: none; stroke: var(--ui-text); opacity: 0; stroke-linecap: round; }
+.hd-dial__mark { cursor: pointer; outline: none; }
+.hd-dial__mark:hover .hd-dial__halo,
+.hd-dial__mark:focus-visible .hd-dial__halo,
+.hd-dial__mark.is-lit .hd-dial__halo { opacity: 1; }
+.hd-dial__mark:focus-visible .hd-dial__halo { stroke: var(--ui-accent); }
+.hd-dial__centre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .25rem;
+  text-align: center;
+  pointer-events: none;
+}
+.hd-dial__time { font-size: var(--ui-fs-5); }
+.hd-dial__words { color: var(--ui-muted); font-size: var(--ui-fs-1); line-height: 1.25; }
+.hd-dial__key { display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 1rem; list-style: none; margin: .5rem 0 0; padding: 0;
+  color: var(--ui-muted); font-size: var(--ui-fs-1); counter-reset: ring; }
+.hd-dial__key li { display: inline-flex; align-items: center; gap: .375rem; counter-increment: ring; }
+.hd-dial__key li::before { content: counter(ring); color: var(--ui-text); font-weight: 700; }
+.hd-dial__key li[data-down] { font-style: italic; }
+.hd-dial__swatch { display: none; }
+.hd-dial__skeleton { display: block; width: min(100%, 22rem); aspect-ratio: 1; margin-inline: auto; border-radius: 50%; }
+
 /* Needs you: the kit's list (ui-needs), headed by its count */
-.hd-needs { grid-area: needs; display: grid; gap: 12px; min-width: 0; }
+.hd-needs { grid-area: needs; display: grid; gap: .75rem; min-width: 0; }
 .hd-needs__count { font-size: var(--ui-fs-6); color: var(--ui-warn); }
-.hd-needs__list { display: grid; gap: 8px; min-width: 0; }
+.hd-needs__list { display: grid; gap: .5rem; min-width: 0; }
 .hd-needs__down { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 
 /* Systems: the rack */
-.hd-rack { grid-area: rack; display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
+.hd-rack { grid-area: rack; display: grid; gap: .75rem; min-width: 0; container: rack / inline-size; }
 .hd-rack__units {
   list-style: none;
   margin: 0;
@@ -86,16 +138,16 @@ p.hd-band__down { padding: 12px 0; }
 }
 .hd-unit {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr) auto;
-  gap: 16px 24px;
+  grid-template-columns: 10.5rem minmax(0, 1fr) auto;
+  gap: 1rem 1.5rem;
   align-items: center;
-  padding: 16px 18px;
+  padding: 1rem clamp(.875rem, 3cqi, 1.125rem);
   border-top: 1px solid var(--ui-line);
 }
 .hd-unit:first-child { border-top: 0; }
 .hd-unit[data-lamp="warn"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-warn) 14%, transparent), transparent 40%); }
 .hd-unit[data-lamp="bad"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-bad) 14%, transparent), transparent 40%); }
-.hd-unit__name { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: var(--ui-fs-4); line-height: 1.2; }
+.hd-unit__name { display: flex; align-items: center; gap: .625rem; font-weight: 700; font-size: var(--ui-fs-4); line-height: 1.2; }
 .hd-unit__name small { display: block; color: var(--ui-muted); font-weight: 500; font-size: var(--ui-fs-2); }
 .hd-lamp { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ui-unknown); }
 .hd-lamp[data-lamp="ok"] { background: var(--ui-ok); }
@@ -120,21 +172,25 @@ p.hd-band__down { padding: 12px 0; }
   white-space: nowrap;
 }
 .hd-unit__go:hover { text-decoration: underline; }
-.hd-unit__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
-.hd-unit__readings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 28px; min-width: 0; }
-.hd-rd { display: grid; gap: 5px; min-width: 0; }
+.hd-unit__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .5rem; }
+.hd-unit__readings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1.75rem; min-width: 0; }
+/* A11 D5: lamp, name and state; one reading; the link */
+.hd-unit--compact { grid-template-columns: minmax(0, 1fr) auto auto; gap: .5rem 1rem; padding-block: .625rem; }
+.hd-unit__brief { font-size: var(--ui-fs-5); }
+.hd-rd { display: grid; gap: .3125rem; min-width: 0; }
 .hd-rd dt { color: var(--ui-muted); font-size: var(--ui-fs-1); }
 .hd-rd dd { font-weight: 650; }
 .hd-rd dd.hd-meter { font-size: var(--ui-fs-6); font-weight: 700; }
-.hd-rd .hd-meter--big { font-size: 56px; }
+.hd-rd .hd-meter--big { font-size: clamp(2.75rem, 8cqi, 3.5rem); }
 .hd-rd dd.hd-warn { color: var(--ui-warn); }
-.hd-rd--hero { display: flex; align-items: center; gap: 12px; }
-.hd-rd__note { color: var(--ui-muted); font-size: var(--ui-fs-2); margin-top: 4px; }
+.hd-rd--hero { display: flex; align-items: center; gap: .75rem; }
+.hd-rd--hero > span { display: grid; }
+.hd-rd__note { color: var(--ui-muted); font-size: var(--ui-fs-2); font-weight: 400; margin-top: .25rem; }
 .hd-of { color: var(--ui-muted); font-weight: 500; }
 .hd-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--ui-line-2); }
 .hd-ring__track { stroke: var(--ui-surface-2); }
 .hd-ring__fill { stroke: var(--ui-accent); }
-.hd-gauge { display: grid; gap: 5px; width: 180px; max-width: 100%; }
+.hd-gauge { display: grid; gap: .3125rem; width: 11.25rem; max-width: 100%; }
 .hd-gauge__bar { position: relative; display: block; height: 8px; border-radius: 999px; background: var(--ui-surface-2); }
 .hd-gauge__fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--ui-accent); }
 .hd-gauge__hot {
@@ -145,15 +201,16 @@ p.hd-band__down { padding: 12px 0; }
   background: color-mix(in srgb, var(--ui-bad) 16%, transparent);
   border-left: 2px solid var(--ui-bad);
 }
-.hd-gauge__lbl { display: flex; justify-content: space-between; gap: 8px; color: var(--ui-muted); font-size: var(--ui-fs-1); }
+.hd-gauge__lbl { display: flex; justify-content: space-between; gap: .5rem; color: var(--ui-muted); font-size: var(--ui-fs-1); }
 .hd-gauge__lbl b { color: var(--ui-text); font-weight: 650; }
-.hd-bars { display: flex; align-items: flex-end; gap: 3px; height: 40px; width: 140px; }
+.hd-bars { display: flex; align-items: flex-end; gap: 3px; height: 2.5rem; width: 8.75rem; max-width: 100%; }
 .hd-bars span { flex: 1; border-radius: 2px 2px 0 0; background: var(--ui-accent); min-height: 2px; }
 .hd-bars span.hd-bars__bad { background: var(--ui-bad); }
-@container (max-width: 700px) {
-  .hd-unit { grid-template-columns: 1fr auto; padding: 14px; }
-  .hd-unit__readings { grid-column: 1 / -1; grid-row: 2; gap: 12px 22px; }
-  .hd-unit__go { grid-column: 2; grid-row: 1; }
+/* A row under 34 rem: readings under the name (A10 D4) */
+@container rack (max-width: 34rem) {
+  .hd-unit:not(.hd-unit--compact) { grid-template-columns: 1fr auto; }
+  .hd-unit__readings { grid-column: 1 / -1; grid-row: 2; gap: .75rem 1.375rem; }
+  .hd-unit:not(.hd-unit--compact) .hd-unit__go { grid-column: 2; grid-row: 1; }
 }
 
 /* Everything else that is fine */
@@ -166,35 +223,20 @@ p.hd-band__down { padding: 12px 0; }
   cursor: pointer;
 }
 .hd-others__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.hd-others__list li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ui-line); }
+.hd-others__list li { display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline; padding: .375rem 0; border-top: 1px solid var(--ui-line); }
 .hd-others__list a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ui-text); font-weight: 600; }
 .hd-others__list span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 
-/* Phone and portrait iPad: one column, the day first, then Needs you, then the rack */
-@media (max-width: 1000px) {
-  .hd { grid-template-columns: minmax(0, 1fr); grid-template-areas: "today" "needs" "rack"; }
-}
-@media (max-width: 640px) {
-  .hd { gap: 20px; }
-  .hd-band { padding: 16px 14px 12px; }
-  .hd-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+/* A band under 38 rem: the tally in four even columns with its short words (A9 D2, by the band's width, A10 D4) */
+@container band (max-width: 38rem) {
+  .hd-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .625rem; width: 100%; }
   .hd-tally .hd-meter { font-size: var(--ui-fs-6); }
   .hd-tally li > span { font-size: var(--ui-fs-1); line-height: 1.25; white-space: nowrap; }
   /* A9 D2: "prints" and "shipped" drop out of sight, not out of what a screen reader says */
   .hd-tally__more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .hd-rd .hd-meter--big { font-size: 44px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .hd-band__fill.hd-k-run { animation: hd-pulse 2.4s ease-in-out infinite; }
   @keyframes hd-pulse { 50% { opacity: .65; } }
-}
-
-/* TV and large landscape screens: two columns (the day and Needs you left, Systems right) at a scale that reads from
-   across the room. Last, so it wins over the rules above. One step only: the shell caps #view at 1440 px, so a larger
-   zoom would only narrow Home's own layout (at 2.4 the band was 267 px wide). Most TVs report 1920 CSS px anyway. */
-@media (min-width: 1800px) and (orientation: landscape) {
-  .hd { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "today rack" "needs rack"; gap: 20px 24px; }
-  .hd-unit { padding-block: 12px; }
-  .home-context, .home-dash { zoom: 1.2; }
 }

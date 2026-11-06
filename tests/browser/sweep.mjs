@@ -1,6 +1,6 @@
 // Amendment A10 D6 (plan decision 8): every page from 320 to 2560 px in 20 px steps, dark and light. Fails on
-// horizontal overflow, clipped text, a control under its 44 px touch target, or two marked labels overlapping, on any
-// page not still PENDING its A10 PR. Writes out/sweep.json and screenshots at the named sizes for a person to look at.
+// horizontal overflow, clipped text, text under 12 px (plan decision 12), a control under its 44 px touch target, or two
+// marked labels overlapping, on any page not still PENDING its A10 PR. Writes out/sweep.json and screenshots at the named sizes for a person to look at.
 // Usage (from the Mac): cd tests/browser && npm install
 //   python3 preview.py &            (this checkout's pages, the live hub's data, read-only)
 //   node sweep.mjs [base-url] [--pages /,/workshop] [--no-shots]
@@ -15,15 +15,16 @@ const ALL = { '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.
-const PENDING = new Set(['/', '/workshop', '/documents', '/media', '/system']);
+const PENDING = new Set(['/workshop', '/documents', '/media', '/system']);
 const SHOTS = [320, 390, 820, 1024, 1180, 1366, 1440, 1920, 2560];
 // The 20 px steps, plus the named sizes that fall between them (390, 1024, 1366).
 const WIDTHS = [...new Set([...Array.from({ length: (2560 - 320) / 20 + 1 }, (_, i) => 320 + i * 20), ...SHOTS])].sort((a, b) => a - b);
 const TARGET = 44;
+const SMALL = 12;  // decision 12: the kit's fs1 is 0.75rem, 12 px at its smallest
 mkdirSync(OUT, { recursive: true });
 
 // Runs in the page: every problem visible at this width, keyed by a short, stable path to the element.
-function check({ TARGET }) {
+function check({ TARGET, SMALL }) {
   const SHELL = '.rail, .top, .tabbar, .foot, .skip-link';
   const path = (el) => {
     const parts = [];
@@ -62,6 +63,13 @@ function check({ TARGET }) {
     const full = el.title || el.getAttribute('aria-label') || el.closest('[title]')?.title;
     if (s.textOverflow === 'ellipsis' && full) continue;
     add('clipped', el, `${el.scrollWidth} in ${el.clientWidth}${s.textOverflow === 'ellipsis' ? ', ellipsis without the full text' : ''}`);
+  }
+
+  for (const el of document.body.querySelectorAll('*')) {
+    const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    if (!own || !shown(el)) continue;
+    const size = parseFloat(getComputedStyle(el).fontSize);
+    if (size < SMALL - 0.05) add('small', el, `${Math.round(size * 10) / 10} px`);
   }
 
   for (const el of document.querySelectorAll('a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [tabindex="0"]')) {
@@ -115,7 +123,7 @@ for (const colorScheme of ['dark', 'light']) {
       await page.setViewportSize({ width, height: width >= 1920 ? 1080 : 900 });
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       await page.waitForTimeout(120);
-      for (const p of await page.evaluate(check, { TARGET })) {
+      for (const p of await page.evaluate(check, { TARGET, SMALL })) {
         const gate = p.area === 'shell' ? 'shell' : path;
         const id = `${gate}|${colorScheme}|${p.kind}|${p.where}`;
         if (!found.has(id)) found.set(id, { page: gate, scheme: colorScheme, kind: p.kind, where: p.where, detail: p.detail, widths: [] });
