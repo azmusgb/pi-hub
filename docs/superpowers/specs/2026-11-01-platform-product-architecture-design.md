@@ -1056,3 +1056,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   request, pinned to the head commit they saw; the Mac's `pr-agent` carries it out, so no forge credential is on the Pi
   and nothing happens while the Mac sleeps. Pi Hub's own deploy stays with the owner's Claude session. Approved by the
   owner on 6 Nov 2026 (pi-hub #145).
+- **A14. A text size for each device** (`2026-11-06-amendment-a14-text-size.md`): each device picks Standard, Large
+  or Larger (100, 115, 130%) from the footer beside Theme; the kit multiplies its fluid root by it, so type and space
+  grow together and the browser's own text size still applies; the width sweep runs at all three. Proposed on 6 Nov
+  2026 from the owner's "Comfortable+" Home prototype, whose ideas (not its look) the owner chose to take.
