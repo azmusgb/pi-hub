@@ -96,18 +96,13 @@
 .band .printer-actions { margin-top: .75rem; }
 
 /* Workshop › Printer (workshop flow W.2): Now, Needs you here, Filament loaded, This week, More in the workshop. */
-.ws-now { display: grid; gap: 1.25rem; align-items: start; }
-@media (min-width: 1024px) {
-  .ws-now { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
-}
+/* The status and the camera side by side where each gets about 26 rem, stacked otherwise; the status always leads
+   (A10 plan decision 17). */
+.ws-now { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 1.25rem; align-items: start; }
 .ws-now .band, .ws-now .card { margin: 0; }
-/* On a phone the camera is 16:9 and at most ~40% of the screen high, so the next section stays in view; while a print
-   runs it comes first. */
+/* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
 .ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--surface-3); }
-@media (max-width: 1023px) {
-  .ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
-  .ws-now[data-cam-first="true"] > .ws-cam { order: -1; }
-}
+.ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
 .ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
 .ws-cam .card[aria-hidden] { display: grid; gap: .75rem; }
 .ws-skel-line { height: .9rem; }
@@ -121,7 +116,7 @@
 .ws-line { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0; }
 .ws-tray { display: inline-flex; align-items: center; gap: .35rem; }
 .ws-tray .swatch { width: 10px; height: 10px; border-radius: 50%; }
-.ws-last-print { margin: .5rem 0 0; }
+.ws-last-print { margin: .5rem 0 0; overflow-wrap: anywhere; }
 .ws-needs .lab-need-act { margin-top: .5rem; align-self: flex-start; }
 .ws-more-item { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
 .ws-more-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .75rem 1.1rem;

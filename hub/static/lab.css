@@ -13,16 +13,16 @@
 }
 
 .lab-layout {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 16px;
 }
 
-@media (min-width: 960px) {
-  .lab-layout {
-    grid-template-columns: minmax(320px, 380px) 1fr;
-    align-items: start;
-  }
-}
+/* Needs you beside the notebook where both fit (20 + 30 rem), stacked otherwise; the layout's own width decides (A10). */
+.lab-layout > * { flex: 999 1 30rem; min-width: 0; }
+.lab-layout > .lab-side { flex: 1 1 20rem; }
+#labBody { container: lab / inline-size; }
 
 /* The stale notice above the faceplate (A7 P8): the kit's ui-notice draws it. */
 .lab-synced {
@@ -505,30 +505,13 @@
   border-width: 0;
 }
 
-@media (max-width: 640px) {
-  .lab-sheet {
-    width: 100%;
-    max-width: 100%;
-    margin: auto 0 0;
-    border-radius: var(--ui-r-3, 12px) var(--ui-r-3, 12px) 0 0;
-    border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-
 /* ---- Real index parity (ported from Local AI app.css, on the hub's tokens) ---- */
 
 .lab-jump {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding: 4px 0 10px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.lab-jump::-webkit-scrollbar {
-  display: none;
 }
 
 .lab-jump__chip {
@@ -536,7 +519,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  min-height: 36px;
+  min-height: 44px;
   border-radius: 999px;
   background: var(--ui-surface-2, #1a2431);
   border: 1px solid var(--ui-line, #1f2a38);
@@ -553,7 +536,8 @@
   border-color: var(--ui-accent, #5ab4ff);
 }
 
-@media (min-width: 641px) {
+/* The jump chips matter only while the layout is stacked. */
+@container lab (min-width: 51rem) {
   .lab-jump {
     display: none;
   }
@@ -716,11 +700,6 @@
 .lab-wipe input:focus-visible + figcaption { outline: 2px solid var(--ui-accent); }
 .lab-wipe::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--cut); width: 3px; margin-left: -1px; background: #fff; pointer-events: none; }
 .lab-wipe figcaption { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 4px 10px; font-size: var(--ui-fs-2); color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
-@media (max-width: 640px) {
-  .lab-thumbs { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 2px 0 6px; }
-  .lab-thumbs::-webkit-scrollbar { display: none; }
-  .lab-thumb { flex: 0 0 88px; scroll-snap-align: start; }
-}
 
 /* Record what happened, and the quiet refresh's flash */
 .lab-obs__title { font-size: var(--ui-fs-3); margin: 0 0 6px; }
@@ -740,8 +719,8 @@
    Print Lab — Evidence Studio
    ============================================================ */
 .lab-evidence {
-  width: min(1120px, calc(100vw - 2rem));
-  max-height: min(92dvh, 940px);
+  width: min(1120px, calc(100vw - 1rem));
+  max-height: min(calc(100dvh - 1rem), 940px);
   padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
@@ -756,6 +735,7 @@
 }
 
 .lab-evidence__shell {
+  container: evidence / inline-size;
   position: relative;
   padding: clamp(1rem, 3vw, 1.75rem);
 }
@@ -783,7 +763,7 @@
 .lab-evidence__eyebrow {
   display: block;
   color: var(--text-3);
-  font-size: .6875rem;
+  font-size: .75rem;
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -933,7 +913,7 @@
 .lab-evidence__table thead th {
   color: var(--text-3);
   background: color-mix(in srgb, var(--surface-3) 60%, transparent);
-  font-size: .6875rem;
+  font-size: .75rem;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -961,12 +941,8 @@
 .lab-evidence__footer { margin-top: 1rem; }
 .lab-evidence__footer p { margin: 0; }
 
-@media (max-width: 760px) {
-  .lab-evidence {
-    width: calc(100vw - 1rem);
-    max-height: calc(100dvh - 1rem);
-  }
-
+/* One column when the studio itself is narrow. */
+@container evidence (max-width: 44rem) {
   .lab-evidence__summary {
     grid-template-columns: 1fr;
     padding-right: 0;
@@ -986,4 +962,21 @@
   .lab-evidence * {
     scroll-behavior: auto !important;
   }
+}
+
+/* Every tap target at least 44 px high (A10 width sweep). */
+.lab-details summary,
+.lab-earlier > summary,
+.lab-mac > summary,
+.lab-more > summary {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding-block: .65rem;
+}
+
+.lab-needs .list-row__title a,
+.lab-now a[data-lab-open] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
