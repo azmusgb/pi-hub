@@ -199,7 +199,7 @@ Scanning runs on the Pi in Docker (scanservjs, listening on `127.0.0.1:8095` onl
 
 ## Bambuddy's sign-in (on since 24 October 2026)
 
-Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin account is `bill`; its password is in `/etc/pi-hub/secrets/bambuddy_admin` (root only). Three callers use scoped API keys:
+Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin account is `bill`; its password is in `/etc/pi-hub/secrets/bambuddy_admin` (root only). Each caller uses its own scoped API key:
 
 | Caller | Needs | Key | State |
 |---|---|---|---|
@@ -207,6 +207,9 @@ Bambuddy (Pi, port 8000) requires sign-in since 24 October 2026. The admin accou
 | Local AI: the display's Materials card | read | another **Read status** key, as `LOCALAI_MATERIALS_KEY` in `C:\LocalAI\stack\stack.env` | Key in `stack.env`; the container must be recreated to read it |
 | Pi Hub: Clear the plate, Pause, Resume (Workshop and Home) | printer control | API key with **Control printer** only, printer 1 ("Pi Hub control"), in `/etc/pi-hub/secrets/bambuddy_control_key` (root:pi-hub 640). Made once by `sudo python3 /opt/pi-hub/current/deploy/bambuddy-control-key.py`, which signs in as `bill` and never prints the key | To do (owner runs the script) |
 | Workshop display: Clear plate | printer control | goes through Local AI (`POST /api/display/printer/clear`), which uses `LOCALAI_BAMBUDDY_CONTROL_KEY` ("Control printer", printer 1 only) | Key in `stack.env`; firmware `e2af9bf` installed |
+| print-lab (Mac): print log, archives, staging lab builds (A12) | read, library | **Read** and **Library** ("print-lab"), in `~/.config/bambuddy/print-lab-key` on the Mac | Done |
+
+**Permissions are set by one script** (A12 plan, decision 2): Bambuddy's settings screen can only make and delete keys, so `sudo python3 /opt/pi-hub/current/deploy/bambuddy-key-scopes.py` edits them in place, signing in as `bill`. Pi Hub (read) and Local AI Materials: Read. Pi Hub control: Control and Queue, printer 1 (Queue for A12's Start). Local AI Clear plate: Read and Control, printer 1. print-lab: Read and Library. It stops before any change if a key is missing, renamed or named twice, leaves other keys alone, and never prints a key. Run it again after making or remaking a key.
 
 Bambuddy's webhook to the hub goes the other way and isn't affected. The Bambuddy page in the App Suite asks for a sign-in once per browser.
 
