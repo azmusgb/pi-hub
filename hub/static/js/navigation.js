@@ -137,6 +137,9 @@ function render() {
           {
             class: "nav-badge",
             "aria-hidden": "true",
+            // A count stays a number in the tab bar; a word becomes a dot there.
+            "data-count": /^\d+\+?$/.test(badge) ? "" : null,
+            "data-short": badge === "99+" ? "9+" : null,
           },
           badge,
         ),
