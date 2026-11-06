@@ -92,6 +92,7 @@ p.hd-band__down { padding: .75rem 0; }
 .hd-dial__hand { stroke: var(--ui-text); stroke-width: 2; stroke-linecap: round; }
 .hd-dial__fill { fill: none; stroke: currentColor; stroke-linecap: round; }
 .hd-dial__ghost { fill: none; stroke: var(--ui-accent); stroke-dasharray: 3 3; }
+.hd-dial__hit { fill: transparent; }
 .hd-dial__halo { fill: none; stroke: var(--ui-text); opacity: 0; stroke-linecap: round; }
 .hd-dial__mark { cursor: pointer; outline: none; }
 .hd-dial__mark:hover .hd-dial__halo,

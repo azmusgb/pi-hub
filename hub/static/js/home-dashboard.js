@@ -173,12 +173,16 @@ function sweepOnce(g, dx) {
 const DIAL_EM = 22, MIN_ARC = 6;
 export function dialLayout(day, width, fs = 16) {
   const size = Math.max(0, Math.min(width, DIAL_EM * fs));
-  const k = size / 320, c = size / 2, ring = 9 * k, step = 17 * k, r0 = 64 * k;
+  const lanes = day.lanes || [];
+  const c = size / 2;
+  // the prototype's proportions, shrunk where needed so the outer ring leaves room for the hour labels (0.75rem type)
+  const units = 64 + Math.max(0, lanes.length - 1) * 17 + 4.5;
+  const k = Math.max(0, Math.min(size / 320, (c - 1.5 * fs) / units));
+  const ring = 9 * k, step = 17 * k, r0 = 64 * k;
   const span = Math.max(1, day.end - day.start);
   const clamp = (ts) => Math.min(Math.max(ts, day.start), day.end);
   const angle = (ts) => (clamp(ts) - day.start) / span * 2 * Math.PI - Math.PI / 2;
   const point = (r, ts) => [c + r * Math.cos(angle(ts)), c + r * Math.sin(angle(ts))];
-  const lanes = day.lanes || [];
   const outer = r0 + Math.max(0, lanes.length - 1) * step;
   const rings = lanes.map((lane, i) => {
     const r = r0 + i * step;
@@ -199,23 +203,29 @@ export function dialLayout(day, width, fs = 16) {
     const ts = day.start + i * 3600;
     hours.push({ ts, a: angle(ts), major: i % 6 === 0, label: i % 6 === 0 ? SHORT_HOUR(i) : "" });
   }
-  return { size, c, k, ring, step, inner: r0 - ring / 2, outer: outer + ring / 2, rings, hours, nowA: angle(day.now),
-    angle, point };
+  return { size, c, k, ring, step, inner: r0 - ring / 2, outer: outer + ring / 2, labelR: c - 0.85 * fs, rings, hours,
+    nowA: angle(day.now), angle, point };
 }
 
 // The mark a tap at (x, y) on the dial means: within 22 px of a mark across its ring and along it (a 44 × 44 target,
 // however short the arc), the nearest (A11 D3). Null when nothing is that close.
 export function dialHit(L, x, y) {
   const dx = x - L.c, dy = y - L.c, rho = Math.hypot(dx, dy);
-  let a = Math.atan2(dy, dx);
-  if (a < -Math.PI / 2) a += 2 * Math.PI;
+  const a = Math.atan2(dy, dx);
+  const TAU = 2 * Math.PI;
+  const mod = (v) => ((v % TAU) + TAU) % TAU;
+  // how far, in radians, the tap is outside an arc, the shorter way round (an arc may cross midnight's -π/2)
+  const outside = (a0, a1) => {
+    if (mod(a - a0) <= a1 - a0) return 0;
+    return Math.min(mod(a0 - a), mod(a - a1));
+  };
   let best = null;
   for (const ring of L.rings) {
     if (!ring.available) continue;
     const across = Math.abs(rho - ring.r);
     if (across > 22) continue;
     for (const mark of ring.marks) {
-      const along = a < mark.a0 ? (mark.a0 - a) * ring.r : a > mark.a1 ? (a - mark.a1) * ring.r : 0;
+      const along = outside(mark.a0, mark.a1) * ring.r;
       if (along > 22) continue;
       const d = Math.hypot(across, along);
       if (!best || d < best.d) best = { d, ring, mark };
@@ -224,15 +234,14 @@ export function dialHit(L, x, y) {
   return best && { ring: best.ring, mark: best.mark };
 }
 
-// The centre's words for the day's counts (A11 D2): "3 done, 2 failed". A quiet day says "0 done".
+// The centre's words for the day's headline counts (A11 D2): "3 done, 2 failed". A quiet day says "0 done". Power dips
+// and updates are in the tally under the dial.
 export function dialWords(counts) {
   if (!counts) return "";
   const n = (k) => (Number.isFinite(counts[k]) ? counts[k] : null);
   const parts = [];
   if (n("finished") !== null) parts.push(`${n("finished")} done`);
   if (n("failed") > 0) parts.push(`${n("failed")} failed`);
-  if (n("power") > 0) parts.push(`${n("power")} power dip${n("power") === 1 ? "" : "s"}`);
-  if (n("updates") > 0) parts.push(`${n("updates")} update${n("updates") === 1 ? "" : "s"} shipped`);
   return parts.join(", ");
 }
 
@@ -258,7 +267,7 @@ export function drawDial(host, day, width, fs = 16, onMark) {
     svg("line", { x1: L.c + r1 * Math.cos(hr.a), y1: L.c + r1 * Math.sin(hr.a), x2: L.c + r2 * Math.cos(hr.a), y2: L.c + r2 * Math.sin(hr.a),
       class: hr.major ? "hd-dial__tick" : "hd-dial__tick hd-dial__tick--minor" }, root);
     if (hr.label) {
-      const rl = L.outer + 14 * L.k;
+      const rl = L.labelR;
       svg("text", { x: L.c + rl * Math.cos(hr.a), y: L.c + rl * Math.sin(hr.a), class: "hd-dial__hour", "text-anchor": "middle",
         "dominant-baseline": "middle" }, root).textContent = hr.label;
     }
@@ -277,13 +286,16 @@ export function drawDial(host, day, width, fs = 16, onMark) {
     const lane = day.lanes.find((l) => l.id === ring.id);
     const g = svg("g", { class: "hd-dial__mark", tabindex: "0", role: "img", "aria-label": `${ring.label}: ${m.title}, ${markWhen(m, day)}` }, root);
     g.addEventListener("focus", () => onMark?.(lane, m));
+    // a 44 px target at the mark's middle, so the mark measures as one (taps are matched by dialHit on the whole dial)
+    const mid = (m.a0 + m.a1) / 2;
+    svg("circle", { cx: L.c + ring.r * Math.cos(mid), cy: L.c + ring.r * Math.sin(mid), r: 22, class: "hd-dial__hit" }, g);
     svg("path", { d: arcPath(L, ring.r, m.a0, m.a1), "stroke-width": L.ring + 6, class: "hd-dial__halo" }, g);
     if (m.ghost && m.ghost.a1 > m.ghost.a0) svg("path", { d: arcPath(L, ring.r, m.ghost.a0, m.ghost.a1), "stroke-width": L.ring * 0.6, class: "hd-dial__ghost" }, g);
     svg("path", { d: arcPath(L, ring.r, m.a0, m.a1), "stroke-width": L.ring, class: `hd-dial__fill hd-k-${m.kind}` }, g);
     (marks[ring.id] ||= [])[m.index] = g;
   }
   // Now: a hand across the rings
-  const [hx1, hy1] = [L.c + (L.inner - 8 * L.k) * Math.cos(L.nowA), L.c + (L.inner - 8 * L.k) * Math.sin(L.nowA)];
+  const [hx1, hy1] = [L.c + L.inner * Math.cos(L.nowA), L.c + L.inner * Math.sin(L.nowA)];  // clear of the centre
   const [hx2, hy2] = [L.c + (L.outer + 8 * L.k) * Math.cos(L.nowA), L.c + (L.outer + 8 * L.k) * Math.sin(L.nowA)];
   svg("line", { x1: hx1, y1: hy1, x2: hx2, y2: hy2, class: "hd-dial__hand" }, root);
   // A tap or a pointer anywhere on the dial takes the nearest mark within reach (A11 D3).
@@ -457,7 +469,8 @@ export function rackRows(src) {
     const bad = recs.find((r) => recordTone(r.severity) !== "ok");
     rows.push({ id: "storage", name: "Storage", lamp: bad ? lampOf(worst(recs)) : down.length ? "unknown" : lampOf(worst(recs)),
       state: bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up",
-      readings, brief: readings.find((r) => r.kind === "fill") ? `${readings.find((r) => r.kind === "fill").value} free` : "",
+      readings, brief: (() => { const s = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
+        return s ? `${gb(s.free_gb)} GB free` : ""; })(),
       href: "/drives", link: "Open Drives" });
   }
 
@@ -617,11 +630,17 @@ function dayMode(hd) {
 const PROMPT = { band: "Tap, point at or tab to anything on the band to see what it was.",
   dial: "Tap, point at or tab to anything on the dial to see what it was." };
 
-function redrawBand(state) {
+export function redrawBand(state) {
   const hd = state.hd;
   if (!hd) return;
   const at = dayMode(hd);
   if (!at || (at.width === hd.drawnWidth && at.fs === hd.drawnFs)) return;
+  const spot = focusSpot(hd);  // a resize redraws: keyboard focus comes back where it was
+  drawDay(hd, at);
+  refocus(hd, spot);
+}
+
+function drawDay(hd, at) {
   const changed = at.mode !== hd.root.dataset.day;
   hd.root.dataset.day = at.mode;
   if (changed) {

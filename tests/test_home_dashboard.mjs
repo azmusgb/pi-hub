@@ -141,10 +141,62 @@ test("every mark on the dial answers a tap within 22 px of it, and a tap takes t
   assert.equal(hit(off((ring1.r - ring0.r) * 0.7, 0)), "Short");
 });
 
+test("a tap either side of midnight finds a mark at midnight or just before it", () => {
+  const d = day();
+  d.lanes[0].marks = [{ at: START, kind: "warn", title: "At midnight" }];
+  d.lanes[1].marks = [{ at: START + 86_400 - 60, kind: "ok", title: "Just before" }];
+  const L = dialLayout(d, 390, 16);
+  const top = (r, dx) => [L.c + dx, L.c - r];
+  assert.equal(dialHit(L, ...top(L.rings[0].r, -15))?.mark.title, "At midnight", "left of the top");
+  assert.equal(dialHit(L, ...top(L.rings[0].r, 15))?.mark.title, "At midnight", "right of the top");
+  assert.equal(dialHit(L, ...top(L.rings[1].r, 15))?.mark.title, "Just before", "right of the top, the day's last minute");
+});
+
+test("the dial on a DST day, and a mark across the whole day", () => {
+  const d = day({ end: START + 25 * H, now: START + 24.5 * H });
+  d.lanes[2].marks = [{ start: START - H, end: START + 26 * H, kind: "warn", title: "All day" }];
+  const L = dialLayout(d, 390, 16);
+  assert.equal(L.hours.length, 25, "a tick for each of 25 hours");
+  near(L.angle(START + 25 * H), 1.5 * Math.PI, "the day's own end closes the circle");
+  const m = L.rings[2].marks[0];
+  near(m.a0, -Math.PI / 2, "from midnight"); near(m.a1, 1.5 * Math.PI, "to midnight");
+});
+
+test("the dial keeps its hour labels inside its width on a small phone", () => {
+  for (const w of [240, 260, 280, 320, 352]) {
+    const L = dialLayout(day(), w, 16);
+    assert.ok(L.labelR + 0.75 * 16 <= L.size / 2, `${w}px: labels inside (${L.labelR})`);
+    assert.ok(L.labelR - 0.5 * 16 >= L.outer + 2, `${w}px: labels clear of the outer ring`);
+  }
+});
+
+test("each dial mark carries a 44 px target the sweep can measure", async () => {
+  const k = kitInstall();
+  try {
+    const { drawDial } = await import("../hub/static/js/home-dashboard.js");
+    const d = day();
+    d.lanes[2].marks = [{ at: START + 2 * H, kind: "warn", title: "Low voltage" }];
+    const host = document.createElement("div");
+    drawDial(host, d, 390, 16);
+    const hit = host.querySelector(".hd-dial__mark .hd-dial__hit");
+    assert.ok(hit, "a hit circle inside the mark");
+    assert.ok(Number(hit.getAttribute("r")) >= 22);
+  } finally { k.done(); }
+});
+
+// A10 D4: the band keeps the whole day at any hour, and the running print's dashed finish stops at its right edge.
+test("the band spans midnight to midnight at 1 AM, 6 PM and 11:30 PM, and clips a finish past midnight", () => {
+  for (const h of [1, 18, 23.5]) assert.equal(bandLayout(day({ now: START + h * H }), 1200).end, START + 86_400, `${h}h`);
+  const d = day({ now: START + 23 * H });
+  d.lanes[0].marks = [{ start: START + 22 * H, end: d.now, until: d.now + 4 * H, kind: "run", title: "Long" }];
+  const L = bandLayout(d, 1200), m = L.lanes[0].marks[0];
+  assert.ok(m.ghost.x + m.ghost.w <= L.width - L.pad + 0.01, "the dashed finish stops at the band's end");
+});
+
 test("the dial's centre says the time and the day's counts in words", () => {
-  assert.equal(dialWords({ finished: 3, failed: 2, power: 0, updates: 1 }), "3 done, 2 failed, 1 update shipped");
+  assert.equal(dialWords({ finished: 3, failed: 2, power: 0, updates: 1 }), "3 done, 2 failed", "the headline counts");
   assert.equal(dialWords({ finished: 0, failed: 0, power: 0, updates: 0 }), "0 done", "a quiet day says so");
-  assert.equal(dialWords({ finished: 1, failed: 0, power: 2, updates: 0 }), "1 done, 2 power dips");
+  assert.equal(dialWords({ finished: 1, failed: 0, power: 2, updates: 3 }), "1 done", "dips and updates are in the tally");
   assert.equal(dialWords(null), "", "no counts, no words");
 });
 
@@ -203,6 +255,34 @@ test("Home draws the dial and compact rows where the band doesn't fit, and the b
     assert.ok(wide.querySelector(".hd-band__svg"));
     assert.equal(wide.querySelectorAll(".hd-unit--compact").length, 0);
   } finally { k.done(); }
+});
+
+test("a resize between band and dial redraws the rack, keeps focus and the lit mark", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard, redrawBand } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    state.hd.plot.clientWidth = 1100;
+    const d = day();
+    d.lanes[2].marks = [{ at: START + 2 * H, kind: "warn", title: "Low voltage" }];
+    renderDashboard(state, { today: d, records: [], needs: { count: 0, items: [], unread: [] }, now: {} }, () => {});
+    assert.equal(parent.querySelector(".hd").dataset.day, "band");
+    state.hd.lit = { lane: "pi", index: 0 };
+    const links = () => [...parent.querySelectorAll(".hd-unit__go")];
+    links()[2].focus();
+    state.hd.plot.clientWidth = 390;  // rotated to a phone
+    redrawBand(state);
+    assert.equal(parent.querySelector(".hd").dataset.day, "dial");
+    assert.equal(parent.querySelectorAll(".hd-unit--compact").length, 5, "the rack follows");
+    assert.equal(document.activeElement, links()[2], "focus comes back to the same link");
+    assert.ok(parent.querySelector(".hd-dial__mark").classList.contains("is-lit"), "the lit mark stays lit");
+  } finally { k.done(); }
+});
+
+test("the compact Storage row says nothing rather than null when free space is unknown", () => {
+  const rows = rackRows({ now: {}, records: [], pi: { storage: [{ name: "Movies", mounted: true, used_pct: 40 }] }, backups: null, workshop: null, nowTs: START });
+  assert.equal(rows.find((r) => r.id === "storage").brief, "");
 });
 
 test("each rack row has one reading for the compact rows", () => {
