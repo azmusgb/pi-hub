@@ -1,6 +1,6 @@
 # Amendment A13: ship or merge a pull request from Pi Hub
 
-Date: 2026-11-06 · Status: **proposed** (approved when the owner merges this PR) · Amends: §6.3 (the engineering
+Date: 2026-11-06 · Status: **approved** 6 November 2026 (pi-hub #145) · Amends: §6.3 (the engineering
 change loop), the records table (two new kinds), auth's key-exempt paths (`hub/app.py`), and the Needs-you phrases
 (appliance-ui `src/needs.js`).
 
