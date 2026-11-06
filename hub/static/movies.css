@@ -4,36 +4,29 @@
    ============================================================ */
 
 /* ---------- Poster ---------- */
+/* The artwork, then the title and year under it in the theme's colours: no words over the photo (A10 plan decision 15). */
 .poster-card {
-  position: relative; display: block; color: inherit; text-decoration: none;
-  border-radius: var(--r-lg); overflow: hidden;
-  aspect-ratio: 2 / 3;
-  background: var(--surface-3);
-  box-shadow: var(--sh-1);
+  display: grid; gap: .45rem; align-content: start; color: inherit; text-decoration: none;
+  border-radius: var(--r-lg);
+}
+.poster-card .poster-art {
+  border-radius: var(--r-lg); background: var(--surface-3); box-shadow: var(--sh-1);
   transition: transform .35s var(--spring), box-shadow .35s var(--smooth);
 }
-.poster-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: var(--sh-2); }
+.poster-card:hover .poster-art { transform: translateY(-4px) scale(1.015); box-shadow: var(--sh-2); }
 .poster-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .poster-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.poster-card::after {
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 42%);
-  opacity: .9; transition: opacity .35s var(--smooth);
-}
-.poster-meta {
-  position: absolute; left: .75rem; right: .75rem; bottom: .75rem;
-  z-index: 1; color: #fff;
-}
+.poster-meta { color: var(--text-2); font-size: .8125rem; }
 .poster-title {
-  font-size: .9375rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
+  color: var(--text); font-size: .9375rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.poster-sub { font-size: .75rem; opacity: .8; margin-top: .15rem; }
+.poster-sub { display: block; font-size: .8125rem; margin-top: .15rem; }
 .poster-badge {
   position: absolute; top: .75rem; left: .75rem; z-index: 1;
   padding: .2rem .55rem; border-radius: var(--r-full);
   background: rgba(0,0,0,.55); color: #fff;
-  font-size: .6875rem; font-weight: 700; letter-spacing: .04em;
+  font-size: .75rem; font-weight: 700; letter-spacing: .04em;
   backdrop-filter: blur(6px);
 }
 
@@ -100,24 +93,14 @@
   }
 }
 
-/* ---------- Poster reveal (refinement) ---------- */
-.poster-card .poster-meta {
-  transform: translateY(6px);
-  opacity: .9;
-  transition: transform .45s var(--spring), opacity .3s var(--smooth);
-}
-.poster-card:hover .poster-meta,
-.poster-card:focus-visible .poster-meta {
-  transform: translateY(0);
-  opacity: 1;
-}
+/* ---------- Poster hover (refinement) ---------- */
 .poster-card img {
   transition: transform .55s var(--spring), filter .3s var(--smooth);
 }
 .poster-card:hover img { transform: scale(1.04); filter: saturate(1.06); }
 
 @media (prefers-reduced-motion: reduce) {
-  .poster-card .poster-meta,
+  .poster-card .poster-art,
   .poster-card img {
     animation: none;
     transition: none;
@@ -140,10 +123,6 @@
 .poster-bar i { display: block; height: 100%; background: var(--pei); }
 .poster-title { font-weight: 700; font-size: 0.92rem; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .poster-meta { color: var(--muted); font-size: 0.8rem; }
-/* On the artwork (the Media page's poster cards) the words sit on a dark fade: white, whatever the theme. */
-.poster-card .poster-meta,
-.poster-card .poster-title { color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / .6); }
-.poster-card .poster-sub { color: rgb(255 255 255 / .85); }
 .poster a:hover .poster-title { color: var(--pei); }
 .poster a:focus-visible { outline-offset: 4px; }
 
@@ -163,7 +142,7 @@
   border-radius: 999px;
   background: rgba(0,0,0,.75);
   color: #fff;
-  font-size: .6875rem;
+  font-size: .75rem;
   font-weight: 700;
   letter-spacing: .02em;
   z-index: 2;
@@ -200,12 +179,9 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  /* 8rem, not the plan's 8.5: two across still fit a 320 px phone (a 280 px shelf). */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
   gap: 1rem;
-}
-
-.poster-shelf .poster-card {
-  aspect-ratio: 2 / 3;
 }
 
 .poster-blank {
@@ -284,7 +260,7 @@
 }
 
 .movie-hero-kicker {
-  font-size: .6875rem;
+  font-size: .75rem;
   font-weight: 700;
   letter-spacing: .16em;
   text-transform: uppercase;
@@ -332,15 +308,10 @@
   background: var(--accent);
 }
 
-@media (max-width: 720px) {
-  .movie-hero {
-    min-height: 240px;
-  }
-
-  .movie-hero-body {
-    max-width: 100%;
-    padding: 1.25rem;
-  }
+/* The hero's height and text column follow its own width (A10). */
+.movie-hero { container: hero / inline-size; min-height: clamp(240px, 26vw, 360px); }
+@container hero (max-width: 45rem) {
+  .movie-hero-body { max-width: 100%; padding: 1.25rem; }
 }
 
 /* Movie night */
@@ -372,11 +343,10 @@
   border: 1px solid var(--line);
 }
 
-@media (max-width: 540px) {
-  .mn-pick {
-    grid-template-columns: 1fr;
-  }
-}
+/* The poster beside the pick where both fit, the poster above it otherwise. */
+.mn-pick { display: flex; flex-wrap: wrap; }
+.mn-pick > .mn-poster { flex: 0 1 10rem; }
+.mn-pick > .mn-body { flex: 1 1 16rem; min-width: 0; }
 
 .mn-poster {
   width: 100%;
@@ -447,7 +417,7 @@
   border-radius: 3px 3px 0 0;
 }
 .nights .night > b {
-  font-size: .6875rem;
+  font-size: .75rem;
   color: var(--text-3);
   font-weight: 600;
 }
@@ -489,7 +459,7 @@
 }
 .eyebrow-section > .eyebrow-count {
   font-family: var(--font-mono);
-  font-size: .6875rem;
+  font-size: .75rem;
   color: var(--text-3);
   padding: .1rem .45rem;
   border: 1px solid var(--line);
@@ -625,7 +595,7 @@
 
 .poster-badge.poster-cert {
   color: #f8fafc;
-  font-size: .625rem;
+  font-size: .75rem;
   padding: .15rem .45rem;
   text-transform: uppercase;
 }
@@ -633,9 +603,9 @@
 
 /* Playing now: rows have no status dot, so the shared three-column log grid put the title in the dot's 0.7rem column
    (one word per line). Title and progress; on a phone, progress goes under the title. */
-.log-row.np-row { grid-template-columns: minmax(0, 1fr) 120px; }
-@media (max-width: 560px) {
-  .log-row.np-row { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+.log-row.np-row { grid-template-columns: minmax(0, 1fr) 120px; container: np / inline-size; }
+@container np (max-width: 30rem) {
+  .log-row.np-row > * { grid-column: 1 / -1; }
   .log-row.np-row .progress { width: 100% !important; }
 }
 

@@ -672,6 +672,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
   a.button, a.tool-link, button.chip, button.ghost, .print-photo-link,
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select { min-height: 44px; }
   a.button, a.tool-link, .print-photo-link { display: inline-flex; align-items: center; }
+  a.tool-link { min-width: 44px; justify-content: center; }
   .status-list li a { display: inline-flex; align-items: center; min-height: 44px; }
   input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }  /* WCAG 2.2 minimum; the label is the big target */
   input[type=range] { min-height: 44px; }
