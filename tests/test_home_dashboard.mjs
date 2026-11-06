@@ -4,7 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { install, text } from "./helpers/fake_dom.mjs";
-import { bandLayout, countItems, markWhen, needMark, needsOrder, rackRows, otherFine } from "../hub/static/js/home-dashboard.js";
+import { clockTime } from "../hub/static/js/core.js";
+import { bandFits, bandLayout, countItems, dialHit, dialLayout, dialWords, markWhen, needMark, needsOrder, rackRows, otherFine }
+  from "../hub/static/js/home-dashboard.js";
 import * as controlRoom from "../hub/static/js/control-room.js";
 
 const { mergeProblems, problemsBadge } = controlRoom;
@@ -22,14 +24,23 @@ const day = (over = {}) => ({
   ...over,
 });
 
-test("the band puts lane names beside the tracks when wide and above them on a phone", () => {
-  const wide = bandLayout(day(), 1200), narrow = bandLayout(day(), 390);
-  assert.equal(wide.narrow, false);
-  assert.equal(narrow.narrow, true);
-  assert.ok(wide.lanes.every((l) => Math.abs(l.labelY - (l.cy + 4)) < 0.01), "wide: the name sits on the track's line");
-  assert.ok(narrow.lanes.every((l) => l.labelY < l.cy - 7), "narrow: the name sits above the track");
-  assert.ok(narrow.hours.filter((h) => h.label).every((h) => h.label.length <= 3), "narrow: short hours (12a, 6a, 12p)");
-  assert.equal(narrow.width, 390);
+// A10 D4 and A11 D1/D6: where it is drawn, the band has the whole day with lane names beside the tracks.
+test("the band keeps the whole day with lane names beside the tracks", () => {
+  for (const w of [800, 1200]) {
+    const L = bandLayout(day({ now: START + 18 * 3600 }), w);
+    assert.ok(L.lanes.every((l) => Math.abs(l.labelY - (l.cy + 0.25 * 16)) < 0.01), `${w}px: the name sits on the track's line`);
+    assert.equal(L.end, START + 86_400, `${w}px: midnight to midnight`);
+    assert.equal(L.width, w);
+  }
+});
+
+// A10 D4: rows, bars and the name column are in em of the band's type, so the band grows with the fluid root.
+test("the band's rows, bars and name column scale with its font size", () => {
+  const a = bandLayout(day(), 1200, 16), b = bandLayout(day(), 1200, 20);
+  assert.equal(a.lanes[1].cy - a.lanes[0].cy, 44, "today's 44 px row at 16 px");
+  assert.equal(b.lanes[1].cy - b.lanes[0].cy, 55);
+  assert.equal(b.bar, 20);
+  assert.equal(b.start, 8.25 * 20);
 });
 
 test("every mark is at least a 44 x 44 target, however thin it is drawn, and targets don't cross lanes", () => {
@@ -47,7 +58,8 @@ test("every mark is at least a 44 x 44 target, however thin it is drawn, and tar
 
 test("hour labels never touch each other, from a phone to a wide desktop", () => {
   const CH = 7;  // a generous width per character at 11 px Archivo
-  for (let w = 300; w <= 1600; w += 10) {
+  for (let w = 300; w <= 2400; w += 10) {
+    if (!bandFits(w, 16)) continue;  // narrower, Home draws the dial (A11 D1)
     const labels = bandLayout(day({ now: START + 1800 }), w).hours.filter((h) => h.label).map((h) => {
       const len = h.label.length * CH;
       const left = h.anchor === "start" ? h.x : h.anchor === "end" ? h.x - len : h.x - len / 2;
@@ -59,40 +71,150 @@ test("hour labels never touch each other, from a phone to a wide desktop", () =>
   }
 });
 
-// A9 D1: a phone band runs from midnight to an hour after Now, at least six hours, never past midnight.
-test("a phone band shows the day so far; a wide band keeps the whole day", () => {
-  const H = 3600;
-  const at = (h) => bandLayout(day({ now: START + h * H }), 390);
-  assert.equal(at(18).end, START + 19 * H, "6 PM: midnight to 7 PM");
-  assert.equal(at(1).end, START + 6 * H, "1 AM: at least six hours");
-  assert.equal(at(23.5).end, START + 24 * H, "11:30 PM: never past midnight");
-  assert.equal(bandLayout(day({ now: START + 18 * H }), 900).end, START + 24 * H, "wide: midnight to midnight");
-  const L = at(18);
-  assert.ok(L.nowX > L.width * 0.9, "Now sits near the right edge, the past gets the width");
+// A11 D1: the switch is A10 D4's measure: the band, with names beside, gives an hour at least 24 px, or Home draws the
+// dial. 8.25em of names and 1em of padding leave 24 x 24 px of track at 724 px for 16 px type.
+test("the band is drawn only where an hour gets 24 px with names beside; elsewhere the dial", () => {
+  assert.equal(bandFits(724, 16), true);
+  assert.equal(bandFits(723, 16), false);
+  assert.equal(bandFits(390, 16), false, "a phone gets the dial");
+  assert.equal(bandFits(760, 20), false, "larger type needs a wider band");
+  assert.equal(bandFits(761.25, 20), true);
+  assert.equal(bandFits(0, 16), false);
 });
 
-test("on a phone a mark past the band's end is clipped, not dropped", () => {
-  const H = 3600;
+const H = 3600;
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 0.01, `${msg}: ${a} vs ${b}`);
+
+// A11 D2: 24 hours clockwise, midnight at the top, one ring per lane inside to outside, up to 22 rem across.
+test("the dial: midnight at the top, clockwise, rings in lane order, up to 22 rem across", () => {
+  const L = dialLayout(day(), 390, 16);
+  assert.equal(L.size, 352, "22rem at 16 px");
+  assert.equal(dialLayout(day(), 300, 16).size, 300, "the card's width when narrower");
+  assert.deepEqual(L.rings.map((r) => r.id), ["printer", "workshop_display", "pi", "backups", "updates"]);
+  for (let i = 1; i < L.rings.length; i++) assert.ok(L.rings[i].r > L.rings[i - 1].r, "inside to outside");
+  const r = L.rings[0].r;
+  const [mx, my] = L.point(r, START), [sx, sy] = L.point(r, START + 6 * H);
+  near(mx, L.c, "midnight x"); near(my, L.c - r, "midnight is at the top");
+  near(sx, L.c + r, "6 AM is to the right (clockwise)"); near(sy, L.c, "6 AM y");
+  assert.ok(L.rings.at(-1).r + L.ring / 2 < L.size / 2, "the outer ring stays inside the dial");
+  assert.deepEqual(L.hours.filter((h) => h.label).map((h) => h.label), ["12a", "6a", "12p", "6p"]);
+  assert.equal(L.hours.length, 24, "a tick every hour");
+});
+
+test("the dial's arcs: a print across midnight starts at the top; the running print draws to Now, then dashes", () => {
   const d = day({ now: START + 18 * H });
-  d.lanes[0].marks = [{ start: START + 17 * H, end: d.now, until: d.now + 3 * H, kind: "run", title: "E-026: Printing" }];
-  const L = bandLayout(d, 390), m = L.lanes[0].marks[0];
-  assert.ok(m.w > 0);
-  assert.ok(m.ghost.x + m.ghost.w <= L.width, "the dashed finish stops at the edge");
+  d.lanes[0].marks = [
+    { start: START - 2 * H, end: START + H, kind: "ok", title: "Clip: Finished" },
+    { start: START + 17 * H, end: d.now, until: d.now + 3 * H, kind: "run", title: "E-026: Printing" },
+  ];
+  const [a, b] = dialLayout(d, 390, 16).rings[0].marks;
+  near(a.a0, -Math.PI / 2, "clipped to midnight, at the top");
+  near(a.a1, -Math.PI / 2 + Math.PI / 12, "to 1 AM");
+  near(b.a1, -Math.PI / 2 + 18 / 24 * 2 * Math.PI, "the print draws to Now");
+  near(b.ghost.a0, b.a1, "its finish dashes from Now");
+  near(b.ghost.a1, -Math.PI / 2 + 21 / 24 * 2 * Math.PI, "to the finish");
+  const late = day({ now: START + 23 * H });
+  late.lanes[0].marks = [{ start: START + 22 * H, end: late.now, until: late.now + 5 * H, kind: "run", title: "Long" }];
+  near(dialLayout(late, 390, 16).rings[0].marks[0].ghost.a1, 1.5 * Math.PI, "the dashed finish stops at midnight");
 });
 
-test("phone hour labels never touch, whatever the span", () => {
-  const CH = 7;
-  for (const h of [0.5, 3, 9, 14, 18, 23.5]) for (let w = 300; w < 520; w += 10) {
-    const L = bandLayout(day({ now: START + h * 3600 }), w);
-    const labels = L.hours.filter((x) => x.label).map((x) => {
-      const len = x.label.length * CH;
-      const left = x.anchor === "start" ? x.x : x.anchor === "end" ? x.x - len : x.x - len / 2;
-      return { left, right: left + len, label: x.label };
-    });
-    assert.ok(labels.length >= 2, `${w}px at ${h}h: some hours are labelled`);
-    for (let i = 1; i < labels.length; i++) assert.ok(labels[i].left - labels[i - 1].right >= 4, `${w}px at ${h}h: ${labels[i - 1].label} / ${labels[i].label}`);
-    assert.ok(labels.every((x) => x.left >= 0 && x.right <= w), `${w}px at ${h}h: labels inside the band`);
-  }
+// A11 D3: a hit area at least 44 x 44 around every mark, however short; where two overlap, the nearer mark.
+test("every mark on the dial answers a tap within 22 px of it, and a tap takes the nearer mark", () => {
+  const d = day();
+  d.lanes[0].marks = [{ at: START + 3 * H, kind: "warn", title: "Point" }];
+  d.lanes[1].marks = [{ start: START + 3 * H, end: START + 3 * H + 60, kind: "ok", title: "Short" }];
+  const L = dialLayout(d, 390, 16);
+  const ring0 = L.rings[0], ring1 = L.rings[1];
+  const at = (r, ts) => L.point(r, ts);
+  const hit = (xy) => dialHit(L, ...xy)?.mark.title;
+  assert.equal(hit(at(ring0.r, START + 3 * H)), "Point");
+  assert.equal(hit(at(ring1.r, START + 3 * H)), "Short");
+  // 21 px off the point, along the ring and across it, still finds a mark: a 44 x 44 target
+  const ang = L.angle(START + 3 * H);
+  const off = (dr, dt) => [L.c + (ring0.r + dr) * Math.cos(ang) - dt * Math.sin(ang), L.c + (ring0.r + dr) * Math.sin(ang) + dt * Math.cos(ang)];
+  assert.ok(hit(off(0, 21)), "21 px along the ring");
+  assert.ok(hit(off(0, -21)), "21 px back along the ring");
+  assert.equal(hit(off(-21, 0)), "Point", "21 px inside the inner ring: only the point is near");
+  assert.equal(hit(off(0, 40)), undefined, "40 px away: nothing");
+  // between the two rings, the nearer wins
+  assert.equal(hit(off((ring1.r - ring0.r) * 0.3, 0)), "Point");
+  assert.equal(hit(off((ring1.r - ring0.r) * 0.7, 0)), "Short");
+});
+
+test("the dial's centre says the time and the day's counts in words", () => {
+  assert.equal(dialWords({ finished: 3, failed: 2, power: 0, updates: 1 }), "3 done, 2 failed, 1 update shipped");
+  assert.equal(dialWords({ finished: 0, failed: 0, power: 0, updates: 0 }), "0 done", "a quiet day says so");
+  assert.equal(dialWords({ finished: 1, failed: 0, power: 2, updates: 0 }), "1 done, 2 power dips");
+  assert.equal(dialWords(null), "", "no counts, no words");
+});
+
+test("the dial: marks in time order for the keyboard, a down lane dashed and named, a quiet day empty", async () => {
+  const k = kitInstall();
+  try {
+    const { drawDial } = await import("../hub/static/js/home-dashboard.js");
+    const d = day();
+    d.lanes[2].marks = [{ at: START + 2 * H, kind: "warn", title: "Low voltage" }];
+    d.lanes[0].marks = [{ start: START + 5 * H, end: START + 6 * H, kind: "ok", title: "Clip" }];
+    d.lanes[4].marks = [{ at: START + H, kind: "deployed", title: "Pi Hub 3ab99e9" }];
+    d.lanes[3] = { ...d.lanes[3], available: false, marks: [] };
+    const host = document.createElement("div");
+    drawDial(host, d, 390, 16);
+    const marks = [...host.querySelectorAll(".hd-dial__mark")];
+    assert.deepEqual(marks.map((m) => m.getAttribute("aria-label")),
+      [`Updates: Pi Hub 3ab99e9, ${clockTime(START + H)}`, `Raspberry Pi: Low voltage, ${clockTime(START + 2 * H)}`,
+        `X2D: Clip, ${clockTime(START + 5 * H)} to ${clockTime(START + 6 * H)}`],
+      "keyboard order is time order");
+    assert.ok(marks.every((m) => m.getAttribute("tabindex") === "0"));
+    assert.equal(host.querySelectorAll(".hd-dial__ring--down").length, 1, "the down lane's ring is dashed");
+    assert.match(text(host.querySelector(".hd-dial__key")), /Backups: Backrest isn't answering/);
+    assert.match(text(host.querySelector(".hd-dial__key")), /^X2D.*Workshop display.*Raspberry Pi.*Backups.*Updates/, "the key, inside to outside");
+    const quiet = document.createElement("div");
+    drawDial(quiet, day(), 390, 16);
+    assert.equal(quiet.querySelectorAll(".hd-dial__mark").length, 0);
+    assert.equal(quiet.querySelectorAll(".hd-dial__ring").length, 5, "a quiet day is empty rings");
+    assert.match(text(quiet.querySelector(".hd-dial__centre")), /0 done/);
+  } finally { k.done(); }
+});
+
+// A11 D5: where the dial is drawn, the counts sit under it and the rack is compact rows: lamp, name, state, one
+// reading, the link (and a row's actions, which are not readings).
+test("Home draws the dial and compact rows where the band doesn't fit, and the band and full rack where it does", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const draw = (width) => {
+      const state = {}, parent = k.env.root();
+      mountDashboard(state, parent);
+      state.hd.plot.clientWidth = width;
+      renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 0, updates: 0 } }), records: [],
+        needs: { count: 0, items: [], unread: [] }, now: {}, pi: { temp: 52 }, backups: null,
+        workshop: { week: { finished: 4, hours: 9 } } }, () => {});
+      return parent;
+    };
+    const phone = draw(390);
+    assert.equal(phone.querySelector(".hd").dataset.day, "dial");
+    assert.ok(phone.querySelector(".hd-dial"));
+    assert.equal(phone.querySelector(".hd-band__svg"), null);
+    assert.equal(phone.querySelectorAll(".hd-unit--compact").length, 5);
+    assert.equal(phone.querySelectorAll(".hd-unit__readings").length, 0, "one reading, not the full set");
+    assert.equal(text(phone.querySelector('[data-row="week"] .hd-unit__brief')), "4 finished");
+    const wide = draw(1100);
+    assert.equal(wide.querySelector(".hd").dataset.day, "band");
+    assert.ok(wide.querySelector(".hd-band__svg"));
+    assert.equal(wide.querySelectorAll(".hd-unit--compact").length, 0);
+  } finally { k.done(); }
+});
+
+test("each rack row has one reading for the compact rows", () => {
+  const rows = rackRows({ now: { printer: { minutes_left: 30 }, pi: { temp: 52.4 } },
+    records: [{ id: "printer", state: "printing", severity: "ok", detail: { progress: 42 } }, { id: "pi", state: "ok", severity: "ok" }],
+    pi: { storage: [{ name: "Movies", mounted: true, used_pct: 40, free_gb: 812 }] }, backups: null,
+    workshop: { week: { finished: 4, hours: 9 } }, nowTs: START + 15 * H });
+  const brief = Object.fromEntries(rows.map((r) => [r.id, r.brief]));
+  assert.equal(brief.pi, "52°");
+  assert.equal(brief.storage, "812 GB free");
+  assert.equal(brief.week, "4 finished");
+  assert.equal(brief.network, "", "the network's state is its reading");
 });
 
 // A9 D2: short count labels on a phone, the full words kept for screen readers
@@ -319,7 +441,7 @@ test("a refresh puts keyboard focus back where it was", async () => {
   } finally { k.done(); }
 });
 
-test("the tally hides the extra words visually on a phone, not from screen readers", async () => {
+test("the tally hides the extra words visually in a narrow band, not from screen readers", async () => {
   const k = kitInstall();
   try {
     const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
@@ -330,7 +452,7 @@ test("the tally hides the extra words visually on a phone, not from screen reade
     assert.deepEqual(labels.map(text), ["prints finished", "failed", "power dips", "updates shipped"]);
     assert.deepEqual([...parent.querySelectorAll(".hd-tally__more")].map(text), ["prints", "shipped"]);
     const css = readFileSync(new URL("../hub/static/home-dashboard.css", import.meta.url), "utf8");
-    assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.hd-tally__more \{[^}]*clip-path: inset\(50%\)/);
+    assert.match(css, /@container band \(max-width: [\d.]+rem\)[\s\S]*\.hd-tally__more \{[^}]*clip-path: inset\(50%\)/);
   } finally { k.done(); }
 });
 
@@ -346,7 +468,7 @@ test("the Now line sweeps once per page load, and not with reduced motion", asyn
       const state = {};
       parent = k.env.root();
       mod.mountDashboard(state, parent);
-      state.hd.plot.clientWidth = 390;
+      state.hd.plot.clientWidth = 900;  // the band (the dial has no sweep)
       return state;
     };
     mod.resetSweep();
@@ -383,6 +505,6 @@ test("Home's stylesheet is linked and cached, and uses no tokens of its own", ()
   assert.match(sw, /"\/static\/js\/home-dashboard\.js"/);
   assert.doesNotMatch(css, /^\s*--[a-z]/m, "no new custom properties (plan decision 9)");
   assert.doesNotMatch(css, /var\(--(?!ui-)/, "only the kit's --ui-* tokens");
-  // the shell caps #view at 1440 px: a zoom above 1.2 would leave the band too narrow to read (2.4 gave 267 px)
-  for (const [, z] of css.matchAll(/zoom:\s*([\d.]+)/g)) assert.ok(Number(z) <= 1.2, `zoom ${z}`);
+  // A10 D4: the fluid root scales Home on the TV; no zoom
+  assert.doesNotMatch(css, /zoom\s*:/);
 });
