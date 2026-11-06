@@ -30,8 +30,10 @@ export function faceplateLoading(name) {
     h("div", { class: "ui-faceplate__main" }, bar("30%"), bar("40%", "48px"), bar("70%"), bar("85%")));
 }
 
-export function section(title, body, { note = null, id = null } = {}) {
-  return h("section", { class: "ui-section", ...(id ? { id } : {}) }, h("h2", {}, title),
+// `lamp`: [tone, word], drawn beside the heading for a section that has a state of its own (Health's disks, updates).
+export function section(title, body, { note = null, id = null, lamp = null, cls = "" } = {}) {
+  const head = lamp ? h("div", { class: "ui-section__head" }, h("h2", {}, title), lampChip(lamp)) : h("h2", {}, title);
+  return h("section", { class: ["ui-section", cls].filter(Boolean).join(" "), ...(id ? { id } : {}) }, head,
     note ? h("p", { class: "ui-section__note" }, note) : null, ...[].concat(body).filter(Boolean));
 }
 

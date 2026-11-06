@@ -4,7 +4,6 @@
 import {
   api,
   askFirst,
-  card,
   duration,
   empty,
   fix,
@@ -14,13 +13,18 @@ import {
   spark,
   when,
 } from "./core.js";
+import { faceplate, faceplateLoading, lampRows, section as uiSection } from "./page-parts.js";
 import { moreList, openInRow } from "./section-links.js";
 import { toolPath } from "./sections.js";
 
 export const every = 20;
 
-// One of Health's six sections (A6): marked so the page, and its test, can tell them from what is under More.
+// One of Health's parts (A6): marked so the page, and its test, can tell them from what is under More.
 const section = (node, name) => { node.dataset.health = name; return node; };
+
+// A titled part of the page: a kit section (A7 P1), its state as a lamp beside the heading rather than a card's pill.
+const card = (title, { pill, tone, id, cls } = {}, ...body) =>
+  uiSection(title, body, { id, cls, lamp: pill != null && pill !== "" ? [tone || "unknown", pill] : null });
 
 const STATE = {
   active: ["Running", "ok"],
@@ -107,17 +111,17 @@ export function mount(state) {
   state.range = 24;
   state.running = false;
 
-  state.body = h("div", {
-    class: "cards",
-  });
+  state.plate = h("div", {}, faceplateLoading("Self-check"));
+  state.body = h("div", { class: "pi-bottom-grid" });
 
   // Other systems has its own slot: it reads the records, so it stays when the Pi's diagnostics fail.
   state.others = h("div", { class: "pi-bottom-grid" });
 
+  // The faceplate's skeleton shows the loading; this line tells a screen reader how the checks went.
   state.diagnostic = h(
     "p",
     {
-      class: "meta",
+      class: "sr",
       role: "status",
       "aria-live": "polite",
     },
@@ -167,6 +171,7 @@ export function mount(state) {
 
   state.root.append(...[
     state.result,
+    state.plate,
     first,
     state.diagnostic,
     state.body,
@@ -226,105 +231,33 @@ function chart(
   );
 }
 
-function selfcheckCard(check) {
+// The faceplate (A7 P1): the last self-check, with the services the Pi runs. A failed check or a failed service lights it;
+// with no self-check yet it says so and never shows as healthy.
+export function healthPlate(check, services = [], pi = {}) {
+  const failedUnits = asArray(services).filter((s) => s?.state === "failed");
+  const checks = asArray(check?.checks);
+  const bad = checks.filter((item) => !item?.ok);
+  const total = finiteNumber(check?.total) ?? checks.length;
+  const failed = finiteNumber(check?.failed) ?? bad.length;
+  const unitRows = failedUnits.map((s) => ({ title: s.name || "A service", detail: "Stopped with an error.", tone: "bad", word: "Failed" }));
+  const checkRows = bad.map((item) => ({ title: item?.name || "Check failed", detail: item?.detail || null, tone: "bad", word: "Failed" }));
+  const extra = unitRows.length || checkRows.length ? [lampRows([...checkRows, ...unitRows])] : [];
+  const temp = finiteNumber(pi?.temp);
+  const up = finiteNumber(pi?.uptime_h);
+  const readings = [["The Pi's temperature", temp === null ? null : `${Math.round(temp)} °C`], ["Running for", up === null ? null : `${up} h`]];
   if (!check) {
-    return card(
-      "Self-check",
-      {},
-
-      empty(
-        "The first self-check runs tonight at 4:15. Tap “Run a self-check” above to run one now.",
-      ),
-    );
+    return faceplate({ name: "Self-check", lamp: failedUnits.length ? ["bad", `${failedUnits.length} service${failedUnits.length === 1 ? "" : "s"} failed`] : ["unknown", "Not run yet"],
+      readout: "—", caption: "The first self-check runs tonight at 4:15. Run a self-check under Fixes to run one now.", readings, extra });
   }
-
-  const checks =
-    asArray(check.checks);
-
-  const bad = checks.filter(
-    (item) => !item?.ok,
-  );
-
-  const total =
-    finiteNumber(check.total) ??
-    checks.length;
-
-  const failed =
-    finiteNumber(check.failed) ??
-    bad.length;
-
-  return card(
-    "Self-check",
-    {
-      pill: check.passed
-        ? `All ${total} passed`
-        : `${failed} of ${total} failed`,
-
-      tone: check.passed
-        ? "ok"
-        : "bad",
-    },
-
-    h(
-      "p",
-      {
-        class: "meta",
-      },
-      `Last run ${safeWhen(
-        check.ts,
-      )}. Every page, every API, the services, free space, last night's backup and the temperature.`,
-    ),
-
-    bad.length
-      ? h(
-          "ul",
-          {
-            class: "log",
-          },
-
-          bad.map((item) =>
-            h(
-              "li",
-              {
-                class: "log-row",
-              },
-
-              h("span", {
-                class: "dot",
-                dataset: {
-                  tone: "bad",
-                },
-                "aria-hidden": "true",
-              }),
-
-              h(
-                "span",
-                {
-                  class: "log-main",
-                },
-
-                h(
-                  "strong",
-                  {},
-                  item?.name ||
-                    "Check failed",
-                ),
-
-                item?.detail
-                  ? h(
-                      "span",
-                      {
-                        class: "meta",
-                      },
-                      item.detail,
-                    )
-                  : null,
-              ),
-            ),
-          ),
-        )
-      : null,
-  );
+  const lamp = !check.passed ? ["bad", `${failed} failed`]
+    : failedUnits.length ? ["bad", `${failedUnits.length} service${failedUnits.length === 1 ? "" : "s"} failed`]
+      : ["ok", "All passed"];
+  return faceplate({
+    name: "Self-check", lamp,
+    readout: check.passed ? `${total} of ${total}` : `${total - failed} of ${total}`, unit: "passed", size: "md",
+    caption: `Last run ${safeWhen(check.ts)}. Every page, every API, the services, free space, last night's backup and the temperature.`,
+    readings, extra,
+  });
 }
 
 function healthCard(
@@ -1280,19 +1213,17 @@ async function loadDiagnostics(
           updates: {},
         };
 
-  // Six sections in view (A6, decision health): self-check, services, Pi disks, updates, other systems (its own slot,
-  // above) and fix it. Outages, network and history are under More.
+  // The self-check is the faceplate (A7 P1); then five sections in view (A6, decision health): services, Pi disks,
+  // updates, other systems (its own slot, above) and fix it. Outages, network and history are under More.
+  state.plate.replaceChildren(section(healthPlate(data.selfcheck, data.services, data.health), "selfcheck"));
   state.body.replaceChildren(
-    section(selfcheckCard(data.selfcheck), "selfcheck"),
-
-    h("div", { class: "pi-bottom-grid" },
-      section(servicesCard(
-        data.services,
-        actionsResult.status === "fulfilled" ? asArray(actionsData.actions) : null,
-        records,
-      ), "services"),
-      section(storageCard(data.storage), "disks"),
-      section(updatesCard(state, data, actionsData), "updates")),
+    section(servicesCard(
+      data.services,
+      actionsResult.status === "fulfilled" ? asArray(actionsData.actions) : null,
+      records,
+    ), "services"),
+    section(storageCard(data.storage), "disks"),
+    section(updatesCard(state, data, actionsData), "updates"),
   );
 
   state.fix.replaceChildren(...[
@@ -1320,7 +1251,6 @@ export async function load(
 
   state.loading = true;
 
-  state.diagnostic.classList.toggle("sr", false);
   state.diagnostic.textContent =
     "Checking system details…";
 
@@ -1344,41 +1274,19 @@ export async function load(
       return;
     }
 
-    // The card below says it for everyone who can see it; the status line still tells a screen reader.
-    state.diagnostic.classList.toggle("sr", true);
+    // The faceplate says it for everyone who can see it; the status line still tells a screen reader.
     state.diagnostic.textContent =
       "System checks unavailable. The help guides on this page still work.";
 
     state.fix.replaceChildren();
     for (const key of ["outages", "network", "history"]) state.more.fill(key, []);
-    state.body.replaceChildren(
-      card(
-        "Couldn’t check the system",
-        {
-          tone: "warn",
-        },
-
-        h(
-          "p",
-          {
-            class: "meta",
-          },
-          "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically. The help guides below still work.",
-        ),
-
-        h(
-          "button",
-          {
-            type: "button",
-            class: "ghost",
-
-            onclick: () =>
-              load(state),
-          },
-          "Retry system checks",
-        ),
-      ),
-    );
+    // Unknown, never healthy: the faceplate says the checks didn't answer and offers to try again.
+    state.body.replaceChildren();
+    state.plate.replaceChildren(section(faceplate({
+      name: "Self-check", lamp: ["unknown", "Not answering"], readout: "—",
+      caption: "The hub’s diagnostic service didn’t answer. We’ll keep trying automatically. The help guides below still work.",
+      actions: [h("button", { type: "button", class: "ui-btn", onclick: () => load(state) }, "Retry system checks")],
+    }), "selfcheck"));
   } finally {
     state.loading = false;
   }

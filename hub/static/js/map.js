@@ -1,6 +1,7 @@
 // System › Site map: every area, page and tool on one page. It is drawn from routes.js (the pages the server knows), the
 // area strips and the tool registry, so a page or tool added there appears here with no edit (A6 decision sitemap).
 import { h } from "./core.js";
+import { faceplate } from "./page-parts.js";
 import ROUTES from "./routes.js";
 import { SECTIONS, toolUrl } from "./sections.js";
 import { STRIPS } from "./system-strip.js";
@@ -55,9 +56,19 @@ function toolItem(t, machine) {
       h("span", { class: "visually-hidden" }, " (opens in a new tab)"), " ", h("span", { class: "meta" }, t.purpose)));
 }
 
+// The faceplate (A7 P1): what the map holds. It has no state of its own, so no lamp.
+export function mapPlate(groups) {
+  const pages = groups.reduce((n, g) => n + g.pages.length, 0);
+  const tools = groups.filter((g) => !g.machine).reduce((n, g) => n + g.tools.length, 0);
+  return faceplate({ name: "Site map", readout: String(pages), unit: "pages", size: "md",
+    caption: "Every page and tool, drawn from the menu and the tool list, so it is always current.",
+    readings: [["Areas", String(SECTIONS.length)], ["Tools", String(tools)]] });
+}
+
 export function mount(state) {
-  state.root.append(h("p", { class: "page-intro" }, "Every page and tool, drawn from the menu and the tool list, so it is always current."),
-    h("div", { class: "map-areas" }, siteMap().map((g) => h("section", { class: "more-group", dataset: { area: g.key } },
+  const groups = siteMap();
+  state.root.append(mapPlate(groups),
+    h("div", { class: "map-areas" }, groups.map((g) => h("section", { class: "more-group", dataset: { area: g.key } },
       h("h2", {}, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title),
       g.pages.length ? h("ul", { class: "more" }, g.pages.map((p) =>
         h("li", {}, h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href))))) : null,

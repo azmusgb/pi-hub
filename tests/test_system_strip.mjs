@@ -47,7 +47,7 @@ test('/pi is only a redirect to Health, and keeps ?help=', () => {
 
 test("Health holds every /pi card and System's services; the display's pairing moved to Settings (W.1)", () => {
   const src = read('hub/static/js/health.js');
-  for (const fn of ['selfcheckCard(', 'outagesCard(', 'servicesCard(', 'fixCard(', 'storageCard(', 'updatesCard(',
+  for (const fn of ['healthPlate(', 'outagesCard(', 'servicesCard(', 'fixCard(', 'storageCard(', 'updatesCard(',
     'networkCard(', 'healthCard(', 'otherSystemsCard(', 'helpGuidance()']) assert.ok(src.includes(fn), fn);
   assert.match(src, /openInRow\("system"\)/);  // Open in Backrest ↗ · Cockpit ↗, from the registry (PR 7.6)
   assert.match(read('hub/static/js/freshness.js'), /const SOURCES = \{ health: true \}/);  // Source responses

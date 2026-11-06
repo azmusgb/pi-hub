@@ -79,7 +79,7 @@ export function keepFocus(container, redraw) {
   try { if (caret && target.setSelectionRange) target.setSelectionRange(caret[0], caret[1]); } catch { /* not a text control */ }
 }
 
-// An item named in `alerts` whose content is warn or bad (a card's pill says so) shows a badge on its summary and opens by itself, once,
+// An item named in `alerts` whose content is warn or bad (a section's lamp or a card's pill says so) shows a badge on its summary and opens by itself, once,
 // when it starts to be one: the viewer can close it again and it stays closed until it changes.
 const ALERT_RANK = { warn: 1, bad: 2 };
 const ALERT_SAY = { warn: "Check", bad: "Needs a look" };
@@ -87,9 +87,10 @@ const ALERT_SAY = { warn: "Check", bad: "Needs a look" };
 function alertOf(nodes) {
   let worst = null;
   for (const node of nodes) {
-    const pills = [node, ...(node?.querySelectorAll?.(".pill") || [])];
+    const pills = [node, ...(node?.querySelectorAll?.(".pill, .ui-chip") || [])];
     for (const p of pills) {
-      const tone = p?.classList?.contains("pill") ? p.dataset?.tone : null;
+      const chip = p?.classList?.contains("ui-chip") ? /ui-chip--(warn|bad)\b/.exec(p.className)?.[1] : null;
+      const tone = chip || (p?.classList?.contains("pill") ? p.dataset?.tone : null);
       if ((ALERT_RANK[tone] || 0) > (ALERT_RANK[worst] || 0)) worst = tone;
     }
   }
