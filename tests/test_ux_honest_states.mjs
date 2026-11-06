@@ -56,9 +56,9 @@ test("System's strip pages are headed System; the strip and the tab title say wh
   assert.match(read('hub/static/js/main.js'), /pageHeading\(path, page\.title\)/);
 });
 
-test('on a phone every strip shows all its entries, wrapping, none hidden off the edge (A7: the underlined strip)', () => {
+test('every strip shows all its entries, wrapping, none hidden off the edge (A7: the underlined strip; A10: at any width)', () => {
   const css = read('hub/static/app.css');
-  assert.match(css, /@media \(max-width: 560px\) \{\s*\.ui-strip\.page-strip \{[^}]*flex-wrap: wrap;[^}]*overflow: visible/);
+  assert.match(css, /^\.ui-strip\.page-strip \{[^}]*flex-wrap: wrap;[^}]*overflow: visible/m);
 });
 
 test('the Bambuddy notice: said once when it goes down, recovery said once, then cleared without a word', async () => {

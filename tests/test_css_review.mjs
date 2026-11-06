@@ -29,8 +29,11 @@ test("the Print lab's button classes are styled, at least 44 px tall", () => {
 });
 
 test('on a phone the page strips, Search, Restart, the theme link and the Site map links are 44 px targets', () => {
-  const touch = [...css('enhance.css').matchAll(/@media \(max-width: 860px\), \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
-  for (const sel of ['.tabs > a', '.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a']) {
+  const touch = [...css('enhance.css').matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]).join('\n');
+  // A10 D2 (plan decision 4): a target's size follows the pointer, not the window's width, so a touch screen of any
+  // width gets 44 px, and the rail's own links are in the list.
+  assert.doesNotMatch(css('enhance.css'), /@media \(max-width: 860px\), \(pointer: coarse\)/);
+  for (const sel of ['.tabs > a', '.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a', '.rail a[data-page]', '#theme-btn']) {
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
 });
