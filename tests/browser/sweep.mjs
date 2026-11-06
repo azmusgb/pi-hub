@@ -15,7 +15,7 @@ const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/documents':
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.
-const PENDING = new Set(['/documents', '/media', '/system']);
+const PENDING = new Set(['/documents', '/system']);
 const SHOTS = [320, 390, 820, 1024, 1180, 1366, 1440, 1920, 2560];
 // The 20 px steps, plus the named sizes that fall between them (390, 1024, 1366).
 const WIDTHS = [...new Set([...Array.from({ length: (2560 - 320) / 20 + 1 }, (_, i) => 320 + i * 20), ...SHOTS])].sort((a, b) => a - b);
@@ -77,7 +77,9 @@ function check({ TARGET, SMALL }) {
     const s = getComputedStyle(el);
     // WCAG 2.5.8's inline exception: a link inside a sentence is sized by the line it sits in.
     if (el.tagName === 'A' && s.display === 'inline' && [...el.parentElement.childNodes].some((n) => n !== el && n.nodeType === 3 && n.textContent.trim())) continue;
-    const r = el.getBoundingClientRect();
+    // A checkbox or radio is 24 px by design (enhance.css): the label wrapping it is the target, so the label is measured.
+    const box = /^(checkbox|radio)$/.test(el.type) && el.closest('label');
+    const r = (box || el).getBoundingClientRect();
     if (r.width < TARGET - 0.5 || r.height < TARGET - 0.5) add('target', el, `${Math.round(r.width)} × ${Math.round(r.height)}`);
   }
 
