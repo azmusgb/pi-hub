@@ -71,7 +71,7 @@ after Q1, because it is a write path of its own.
 
 The owner opens a planned, built experiment on the phone and can say, without the terminal: what prints and how tall in
 inches, what differs, what it costs against each limit, why it is blocked if it is, and what the slice measured. Then the
-owner approves it on the Mac with the line shown. Recorded in `docs/operations.md` as "Accepted <date>".
+owner approves it on the page with those numbers in view. Recorded in `docs/operations.md` as "Accepted <date>".
 
 ## Not in this amendment
 
