@@ -240,6 +240,39 @@ def test_the_check_reports_the_printer_state_and_trays_for_the_sheet(client, pri
     assert got["printer"] == {"state": None, "trays": []} and got["reasons"]
 
 
+def test_the_check_reports_the_queue_item_and_why_it_is_waiting(client, monkeypatch):  # A12 follow-up
+    seen = []
+
+    def call(method, path, key, body=None):
+        seen.append((method, path, key))
+        if path == "/queue/9":
+            return 200, json.dumps({"id": 9, "status": "pending",
+                                    "waiting_reason": "Bambu X2D refused to store the file. Bambuddy will retry."}).encode()
+        return 404, b"{}"
+    real = lab_start.queue_item
+    monkeypatch.setattr(lab_start, "queue_item", lambda item, rk: real(item, rk, call=call))
+    monkeypatch.setattr(lab_start, "read_key", lambda: "read-key")
+    got = client.get("/api/printer/start/hex-tile/E-026?item=9").json()
+    assert got["queue"] == {"status": "pending", "waiting": "Bambu X2D refused to store the file. Bambuddy will retry."}
+    assert seen == [("GET", "/queue/9", "read-key")], "read-only, with the read key"
+    assert client.get("/api/printer/start/hex-tile/E-026").json()["queue"] is None
+    assert client.get("/api/printer/start/hex-tile/E-026?item=77").json()["queue"] is None  # unreadable: no reason, no error
+
+
+@pytest.mark.parametrize("item, status, body", [(0, 200, b"{}"), (-1, 200, b"{}"), ("9", 200, b"{}"), (True, 200, b"{}"),
+                                                 (9, 404, b"{}"), (9, 200, b"junk"), (9, 200, b"[1]")])
+def test_queue_item_gives_none_for_what_it_cannot_read(item, status, body):
+    assert lab_start.queue_item(item, "k", call=lambda *a, **k: (status, body)) is None
+
+
+def test_queue_item_trims_and_types_what_bambuddy_says():
+    long = "x" * 900
+    got = lab_start.queue_item(3, "k", call=lambda *a, **k: (200, json.dumps({"status": 5, "waiting_reason": long}).encode()))
+    assert got == {"status": None, "waiting": "x" * 300}
+    got = lab_start.queue_item(3, "k", call=lambda *a, **k: (200, json.dumps({"status": "printing", "waiting_reason": ""}).encode()))
+    assert got == {"status": "printing", "waiting": None}
+
+
 def test_the_phone_cannot_send_a_one_tap_request_itself(client):
     r = client.post("/api/lab/hex-tile/requests", headers=SAME,
                     json={"id": "rq-0123456789abcdef", "kind": "one_tap", "experiment": "E-026", "payload": {}})

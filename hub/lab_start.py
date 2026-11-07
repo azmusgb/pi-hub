@@ -115,6 +115,20 @@ def start(x, control_key, read_key, call=_call):
             "library_file": int(fid)}
 
 
+def queue_item(item, read_key, call=_call):
+    """A queue item as the sheet shows it: {"status", "waiting"} (Bambuddy's own reason it hasn't started, e.g. the
+    printer refused the upload), or None when it can't be read."""
+    if not isinstance(item, int) or isinstance(item, bool) or item < 1:
+        return None
+    st, raw = call("GET", f"/queue/{item}", read_key)
+    d = _json(raw) if st == 200 else None
+    if not isinstance(d, dict):
+        return None
+    waiting = d.get("waiting_reason")
+    return {"status": d.get("status") if isinstance(d.get("status"), str) else None,
+            "waiting": waiting[:300] if isinstance(waiting, str) and waiting else None}
+
+
 def control_key():
     return printer_control._key()
 
