@@ -172,6 +172,12 @@ def test_an_unknown_reading_keeps_the_down_clock():  # R15
     assert house.pc({"win_ok": False}, unk2, T + 360)["state"] == "off"
 
 
+def test_an_earlier_heat_slowdown_is_not_called_a_power_problem():
+    r = house.pi({"pi_temp": 73, "pi_power": "Slowed by heat earlier"})
+    assert r["state"] == "power" and r["cause"] == "Slowed by heat earlier; 73 °C now."
+    assert house.pi({"pi_temp": 60, "pi_power": "Low voltage earlier"})["cause"] == "Power problem: Low voltage earlier."
+
+
 def test_heat_wins_over_heat_power_flags():  # R17
     assert house.pi({"pi_temp": 82, "pi_power": "Slowed by heat"})["state"] == "hot"
     assert house.pi({"pi_temp": 82, "pi_power": "Slowed by heat earlier"})["state"] == "hot"

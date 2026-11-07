@@ -124,7 +124,8 @@ def pi(s):
     if temp >= HOT_AT and heat_flag:
         return _rec("pi", "hot", headline, cause=f"Running hot at {temp:.0f} °C.", detail=detail)
     if power != "Good":
-        return _rec("pi", "power", headline, cause=f"Power problem: {power}.", detail=detail)
+        what = f"Slowed by heat earlier; {temp:.0f} °C now" if power == "Slowed by heat earlier" else f"Power problem: {power}"
+        return _rec("pi", "power", headline, cause=f"{what}.", detail=detail)
     if temp >= HOT_AT:
         return _rec("pi", "hot", headline, cause=f"Running hot at {temp:.0f} °C.", detail=detail)
     return _rec("pi", "ok", headline, detail=detail)
