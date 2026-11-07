@@ -79,3 +79,91 @@ def test_poster_404_when_nothing_plays(monkeypatch):
     from hub import app as hub_app, sources
     monkeypatch.setattr(sources, "plex_sessions", lambda: [])
     assert TestClient(hub_app.app).get("/api/now/poster/0.jpg").status_code == 404
+
+
+def _record_change(ts, thing, new, old="stopped"):
+    from hub import records
+    records.ready()
+    db.run("INSERT INTO record_events (ts, thing, old, new, severity, headline, cause) VALUES (?, ?, ?, ?, 'ok', '', '')",
+           ts, thing, old, new)
+
+
+def test_a_plex_or_homebridge_outage_ends_when_its_record_comes_back(monkeypatch):
+    # Plex and Homebridge have no recovery event, so their outages read "Still down" for 30 days.
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "plex_stopped")
+    _record_change(t + 300, "plex", "idle")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "idle"})
+    plex_out = system.outages()[0]
+    assert (plex_out["what"], plex_out["end"], plex_out["ongoing"]) == ("Plex", t + 300, False)
+
+
+def test_an_outage_seen_down_again_or_up_now_is_not_still_down(monkeypatch):
+    # A recovery missed (say, during a hub restart) left the earlier outage open for good.
+    from hub import records
+    events.ready()
+    records.ready()
+    t = int(time.time()) - 10000
+    for ts, kind in ((t, "pc_down"), (t + 500, "pc_down"), (t + 900, "homebridge_stopped")):
+        db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", ts, kind)
+    states = {"pc": "off", "devices": "ok"}
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": states[id]})
+    got = [(o["what"], o["start"] - t, o["end"], o["ongoing"]) for o in system.outages()]
+    assert got == [("Homebridge", 900, None, False), ("Windows PC", 500, None, True), ("Windows PC", 0, None, False)]
+
+
+def test_an_outage_whose_thing_cannot_be_read_stays_open(monkeypatch):
+    from hub import records
+    events.ready()
+    records.ready()
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", int(time.time()) - 100, "drive_dropped")
+    monkeypatch.setattr(records, "get", lambda id: None)
+    assert system.outages()[0]["ongoing"] is True
+
+
+def test_a_first_reading_after_a_start_ends_an_outage_at_an_unknown_time(monkeypatch):
+    # Live, 7 Nov: Plex stopped 20 Oct and its record history begins 27 Oct with None -> idle. That says Plex is up,
+    # not that it was down for a week.
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "plex_stopped")
+    _record_change(t + 5000, "plex", "idle", old=None)
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "stopped"})
+    plex_out = system.outages()[0]
+    assert (plex_out["end"], plex_out["ongoing"]) == (None, False)
+
+
+def test_a_stale_record_keeps_an_outage_open(monkeypatch):
+    # After a restart every record is stale with its last state: a pre-outage "ok" mustn't close the outage.
+    from hub import records
+    events.ready()
+    records.ready()
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", int(time.time()) - 100, "homebridge_stopped")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok", "stale": True})
+    assert system.outages()[0]["ongoing"] is True
+
+
+def test_a_recovery_through_an_unknown_reading_keeps_its_end_time(monkeypatch):
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "homebridge_stopped")
+    _record_change(t + 100, "devices", "unknown", old="stopped")
+    _record_change(t + 160, "devices", "ok", old="unknown")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok"})
+    assert system.outages()[0]["end"] == t + 160
+
+
+def test_a_hub_start_between_down_and_up_leaves_the_end_unknown(monkeypatch):
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "homebridge_stopped")
+    _record_change(t + 100, "devices", "unknown", old=None)
+    _record_change(t + 160, "devices", "ok", old="unknown")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok"})
+    out = system.outages()[0]
+    assert (out["end"], out["ongoing"]) == (None, False)

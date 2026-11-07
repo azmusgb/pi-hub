@@ -341,7 +341,8 @@ def watch():
             "homebridge": bool(svc.get("homebridge")),
             "pc": s["ai_state"] != "Down",
             "display": s["display_state"] != "Offline",
-            "hot": (s.get("pi_temp") or 0) >= 80,
+            # Hot from 80 °C, and cool again only below 75: a Pi hovering at 80 alerted on every wobble (7 Nov).
+            "hot": (s.get("pi_temp") or 0) >= (75 if seen.get("hot") else 80),
         }
         messages = {
             "drive": (("Movies drive is back", "Plex can play movies again.", "white_check_mark"),

@@ -98,3 +98,35 @@ def test_localai_release_without_ca_raises(files):
 ])
 def test_pi_power_names_heat_and_voltage_apart(raw, said):
     assert pi_status.power_word(int(raw, 16)) == said
+
+
+def _watch(monkeypatch, temps):
+    """Runs pi-status's watch() over one status per temperature and returns the alert titles it sent."""
+    steady = {"services": {"plex": True, "homebridge": True}, "drive_state": "Connected", "ai_state": "Ready",
+              "display_state": "Online", "x2d_state": "Idle", "x2d_progress": 0}
+    readings = iter(temps)
+
+    def status():
+        try:
+            return {**steady, "pi_temp": next(readings)}
+        except StopIteration:
+            raise KeyboardInterrupt from None  # ends the loop once every reading is spent
+
+    sent = []
+    monkeypatch.setattr(pi_status, "status", status)
+    monkeypatch.setattr(pi_status.time, "sleep", lambda s: None)
+    monkeypatch.setattr(pi_status, "notify", lambda title, *a, **k: sent.append(title))
+    with pytest.raises(KeyboardInterrupt):
+        pi_status.watch()
+    return sent
+
+
+def test_a_pi_hovering_at_80_degrees_alerts_once_not_on_every_wobble(monkeypatch):
+    # 7 Nov 05:34-06:06: about 16 "running hot" / "cooled down" alerts as the Pi wobbled across 80 °C.
+    wobble = [70, 70] + [80.3, 80.3, 79.8, 79.8] * 4
+    assert _watch(monkeypatch, wobble) == ["Pi is running hot"]
+
+
+def test_the_pi_has_cooled_down_once_it_holds_below_75(monkeypatch):
+    sent = _watch(monkeypatch, [70, 70, 81, 81, 77, 77, 74, 74, 81, 81])
+    assert sent == ["Pi is running hot", "Pi has cooled down", "Pi is running hot"]

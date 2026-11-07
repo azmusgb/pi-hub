@@ -5,7 +5,7 @@ import socket
 import subprocess
 import time
 
-from . import db, sources
+from . import db, records, sources
 
 SERVICES = [
     ("plexmediaserver", "Plex", "Plays the movies"),
@@ -204,10 +204,17 @@ def pc_copy():
 
 OUTAGE_PAIRS = {"pc_down": ("pc_back", "Windows PC"), "drive_dropped": ("drive_back", "Movies drive"),
                 "plex_stopped": (None, "Plex"), "homebridge_stopped": (None, "Homebridge")}
+# down event -> the record that speaks for the thing, and its states that mean it is down (events.ON's)
+OUTAGE_RECORDS = {"pc_down": ("pc", {"off"}), "drive_dropped": ("movies_drive", {"missing", "not_mounted"}),
+                  "plex_stopped": ("plex", {"stopped"}), "homebridge_stopped": ("devices", {"stopped"})}
 
 
 def outages(days=30):
-    """Downtime from the hub's own event log: what went down, when, and for how long."""
+    """Downtime from the hub's own event log: what went down, when, and for how long. An outage with no
+    recovery event (Plex and Homebridge have none, and one can be missed across a hub restart) ends at its
+    record's first change to a state that isn't down; failing that, it isn't ongoing once the thing went
+    down again or its record says it's up now, and its end is unknown. A record that can't be read leaves it
+    ongoing."""
     since = int(time.time()) - days * 86400
     try:
         evs = db.rows("SELECT ts, kind FROM events WHERE ts >= ? ORDER BY ts", since)
@@ -217,7 +224,7 @@ def outages(days=30):
     for e in evs:
         if e["kind"] in OUTAGE_PAIRS:
             open_[e["kind"]] = e["ts"]
-            out.append({"what": OUTAGE_PAIRS[e["kind"]][1], "start": e["ts"], "end": None})
+            out.append({"what": OUTAGE_PAIRS[e["kind"]][1], "kind": e["kind"], "start": e["ts"], "end": None})
         for down, (up, _) in OUTAGE_PAIRS.items():
             if up and e["kind"] == up and down in open_:
                 start = open_.pop(down)
@@ -225,4 +232,42 @@ def outages(days=30):
                     if o["start"] == start and o["end"] is None:
                         o["end"] = e["ts"]
                         break
+    for i, o in enumerate(out):
+        kind = o.pop("kind")
+        if o["end"] is not None:
+            o["ongoing"] = False
+            continue
+        thing, down = OUTAGE_RECORDS[kind]
+        later = next((x["start"] for x in out[i + 1:] if x["kind"] == kind), None)
+        back = _record_back(thing, down, o["start"], later)
+        o["end"] = back if isinstance(back, int) else None
+        if back is not None or later is not None:
+            o["ongoing"] = False
+        else:
+            rec = records.get(thing)
+            o["ongoing"] = (not rec or rec.get("stale") or rec.get("state") in down
+                            or rec.get("state") in ("unknown", "offline"))
     return list(reversed(out))[:20]
+
+
+def _record_back(thing, down, start, before=None):
+    """How the thing's record came back after start (and before the next outage): the time it changed from a down
+    state to one that isn't, "seen" when it was first read up with no down reading before it (after a hub start,
+    say, which says it's up but not since when), or None when no reading says it's up."""
+    try:
+        rows = db.rows("SELECT ts, old, new FROM record_events WHERE thing = ? AND ts > ? AND ts < ? ORDER BY ts",
+                       thing, start, before if before is not None else 2**62)
+    except Exception:  # noqa: BLE001 - no record history yet
+        return None
+    unsure = ("unknown", "offline")
+    lost = False  # a hub start since the last down reading: the record no longer knows what came before
+    for r in rows:
+        if r["old"] is None:
+            lost = True
+        if r["new"] in down:
+            lost = False
+            continue
+        if r["new"] in unsure:
+            continue
+        return r["ts"] if not lost and (r["old"] in down or r["old"] in unsure) else "seen"
+    return None
