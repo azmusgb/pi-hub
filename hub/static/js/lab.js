@@ -253,19 +253,63 @@ export function judgeOnOpen(ix, id, doParam) {
 
 const FILAMENT_TYPES = ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"];
 
-// Decision 8 of the A12 plan: the build's filament against the AMS tray in slot 1. "match" pre-ticks the check, "mismatch"
-// blocks Start (the build names another type), "unknown" leaves the tick to the owner. Only the type can be compared:
-// Bambuddy reports a tray's type and colour, the lab records a filament as free text.
-export function startFilament(filament, trays) {
+// A colour as a word the owner can read: the file and the AMS both report hex, which says little at a glance.
+export function colourName(hex) {
+  const m = /^#?([0-9a-f]{6})/i.exec(String(hex || ""));
+  if (!m) return "";
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (d < 0.08) return l > 0.85 ? "white" : l < 0.18 ? "black" : "grey";
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  const dark = l < 0.3, pale = l > 0.72 || s < 0.3;
+  if (h < 20 || h >= 345) return pale ? "pink" : dark ? "maroon" : "red";
+  if (h < 45) return pale && l > 0.6 ? "beige" : dark ? "brown" : "orange";
+  if (h < 70) return pale && l > 0.7 ? "cream" : "yellow";
+  if (h < 160) return dark ? "dark green" : "green";
+  if (h < 200) return "teal";
+  if (h < 250) return dark ? "navy" : "blue";
+  if (h < 290) return "purple";
+  return "pink";
+}
+
+const COLOUR_FAR = 80;  // of 441 (the longest RGB distance): a different spool, not a shade of the same one
+
+function colourDistance(a, b) {
+  const rgb = (v) => { const m = /^#?([0-9a-f]{6})/i.exec(String(v || "")); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+  const x = rgb(a), y = rgb(b);
+  return x && y ? Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) : null;
+}
+
+// Decision 8 of the A12 plan: the build's filament against the AMS tray in slot 1. `file` is the staged record's
+// `filament` ({type, colour} the sliced file asks for), else the lab's free-text filament names the type.
+// "match" pre-ticks the check; "mismatch" (another type) blocks Start; "colour" (the same type in another colour)
+// leaves it unticked with a warning, because Bambuddy sends it anyway and a different colour can be intended;
+// "unknown" leaves the tick to the owner.
+export function startFilament(filament, trays, file) {
   const tray = list(trays).find((t) => t && t.slot === 1);
   const loaded = tray ? `${tray.type || "Filament"}${tray.name && tray.name !== tray.type ? ` (${tray.name})` : ""}` : "";
   if (!tray) return { state: "unknown", text: "The printer doesn't report what's in slot 1." };
-  const words = String(plain(filament) || "").toUpperCase().split(/[^A-Z]+/);
+  const want = file && typeof file === "object" ? file : {};
+  const words = String(plain(want.type || filament) || "").toUpperCase().split(/[^A-Z]+/);
   const named = FILAMENT_TYPES.filter((t) => words.includes(t));
   const type = String(tray.type || "").toUpperCase();
-  if (!named.length) return { state: "unknown", text: `Slot 1 has ${loaded}.${filament ? ` The build is set for ${plain(filament)}.` : ""} Check it matches.`, color: tray.color };
-  if (named.includes(type)) return { state: "match", text: `Slot 1 has ${loaded}, as the build needs.`, color: tray.color };
-  return { state: "mismatch", text: `Slot 1 has ${loaded}, but the build is set for ${plain(filament)}. Load the right filament first.`, color: tray.color };
+  const label = want.type || plain(filament);
+  if (!named.length) return { state: "unknown", text: `Slot 1 has ${loaded}.${label ? ` The build is set for ${label}.` : ""} Check it matches.`, color: tray.color };
+  if (!named.includes(type)) return { state: "mismatch", text: `Slot 1 has ${loaded}, but the build is set for ${label}. Load the right filament first.`, color: tray.color };
+  const far = colourDistance(tray.color, want.colour);
+  if (far !== null && far > COLOUR_FAR) {
+    return { state: "colour", color: tray.color, text: `Slot 1 has ${colourName(tray.color)} ${tray.type || ""}; the build asks for ${colourName(want.colour)}. It will print in ${colourName(tray.color)}. Tick only if that's what you want.`.replace(/\s+/g, " ") };
+  }
+  return { state: "match", text: `Slot 1 has ${loaded}, as the build needs.`, color: tray.color };
+}
+
+// Bambuddy's own reason an accepted item hasn't started (the printer refused the file, say), in a line for the sheet.
+export function startWait(queue) {
+  const why = queue && typeof queue.waiting === "string" ? queue.waiting.trim() : "";
+  if (!why) return "";
+  return `Bambuddy is waiting: ${why.replace(/[.\s]+$/, "")}. If it retries and succeeds, the print starts then, so keep the plate clear, or cancel the item in Bambuddy's queue.`;
 }
 
 // What the sheet's Start button says and whether it can be pressed: both ticks, no reason from the hub, no mismatch.
@@ -968,6 +1012,7 @@ export function mount(state) {
     reasons.hidden = !reasons.children.length;
     const note = sheetEl("labStartFilamentNote");
     note.textContent = c.filament ? c.filament.text : "";
+    if (c.filament && (c.filament.state === "mismatch" || c.filament.state === "colour")) note.dataset.tone = "warn"; else delete note.dataset.tone;
     const ready = startReady(c.check, { plate: sheetEl("labStartPlate").checked, filament: sheetEl("labStartFilament").checked }, c.filament);
     const sending = Boolean(c.sent);
     sheetEl("labStartPlate").disabled = sheetEl("labStartFilament").disabled = sending;
@@ -996,7 +1041,7 @@ export function mount(state) {
       const check = await labFetch(startUrl(id));
       if (ctx !== state.startCtx) return;
       ctx.check = check;
-      ctx.filament = startFilament(x.filament, check.printer && check.printer.trays);
+      ctx.filament = startFilament(x.filament, check.printer && check.printer.trays, x.staged && x.staged.filament);
       sheetEl("labStartFilament").checked = ctx.filament.state === "match";
     } catch (err) {
       if (ctx === state.startCtx) ctx.check = { reasons: [err.message || "Couldn't read the printer. Try again."] };
@@ -1024,20 +1069,27 @@ export function mount(state) {
       });
       if (c !== state.startCtx) return;
       startStep(`Accepted by Bambuddy (queue item ${r.queue_item})`);
-      let tries = 0;
+      let tries = 0, waitLine = null;
       c.poll = setInterval(async () => {
         tries += 1;
         try {
-          const now = await labFetch(startUrl(c.id), {}, { prompt: false });
+          const now = await labFetch(`${startUrl(c.id)}?item=${encodeURIComponent(r.queue_item)}`, {}, { prompt: false });
           const st = now && now.printer && now.printer.state;
           if (st === "RUNNING" || st === "PREPARE") {
             clearInterval(c.poll); c.poll = null;
+            if (waitLine) { waitLine.remove(); waitLine = null; }
             startStep("Printing. The lab records it at its next pull.");
+          } else {
+            const wait = startWait(now && now.queue);
+            if (wait && !waitLine) { startStep(wait); waitLine = sheetEl("labStartSteps").lastElementChild; waitLine.dataset.tone = "bad"; }
+            else if (wait) waitLine.textContent = wait;
           }
         } catch { /* the next try reads it again */ }
-        if (c.poll && tries >= 24) {  // 2 minutes
+        if (c.poll && tries >= 24 && !waitLine) {  // 2 minutes
           clearInterval(c.poll); c.poll = null;
           startStep("The printer hasn't reported printing yet. Check it on the Workshop page.");
+        } else if (c.poll && tries >= 120) {  // 10 minutes, once Bambuddy has said why it is waiting
+          clearInterval(c.poll); c.poll = null;
         }
       }, 5000);
     } catch (err) {

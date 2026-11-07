@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook, verdictPayload, verdictChoices, requestsHtml, judgeOnOpen,
-  startFilament, startReady,
+  startFilament, startReady, startWait, colourName,
 } from '../hub/static/js/lab.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
@@ -374,4 +374,32 @@ test('startReady needs a check with no reasons, no mismatch and both ticks', () 
   assert.equal(startReady({ reasons: [] }, both, { state: 'mismatch', text: 'wrong' }).why, 'wrong');
   assert.equal(startReady({ reasons: [] }, { plate: true, filament: false }).ok, false);
   assert.deepEqual(startReady({ reasons: [] }, both, { state: 'match' }), { ok: true, why: '' });
+});
+
+test('startFilament compares the colour the file asks for with slot 1', () => {
+  const trays = [{ slot: 1, type: 'PLA', color: '#057748', name: 'PLA' }];
+  const beige = startFilament('Kexcelled PLA', trays, { type: 'PLA', colour: '#D3C5A3' });
+  assert.equal(beige.state, 'colour');
+  assert.match(beige.text, /Slot 1 has dark green PLA; the build asks for beige\. It will print in dark green\. Tick only if that's what you want\./);
+  assert.equal(startFilament('PLA', trays, { type: 'PLA', colour: '#0A7A50' }).state, 'match', 'a shade of the same spool');
+  assert.equal(startFilament('PLA', trays, { type: 'PLA', colour: '057748FF' }).state, 'match', 'AMS-style RRGGBBAA');
+  assert.equal(startFilament('PLA', trays, { type: 'PLA', colour: null }).state, 'match', 'no colour in the file');
+  assert.equal(startFilament('PLA', trays, { type: 'PLA', colour: 'not a colour' }).state, 'match');
+  assert.equal(startFilament(null, trays, { type: 'PETG', colour: '#057748' }).state, 'mismatch', 'the file names the type');
+  assert.equal(startFilament(null, trays, { type: null, colour: '#D3C5A3' }).state, 'unknown', 'no type to compare');
+  assert.equal(startFilament('PLA', trays, 'junk').state, 'match', 'a malformed staged.filament is ignored');
+});
+
+test('colourName gives the word, from #RRGGBB or RRGGBBAA, and "" for junk', () => {
+  const names = { '#057748': 'dark green', '#D3C5A3': 'beige', '#FFF144': 'yellow', '#F98C36': 'orange', '#161616': 'black',
+    '#FFFFFF': 'white', '#808080': 'grey', '#0000FF': 'blue', '057748FF': 'dark green' };
+  for (const [hex, name] of Object.entries(names)) assert.equal(colourName(hex), name, hex);
+  for (const bad of [null, undefined, '', 'red', '#12']) assert.equal(colourName(bad), '');
+});
+
+test('startWait turns Bambuddy\'s waiting reason into the sheet\'s line, and nothing otherwise', () => {
+  assert.match(startWait({ status: 'pending', waiting: 'Bambu X2D refused to store the file.' }),
+    /^Bambuddy is waiting: Bambu X2D refused to store the file\. If it retries and succeeds, the print starts then/);
+  assert.match(startWait({ waiting: 'No stick, will retry automatically' }), /^Bambuddy is waiting: No stick, will retry automatically\. If it/);
+  for (const q of [null, undefined, {}, { waiting: null }, { waiting: '  ' }, { waiting: 5 }]) assert.equal(startWait(q), '');
 });

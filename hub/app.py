@@ -438,15 +438,17 @@ def _printer_now():
 
 
 @app.get("/api/printer/start/{project}/{experiment}")
-def api_printer_start_check(project: str, experiment: str, request: Request):
+def api_printer_start_check(project: str, experiment: str, request: Request, item: int | None = None):
     """Whether a staged lab build can start now (S5), for the sheet: {"reasons", "staged", "build", "printer": {"state",
-    "trays"}} (owner only). The sheet also reads it after Start, to see the printer begin."""
+    "trays"}, "queue"} (owner only). The sheet also reads it after Start, with `?item=<queue item>`, to see the printer
+    begin and Bambuddy's reason if the item is waiting."""
     need(request, "owner")
     _start_target(project, experiment)
     x, b = lab_start.mirror(project, experiment), _printer_now()
     return fresh({"reasons": lab_start.refusals(b, x), "staged": (x or {}).get("staged"),
                   "build": (x or {}).get("shown_build"),
-                  "printer": {"state": (b or {}).get("bambuddy_state"), "trays": (b or {}).get("ams_trays") or []}})
+                  "printer": {"state": (b or {}).get("bambuddy_state"), "trays": (b or {}).get("ams_trays") or []},
+                  "queue": lab_start.queue_item(item, lab_start.read_key()) if item else None})
 
 
 @app.post("/api/printer/start")
