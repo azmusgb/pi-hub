@@ -219,6 +219,16 @@ The Local AI keys are also kept in `/etc/pi-hub/secrets/bambuddy_localai_keys.en
 
 The hub's Documents section searches Paperless as the user `hub`. That user can only view documents, correspondents, tags and document types, and has no password. Its API token is in `/etc/pi-hub/secrets/paperless_token` (root:pi-hub 640) and is never shown. Paperless shows a document only to its owner and the users it is shared with. So that `hub` sees new ones, add a workflow in Paperless › Workflows: trigger "Document Added", action "Assignment", "Grant view permissions" to user `hub`. To turn the hub's view off, delete the token in Paperless › Settings › Users › `hub`.
 
+## One tap to print (A12): accepted 7 November 2026
+
+**Accepted 2026-11-07**, with the owner present. The strip test of the RIFT tile's top band was approved, staged, and started from the phone's Start sheet, and it printed to the end (51.1 min, 19.77 g, Bambu X2D). Evidence:
+
+- **The run (print-lab):** `PR-026-02` carries `started_by: "pi-hub one-tap"`, device iPhone, Bambuddy queue item 6, library file 4 and the tap time 12:07:04 UTC.
+- **The print log:** Bambuddy print 65, linked to the run automatically, completed.
+- **The action log:** `printer:start:hex-tile:E-026`, role owner, device iPhone, "Sent. E-026 starts on the printer in a moment."
+
+What the first attempts taught (6 November): the X2D needs a USB stick for Bambuddy to store a file (no stick: every upload fails `553 Could not create file`), and a Bambuddy restart cancels queued items. The test used the loaded green PLA though the file asks for beige, by the owner's choice; the sheet now warns about a colour difference (pi-hub #159) and names the model, plate size, filament and colour (#160).
+
 ## Phone alerts (ntfy)
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
