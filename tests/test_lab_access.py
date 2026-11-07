@@ -186,3 +186,18 @@ def test_the_mac_key_is_refused_over_plain_http(client):
         r = call(client, method, path, headers=plain)
         assert r.status_code == 401, (method, path, r.status_code)
     assert client.get("/api/lab/hex-tile/photos", headers=plain).status_code == 401
+
+
+@pytest.mark.parametrize("kind", ["start", "approve", "abandon"])
+def test_a_lower_role_cannot_queue_an_action_that_spends_budget_or_moves_the_printer(client, monkeypatch, kind):
+    ix = {"schema": "print-lab-index/1", "project": "hex-tile", "generated_at": "2026-10-28T09:00:00Z",
+          "fingerprint": "fp-act", "experiments": [], "records": {}}
+    assert client.post("/api/lab/hex-tile/sync", json=ix, headers={"X-Hub-Mac-Key": KEY}).status_code == 200
+    body = {"id": "rq-0123456789abcdef", "kind": kind, "experiment": "E-005", "payload": {"reason": "x"}}
+    with monkeypatch.context() as m:
+        m.setattr(auth, "who", lambda request: ("household", "phone"))
+        r = client.post("/api/lab/hex-tile/requests", json=body, headers=SAME)
+        assert r.status_code == 401
+        assert "Sign in as the owner" in r.json()["detail"]
+    signed_in(client)
+    assert client.get("/api/lab/hex-tile/requests").json()["items"] == []

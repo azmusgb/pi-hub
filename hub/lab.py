@@ -607,6 +607,8 @@ async def create_request(project: str, request: Request):
         raise HTTPException(404, "No such project.")
 
     data = _load_request_json(await read_capped(request, MAX_REQUEST))
+    if isinstance(data, dict) and data.get("kind") in ACT_KINDS:
+        need(request, "owner")  # start, approve and abandon spend the lab's budget or move the printer
     return JSONResponse(queue_request(project, data, by))
 
 
