@@ -556,6 +556,13 @@ function fixCard(
   return el;
 }
 
+// An outage with no end is still down unless the hub knows it is over (seen down again, or up now): then it
+// ended at a time the hub didn't see. A missing "ongoing" (an older hub) reads as still down.
+export function outageSide(outage) {
+  if (outage?.end) return "Ended";
+  return outage?.ongoing === false ? "Ended" : "Still down";
+}
+
 function outagesCard(outages) {
   const list =
     asArray(outages);
@@ -612,9 +619,9 @@ function outagesCard(outages) {
                   class: "dot",
 
                   dataset: {
-                    tone: outage?.end
-                      ? "warn"
-                      : "bad",
+                    tone: outageSide(outage) === "Still down"
+                      ? "bad"
+                      : "warn",
                   },
 
                   "aria-hidden":
@@ -659,7 +666,7 @@ function outagesCard(outages) {
                     ? duration(
                         seconds,
                       )
-                    : "Still down",
+                    : outageSide(outage),
                 ),
               );
             }),
