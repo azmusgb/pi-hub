@@ -88,6 +88,30 @@ def _epoch(ts):
     return int(datetime.fromisoformat(ts).replace(tzinfo=timezone.utc).timestamp()) if ts else None
 
 
+QUEUE_LIVE = ("pending", "printing")  # the rest (completed, cancelled, failed, skipped) are history
+
+
+def _queue_item(q):
+    name = q.get("archive_name") or (q.get("library_file_name") or "").removesuffix(".gcode.3mf") or "A print"
+    waiting = q.get("waiting_reason")
+    return {"id": q["id"], "name": str(name)[:80], "status": q["status"],
+            "waiting": waiting[:300] if isinstance(waiting, str) and waiting else None,
+            "manual": q.get("manual_start") is True, "since": _epoch(q.get("created_at")),
+            "minutes": round(q["print_time_seconds"] / 60) if isinstance(q.get("print_time_seconds"), (int, float)) else None}
+
+
+def _queue():
+    items = sources._get_json(URL + "/api/v1/queue/", headers(), timeout=3)
+    return sorted((_queue_item(q) for q in items if isinstance(q, dict) and q.get("status") in QUEUE_LIVE),
+                  key=lambda i: (i["since"] or 0, i["id"]))
+
+
+def queue():
+    """What Bambuddy's print queue still holds (pending or printing), oldest first, or None when it doesn't answer.
+    A pending item whose upload was refused keeps retrying, and starts the print when it succeeds."""
+    return sources.cached("bambuddy_queue", 15, _queue)
+
+
 def _print(e):
     m = LAB_NAME.match(e.get("print_name") or "")
     return {"id": e["id"], "archive": e.get("archive_id"), "name": e.get("print_name") or "Untitled",

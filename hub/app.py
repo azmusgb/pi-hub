@@ -409,6 +409,7 @@ def api_workshop():
         },
         "display": {"state": (s or {}).get("display_state", "Unknown"), "firmware": (s or {}).get("display_firmware")},
         "spools": bambuddy.spools(),  # None when Bambuddy doesn't answer
+        "queue": bambuddy.queue(),  # None when Bambuddy doesn't answer; [] when nothing is waiting
         "ams_trays": (p_rec.get("detail") or {}).get("ams_trays") or [] if p_rec else [],
         "lab": lab.workshop_summary(),
         "filament_month": filament.summary(30),

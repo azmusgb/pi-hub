@@ -15,6 +15,7 @@ export const every = 15;
 export const MORE = [
   ["filament", "Filament"],
   ["history", "Print history"],
+  ["queue", "Bambuddy's queue"],
   ["projects", "Projects"],
   ["lab", "Print lab & queue"],
 ];
@@ -371,7 +372,7 @@ function shelf(spools, printer = null) {
 function labQueue(labData) {
   const open = h("a", { class: "action", href: "/lab", "data-link": true }, "Open Print lab");
   if (!labData) {
-    return [h("p", { class: "meta" }, "Spools, projects and the print queue live in Bambuddy; coupon experiments live in Print lab."), open];
+    return [h("p", { class: "meta" }, "Settings, and cancelling or reordering the print queue, live in Bambuddy; coupon experiments live in Print lab."), open];
   }
   const needs = Array.isArray(labData.needs) ? labData.needs : [];
   const active = Array.isArray(labData.active) ? labData.active : [];
@@ -394,6 +395,30 @@ function labPill(labData) {
   const needs = Array.isArray(labData?.needs) ? labData.needs.length : 0;
   const active = Array.isArray(labData?.active) ? labData.active.length : 0;
   return needs ? [`${needs} need${needs === 1 ? "s" : ""} you`, "warn"] : active ? [`${active} active`, "ok"] : [null];
+}
+
+// What Bambuddy's print queue still holds. An item waiting with a reason (the printer refused the file) retries by
+// itself and starts the print when it works, so it says so; the owner can cancel it in Bambuddy's queue.
+export function queueWords(it) {
+  if (it.status === "printing") return "Printing";
+  return it.waiting ? "Waiting" : "Next up";
+}
+
+export function queuePill(items) {
+  if (!Array.isArray(items) || !items.length) return [null];
+  const waiting = items.filter((i) => i.status === "pending" && i.waiting).length;
+  return waiting ? [`${waiting} waiting`, "warn"] : [`${items.length} in the queue`, "ok"];
+}
+
+function queueBody(items) {
+  const rows = items.map((it) => h("li", { class: "log-row" },
+    h("span", { class: "dot", dataset: { tone: it.status === "pending" && it.waiting ? "warn" : "ok" }, "aria-hidden": "true" }),
+    h("span", { class: "log-main" },
+      h("strong", {}, it.name),
+      h("span", { class: "meta" }, [queueWords(it), it.since ? `queued ${when(it.since)}` : null].filter(Boolean).join(" · ")),
+      it.waiting ? h("span", { class: "meta" }, `${it.waiting} If it retries and works, the print starts then, so keep the plate clear.`) : null)));
+  return [h("ul", { class: "log" }, rows),
+    h("a", { class: "action", href: bambuddyUrl("/queue"), target: "_blank", rel: "noopener" }, "Cancel or reorder in Bambuddy ↗")];
 }
 
 function projectsBody(projects) {
@@ -484,7 +509,7 @@ export async function load(state) {
 
   // More in the workshop. A section with nothing known while Bambuddy is down is hidden rather than repeating the notice.
   const m = d.filament_month || {};
-  const { filament, history, projects, lab } = state.more;
+  const { filament, history, queue, projects, lab } = state.more;
   filament.el.hidden = v.down && v.spools.list === null;
   setPill(filament, v.down ? null : v.materials.low.length ? `${v.materials.low.length} running low` : null, "bad");
   redraw(state, "filament", filament.body, JSON.stringify([v.spools, d.printer.state, filament.el.hidden]), () =>
@@ -503,6 +528,15 @@ export async function load(state) {
         (m.prints_logged && known(m.grams) ? ` Last 30 days: ${(m.grams / 1000).toFixed(2)} kg of filament${known(m.cost) && m.cost ? `, about $${m.cost.toFixed(2)}` : ""}.` : "")) : null,
     ].filter(Boolean));
   });
+  // The queue shows only while something is in it; an item waiting for the printer opens it once, because it may
+  // start a print on its own.
+  const items = Array.isArray(d.queue) ? d.queue : null;
+  queue.el.hidden = !items || !items.length;
+  setPill(queue, ...queuePill(items));
+  if (items?.some((i) => i.status === "pending" && i.waiting) && !state.queueSeen) { state.queueSeen = true; queue.el.open = true; }
+  if (!items?.length) state.queueSeen = false;
+  redraw(state, "queue", queue.body, JSON.stringify([items, queue.el.hidden]), () =>
+    queue.body.replaceChildren(...(queue.el.hidden ? [] : queueBody(items))));
   const list = pr.available ? pr.projects || [] : null;
   projects.el.hidden = v.down && list === null;
   setPill(projects, list?.length ? `${list.length} active` : null, "ok");
