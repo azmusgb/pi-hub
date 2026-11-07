@@ -58,7 +58,7 @@ test('the page in the plan order: notice, Now, Needs you here, Materials, This w
     assert.deepEqual(kids.slice(1), ['ws-now', 'ws-needs', 'ws-materials', 'ws-week', 'ws-more', 'open-in']);
     assert.equal(p.state.root.children[0].getAttribute('role'), 'status');
     const summaries = p.state.root.querySelectorAll('.ws-more-item > summary').map(text);
-    assert.deepEqual(summaries.map((s) => s.replace(/\d.*$/, '').trim()), ['Filament', 'Print history', 'Projects', 'Print lab & queue']);
+    assert.deepEqual(summaries.map((s) => s.replace(/\d.*$/, '').trim()), ['Filament', 'Print history', 'Bambuddy\'s queue', 'Projects', 'Print lab & queue']);
     assert.ok(p.state.root.querySelectorAll('.ws-more-item').every((d) => !d.open), 'closed by default');
   } finally { p.done(); }
 });
@@ -224,4 +224,59 @@ test('A7 P1: the page tells the sources line what it reads: Bambuddy by its tele
     await p.ws.load(p.state);
     assert.deepEqual(p.state.sources.map((s) => s.name), ['Bambuddy', 'Camera']);
   } finally { p.done(); }
+});
+
+const queued = (over = {}) => ({ id: 6, name: 'hex-tile_E-026_BLD-026-02', status: 'pending', waiting: null, manual: false, since: T - 600, minutes: 48, ...over });
+const queueSection = (p) => p.state.root.querySelectorAll('.ws-more-item').find((d) => d.id === 'ws-queue');
+
+test('the queue section is hidden while Bambuddy\'s queue is empty or silent', async () => {
+  for (const queue of [[], null, undefined]) {
+    const p = await page({ '/api/workshop': workshop({ queue }) });
+    try {
+      await p.ws.load(p.state);
+      assert.equal(queueSection(p).hidden, true);
+    } finally { p.done(); }
+  }
+});
+
+test('an item waiting for the printer shows its reason, says it retries and starts by itself, and opens the section once', async () => {
+  const waiting = queued({ waiting: 'Bambu X2D refused to store the file.' });
+  const p = await page({ '/api/workshop': workshop({ queue: [waiting] }) });
+  try {
+    await p.ws.load(p.state);
+    const sec = queueSection(p);
+    assert.equal(sec.hidden, false);
+    assert.equal(sec.open, true);
+    const body = text(sec);
+    assert.match(body, /hex-tile_E-026_BLD-026-02/);
+    assert.match(body, /refused to store the file\./);
+    assert.match(body, /If it retries and works, the print starts then, so keep the plate clear\./);
+    assert.match(body, /1 waiting/);
+    sec.open = false;  // the owner closes it: a refresh does not force it open again
+    await p.ws.load(p.state);
+    assert.equal(sec.open, false);
+  } finally { p.done(); }
+});
+
+test('a plain pending or printing item shows quietly, closed', async () => {
+  const p = await page({ '/api/workshop': workshop({ queue: [queued({ status: 'printing' })] }) });
+  try {
+    await p.ws.load(p.state);
+    const sec = queueSection(p);
+    assert.equal(sec.hidden, false);
+    assert.equal(sec.open, false);
+    assert.match(text(sec), /Printing/);
+    assert.match(text(sec), /1 in the queue/);
+  } finally { p.done(); }
+});
+
+test('queueWords and queuePill', async () => {
+  const ws = await import('../hub/static/js/workshop.js');
+  assert.equal(ws.queueWords({ status: 'printing' }), 'Printing');
+  assert.equal(ws.queueWords({ status: 'pending', waiting: 'x' }), 'Waiting');
+  assert.equal(ws.queueWords({ status: 'pending', waiting: null }), 'Next up');
+  assert.deepEqual(ws.queuePill([]), [null]);
+  assert.deepEqual(ws.queuePill(null), [null]);
+  assert.deepEqual(ws.queuePill([{ status: 'pending', waiting: 'x' }, { status: 'pending', waiting: null }]), ['1 waiting', 'warn']);
+  assert.deepEqual(ws.queuePill([{ status: 'printing' }, { status: 'pending' }]), ['2 in the queue', 'ok']);
 });

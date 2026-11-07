@@ -74,3 +74,37 @@ def test_a_lab_print_keeps_its_project(monkeypatch):
     _serve(monkeypatch, [_entry(print_name="mount-v2_E-007_BLD-007-03")])
     [p] = bambuddy.prints(limit=10)
     assert p["lab"] == {"project": "mount-v2", "exp": "E-007", "build": "BLD-007-03"}
+
+
+def _queued(**kw):
+    base = {"id": 6, "status": "pending", "archive_name": None, "library_file_name": "hex-tile_E-026_BLD-026-02.gcode.3mf",
+            "waiting_reason": None, "manual_start": False, "created_at": "2026-11-06T21:14:08Z", "print_time_seconds": 2878}
+    return base | kw
+
+
+def test_the_queue_keeps_only_what_is_pending_or_printing_oldest_first(monkeypatch):
+    seen = []
+    monkeypatch.setattr(sources, "_get_json", lambda url, headers=None, timeout=None: seen.append(url) or [
+        _queued(id=3, status="completed"), _queued(id=9, created_at="2026-11-07T10:00:00Z"),
+        _queued(id=4, status="cancelled"), _queued(id=5, status="printing", archive_name="one-tap-test-square"),
+        _queued(id=2, status="failed"), "junk", None])
+    got = bambuddy.queue()
+    assert seen == [bambuddy.URL + "/api/v1/queue/"]
+    assert [q["id"] for q in got] == [5, 9]
+    assert got[0]["name"] == "one-tap-test-square" and got[0]["status"] == "printing"
+    assert got[1]["name"] == "hex-tile_E-026_BLD-026-02" and got[1]["minutes"] == 48 and got[1]["manual"] is False
+
+
+def test_a_waiting_item_carries_bambuddys_reason_trimmed(monkeypatch):
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: [_queued(waiting_reason="refused " + "x" * 400, manual_start=True)])
+    [q] = bambuddy.queue()
+    assert q["waiting"].startswith("refused ") and len(q["waiting"]) == 300 and q["manual"] is True
+    assert q["since"] == 1793999648
+
+
+def test_an_empty_queue_is_a_list_and_a_silent_bambuddy_is_none(monkeypatch):
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: [_queued(status="completed")])
+    assert bambuddy.queue() == []
+    sources._cache.clear()
+    monkeypatch.setattr(sources, "_get_json", lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
+    assert bambuddy.queue() is None

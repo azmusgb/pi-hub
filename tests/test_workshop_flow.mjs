@@ -111,9 +111,9 @@ test('signed out: a read-only band, no Clear button, and lab items with no actio
   assert.equal(workshopView(base(), owner).signIn, false);
 });
 
-test('More in the workshop: four native <details>, closed by default, open state remembered per viewer', () => {
+test('More in the workshop: five native <details>, closed by default, open state remembered per viewer', () => {
   assert.deepEqual(MORE.map(([k, title]) => [k, title]),
-    [['filament', 'Filament'], ['history', 'Print history'], ['projects', 'Projects'], ['lab', 'Print lab & queue']]);
+    [['filament', 'Filament'], ['history', 'Print history'], ['queue', 'Bambuddy\'s queue'], ['projects', 'Projects'], ['lab', 'Print lab & queue']]);
   const store = new Map();
   const ls = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
   assert.deepEqual(readOpen(ls), {});
