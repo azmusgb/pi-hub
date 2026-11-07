@@ -1,4 +1,4 @@
-# Amendment A16: the lab page shows an experiment's plan before the owner approves it
+# Amendment A16: the lab page is where the owner looks at, plans and approves an experiment
 
 Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: A7 (one page) for the lab
 page, and the print-lab design's rule that the Mac is the record and Pi Hub only mirrors it.
@@ -10,6 +10,16 @@ what it cost, why the lab blocked it and which settings differed. The answers ca
 height range, a slice estimate, guard codes such as `undeclared_difference`, and a budget that read "211.4 / 180 min"
 (a question's running total that the owner took for the test's own time). The owner wants the settings, views,
 renderings and the slice and AI feedback on the lab page, before approving, not in a chat afterwards.
+
+## Direction
+
+The owner wants to work in the print lab interactively, with visuals, not read terminal output. This amendment is the
+whole direction in four steps, each usable alone and each its own PR after this spec merges:
+
+1. **Preview:** a planned build's outlines, differing settings, estimate, two budgets, guards and measured analysis (P1–P9).
+2. **Model viewer:** the same model as a rotatable view with a section plane and the printed span highlighted (P10).
+3. **Plan from the page:** pick the strip's height and walls, see the preview of what the Mac builds (P11).
+4. **Result view:** after a print, the slice facts by height beside your photos and verdict (a later amendment).
 
 ## Decisions
 
@@ -60,12 +70,24 @@ planned" that the Mac raises when a build exists and no approval does. Names fol
 text size (A14), every control keyboard reachable with a visible focus, `prefers-reduced-motion`, and every state
 designed: not built, building, built, stale, blocked, approved, long content, sync late.
 
+**P10 Model viewer, optional and lazy (step 2).** A rotatable view of the source mesh, drawn with the page's own code (no
+library), with a section plane (drag to cut at a height, shown in millimetres and inches) and the printed span
+highlighted. The Mac sends the decimated mesh as a hash-addressed file (capped at 1 MiB; the RIFT tile is 646 triangles,
+about 50 KB). It loads only when opened, so the preview and approval never wait for it, and it falls back to the
+outlines if the mesh is missing, too big or the device can't draw it. It reads the model, not the slice, and says so.
+
+**P11 Planning from the page is a request to the Mac (step 3).** The owner picks a height and a wall count; the page
+sends a `plan` request (the existing request queue, owner role); the Mac plans, builds and checks it with the lab's own
+code and its answer arrives as a new preview. The page shows "waiting for the Mac" and never invents an estimate: the
+number comes from the Mac's slice, which takes a minute or two. Only settings the lab already supports are offered, one
+factor at a time, so the one-factor and budget guards still apply. Rejected: slicing or estimating on the Pi.
+
 ## Open questions
 
 **Q1 Approve with ticks, like Start?** Today the page's Approve takes a reason only. Recommend leaving it.
 **Q2 Ask for a fresh analysis from the page?** It needs the Mac to be listening. Recommend deferring until P1–P8 are used.
-**Q3 Plan a strip from the page** (pick the height, the walls) so the owner no longer needs `lab exp plan`? Recommend
-after Q1, because it is a write path of its own.
+**Q3 Which settings can the page offer in step 3?** Recommend only strip height and wall count at first, the two the
+owner has actually been choosing.
 
 ## Acceptance
 
