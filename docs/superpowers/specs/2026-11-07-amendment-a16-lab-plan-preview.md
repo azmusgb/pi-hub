@@ -22,14 +22,17 @@ height range, in millimetres and inches); the settings that differ between the p
 words with from and to values; the slice's estimate (minutes, grams, layers); the budget; every guard result as a
 sentence; a rendered outline; and the analysis (P5).
 
-**P3 The render is an outline, not a 3D view.** The Mac draws the tile's front and side outlines from true cross
-sections and shades the printed part, as an SVG of a few kilobytes inside the record. The page draws it with the page's
-own colour tokens, so it follows light and dark and the text size (A14). No image file, no new viewer, no WebGL.
-Rejected: a 3D viewer (a new dependency and weight for what two outlines show) and a PNG (fixed colours, no theme).
+**P3 The first render is an outline; 3D is deferred, not banned.** The Mac draws the tile's front, side and top outlines
+from true cross sections and shades the printed part, as an SVG of a few kilobytes inside the record. The page draws it
+with its own colour tokens, so it follows light and dark and the text size (A14). No image file, no new viewer, no
+WebGL. A 3D view may come later as an optional lazy-loaded enhancement, and never as something approval depends on.
+Rejected for now: a 3D viewer (a new dependency and weight for what three outlines show) and a PNG (fixed colours, no
+theme). The page also shows the model's measured bounds in millimetres and inches, from the source mesh.
 
-**P4 Budget shows two numbers, never one.** "This test: 95.5 min, 44.1 g" and "Question Q-007: 115.9 + 95.5 = 211.4 of
-180 min", each against its own limit. A guard that blocks says which limit, by how much, and whether raising it is the
-owner's decision (it always is) or the Mac's to fix (a mismatch in the plan).
+**P4 Budget shows two numbers, never one.** "This test: 95.5 min, 44.1 g", each against its own limit and by how much
+it is over or under it ("13.7 min over the 45 min test limit"), and separately "Question Q-007: 115.9 + 95.5 = 211.4 of
+180 min". A guard that blocks says which limit, by how much, and whether raising it is the owner's decision (it always
+is) or the Mac's to fix (a mismatch in the plan).
 
 **P5 Slice analysis and AI reading are two labelled blocks.** Measured facts from the sliced file (layer time, outer wall
 speed, where sparse infill starts, what differs between the pieces) are one block, dated and tied to the build's sha256.
@@ -37,13 +40,17 @@ An AI reading is a separate block headed "AI reading, not measured", with its so
 owner's words. The Mac generates both when the build is checked; the page does not ask for them (a button that asks for
 a fresh one is deferred, see Q2). Spec rule kept: say "likely" until a single-factor test confirms it.
 
-**P6 Stale is shown, never hidden.** If the build's sha256 no longer matches the record's current build, the preview is
-marked "out of date, rebuild on the Mac" and its guards and budget are greyed. If the sync is older than 15 minutes the
-page says when it was last updated. A preview that was never built shows "Not built yet" and the command that builds it.
+**P6 Stale is shown, never hidden, and its kinds are kept apart.** Three things can be old, and each has its own
+line: the build (its sha256 no longer matches the record's current build: "out of date, rebuild on the Mac"), the sync
+(older than 15 minutes: "last updated 40 minutes ago, the Mac may be asleep"), and the printer's reading. A preview
+that was never built shows "Not built yet" and the command that builds it. Old evidence stays readable and never
+authorises an action; guards and budget of a stale build are marked, with their text still readable.
 
-**P7 Approval stays on the Mac in this amendment.** The page shows the exact `lab exp approve` line with a copy button
-and says which limits the approval waives. A page that approves is a write path into the lab with its own ticks and
-record, so it is a later amendment (Q1), after the preview has been used.
+**P7 Approval is the page's existing one, shown with its numbers.** The lab page already queues an approval
+(`approveRequest` in `lab.js`: it sends `build_seen` and the guard codes, and the Mac rechecks both before applying,
+`lab/pull.py`). This amendment adds nothing to that route except what the owner sees before tapping: the two budget
+numbers (P4), the limits the approval waives, and what the plan changes. Queueing an approval needs the owner role
+(pi-hub #168). A first version of this amendment said approval stayed on the Mac; that was wrong.
 
 **P8 Where it sits.** On the experiment's card on `/lab`, above Verdict, reached from the Needs-you item "E-0nn is
 planned" that the Mac raises when a build exists and no approval does. Names follow the owner's rule: plain words first
@@ -55,7 +62,7 @@ designed: not built, building, built, stale, blocked, approved, long content, sy
 
 ## Open questions
 
-**Q1 Approve from the page?** Recommend a later amendment with the A12 shape: two ticks, a record, owner only.
+**Q1 Approve with ticks, like Start?** Today the page's Approve takes a reason only. Recommend leaving it.
 **Q2 Ask for a fresh analysis from the page?** It needs the Mac to be listening. Recommend deferring until P1–P8 are used.
 **Q3 Plan a strip from the page** (pick the height, the walls) so the owner no longer needs `lab exp plan`? Recommend
 after Q1, because it is a write path of its own.
