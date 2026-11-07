@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook, verdictPayload, verdictChoices, requestsHtml, judgeOnOpen,
-  startFilament, startReady, startWait, colourName,
+  startFilament, startReady, startWait, startFacts, colourName,
 } from '../hub/static/js/lab.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
@@ -402,4 +402,19 @@ test('startWait turns Bambuddy\'s waiting reason into the sheet\'s line, and not
     /^Bambuddy is waiting: Bambu X2D refused to store the file\. If it retries and succeeds, the print starts then/);
   assert.match(startWait({ waiting: 'No stick, will retry automatically' }), /^Bambuddy is waiting: No stick, will retry automatically\. If it/);
   for (const q of [null, undefined, {}, { waiting: null }, { waiting: '  ' }, { waiting: 5 }]) assert.equal(startWait(q), '');
+});
+
+test('startFacts names the model, plate size, time and filament, and leaves out what the lab did not record', () => {
+  const x = { shown_build: 'BLD-026-02', estimate: { minutes: 47.96, g: 19.77 }, filament: 'PLA',
+    staged: { model: 'RIFT 10IN batch5 shadow storm', size: { x: 70.5, y: 224.7, z: 28, brim: true },
+      filament: { type: 'PLA', colour: '#D3C5A3' } } };
+  assert.deepEqual(startFacts(x), [
+    ['Model', 'RIFT 10IN batch5 shadow storm'], ['Size', '71 × 225 × 28 mm, with brim'], ['Time', '48 min'],
+    ['Filament', '20 g of beige PLA'], ['Build', 'BLD-026-02']]);
+  const old = startFacts({ shown_build: 'BLD-1', estimate: { minutes: 10, g: 3 }, filament: 'PETG', staged: { library_file: 4 } });
+  assert.deepEqual(old.map(([k]) => k), ['Time', 'Filament', 'Build']);
+  assert.equal(old[1][1].startsWith('3 g of '), true);
+  assert.deepEqual(startFacts({ staged: { size: { x: 0, y: null, z: 'tall' } } }), []);
+  assert.deepEqual(startFacts({ estimate: { g: 2 }, staged: { size: { x: 10, y: 20, z: null, brim: false }, filament: { colour: null, type: null } } }),
+    [['Size', '10 × 20 mm'], ['Filament', '2 g']]);
 });
