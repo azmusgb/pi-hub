@@ -57,8 +57,9 @@ def mirror(project, experiment):
     return next((x for x in idx.get("experiments") or [] if isinstance(x, dict) and x.get("id") == experiment), None)
 
 
-def refusals(printer, x):
-    """Why Start can't run now (S5), in the owner's words; empty when it can."""
+def refusals(printer, x, ignore_bed=False):
+    """Why Start can't run now (S5), in the owner's words; empty when it can. `ignore_bed` leaves the bed's
+    temperature out, to tell whether it is the only thing in the way (A12b)."""
     out = []
     if not x:
         return ["The print lab has no such experiment."]
@@ -76,11 +77,20 @@ def refusals(printer, x):
     if printer.get("hms"):
         out.append("The printer has an error. Clear it on the printer first.")
     bed = printer.get("bed_temp")
-    if not isinstance(bed, (int, float)):
+    if ignore_bed:
+        pass
+    elif not isinstance(bed, (int, float)):
         out.append("The bed temperature is unknown.")
     elif bed >= BED_MAX_C:
         out.append(f"The bed is {bed:.0f} °C; wait until it is below {BED_MAX_C:.0f} °C.")
     return out
+
+
+def bed_only(printer, x):
+    """True when the bed is too warm and nothing else refuses (A12b): the one reason Start may wait for."""
+    bed = (printer or {}).get("bed_temp")
+    return (isinstance(bed, (int, float)) and not isinstance(bed, bool) and bed >= BED_MAX_C
+            and bool(refusals(printer, x)) and not refusals(printer, x, ignore_bed=True))
 
 
 def start(x, control_key, read_key, call=_call):

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   esc, questionHtml, experimentHtml, runLines, outsideHtml, spoolColour, needView, renderNotebook, verdictPayload, verdictChoices, requestsHtml, judgeOnOpen,
-  startFilament, startReady, startWait, startFacts, colourName,
+  startFilament, startReady, startWait, startFacts, holdLine, colourName,
 } from '../hub/static/js/lab.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/lab-index.json', import.meta.url), 'utf8'));
@@ -417,4 +417,21 @@ test('startFacts names the model, plate size, time and filament, and leaves out 
   assert.deepEqual(startFacts({ staged: { size: { x: 0, y: null, z: 'tall' } } }), []);
   assert.deepEqual(startFacts({ estimate: { g: 2 }, staged: { size: { x: 10, y: 20, z: null, brim: false }, filament: { colour: null, type: null } } }),
     [['Size', '10 × 20 mm'], ['Filament', '2 g']]);
+});
+
+test('startReady lets Start wait when the bed is the only refusal, and says so', () => {
+  const both = { plate: true, filament: true };
+  const warm = { reasons: ['The bed is 52 °C; wait until it is below 35 °C.'], bed_only: true };
+  assert.deepEqual(startReady(warm, both), { ok: true, why: '', wait: true });
+  assert.equal(startReady(warm, { plate: true, filament: false }).ok, false, 'both ticks still needed');
+  assert.equal(startReady(warm, both, { state: 'mismatch', text: 'wrong' }).why, 'wrong');
+  assert.equal(startReady({ reasons: ['The printer has an error.'], bed_only: false }, both).ok, false);
+  assert.equal(startReady({ reasons: [], bed_only: true }, both).wait, undefined, 'nothing to wait for');
+});
+
+test('holdLine says what the start is waiting for, with the bed when known', () => {
+  assert.equal(holdLine(null), '');
+  assert.equal(holdLine({ experiment: 'E-027', bed: 41.4, minutes: 45 }),
+    'Waiting for the bed to cool (now 41 °C; it needs under 35). E-027 starts by itself, and gives up after 45 minutes.');
+  assert.match(holdLine({ experiment: 'E-027', bed: null }), /^Waiting for the bed to cool\. E-027 starts by itself, and gives up after 45 minutes\.$/);
 });

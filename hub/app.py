@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -437,6 +437,10 @@ def _printer_now():
     return sources.bambuddy_printer(timeout=3)
 
 
+if os.environ.get("HUB_NO_SAMPLER") != "1":
+    threading.Thread(target=lab_hold.run, args=(_printer_now,), daemon=True).start()
+
+
 @app.get("/api/printer/start/{project}/{experiment}")
 def api_printer_start_check(project: str, experiment: str, request: Request, item: int | None = None):
     """Whether a staged lab build can start now (S5), for the sheet: {"reasons", "staged", "build", "printer": {"state",
@@ -445,7 +449,8 @@ def api_printer_start_check(project: str, experiment: str, request: Request, ite
     need(request, "owner")
     _start_target(project, experiment)
     x, b = lab_start.mirror(project, experiment), _printer_now()
-    return fresh({"reasons": lab_start.refusals(b, x), "staged": (x or {}).get("staged"),
+    return fresh({"reasons": lab_start.refusals(b, x), "bed_only": lab_start.bed_only(b, x),
+                  **lab_hold.state(project, experiment), "staged": (x or {}).get("staged"),
                   "build": (x or {}).get("shown_build"),
                   "printer": {"state": (b or {}).get("bambuddy_state"), "trays": (b or {}).get("ams_trays") or []},
                   "queue": lab_start.queue_item(item, lab_start.read_key()) if item else None})
@@ -470,7 +475,16 @@ async def api_printer_start(request: Request):
         raise HTTPException(409, "The hub is already sending the printer a command. Wait a moment.")
     try:
         x = lab_start.mirror(project, experiment)
-        reasons = lab_start.refusals(await asyncio.to_thread(_printer_now), x)
+        b = await asyncio.to_thread(_printer_now)
+        reasons = lab_start.refusals(b, x)
+        if reasons and body.get("wait_for_bed") is True and lab_start.bed_only(b, x):  # A12b: hold it for the bed
+            try:
+                h = lab_hold.place(project, experiment, x, role, device)
+            except ValueError as e:
+                raise HTTPException(409, str(e))
+            return fresh({"ok": True, "held": True, "hold": h,
+                          "say": f"Waiting for the bed to cool (it is {b.get('bed_temp'):.0f} °C), then {experiment} "
+                                 f"starts by itself."})
         if reasons:
             raise HTTPException(409, " ".join(reasons) + " Nothing was sent.")
         ck = lab_start.control_key()
@@ -487,6 +501,14 @@ async def api_printer_start(request: Request):
     lab.queue_one_tap(project, experiment, {"tapped_at": tapped, "build": x.get("shown_build"),
                                             "queue_item": r["queue_item"], "library_file": r["library_file"]}, device)
     return fresh({"ok": True, "say": r["say"], "queue_item": r["queue_item"]})
+
+
+@app.delete("/api/printer/start/{project}/{experiment}")
+def api_printer_start_cancel(project: str, experiment: str, request: Request):
+    """Cancel a start that is waiting for the bed (A12b): owner only, logged."""
+    role, device = need(request, "owner")
+    _start_target(project, experiment)
+    return fresh({"ok": True, "cancelled": lab_hold.cancel(project, experiment, role, device)})
 
 
 @app.post("/api/printer/{action}")
