@@ -150,7 +150,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
             selfcheck={**_pick(check, ("passed", "total", "failed")), "at": hub.iso(check.get("ts")),
                        "failing": [_pick(x, ("name", "detail")) for x in _list(check, "checks") if not x.get("ok")]},
             open_outages=[{"what": o.get("what"), "since": hub.iso(o.get("start"))}
-                          for o in _list(pi, "outages") if o.get("end") is None],
+                          for o in _list(pi, "outages") if o.get("end") is None and o.get("ongoing", True)],
             backups=[{"name": b.get("name"), "last": hub.iso(b.get("last")), "hours_ago": b.get("hours")}
                      for b in _list(backups, "repos")],
         )

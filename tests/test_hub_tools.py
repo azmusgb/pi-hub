@@ -62,7 +62,9 @@ FIXTURES = {
                       "checks": [{"name": "Page /", "ok": True, "detail": "95 ms"},
                                  {"name": "Plex", "ok": False, "detail": "timeout"}]},
         "outages": [{"what": "Homebridge", "start": NOW - 600, "end": None},
-                    {"what": "Plex", "start": NOW - 9000, "end": NOW - 8000}],
+                    {"what": "Plex", "start": NOW - 9000, "end": NOW - 8000},
+                    # over, at a time the hub didn't see (Pi Hub's "ongoing": False): not open
+                    {"what": "Movies drive", "start": NOW - 20000, "end": None, "ongoing": False}],
     },
     "/api/system/backups": {"repos": [{"name": "hub", "last": NOW - 3600, "hours": 1}], "available": True},
     "/api/freshness": {"as_of": NOW, "readings": [
