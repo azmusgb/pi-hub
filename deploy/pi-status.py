@@ -69,19 +69,27 @@ def human_minutes(m):
     return f"{m // 60} h {m % 60:02d} min"
 
 
+def power_word(flags):
+    # vcgencmd get_throttled: bit 0 under-voltage now, 2 throttled now, 3 soft temperature limit now; bit 16
+    # under-voltage has occurred, 17 frequency capped, 18 throttled, 19 soft temperature limit (all since boot).
+    # Only bit 16 is a power problem; the others are the Pi slowing itself down for heat.
+    if flags & 0x1:
+        return "Low voltage now"
+    if flags & 0xC:
+        return "Slowed by heat"
+    if flags & 0x10000:
+        return "Low voltage earlier"
+    if flags & 0xE0000:
+        return "Slowed by heat earlier"
+    return "Good"
+
+
 def pi_health():
     with open("/sys/class/thermal/thermal_zone0/temp") as f:
         temp = int(f.read()) / 1000
     raw = run("vcgencmd", "get_throttled").strip().split("=")[-1] or "0x0"
     flags = int(raw, 16)
-    if flags & 0x1:
-        power = "Low voltage now"
-    elif flags & 0x4:
-        power = "Slowed by heat"
-    elif flags & 0x50000:
-        power = "Low voltage earlier"
-    else:
-        power = "Good"
+    power = power_word(flags)
     with open("/proc/uptime") as f:
         up = float(f.read().split()[0])
     return {"temp": round(temp, 1), "power": power, "uptime_h": round(up / 3600, 1)}

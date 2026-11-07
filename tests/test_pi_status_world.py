@@ -82,3 +82,19 @@ def test_localai_release_without_ca_raises(files):
     files[1].unlink()
     with pytest.raises(RuntimeError):
         pi_status.localai_release()
+
+
+@pytest.mark.parametrize("raw, said", [
+    ("0x0", "Good"),
+    ("0x1", "Low voltage now"),
+    ("0x50005", "Low voltage now"),
+    ("0x4", "Slowed by heat"),
+    ("0x8", "Slowed by heat"),
+    ("0x10000", "Low voltage earlier"),
+    ("0x50000", "Low voltage earlier"),   # voltage dipped, then throttled: the voltage is the problem
+    ("0xe0000", "Slowed by heat earlier"),  # the Pi's own reading on 7 Nov 2026: heat only, no under-voltage bit
+    ("0x40000", "Slowed by heat earlier"),
+    ("0x20000", "Slowed by heat earlier"),
+])
+def test_pi_power_names_heat_and_voltage_apart(raw, said):
+    assert pi_status.power_word(int(raw, 16)) == said
