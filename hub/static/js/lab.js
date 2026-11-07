@@ -334,10 +334,18 @@ export function startWait(queue) {
 export function startReady(check, ticks, filament) {
   const reasons = list(check && check.reasons);
   if (!check) return { ok: false, why: "Checking the printer…" };
-  if (reasons.length) return { ok: false, why: reasons.join(" ") };
+  const wait = Boolean(check.bed_only && reasons.length);  // A12b: only the bed refuses, so Start can wait for it
+  if (reasons.length && !wait) return { ok: false, why: reasons.join(" ") };
   if (filament && filament.state === "mismatch") return { ok: false, why: filament.text };
   if (!(ticks && ticks.plate && ticks.filament)) return { ok: false, why: "Tick both to start." };
-  return { ok: true, why: "" };
+  return wait ? { ok: true, why: "", wait: true } : { ok: true, why: "" };
+}
+
+// The sheet's line while a start waits for the bed (A12b), from the hub's hold: {experiment, bed, minutes}.
+export function holdLine(hold) {
+  if (!hold) return "";
+  const bed = Number.isFinite(hold.bed) ? ` (now ${Math.round(hold.bed)} °C; it needs under 35)` : "";
+  return `Waiting for the bed to cool${bed}. ${hold.experiment} starts by itself, and gives up after ${hold.minutes || 45} minutes.`;
 }
 
 // The button(s) for a Needs you item, or "" when it needs the Mac (Fix the plan, Run the check or build).
@@ -623,6 +631,7 @@ function sheetsHtml() {
     <ol id="labStartSteps" class="lab-start__steps" aria-live="polite" hidden></ol>
     <p id="labStartError" class="lab-sheet__error" role="alert" hidden></p>
     <div class="lab-sheet__actions">
+      <button type="button" id="labStartStopHold" class="btn-outline" hidden>Stop waiting</button>
       <button type="button" id="labStartSend" class="primary" disabled>Start</button>
     </div>
   </form>
@@ -1036,12 +1045,19 @@ export function mount(state) {
     sheetEl("labStartPlate").disabled = sheetEl("labStartFilament").disabled = sending;
     sheetEl("labStartWhy").textContent = sending || reasons.children.length ? "" : ready.why;  // the list says it already
     sheetEl("labStartSend").disabled = sending || !ready.ok;
+    sheetEl("labStartSend").textContent = ready.wait ? "Start when the bed is cool" : `Start ${c.id}`;
+    sheetEl("labStartStopHold").hidden = !c.held;
+    // Once the start is sent or waiting, closing the sheet stops nothing: say Close, and drop the spent Start button.
+    const done = Boolean(c.sent);
+    sheetEl("labStartCancel").textContent = done ? "Close" : "Cancel";
+    sheetEl("labStartCancel").setAttribute("aria-label", done ? "Close; the print is not affected" : "Close without starting");
+    sheetEl("labStartSend").hidden = Boolean(c.printing) || Boolean(c.held);
   }
 
   async function openStart(id) {
     const sheet = sheetEl("labStartSheet"), x = expById(id);
     if (!sheet || !x) return;
-    const ctx = state.startCtx = { id, check: null, filament: null, sent: false, poll: null };
+    const ctx = state.startCtx = { id, check: null, filament: null, sent: false, held: false, printing: false, poll: null };
     sheetEl("labStartTitle").textContent = `Start · ${id}`;
     const est = x.estimate || {};
     const facts = startFacts(x);
@@ -1060,6 +1076,7 @@ export function mount(state) {
       ctx.check = check;
       ctx.filament = startFilament(x.filament, check.printer && check.printer.trays, x.staged && x.staged.filament);
       sheetEl("labStartFilament").checked = ctx.filament.state === "match";
+      if (check.hold) { sheetEl("labStartPlate").checked = sheetEl("labStartFilament").checked = true; startHeld(ctx, check.hold); return; }
     } catch (err) {
       if (ctx === state.startCtx) ctx.check = { reasons: [err.message || "Couldn't read the printer. Try again."] };
     }
@@ -1072,43 +1089,99 @@ export function mount(state) {
     steps.append(h("li", {}, text));
   }
 
+  // Once Bambuddy has the item: follow the printer to "printing", and say Bambuddy's reason if the item waits.
+  function watchPrint(c, item) {
+    let tries = 0, waitLine = null;
+    c.poll = setInterval(async () => {
+      tries += 1;
+      try {
+        const now = await labFetch(`${startUrl(c.id)}?item=${encodeURIComponent(item)}`, {}, { prompt: false });
+        const st = now && now.printer && now.printer.state;
+        if (st === "RUNNING" || st === "PREPARE") {
+          clearInterval(c.poll); c.poll = null;
+          if (waitLine) { waitLine.remove(); waitLine = null; }
+          startStep("Printing. The lab records it at its next pull. You can close this.");
+          c.printing = true; renderStart();
+        } else {
+          const wait = startWait(now && now.queue);
+          if (wait && !waitLine) { startStep(wait); waitLine = sheetEl("labStartSteps").lastElementChild; waitLine.dataset.tone = "bad"; }
+          else if (wait) waitLine.textContent = wait;
+        }
+      } catch { /* the next try reads it again */ }
+      if (c.poll && tries >= 24 && !waitLine) {  // 2 minutes
+        clearInterval(c.poll); c.poll = null;
+        startStep("The printer hasn't reported printing yet. Check it on the Workshop page.");
+      } else if (c.poll && tries >= 120) {  // 10 minutes, once Bambuddy has said why it is waiting
+        clearInterval(c.poll); c.poll = null;
+      }
+    }, 5000);
+  }
+
+  // A12b: the hub holds the start until the bed is cool. Follow it: the bed's temperature, then how it ended.
+  function watchHold(c, line) {
+    c.poll = setInterval(async () => {
+      if (c !== state.startCtx) { clearInterval(c.poll); return; }
+      let now;
+      try { now = await labFetch(startUrl(c.id), {}, { prompt: false }); } catch { return; }  // the next try reads it again
+      if (c !== state.startCtx || !c.held) return;
+      if (now.hold) { line.textContent = holdLine(now.hold); return; }
+      clearInterval(c.poll); c.poll = null; c.held = false;
+      const last = now.last;
+      if (last && last.status === "sent" && last.queue_item) {
+        startStep(`Sent. Accepted by Bambuddy (queue item ${last.queue_item})`);
+        renderStart();
+        watchPrint(c, last.queue_item);
+        return;
+      }
+      c.sent = false;
+      sheetEl("labStartSteps").replaceChildren(); sheetEl("labStartSteps").hidden = true;
+      setStatus(sheetEl("labStartError"), last ? last.say : "The wait ended without sending (the hub restarted). Tap Start again.", true);
+      c.check = now;
+      renderStart();
+    }, 5000);
+  }
+
+  function startHeld(c, hold) {
+    c.sent = true; c.held = true;
+    startStep(holdLine(hold));
+    renderStart();
+    watchHold(c, sheetEl("labStartSteps").lastElementChild);
+  }
+
+  async function stopHold() {
+    const c = state.startCtx;
+    if (!c || !c.held) return;
+    try {
+      await labFetch(startUrl(c.id), { method: "DELETE" });
+    } catch (err) {
+      setStatus(sheetEl("labStartError"), err.message || "Couldn't stop it.", true);
+      return;
+    }
+    if (c.poll) { clearInterval(c.poll); c.poll = null; }
+    c.held = false; c.sent = false;
+    sheetEl("labStartSteps").replaceChildren(); sheetEl("labStartSteps").hidden = true;
+    setStatus(sheetEl("labStartError"), "", true);
+    try { c.check = await labFetch(startUrl(c.id)); } catch { /* keep the last check */ }
+    renderStart();
+  }
+
   async function sendStart() {
     const c = state.startCtx;
     if (!c || c.sent) return;
     c.sent = true;
+    const wait = Boolean(c.check && c.check.bed_only);
     renderStart();
     setStatus(sheetEl("labStartError"), "", true);
     startStep("Sent");
     try {
       const r = await labFetch("/api/printer/start", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project: state.currentProject, experiment: c.id, plate_clear: true, filament_ok: true }),
+        body: JSON.stringify({ project: state.currentProject, experiment: c.id, plate_clear: true, filament_ok: true, wait_for_bed: wait }),
       });
       if (c !== state.startCtx) return;
+      if (r.held) { sheetEl("labStartSteps").replaceChildren(); startHeld(c, r.hold); return; }
       startStep(`Accepted by Bambuddy (queue item ${r.queue_item})`);
-      let tries = 0, waitLine = null;
-      c.poll = setInterval(async () => {
-        tries += 1;
-        try {
-          const now = await labFetch(`${startUrl(c.id)}?item=${encodeURIComponent(r.queue_item)}`, {}, { prompt: false });
-          const st = now && now.printer && now.printer.state;
-          if (st === "RUNNING" || st === "PREPARE") {
-            clearInterval(c.poll); c.poll = null;
-            if (waitLine) { waitLine.remove(); waitLine = null; }
-            startStep("Printing. The lab records it at its next pull.");
-          } else {
-            const wait = startWait(now && now.queue);
-            if (wait && !waitLine) { startStep(wait); waitLine = sheetEl("labStartSteps").lastElementChild; waitLine.dataset.tone = "bad"; }
-            else if (wait) waitLine.textContent = wait;
-          }
-        } catch { /* the next try reads it again */ }
-        if (c.poll && tries >= 24 && !waitLine) {  // 2 minutes
-          clearInterval(c.poll); c.poll = null;
-          startStep("The printer hasn't reported printing yet. Check it on the Workshop page.");
-        } else if (c.poll && tries >= 120) {  // 10 minutes, once Bambuddy has said why it is waiting
-          clearInterval(c.poll); c.poll = null;
-        }
-      }, 5000);
+      watchPrint(c, r.queue_item);
     } catch (err) {
       if (c !== state.startCtx) return;
       c.sent = false;
@@ -1284,6 +1357,7 @@ export function mount(state) {
     startSheet.addEventListener("click", (e) => {
       if (e.target.closest("#labStartCancel")) startSheet.close();
       else if (e.target.closest("#labStartSend")) sendStart();
+      else if (e.target.closest("#labStartStopHold")) stopHold();
     });
     startSheet.addEventListener("change", renderStart);
     startSheet.addEventListener("close", () => {
