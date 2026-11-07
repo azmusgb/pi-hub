@@ -116,11 +116,16 @@ def start(x, control_key, read_key, call=_call):
                 else f"Bambuddy didn't queue it ({st or 'no answer'}). Nothing was sent."}
     st, raw = call("POST", f"/queue/{item}/start", control_key)
     if st not in (200, 201, 204):
-        call("DELETE", f"/queue/{item}", control_key)
+        gone, _ = call("DELETE", f"/queue/{item}", control_key)
         detail = (_json(raw) or {}).get("detail")
         why = ("the assigned spool doesn't have enough filament" if st == 409 else
                f"{st or 'no answer'}" + (f": {detail}" if isinstance(detail, str) else ""))
-        return {"ok": False, "say": f"Bambuddy didn't start it ({why}). The queue item was removed."}
+        if gone in (200, 204, 404):  # 404: it is already gone
+            return {"ok": False, "say": f"Bambuddy didn't start it ({why}). The queue item was removed."}
+        # An item left behind can start on its own later; say so and keep its number for the owner.
+        return {"ok": False, "queue_item": item,
+                "say": f"Bambuddy didn't start it ({why}). Queue item {item} may still be waiting in Bambuddy: "
+                       "cancel it there before trying again."}
     return {"ok": True, "say": f"Sent. {x['id']} starts on the printer in a moment.", "queue_item": item,
             "library_file": int(fid)}
 

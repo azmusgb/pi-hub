@@ -31,8 +31,9 @@ def experiment(status="approved", staged=True, **kw):
 
 
 class FakeBambuddy:
-    def __init__(self, version="1.3.0", file=FILE, queue=201, start=200):
+    def __init__(self, version="1.3.0", file=FILE, queue=201, start=200, delete=200):
         self.version, self.file, self.queue_status, self.start_status = version, file, queue, start
+        self.delete_status = delete
         self.calls = []
 
     def __call__(self, method, path, key, body=None):
@@ -46,7 +47,7 @@ class FakeBambuddy:
         if path == "/queue/41/start":
             return self.start_status, (b'{"detail":"deficit"}' if self.start_status == 409 else b"{}")
         if method == "DELETE":
-            return 200, b"{}"
+            return self.delete_status, b"{}"
         return 404, b"{}"
 
 
@@ -188,6 +189,21 @@ def test_a_refused_start_removes_the_queue_item(client, fake):
     items = client.get("/api/lab/hex-tile/requests?status=pending", headers=MAC).json()["items"]
     assert not [i for i in items if i["kind"] == "one_tap"]  # nothing started, nothing to tell the lab
     assert auth.recent_actions(1)[0]["result"].startswith("Bambuddy didn't start it")
+
+
+@pytest.mark.parametrize("delete", [500, 0, 403])
+def test_a_cleanup_that_fails_is_not_reported_as_removed(client, fake, delete):
+    fake.start_status, fake.delete_status = 409, delete
+    r = start(client)
+    say = r.json()["detail"]
+    assert r.status_code == 502 and "enough filament" in say
+    assert "may still be waiting" in say and "41" in say and "was removed" not in say
+    assert auth.recent_actions(1)[0]["result"] == say
+
+
+def test_a_queue_item_already_gone_counts_as_removed(client, fake):
+    fake.start_status, fake.delete_status = 409, 404
+    assert "The queue item was removed." in start(client).json()["detail"]
 
 
 def test_a_refused_queue_says_the_key_needs_queue(client, fake):
