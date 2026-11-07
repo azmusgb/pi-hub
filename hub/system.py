@@ -245,7 +245,8 @@ def outages(days=30):
             o["ongoing"] = False
         else:
             rec = records.get(thing)
-            o["ongoing"] = not rec or rec.get("state") in down or rec.get("state") in ("unknown", "offline")
+            o["ongoing"] = (not rec or rec.get("stale") or rec.get("state") in down
+                            or rec.get("state") in ("unknown", "offline"))
     return list(reversed(out))[:20]
 
 
@@ -259,8 +260,14 @@ def _record_back(thing, down, start, before=None):
     except Exception:  # noqa: BLE001 - no record history yet
         return None
     unsure = ("unknown", "offline")
+    lost = False  # a hub start since the last down reading: the record no longer knows what came before
     for r in rows:
-        if r["new"] in down or r["new"] in unsure:
+        if r["old"] is None:
+            lost = True
+        if r["new"] in down:
+            lost = False
             continue
-        return r["ts"] if r["old"] in down else "seen"
+        if r["new"] in unsure:
+            continue
+        return r["ts"] if not lost and (r["old"] in down or r["old"] in unsure) else "seen"
     return None

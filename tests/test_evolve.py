@@ -134,3 +134,36 @@ def test_a_first_reading_after_a_start_ends_an_outage_at_an_unknown_time(monkeyp
     monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "stopped"})
     plex_out = system.outages()[0]
     assert (plex_out["end"], plex_out["ongoing"]) == (None, False)
+
+
+def test_a_stale_record_keeps_an_outage_open(monkeypatch):
+    # After a restart every record is stale with its last state: a pre-outage "ok" mustn't close the outage.
+    from hub import records
+    events.ready()
+    records.ready()
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", int(time.time()) - 100, "homebridge_stopped")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok", "stale": True})
+    assert system.outages()[0]["ongoing"] is True
+
+
+def test_a_recovery_through_an_unknown_reading_keeps_its_end_time(monkeypatch):
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "homebridge_stopped")
+    _record_change(t + 100, "devices", "unknown", old="stopped")
+    _record_change(t + 160, "devices", "ok", old="unknown")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok"})
+    assert system.outages()[0]["end"] == t + 160
+
+
+def test_a_hub_start_between_down_and_up_leaves_the_end_unknown(monkeypatch):
+    from hub import records
+    events.ready()
+    t = int(time.time()) - 10000
+    db.run("INSERT INTO events (ts, kind) VALUES (?, ?)", t, "homebridge_stopped")
+    _record_change(t + 100, "devices", "unknown", old=None)
+    _record_change(t + 160, "devices", "ok", old="unknown")
+    monkeypatch.setattr(records, "get", lambda id: {"id": id, "state": "ok"})
+    out = system.outages()[0]
+    assert (out["end"], out["ongoing"]) == (None, False)
