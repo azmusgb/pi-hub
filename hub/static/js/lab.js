@@ -282,6 +282,24 @@ function colourDistance(a, b) {
   return x && y ? Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) : null;
 }
 
+// What the Start sheet says is about to print: [label, text] rows, left out when the lab didn't record them. The plate
+// size includes any brim; the file's filament is named by type and colour in words, as the filament check does.
+export function startFacts(x) {
+  const est = x.estimate || {}, file = (x.staged && x.staged.filament) || null, sz = x.staged && x.staged.size;
+  const dim = (n) => (Number.isFinite(n) && n > 0 ? String(Math.round(n)) : null);
+  const dims = sz ? [dim(sz.x), dim(sz.y), dim(sz.z)].filter(Boolean) : [];
+  const colour = file && file.colour ? colourName(file.colour) : "";
+  const kind = file ? [colour, file.type].filter(Boolean).join(" ") : plain(x.filament);
+  const grams = est.g != null ? `${Math.round(est.g)} g` : "";
+  return [
+    ["Model", x.staged && x.staged.model],
+    ["Size", dims.length ? `${dims.join(" × ")} mm${sz.brim ? ", with brim" : ""}` : null],
+    ["Time", est.minutes != null ? `${Math.round(est.minutes)} min` : null],
+    ["Filament", grams && kind ? `${grams} of ${kind}` : grams || kind],
+    ["Build", x.shown_build],
+  ].filter(([, v]) => v);
+}
+
 // Decision 8 of the A12 plan: the build's filament against the AMS tray in slot 1. `file` is the staged record's
 // `filament` ({type, colour} the sliced file asks for), else the lab's free-text filament names the type.
 // "match" pre-ticks the check; "mismatch" (another type) blocks Start; "colour" (the same type in another colour)
@@ -1026,9 +1044,8 @@ export function mount(state) {
     const ctx = state.startCtx = { id, check: null, filament: null, sent: false, poll: null };
     sheetEl("labStartTitle").textContent = `Start · ${id}`;
     const est = x.estimate || {};
-    const facts = [["Build", x.shown_build], ["Time", est.minutes != null ? `${Math.round(est.minutes)} min` : null],
-      ["Filament", est.g != null ? `${Math.round(est.g)} g${x.filament ? ` of ${plain(x.filament)}` : ""}` : plain(x.filament)]];
-    sheetEl("labStartFacts").replaceChildren(...facts.filter(([, v]) => v).flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))]));
+    const facts = startFacts(x);
+    sheetEl("labStartFacts").replaceChildren(...facts.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))]));
     sheetEl("labStartPlate").checked = false;
     sheetEl("labStartFilament").checked = false;
     const steps = sheetEl("labStartSteps");
