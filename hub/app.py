@@ -630,7 +630,7 @@ def api_camera_health():
     return fresh(sources.camera_health())
 
 
-# ---- Room view: the Pi's own camera (amendment A17), for a signed-in viewer only ----
+# ---- Room view: the Pi's own camera (amendment A17), for the owner only: it shows the room, not just the printer ----
 
 def _room_unavailable(e):
     return JSONResponse({"reason": e.reason, "detail": str(e)}, status_code=429 if e.reason == "busy" else 503,
@@ -639,13 +639,13 @@ def _room_unavailable(e):
 
 @app.get("/api/camera/room")
 def api_room_camera(request: Request):
-    need(request, "household")
+    need(request, "owner")
     return fresh(room_camera.CAMERA.state())
 
 
 @app.get("/api/camera/room.jpg")
 async def api_room_camera_still(request: Request):
-    need(request, "household")
+    need(request, "owner")
     try:
         jpg, at = await room_camera.CAMERA.still()
     except room_camera.Unavailable as e:
@@ -655,7 +655,7 @@ async def api_room_camera_still(request: Request):
 
 @app.get("/api/camera/room/live")
 async def api_room_camera_live(request: Request):
-    need(request, "household")
+    need(request, "owner")
     stream = room_camera.CAMERA.live()
     try:
         first = await stream.__anext__()  # busy or a failed capture answers in words, before any part is sent

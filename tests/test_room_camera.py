@@ -354,8 +354,17 @@ def test_each_route_refuses_a_viewer_who_isnt_signed_in(client):
     assert room_camera.CAMERA.captures == 0 and room_camera.CAMERA.starts == 0
 
 
+def test_each_route_refuses_a_household_viewer(client, monkeypatch):
+    # The owner's call (2026-11-07): the Room view shows the room, so only the owner sees it.
+    from hub import auth
+    monkeypatch.setattr(auth, "who", lambda request: ("household", "kitchen tablet"))
+    for path in ("/api/camera/room", "/api/camera/room.jpg", "/api/camera/room/live"):
+        assert client.get(path).status_code == 401, path
+    assert room_camera.CAMERA.captures == 0 and room_camera.CAMERA.starts == 0
+
+
 def signed_in(monkeypatch):
-    monkeypatch.setattr(hub_app, "need", lambda request, role: ("household", "test"))
+    monkeypatch.setattr(hub_app, "need", lambda request, role: ("owner", "test"))
 
 
 def test_still_route_serves_a_jpeg_with_its_time(client, monkeypatch):
