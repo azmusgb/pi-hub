@@ -69,6 +69,7 @@ export function mapPlate(groups) {
 const findText = (...parts) => parts.filter(Boolean).join(" ").toLowerCase();
 
 // Show only what matches every word of the query; an area whose own name matches keeps all of it. Returns the count shown.
+// The lists stay in place even when empty, so each band keeps its line between Pi Hub and the tools beyond it.
 export function applyFilter(areas, query) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const hit = (s) => words.every((w) => s.includes(w));
@@ -76,15 +77,10 @@ export function applyFilter(areas, query) {
   for (const area of areas) {
     const whole = words.length > 0 && hit(area.dataset.find);
     let inArea = 0;
-    for (const list of area.querySelectorAll("[data-list]")) {
-      let inList = 0;
-      for (const li of list.querySelectorAll("li")) {
-        li.hidden = !(whole || hit(li.dataset.find));
-        if (!li.hidden) inList++;
-      }
-      list.hidden = inList === 0;
-      if (list.dataset.list === "tools") { const sub = area.querySelector(".map-sub"); if (sub) sub.hidden = inList === 0; }
-      inArea += inList;
+    for (const li of area.querySelectorAll("li")) {
+      if (li.dataset.find === undefined) { li.hidden = words.length > 0; continue; }  // "No tools", only when unfiltered
+      li.hidden = !(whole || hit(li.dataset.find));
+      if (!li.hidden) inArea++;
     }
     area.hidden = inArea === 0;
     shown += inArea;
@@ -92,20 +88,27 @@ export function applyFilter(areas, query) {
   return shown;
 }
 
+const plural = (n, word) => (n ? `${n} ${word}${n > 1 ? "s" : ""}` : "");
+
+// One band per area: its name, its pages in the order its strip shows them, and past the line, its tools.
 function areaSection(g) {
-  const pages = g.pages.length ? h("ul", { class: "more", dataset: { list: "pages" } }, g.pages.map((p) =>
+  const id = `map-${g.key}`;
+  const here = globalThis.location?.pathname;
+  const name = h("div", { class: "map-name" },
+    h("h2", { id }, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title),
+    h("p", { class: "meta" }, g.machine ? "Used by the workshop display" : [plural(g.pages.length, "page"), plural(g.tools.length, "tool")].filter(Boolean).join(", ")));
+  const run = h("ol", { class: "map-run", "aria-labelledby": id }, g.pages.map((p) =>
     h("li", { dataset: { find: findText(p.label, p.href) } },
-      h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href))))) : null;
-  // A tool leaves Pi Hub, so its rows sit under their own small heading rather than among the pages.
-  const tools = g.tools.length ? [
-    g.machine ? null : h("h3", { class: "map-sub" }, "Tools, in a new tab"),
-    h("ul", { class: "more", dataset: { list: "tools" } }, g.tools.map((t) => {
+      h("a", { class: "map-stop", href: p.href, "data-link": true, "aria-current": p.href === here ? "page" : null },
+        h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href)))));
+  const out = h("ul", { class: "map-out", "aria-label": `${g.title}: tools that open in a new tab` },
+    g.tools.length ? g.tools.map((t) => {
       const li = toolItem(t, g.machine);
       li.dataset.find = findText(t.name, t.purpose, t.host);
       return li;
-    }))] : [];
-  return h("section", { class: "more-group", dataset: { area: g.key, find: findText(g.title) } },
-    h("h2", {}, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title), pages, ...tools);
+    }) : h("li", { class: "map-none meta" }, "No tools"));
+  return h("section", { class: `more-group map-band${g.machine || g.key === "other" ? " map-band--quiet" : ""}`,
+    dataset: { area: g.key, find: findText(g.title) } }, name, run, out);
 }
 
 export function mount(state) {
@@ -128,7 +131,9 @@ export function mount(state) {
   clear.addEventListener("click", () => { input.value = ""; run(); input.focus(); });
   const find = h("form", { class: "map-find", role: "search", onsubmit: (e) => e.preventDefault() },
     h("label", { for: "map-find" }, "Find a page or tool"), input, count);
-  state.root.append(mapPlate(groups), find, empty, h("div", { class: "map-areas" }, areas));
+  const zones = h("div", { class: "map-zones", "aria-hidden": "true" }, h("span", {}), h("span", {}, "In Pi Hub"),
+    h("span", {}, "Opens in a new tab"));
+  state.root.append(mapPlate(groups), h("div", { class: "map-body" }, find, empty, h("div", { class: "map-areas" }, zones, areas)));
 }
 
 export async function load() {}

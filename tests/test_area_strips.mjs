@@ -262,8 +262,13 @@ test('the Site map filters as you type: every word must match, an area name keep
     assert.deepEqual(shownAreas(), ['workshop']);
     assert.match(text(shownRows()[0]), /Print lab/);
     const workshop = areas.find((a) => a.dataset.area === 'workshop');
-    assert.ok(workshop.querySelector('[data-list="tools"]').hidden, 'a tool list with no match is hidden');
-    assert.ok(workshop.querySelector('.map-sub').hidden, 'and so is its heading');
+    assert.ok(workshop.querySelector('.map-out li').hidden, 'a tool that does not match is hidden');
+    assert.ok(!workshop.querySelector('.map-out').hidden, 'but its list stays, so the band keeps its line');
+    const other = areas.find((a) => a.dataset.area === 'other');
+    applyFilter(areas, 'more');
+    assert.ok(other.querySelector('.map-none').hidden, '"No tools" is not a match');
+    applyFilter(areas, '');
+    assert.ok(!other.querySelector('.map-none').hidden, 'and it is back with no query');
 
     applyFilter(areas, 'backups restoring');
     assert.deepEqual(shownRows().map((li) => text(li).trim().split(/\s/)[0]), ['Backrest'], 'every word must match');
@@ -275,7 +280,7 @@ test('the Site map filters as you type: every word must match, an area name keep
     assert.deepEqual(shownAreas(), []);
 
     const total = applyFilter(areas, '');
-    assert.equal(total, root.querySelectorAll('.map-areas li').length, 'an empty query shows everything');
+    assert.equal(total, root.querySelectorAll('.map-areas li').filter((li) => li.dataset.find !== undefined).length, 'an empty query shows everything');
     assert.match(text(root.querySelector('#map-count')), new RegExp(`^${total} pages and tools$`));
     assert.ok(root.querySelector('.map-empty').hidden);
     assert.equal(root.querySelector('label[for="map-find"]') && text(root.querySelector('label[for="map-find"]')), 'Find a page or tool');
