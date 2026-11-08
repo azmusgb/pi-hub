@@ -17,7 +17,7 @@ export const STRIP = [
 // Each strip names its area: the pages' heading and the strip's accessible name.
 export const STRIPS = {
   system: { label: "System", entries: STRIP },
-  workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"]] },
+  workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"], ["/quick", "Quick Print"]] },
   documents: { label: "Documents", entries: [["/documents", "Papers"], ["/print", "Print"], ["/lists", "Lists"]] },
   media: { label: "Media", entries: [["/media", "Movies"], ["/drives", "Drives"]] },
   network: { label: "Home & network", entries: [["/devices", "Devices"], ["/network", "Network"], ["/weather", "Weather"]] },

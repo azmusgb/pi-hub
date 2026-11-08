@@ -1,0 +1,27 @@
+/* Quick Print (A19 P4). Kit classes carry the look; this adds only the upload target, the settings grid and the
+   progress line. Fluid: the grid wraps by available width, no device breakpoints. */
+.quick-notices:empty { display: none; }
+.quick-notices { margin-block-end: var(--space-3, 12px); }
+.quick-file { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; overflow: hidden; }
+.quick-drop { display: grid; gap: 4px; place-items: center; text-align: center; min-block-size: 96px; padding: 16px;
+  border: 1px dashed var(--line, currentColor); border-radius: 12px; cursor: pointer; position: relative; overflow-wrap: anywhere; }
+.quick-drop.over, .quick-drop:hover { border-style: solid; }
+.quick-drop:focus-within { outline: 2px solid var(--focus, currentColor); outline-offset: 2px; }
+.quick-progress { display: grid; gap: 8px; margin-block-start: 12px; }
+.quick-progress > span:first-child { overflow-wrap: anywhere; }
+.quick-settings { display: grid; gap: 12px 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items: end; }
+.quick-settings > .meta, .quick-settings > button { grid-column: 1 / -1; }
+.quick-settings > button { justify-self: start; }
+.quick-field { display: grid; gap: 4px; min-inline-size: 0; }
+.quick-field .ui-field { inline-size: 100%; min-block-size: 44px; }
+.quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
+.quick-actions .ui-btn, .quick-print .ui-btn, .quick-settings .ui-btn, .quick-progress .ui-btn { min-block-size: 44px; }
+.quick-print { display: grid; gap: 8px; justify-items: start; }
+.quick-hash code { overflow-wrap: anywhere; }
+.ui-rows .ui-row__title { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .quick-drop { transition: none; } }
+.ui-section > * { min-inline-size: 0; }
+.quick-slice, .quick-upload { min-inline-size: 0; }
+.ui-rows .ui-row__value, .ui-rows .ui-row__detail { overflow-wrap: anywhere; min-inline-size: 0; }
+.ui-section .ui-row__value { white-space: normal; text-align: end; }
+#page-sources .ui-chip { white-space: normal; max-inline-size: 100%; }

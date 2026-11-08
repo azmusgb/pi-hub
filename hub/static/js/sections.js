@@ -8,7 +8,7 @@ export const ASSISTANT_URL = registryUrl("assistant");
 
 export const SECTIONS = [
   { key: "home", title: "Home", path: "/", pages: ["/", "/wall"] },
-  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab"] },
+  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab", "/quick"] },
   { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
   { key: "media", title: "Media", path: "/media", pages: ["/media", "/drives"] },
   { key: "network", title: "Home & network", path: "/devices", pages: ["/devices", "/network", "/weather"] },
