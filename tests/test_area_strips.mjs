@@ -188,7 +188,7 @@ test('the Site map lists every page and every registry tool, built from routes.j
   assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
 });
 
-test('the Site map reads at a glance: areas side by side, a page with its address, a tool marked as opening a new tab', async () => {
+test('the Site map reads at a glance: one band per area, its pages in strip order with their addresses, then its tools past the line', async () => {
   const { mount } = await import('../hub/static/js/map.js');
   const dom = install();
   try {
@@ -197,7 +197,10 @@ test('the Site map reads at a glance: areas side by side, a page with its addres
     const grid = root.querySelector('.map-areas');
     assert.ok(grid, 'the areas sit in one grid');
     assert.equal(grid.querySelectorAll('.more-group').length, root.querySelectorAll('.more-group').length);
-    const printer = [...root.querySelectorAll('.more a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
+    const workshop = root.querySelector('[data-area="workshop"]');
+    assert.deepEqual(workshop.querySelectorAll('.map-run a').map((a) => a.getAttribute('href')), ['/workshop', '/lab', '/quick'], 'the strip\'s order');
+    assert.ok(workshop.querySelector('.map-out a[target="_blank"]'), 'tools sit on the far side of the line');
+    const printer = [...root.querySelectorAll('.map-run a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
     assert.equal(text(printer).replace(/\s+/g, ' ').trim(), 'Printer /workshop');
     const bambuddy = [...root.querySelectorAll('a[target="_blank"]')].find((a) => /Bambuddy/.test(text(a)));
     assert.match(text(bambuddy), /opens in a new tab/);
@@ -205,8 +208,8 @@ test('the Site map reads at a glance: areas side by side, a page with its addres
     assert.match(text(machine), /^Workshop display feed\s*·?\s+home\.home\.arpa/, 'name and host never run together');
   } finally { dom.uninstall(); }
   const css = read('hub/static/enhance.css');
-  assert.match(css, /\.map-areas\s*\{[^}]*columns:/, 'areas flow down columns, so a short one leaves no hole');
-  assert.match(css, /\.map-areas \.more-group\s*\{[^}]*break-inside:\s*avoid/);
+  assert.match(css, /\.map-areas\s*\{[^}]*grid-template-columns/, 'name, pages and tools are columns');
+  assert.match(css, /\.map-band\s*\{[^}]*grid-template-columns:\s*subgrid/, 'every band shares them, so the line falls in one place');
 });
 
 test('no card or description still says Storage once the page is Drives (A6 N2 review)', async () => {
