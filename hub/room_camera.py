@@ -12,9 +12,18 @@ only ever an answer to the live request that found four already watching.
 
 The owner sets the picture from the page (amendment A18): CONTROLS is the one table of what can be set, the hub checks
 every value against it, and the page draws its form from it. Settings live in Pi Hub's database; applying them restarts
-the capture once."""
+the capture once.
+
+The live group (amendment A20 D1) changes on the running camera instead: the live capture is a child process using
+Picamera2 (hub/room_camera_helper.py) that takes one change at a time on its stdin. A change is a try: it is held in
+memory, shown to everyone watching (there is one camera), and gone when the capture stops or an apply saves. If the
+helper can't run, the hub falls back to rpicam-vid for good (until it restarts) and A18's Apply covers every control."""
 import asyncio
+import collections
+import json
 import math
+import os
+import sys
 import threading
 import time
 
@@ -95,6 +104,13 @@ BY_KEY = {c["key"]: c for c in CONTROLS}
 DEFAULTS = {c["key"]: c["default"] for c in CONTROLS}
 DENOISE = {"auto": "auto", "off": "off", "fast": "cdn_fast", "hq": "cdn_hq"}
 SETTINGS_KEY = "room_camera"
+# The controls Picamera2 can change on a running camera (A20 D1, plan decision 3). The rest restart the capture.
+LIVE_KEYS = frozenset(("ev", "brightness", "contrast", "saturation", "sharpness", "awb", "metering", "exposure",
+                       "manual", "shutter", "gain", "denoise"))
+for _c in CONTROLS:
+    _c["live"] = _c["key"] in LIVE_KEYS
+HELPER = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "room_camera_helper.py")]
+LIVE_RATE = (10, 1.0)  # changes allowed per device in this many seconds
 ENV_FILE = "/etc/pi-hub/room-camera.env"  # A17's rotation setting: read once, to seed "Turn" (plan decision 6)
 
 WORDS = {
@@ -120,6 +136,34 @@ class Invalid(ValueError):
 
 class Applying(Exception):
     pass
+
+
+class NotLive(Exception):
+    """A live change with no live Picamera2 capture to take it."""
+
+
+class TooFast(Exception):
+    pass
+
+
+class Limiter:
+    """At most `n` events per device in `per` seconds."""
+
+    def __init__(self, n, per):
+        self.n, self.per, self.seen = n, per, {}
+
+    def allow(self, who, now=None):
+        now = time.monotonic() if now is None else now
+        q = self.seen.setdefault(who, collections.deque())
+        while q and now - q[0] >= self.per:
+            q.popleft()
+        if len(q) >= self.n:
+            return False
+        q.append(now)
+        if len(self.seen) > 64:  # devices come and go; never grow without end
+            for k in [k for k, v in self.seen.items() if not v or now - v[-1] >= self.per]:
+                del self.seen[k]
+        return True
 
 
 def _check(c, v):
@@ -238,6 +282,12 @@ def capture_args(cmd, s, still=False):
     return args
 
 
+def helper_config(s):
+    """The one JSON object the helper is started with: the live preset and every setting, as the hub validated them."""
+    p = PRESETS[s["preset"]]
+    return {**s, "width": p["width"], "height": p["height"], "fps": p["fps"], "quality": p["quality"]}
+
+
 def _shown(c, v):
     if c["kind"] == "switch":
         return "on" if v else "off"
@@ -308,8 +358,13 @@ async def _kill(p):
 
 
 class RoomCamera:
-    def __init__(self, vid=None, still=None, listing=None, store=None, env_file=None):
+    def __init__(self, vid=None, still=None, listing=None, store=None, env_file=None, helper=None):
         self.vid_cmd, self.still_cmd, self.list_cmd = vid or VID, still or STILL, listing or LISTING
+        self.helper_cmd = helper  # the Picamera2 helper's command, or None for rpicam-vid only (the tests' default)
+        self.engine = "picamera2" if helper else "rpicam"
+        self.proc_engine, self.proc_frames = None, 0
+        self.live_values = {}   # tried, unsaved changes to the live group; gone when the capture stops or an apply saves
+        self.limiter = Limiter(*LIVE_RATE)
         self.store, self.env_file = store or DbStore(), env_file
         self._settings = None
         self._seed_lock = threading.Lock()  # the settings route runs in a worker thread, apply on the event loop
@@ -359,6 +414,7 @@ class RoomCamera:
                     self.store.put(new)
                     self._settings = new
                 self.settings_at = time.time()
+                self.live_values = {}
                 p, self.proc = self.proc, None
                 if p is not None:
                     await asyncio.shield(_kill(p))
@@ -384,7 +440,7 @@ class RoomCamera:
         p = PRESETS[s["preset"]]
         return {"state": state, "reason": self.reason if state == "unavailable" else None, "viewers": self.viewers,
                 "frame_at": self.frame_at or None, "rotate": s["turn"] if s["turn"] in (90, 270) else 0,
-                "size": [p["width"], p["height"]]}
+                "size": [p["width"], p["height"]], "engine": self.engine, "live_values": dict(self.live_values)}
 
     def _got(self, jpg):
         self.frame, self.frame_at = jpg, time.time()
@@ -481,12 +537,23 @@ class RoomCamera:
         """Start the live capture. The caller holds the lock."""
         self.starts += 1
         self.started_at = time.time()
+        self.live_values, self.proc_frames, self.proc_engine = {}, 0, self.engine
         try:
-            self.last_args = capture_args(self.vid_cmd, self.settings())
-            self.proc = await asyncio.create_subprocess_exec(*self.last_args, stdout=asyncio.subprocess.PIPE,
-                                                             stderr=asyncio.subprocess.DEVNULL)
+            if self.engine == "picamera2":
+                self.last_args = [*self.helper_cmd, json.dumps(helper_config(self.settings()))]
+                self.proc = await asyncio.create_subprocess_exec(
+                    *self.last_args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL)
+            else:
+                self.last_args = capture_args(self.vid_cmd, self.settings())
+                self.proc = await asyncio.create_subprocess_exec(*self.last_args, stdout=asyncio.subprocess.PIPE,
+                                                                 stderr=asyncio.subprocess.DEVNULL)
         except OSError:
             self.proc = None
+            if self.engine == "picamera2":
+                self.engine = "rpicam"  # the helper can't even start: A18's path takes over (plan decision 5)
+                await self._spawn()
+                return
             self.reason, self.checked = "capture_failed", True
             self._wake()
             return
@@ -502,6 +569,7 @@ class RoomCamera:
             while chunk := await proc.stdout.read(65536):
                 for jpg in split.feed(chunk):
                     if self.proc is proc:
+                        self.proc_frames += 1
                         self._got(jpg)
         except Exception:
             pass
@@ -515,6 +583,12 @@ class RoomCamera:
                 return
             self.proc = None
             await asyncio.shield(_kill(proc))
+            if self.viewers and self.proc_engine == "picamera2" and (self.proc_frames == 0 or not self.restarts_left):
+                # The helper never gave a frame, or failed again after its one restart: stay on rpicam-vid from now
+                # on, so a fault never leaves the owner without a picture (plan decision 5).
+                self.engine, self.restarts_left = "rpicam", 1
+                await self._spawn()
+                return
             if self.viewers and self.restarts_left:
                 self.restarts_left -= 1
                 await self._spawn()
@@ -538,11 +612,37 @@ class RoomCamera:
                     and self.frame_at < self.started_at:
                 await self._failed(p)  # running but silent: a failure, not a wait without end
 
+    async def live_control(self, key, value, who):
+        """Try one live change on the running camera (A20 D1). Raises Invalid (not a live key, or a bad value), TooFast
+        (more than LIVE_RATE per device), NotLive (no Picamera2 capture is running), or Unavailable. The value goes to
+        the helper as a number or a word from CONTROLS, checked here; it is held until the capture stops or an apply."""
+        c = BY_KEY.get(key) if isinstance(key, str) else None
+        if c is None or not c["live"]:
+            raise Invalid(key if isinstance(key, str) else None,
+                          "That setting changes with Apply, not while you adjust." if c else "There is no such camera setting.")
+        value = _check(c, value)
+        self._bind()
+        if not self.limiter.allow(who):
+            raise TooFast()
+        p = self.proc
+        if p is None or self.proc_engine != "picamera2" or p.stdin is None or self.proc_frames == 0:
+            raise NotLive()
+        try:
+            p.stdin.write(json.dumps({"key": key, "value": value}).encode() + b"\n")
+            await asyncio.wait_for(p.stdin.drain(), 1.0)
+        except (OSError, asyncio.TimeoutError):
+            raise Unavailable("capture_failed")
+        if self.proc is p:
+            self.live_values[key] = value
+            self.settings_at = time.time()  # a frame from before this change shows the old picture
+        return value
+
     async def _stop(self):
         async with self._lock:
             if self.viewers:
                 return  # someone arrived while this waited for the lock
             p, self.proc = self.proc, None
+            self.live_values = {}
             if p is not None:
                 await asyncio.shield(_kill(p))
 
@@ -587,4 +687,4 @@ class RoomCamera:
                 self._stopper = asyncio.create_task(self._stop_later())
 
 
-CAMERA = RoomCamera()
+CAMERA = RoomCamera(helper=HELPER)

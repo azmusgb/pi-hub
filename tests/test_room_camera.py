@@ -115,7 +115,7 @@ def test_no_camera_listed_is_not_detected():
         assert e.value.reason == "not_detected"
         assert c.state() | {"frame_at": None} == {"state": "unavailable", "reason": "not_detected", "viewers": 0,
                                                   "frame_at": None, "rotate": 0,
-                                                  "size": [640, 480]}
+                                                  "size": [640, 480], "engine": "rpicam", "live_values": {}}
     run(go())
 
 
