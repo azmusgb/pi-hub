@@ -1063,4 +1063,5 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
 - **A19. Quick Print** (`2026-11-08-amendment-a19-quick-print.md`): an ordinary STL goes from a Workshop page to the X2D
   without an experiment. Pi Hub owns the job and its sliced file, the Mac slices through the request queue, and Pi Hub's
   one printer-control path gains Start a staged quick print (owner only, sheet with two ticks, same lock as A12). A slice
-  without the X2D start sequence is refused. Proposed on 8 Nov 2026 with one open question (a 3D library for the viewer).
+  without the X2D start sequence is refused, and a pinned Three.js is allowed on the Quick Print page only. Proposed on 8 Nov
+  2026; the owner chose the 3D library the same day.
