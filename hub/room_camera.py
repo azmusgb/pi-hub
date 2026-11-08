@@ -15,7 +15,6 @@ every value against it, and the page draws its form from it. Settings live in Pi
 the capture once."""
 import asyncio
 import math
-import os
 import threading
 import time
 

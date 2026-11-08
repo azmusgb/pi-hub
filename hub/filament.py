@@ -2,7 +2,7 @@
 old local tables (the unused prints table stays in the database) and serves spools in the hub's shape."""
 import time
 
-from . import auth, db
+from . import db
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS spools (
@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS spools (
   price REAL, added INTEGER NOT NULL, finished INTEGER
 );
 """
-MATERIALS = ["PLA", "PLA Matte", "PLA Silk", "PLA-CF", "PETG", "PETG-CF", "ABS", "ASA", "TPU", "PC", "PA-CF", "Support", "Other"]
 PRINT_COLUMNS = {"spool_id": "INTEGER", "grams": "INTEGER", "cost": "REAL", "error": "TEXT", "has_photo": "INTEGER DEFAULT 0"}
 
 
@@ -19,10 +18,6 @@ def ready():
     c = db.conn()
     c.executescript(SCHEMA)
     db.ensure_columns("prints", PRINT_COLUMNS)
-
-
-def low_at():
-    return int(auth.get("filament_low_at", 150))
 
 
 def spools():
