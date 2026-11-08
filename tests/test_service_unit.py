@@ -17,10 +17,10 @@ def test_systemd_backstop_is_shorter_than_its_default():
     assert m and int(m.group(1)) <= 20
 
 
-def test_the_hub_may_open_the_pis_camera_and_read_its_rotation():
+def test_the_hub_may_open_the_pis_camera_and_no_longer_loads_a17s_rotation_file():
     # The Room view (A17): rpicam needs /dev/video*, /dev/media* and /dev/dma_heap/*, all root:video, mode 0660.
     assert re.search(r"^SupplementaryGroups=video$", UNIT, re.M)
-    # Optional: without the file the hub still starts, and the picture isn't turned.
-    assert re.search(r"^EnvironmentFile=-/etc/pi-hub/room-camera\.env$", UNIT, re.M)
+    # A18 C4: the owner sets the camera from the page; the file only seeds "Turn" once, read by the hub itself.
+    assert "room-camera.env" not in UNIT and "ROOM_CAMERA_ROTATE" not in UNIT
     # Still nothing outside its own state is writable: frames never reach disk.
     assert "ProtectSystem=strict" in UNIT and "PrivateTmp=yes" in UNIT

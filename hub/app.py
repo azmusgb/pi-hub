@@ -676,6 +676,50 @@ async def api_room_camera_live(request: Request):
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
+# The owner sets the picture (amendment A18). The page draws its form from the hub's own table of controls.
+
+def _room_settings_body(cam):
+    return {"settings": cam.settings(), "defaults": dict(room_camera.DEFAULTS), "controls": room_camera.CONTROLS,
+            "applying": cam.applying}
+
+
+@app.get("/api/camera/room/settings")
+def api_room_camera_settings(request: Request):
+    need(request, "owner")
+    return fresh(_room_settings_body(room_camera.CAMERA))
+
+
+async def _room_apply(request, values, action):
+    role, device = need(request, "owner")
+    cam = room_camera.CAMERA
+    old = cam.settings()
+    try:
+        new = await cam.apply(values)
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422, headers={"Cache-Control": "no-store"})
+    except room_camera.Applying:
+        return JSONResponse({"field": None, "reason": "The camera is still applying the last change."}, status_code=409,
+                            headers={"Cache-Control": "no-store"})
+    auth.log(role, device, action, room_camera.describe_changes(old, new))
+    return fresh({**_room_settings_body(cam), "state": cam.state()})
+
+
+@app.post("/api/camera/room/settings")
+async def api_room_camera_apply(request: Request):
+    need(request, "owner")
+    try:
+        values = await request.json()
+    except ValueError:
+        return JSONResponse({"field": None, "reason": "Send every camera setting, as one object."}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    return await _room_apply(request, values, "room-camera:settings")
+
+
+@app.post("/api/camera/room/settings/reset")
+async def api_room_camera_reset(request: Request):
+    return await _room_apply(request, dict(room_camera.DEFAULTS), "room-camera:reset")
+
+
 # ---- Print ----
 
 @app.get("/api/print")
