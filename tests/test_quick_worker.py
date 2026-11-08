@@ -685,18 +685,48 @@ def test_a_replaced_slice_keeps_the_old_one_until_the_new_commit(env, monkeypatc
 def test_a_carriage_return_is_refused(env, tmp_path):
     hidden = gcode().replace("; HEADER", "; HEADER\rG28", 1)  # a reader splitting on \r would see code before the block
     ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", hidden)]))
-    assert not ok and "carriage return" in reasons[0]
+    assert not ok and "control character" in reasons[0]
     ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode().replace("\n", "\r\n"))]))
-    assert not ok and "carriage return" in reasons[0]
+    assert not ok and "control character" in reasons[0]
 
 
 @pytest.mark.parametrize("other", ["metadata/plate_1.gcode", "Metadata\\plate_1.gcode", "/Metadata/plate_1.gcode",
                                    "./Metadata/plate_1.gcode", "METADATA/PLATE_1.GCODE", "Metadata/plate_01.gcode"])
 def test_a_lookalike_plate_name_is_refused(env, tmp_path, other):
     ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode()), (other, gcode(["; EXECUTABLE_BLOCK_START", "G28"]))]))
-    assert not ok and ("duplicate" in reasons[0] or "more than one plate" in reasons[0])
+    assert not ok and any(w in reasons[0] for w in ("duplicate", "more than one plate", "entry name"))
 
 
 def test_a_plate_spelled_unexpectedly_alone_is_refused(env, tmp_path):
     ok, reasons, _ = _check(tmp_path, _zip([("METADATA/plate_1.gcode", gcode())]))
     assert not ok
+
+
+@pytest.mark.parametrize("br", [b"\x0b", b"\x0c", b"\x1c", b"\x1d", b"\x1e", b"\x00", b"\xc2\x85", b"\xe2\x80\xa8", b"\xe2\x80\xa9"])
+def test_every_extra_line_break_is_refused(env, tmp_path, br):
+    text = gcode().encode().replace(b"; HEADER", b"; HEADER" + br + b"G28", 1)
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", text)]))
+    assert not ok and "extra line break" in reasons[0]
+
+
+def test_non_ascii_comments_are_still_fine(env, tmp_path):
+    text = gcode().replace("; HEADER", "; HEADER \u00b0C \u00e9", 1)
+    assert _check(tmp_path, _zip([("Metadata/plate_1.gcode", text)]))[0] is True
+
+
+@pytest.mark.parametrize("name", ["Metadata/plate_1.gcode ", "Metadata/plate_1.gcode.", "Metadata//plate_1.gcode",
+                                  "Metadata/./plate_1.gcode", "Metadata/../Metadata/plate_1.gcode", "Metadata/plate_1.gcode\x00x",
+                                  "Metadata /plate_1.gcode", "Metadata/plate_1.gcode.bak", "Metadata/plate_1.GCODE",
+                                  "metadata/plate_1.gcode"])
+def test_odd_or_lookalike_entry_names_are_refused(env, tmp_path, name):
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode()), (name, "x")]))
+    assert not ok
+
+
+def test_the_real_sliced_file_still_passes(env):
+    from pathlib import Path
+    f = Path("/Users/billrahe/dev/print-lab/projects/hex-tile/prints/sliced/hex-tile_E-022_BLD-022-01.gcode.3mf")
+    if not f.exists():
+        pytest.skip("the known-good sliced file isn't on this machine")
+    ref = quick_check.load_reference(Path(quick_check.__file__).with_name("quick_start_reference.json"))
+    assert quick_check.check_artifact(f, ref)[:2] == (True, [])

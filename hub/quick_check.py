@@ -47,11 +47,24 @@ def _lines(f):
 
 
 def _norm(n: str) -> str:
-    """An entry name the way a lenient reader might see it: case folded, backslashes as slashes, no leading ./ or /."""
-    n = n.lower().replace("\\", "/")
+    """An entry name the way a lenient reader might see it: case folded, backslashes as slashes, no leading ./ or /,
+    no trailing dots or spaces on any part."""
+    n = n.casefold().replace("\\", "/")
     while n.startswith(("./", "/")):
         n = n[2:] if n.startswith("./") else n[1:]
-    return n
+    return "/".join(part.rstrip(". ") for part in n.split("/"))
+
+
+def _odd_name(n: str) -> bool:
+    """A name no real Studio file has: control characters, a backslash, a leading slash, `.` or `..` or empty parts, or
+    a part ending in a dot or space. The archive is refused whole rather than guessed at."""
+    parts = n.split("/")
+    return (any(ord(c) < 32 or ord(c) == 127 for c in n) or "\\" in n or n.startswith("/") or "" in parts
+            or "." in parts or ".." in parts or any(p != p.rstrip(". ") for p in parts if p not in (".", "..")))
+
+
+# Line breaks other readers honour besides \n: CR, VT, FF, FS, GS, RS, NEL, and U+2028/U+2029 (as UTF-8).
+_BREAKS = re.compile(rb"[\x00-\x08\x0b-\x1f\x7f]|\xc2\x85|\xe2\x80[\xa8\xa9]")
 
 
 def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, list[str], int]:
@@ -69,11 +82,14 @@ def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, l
     try:
         with zipfile.ZipFile(path) as z:
             names = z.namelist()
+            if any(_odd_name(n) for n in names):
+                return False, ["The archive has an entry name no sliced file has"], 0
             normal = [_norm(n) for n in names]
             if len(normal) != len(set(normal)):
                 return False, ["The archive has duplicate entry names"], 0
-            plates = [n for n, m in zip(names, normal) if re.fullmatch(r"metadata/plate_\d+\.gcode", m)]
-            if plates != [name]:  # exactly the one plate, spelled exactly; anything else a reader might take instead
+            plates = [n for n, m in zip(names, normal) if re.match(r"metadata/plate_.*gcode", m)]
+            # exactly the one plate, spelled exactly, and Studio's own checksum beside it; anything else a reader might take
+            if name not in plates or any(p not in (name, name + ".md5") for p in plates):
                 return False, ["The archive holds more than one plate's G-code, or names it unexpectedly"], 0
             with z.open(name) as f:
                 for raw, too_long in _lines(f):
@@ -82,8 +98,8 @@ def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, l
                         return False, [f"The G-code is larger than {MAX_GCODE >> 20} MiB"], 0
                     if too_long:
                         return False, ["The G-code has a line longer than 1 MiB"], 0
-                    if b"\r" in raw:  # a bare carriage return would split lines differently for another reader
-                        return False, ["The G-code contains a carriage return"], 0
+                    if _BREAKS.search(raw):  # another reader would split these lines differently
+                        return False, ["The G-code contains a control character or an extra line break"], 0
                     line = raw.strip()
                     if not inside and not seen_end:
                         if line.startswith(START):
