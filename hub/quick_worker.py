@@ -121,6 +121,16 @@ def _end(a: dict, terminal: str, cause: str | None, to: str | None, reason: str 
         _resolve_requests(a["job"], "applied", None)
 
 
+def _check_copy(job_id: str, attempt: str) -> Path:
+    """The file complete() judges and publishes: a private name no upload can reach."""
+    return _scratch(job_id) / f"{attempt}.check"
+
+
+def _drop(job_id: str, attempt: str) -> None:
+    _part(job_id, attempt).unlink(missing_ok=True)
+    _check_copy(job_id, attempt).unlink(missing_ok=True)
+
+
 def _sha_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -338,7 +348,9 @@ async def route_artifact(job_id: str, attempt: str, generation: int, offset: int
             raise quick.QuickError(422, f"Send X-Size (1 to {quick.MAX_SLICED} bytes) and X-Sha256.")
         size = int(size)
         with quick._tx():
-            _live(job_id, attempt, generation)
+            a = _live(job_id, attempt, generation)
+            if a["artifact_sha"]:
+                raise quick.QuickError(409, "This attempt's artifact is already complete.", reason="uploaded")
             _to_validating(job_id)
         have = _artifact_offset(job_id, attempt)
         if offset != have:
@@ -373,7 +385,7 @@ async def route_artifact(job_id: str, attempt: str, generation: int, offset: int
         return {"done": True, "sha256": got, "bytes": have}
     except quick.QuickError as e:
         if e.status == 409 and e.extra.get("reason") != "offset":
-            _part(job_id, attempt).unlink(missing_ok=True)  # a refused attempt leaves no partial file behind
+            _drop(job_id, attempt)  # a refused attempt leaves no partial file behind
         return _err(e)
 
 
@@ -387,7 +399,7 @@ async def route_complete(job_id: str, attempt: str, request: Request):
         return complete(job_id, attempt, body)
     except quick.QuickError as e:
         if e.status == 409:
-            _part(job_id, attempt).unlink(missing_ok=True)
+            _drop(job_id, attempt)
         return _err(e)
 
 
@@ -424,10 +436,15 @@ def complete(job_id: str, attempt: str, body: dict) -> dict:
             _end(_live(job_id, attempt, gen), "needs_attention", "studio_version", "needs_attention",
                  f"{REASONS['studio_version']} ({studio or 'unknown'})")
         return {"ok": True, "state": "needs_attention"}
-    part = _part(job_id, attempt)
-    if not part.exists() or _sha_file(part) != a["artifact_sha"]:
+    part, copy = _part(job_id, attempt), _check_copy(job_id, attempt)
+    try:
+        os.replace(part, copy)  # from here no upload can reach what is judged and published
+    except FileNotFoundError:
+        raise quick.QuickError(422, "The artifact wasn't uploaded.", reason="artifact") from None
+    if _sha_file(copy) != a["artifact_sha"]:
         raise quick.QuickError(422, "The stored artifact doesn't match its sha256.", reason="artifact")
-    ok, reasons, block_lines = quick_check.check_artifact(part, quick_check.load_reference())
+    seen = copy.stat()
+    ok, reasons, block_lines = quick_check.check_artifact(copy, quick_check.load_reference())
     final = quick.QUICK_DIR / "slices" / f"{job_id}.gcode.3mf"
     with quick._tx():
         a = _live(job_id, attempt, gen)
@@ -436,6 +453,9 @@ def complete(job_id: str, attempt: str, body: dict) -> dict:
                  f"{REASONS['start_sequence']} {'; '.join(reasons)}"[:300])
             return {"ok": True, "state": "needs_attention"}
         job = quick.get(job_id)
+        now_stat = copy.stat()
+        if (now_stat.st_ino, now_stat.st_size, now_stat.st_mtime_ns) != (seen.st_ino, seen.st_size, seen.st_mtime_ns):
+            raise quick.QuickError(409, "The artifact changed after it was checked.", reason="terminal")
         info = {k: res.get(k) for k in ("minutes", "grams", "layers", "studio_version", "base_sha256", "project_sha256")}
         info.update({"start_block_lines": block_lines, "settings": json.loads(job["settings"]), "attempt": attempt,
                      "sliced_at": _now()})
@@ -443,7 +463,7 @@ def complete(job_id: str, attempt: str, body: dict) -> dict:
         backup = final.with_name(final.name + ".old")
         if final.exists():
             os.replace(final, backup)  # a re-slice replaces the earlier slice only if this commit succeeds
-        os.replace(part, final)
+        os.replace(copy, final)
         try:
             _end(a, "completed", None, "sliced", None, slice_sha256=a["artifact_sha"], slice_file=final.name,
                  slice_bytes=a["artifact_bytes"], sliced_hash=a["request_hash"], slice_info=json.dumps(info))

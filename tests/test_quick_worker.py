@@ -586,3 +586,97 @@ def test_vendored_reference_is_well_formed_and_rejects_a_loose_start():
         p.write_bytes(sliced_file(gcode(block=["; EXECUTABLE_BLOCK_START", "M73 P0 R5", "M106 S0", "G28"])))
         ok, reasons, lines = quick_check.check_artifact(p, ref)
     assert not ok and lines == 4 and any("missing" in r for r in reasons)
+
+
+# --- hardening of the Pi's check and the publish path ------------------------------------------------------------
+
+def _check(tmp_path, data: bytes):
+    p = tmp_path / "f.gcode.3mf"
+    p.write_bytes(data)
+    return quick_check.check_artifact(p, quick_check.load_reference(quick_check.REFERENCE))
+
+
+def _zip(entries: list) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, text in entries:
+            z.writestr(name, text)
+    return buf.getvalue()
+
+
+def test_the_good_file_passes_the_pi_check(env, tmp_path):
+    assert _check(tmp_path, GOOD)[0] is True
+
+
+def test_duplicate_entry_names_are_refused(env, tmp_path):
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode(["; EXECUTABLE_BLOCK_START", "G28"], "x", "")),
+                                                 ("Metadata/plate_1.gcode", gcode())]))
+    assert not ok and "duplicate" in reasons[0]
+
+
+def test_another_plates_gcode_is_refused(env, tmp_path):
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode()), ("Metadata/plate_2.gcode", gcode())]))
+    assert not ok and "more than one plate" in reasons[0]
+
+
+def test_code_before_the_start_block_is_refused(env, tmp_path):
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", "G28\n" + gcode())]))
+    assert not ok and "before the start block" in reasons[0]
+
+
+def test_an_overlong_line_is_refused_without_being_held(env, tmp_path, monkeypatch):
+    monkeypatch.setattr(quick_check, "MAX_LINE", 1000)
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode() + "; " + "x" * 5000 + "\n")]))
+    assert not ok and "longer than" in reasons[0]
+
+
+def test_a_runaway_start_block_is_cut_off(env, tmp_path):
+    big = ["; EXECUTABLE_BLOCK_START"] + ["G1 X1"] * 5000
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode(big))]))
+    assert not ok and "longer than" in reasons[0]
+
+
+def test_lines_split_across_reads_are_whole(env, tmp_path, monkeypatch):
+    monkeypatch.setattr(quick_check, "READ", 7)  # every line straddles several reads
+    assert _check(tmp_path, GOOD)[0] is True
+
+
+def test_no_more_bytes_after_an_artifact_is_complete(env):
+    jid = new_job(env)
+    j = claimed(env)
+    assert push(env, j, GOOD).json()["done"]
+    h = {**OCT, "X-Size": str(len(GOOD) + 5), "X-Sha256": hashlib.sha256(GOOD).hexdigest()}
+    r = env.put(url(j, f"artifact?generation=1&offset={len(GOOD)}"), content=b"extra", headers=h)
+    assert r.status_code == 409 and r.json()["reason"] == "uploaded"
+    r = env.put(url(j, "artifact?generation=1&offset=0"), content=GOOD, headers=h)
+    assert r.status_code == 409 and r.json()["reason"] == "uploaded"
+
+
+def test_what_is_published_is_the_file_that_was_checked(env):
+    jid = new_job(env)
+    j = claimed(env)
+    push(env, j, GOOD)
+    assert finish(env, j, GOOD).json()["state"] == "sliced"
+    final = quick.QUICK_DIR / "slices" / f"{jid}.gcode.3mf"
+    assert hashlib.sha256(final.read_bytes()).hexdigest() == job(jid)["slice_sha256"]
+    assert not list(final.parent.glob("*.old")) and not (quick.QUICK_DIR / "scratch" / jid).exists()
+
+
+def test_a_replaced_slice_keeps_the_old_one_until_the_new_commit(env, monkeypatch):
+    jid = new_job(env)
+    j = claimed(env)
+    push(env, j, GOOD)
+    finish(env, j, GOOD)
+    first = (quick.QUICK_DIR / "slices" / f"{jid}.gcode.3mf").read_bytes()
+    env.patch(f"/api/quick/jobs/{jid}", json={"settings": {"wall_loops": 3}}, headers=SAME)
+    env.post(f"/api/quick/jobs/{jid}/slice", headers=SAME)
+    j2 = claimed(env)
+    second = sliced_file(gcode(ids="GFL98"))
+    push(env, j2, second)
+    monkeypatch.setattr(quick_worker, "_end", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(RuntimeError):
+        finish(env, j2, second)
+    assert (quick.QUICK_DIR / "slices" / f"{jid}.gcode.3mf").read_bytes() == first

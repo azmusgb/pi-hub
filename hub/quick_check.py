@@ -6,6 +6,7 @@ line count, the printer's start G-code hash and the filament ids. The reference 
 `presets/quick/x2d-start-reference.json`; until a sync step owns it (P9), a change there is mirrored here by hand."""
 import hashlib
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -26,33 +27,69 @@ def _missing(want: list[str], have: list[str]) -> list[str]:
     return [c for c in want if c not in it]
 
 
+MAX_LINE = 1 << 20  # no single G-code line, however it is built, is held past this
+READ = 1 << 16
+
+
+def _lines(f):
+    """Lines of a binary stream read in fixed pieces. Yields (line, too_long): a line past MAX_LINE is skipped, never kept."""
+    tail, skipping = b"", False
+    while chunk := f.read(READ):
+        parts = (tail + chunk).split(b"\n")
+        tail = parts.pop()
+        for ln in parts:
+            yield (b"", True) if skipping or len(ln) > MAX_LINE else (ln, False)
+            skipping = False
+        if len(tail) > MAX_LINE:
+            tail, skipping = b"", True
+    if tail or skipping:
+        yield (b"", True) if skipping or len(tail) > MAX_LINE else (tail, False)
+
+
 def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, list[str], int]:
     """(ok, reasons, start block lines) for a sliced .gcode.3mf. Streams the G-code, keeping only the start block and the
-    two header lines it needs, so a large plate costs time but not memory."""
+    two header lines it needs, so a large plate costs time but not memory. Refuses what could make the checker and
+    Studio disagree about which G-code is the plate's: duplicate entry names, any other plate's G-code, a line of code
+    before the start block, an over-long line, or a start block far longer than the reference's."""
     reasons: list[str] = []
     block: list[str] = []
-    inside = False
-    seen_end = False
+    inside = seen_end = False
     machine = ids = None
     total = 0
+    limit = max(2000, 5 * int(reference.get("block_lines", 0)))
+    name = f"Metadata/plate_{plate}.gcode"
     try:
-        with zipfile.ZipFile(path) as z, z.open(f"Metadata/plate_{plate}.gcode") as f:
-            for raw in f:
-                total += len(raw)
-                if total > MAX_GCODE:
-                    return False, [f"The G-code is larger than {MAX_GCODE >> 20} MiB"], 0
-                line = raw.strip()
-                if not inside and not seen_end and line.startswith(START):
-                    inside = True
-                if inside:
-                    if line.startswith(END):
-                        inside, seen_end = False, True
-                    else:
-                        block.append(line.decode("utf-8", "replace"))
-                elif line.startswith(b"; machine_start_gcode = "):
-                    machine = line[len(b"; machine_start_gcode = "):].decode("utf-8", "replace").strip()
-                elif line.startswith(b"; filament_ids = "):
-                    ids = line[len(b"; filament_ids = "):].decode("utf-8", "replace").strip()
+        with zipfile.ZipFile(path) as z:
+            names = z.namelist()
+            if len(names) != len(set(names)):
+                return False, ["The archive has duplicate entry names"], 0
+            others = [n for n in names if re.fullmatch(r"Metadata/plate_\d+\.gcode", n) and n != name]
+            if others:
+                return False, ["The archive holds more than one plate's G-code"], 0
+            with z.open(name) as f:
+                for raw, too_long in _lines(f):
+                    total += len(raw) + 1
+                    if total > MAX_GCODE:
+                        return False, [f"The G-code is larger than {MAX_GCODE >> 20} MiB"], 0
+                    if too_long:
+                        return False, ["The G-code has a line longer than 1 MiB"], 0
+                    line = raw.strip()
+                    if not inside and not seen_end:
+                        if line.startswith(START):
+                            inside = True
+                        elif line and not line.startswith(b";"):
+                            return False, ["G-code runs before the start block"], 0
+                    if inside:
+                        if line.startswith(END):
+                            inside, seen_end = False, True
+                        else:
+                            block.append(line.decode("utf-8", "replace"))
+                            if len(block) > limit:
+                                return False, [f"The start block is longer than {limit} lines"], len(block)
+                    elif line.startswith(b"; machine_start_gcode = "):
+                        machine = line[len(b"; machine_start_gcode = "):].decode("utf-8", "replace").strip()
+                    elif line.startswith(b"; filament_ids = "):
+                        ids = line[len(b"; filament_ids = "):].decode("utf-8", "replace").strip()
     except (zipfile.BadZipFile, KeyError, OSError, EOFError):
         return False, ["The file isn't a sliced 3MF with a G-code plate"], 0
     if not seen_end or not block:
