@@ -290,10 +290,6 @@ def execute(rule, kind, detail=""):
         return {"status": "failed", "message": str(e)[:200] or "It didn't work."}
 
 
-def run_action(rule, kind, detail=""):
-    return execute(rule, kind, detail)["message"]
-
-
 # Bambuddy's webhook and the printer status both report the same print start/finish/failure;
 # whichever arrives second within this window is dropped.
 PRINT_DEDUPE = 600

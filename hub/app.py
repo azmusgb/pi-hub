@@ -1131,7 +1131,7 @@ def api_shortcut_laundry(request: Request):
 
 @app.post("/api/shortcut/ask")
 async def api_shortcut_ask(request: Request):
-    who_name = _shortcut(request)
+    _shortcut(request)
     b = await _shortcut_body(request)
     try:
         return say(ask.ask(str(b.get("question") or b.get("text") or ""))["answer"])

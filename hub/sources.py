@@ -358,9 +358,9 @@ class Sampler:
 
     def snapshot(self):
         try:
-            used, free_gb, total_gb = self._mem()
+            _, free_gb, total_gb = self._mem()
         except Exception:
-            used = free_gb = total_gb = None
+            free_gb = total_gb = None
         return {
             "cpu_series": list(self.cpu)[-90:],
             "mem_series": list(self.mem)[-90:],

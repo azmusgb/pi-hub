@@ -306,7 +306,7 @@ async def route_heartbeat(job_id: str, attempt: str, request: Request):
             raise quick.QuickError(422, f"phase must be one of {', '.join(PHASES)}.")
         now = _now()
         with quick._tx():
-            a = _live(job_id, attempt, body.get("generation"))
+            _live(job_id, attempt, body.get("generation"))
             db.run("UPDATE quick_attempts SET last_heartbeat = ?, lease_end = ?, phase = ? WHERE attempt = ?",
                    now, now + LEASE, phase, attempt)
             if phase == "slicing" and quick.get(job_id)["state"] == "preparing":

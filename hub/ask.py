@@ -1,6 +1,5 @@
 """Ask Local AI about the house. The question goes to Local AI on the Windows PC together with
 what the hub knows right now, so answers come from the hub's own facts, not guesses."""
-import json
 import time
 
 from . import bambuddy, display_ai, events, now, records, sources
