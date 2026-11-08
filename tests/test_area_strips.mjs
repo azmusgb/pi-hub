@@ -205,7 +205,8 @@ test('the Site map reads at a glance: areas side by side, a page with its addres
     assert.match(text(machine), /^Workshop display feed\s*·?\s+home\.home\.arpa/, 'name and host never run together');
   } finally { dom.uninstall(); }
   const css = read('hub/static/enhance.css');
-  assert.match(css, /\.map-areas\s*\{[^}]*grid-template-columns/);
+  assert.match(css, /\.map-areas\s*\{[^}]*columns:/, 'areas flow down columns, so a short one leaves no hole');
+  assert.match(css, /\.map-areas \.more-group\s*\{[^}]*break-inside:\s*avoid/);
 });
 
 test('no card or description still says Storage once the page is Drives (A6 N2 review)', async () => {
