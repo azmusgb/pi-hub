@@ -680,3 +680,23 @@ def test_a_replaced_slice_keeps_the_old_one_until_the_new_commit(env, monkeypatc
     with pytest.raises(RuntimeError):
         finish(env, j2, second)
     assert (quick.QUICK_DIR / "slices" / f"{jid}.gcode.3mf").read_bytes() == first
+
+
+def test_a_carriage_return_is_refused(env, tmp_path):
+    hidden = gcode().replace("; HEADER", "; HEADER\rG28", 1)  # a reader splitting on \r would see code before the block
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", hidden)]))
+    assert not ok and "carriage return" in reasons[0]
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode().replace("\n", "\r\n"))]))
+    assert not ok and "carriage return" in reasons[0]
+
+
+@pytest.mark.parametrize("other", ["metadata/plate_1.gcode", "Metadata\\plate_1.gcode", "/Metadata/plate_1.gcode",
+                                   "./Metadata/plate_1.gcode", "METADATA/PLATE_1.GCODE", "Metadata/plate_01.gcode"])
+def test_a_lookalike_plate_name_is_refused(env, tmp_path, other):
+    ok, reasons, _ = _check(tmp_path, _zip([("Metadata/plate_1.gcode", gcode()), (other, gcode(["; EXECUTABLE_BLOCK_START", "G28"]))]))
+    assert not ok and ("duplicate" in reasons[0] or "more than one plate" in reasons[0])
+
+
+def test_a_plate_spelled_unexpectedly_alone_is_refused(env, tmp_path):
+    ok, reasons, _ = _check(tmp_path, _zip([("METADATA/plate_1.gcode", gcode())]))
+    assert not ok

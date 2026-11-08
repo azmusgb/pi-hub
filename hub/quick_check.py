@@ -46,6 +46,14 @@ def _lines(f):
         yield (b"", True) if skipping or len(tail) > MAX_LINE else (tail, False)
 
 
+def _norm(n: str) -> str:
+    """An entry name the way a lenient reader might see it: case folded, backslashes as slashes, no leading ./ or /."""
+    n = n.lower().replace("\\", "/")
+    while n.startswith(("./", "/")):
+        n = n[2:] if n.startswith("./") else n[1:]
+    return n
+
+
 def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, list[str], int]:
     """(ok, reasons, start block lines) for a sliced .gcode.3mf. Streams the G-code, keeping only the start block and the
     two header lines it needs, so a large plate costs time but not memory. Refuses what could make the checker and
@@ -61,11 +69,12 @@ def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, l
     try:
         with zipfile.ZipFile(path) as z:
             names = z.namelist()
-            if len(names) != len(set(names)):
+            normal = [_norm(n) for n in names]
+            if len(normal) != len(set(normal)):
                 return False, ["The archive has duplicate entry names"], 0
-            others = [n for n in names if re.fullmatch(r"Metadata/plate_\d+\.gcode", n) and n != name]
-            if others:
-                return False, ["The archive holds more than one plate's G-code"], 0
+            plates = [n for n, m in zip(names, normal) if re.fullmatch(r"metadata/plate_\d+\.gcode", m)]
+            if plates != [name]:  # exactly the one plate, spelled exactly; anything else a reader might take instead
+                return False, ["The archive holds more than one plate's G-code, or names it unexpectedly"], 0
             with z.open(name) as f:
                 for raw, too_long in _lines(f):
                     total += len(raw) + 1
@@ -73,6 +82,8 @@ def check_artifact(path: Path, reference: dict, plate: int = 1) -> tuple[bool, l
                         return False, [f"The G-code is larger than {MAX_GCODE >> 20} MiB"], 0
                     if too_long:
                         return False, ["The G-code has a line longer than 1 MiB"], 0
+                    if b"\r" in raw:  # a bare carriage return would split lines differently for another reader
+                        return False, ["The G-code contains a carriage return"], 0
                     line = raw.strip()
                     if not inside and not seen_end:
                         if line.startswith(START):
