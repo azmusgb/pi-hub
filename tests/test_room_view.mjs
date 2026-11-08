@@ -180,8 +180,8 @@ async function page(routes) {
   return { dom, state, ws, done() { ws.leave(state); dom.uninstall(); } };
 }
 
-test('page: signed in with the printer camera out, the Room view stands in on load', async () => {
-  const p = await page({ '/api/me': { role: 'household' }, '/api/camera': camOff, '/api/camera/room': ready });
+test('page: the owner, with the printer camera out: the Room view stands in on load', async () => {
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': ready });
   try {
     await p.ws.load(p.state);
     const aside = p.state.root.querySelector('.ui-faceplate__aside');
@@ -190,14 +190,16 @@ test('page: signed in with the printer camera out, the Room view stands in on lo
   } finally { p.done(); }
 });
 
-test('page: not signed in, the Room view is never asked for and the aside is as before', async () => {
-  let asked = 0;
-  const p = await page({ '/api/me': { role: 'none' }, '/api/camera': camOff, '/api/camera/room': () => { asked += 1; return ready; } });
-  try {
-    await p.ws.load(p.state);
-    assert.equal(asked, 0);
-    assert.match(text(p.state.root.querySelector('.ui-faceplate__aside')), /Camera unavailable/);
-  } finally { p.done(); }
+test('page: anyone but the owner (signed out, or household): the Room view is never asked for, the aside as before', async () => {
+  for (const role of ['none', 'household']) {
+    let asked = 0;
+    const p = await page({ '/api/me': { role }, '/api/camera': camOff, '/api/camera/room': () => { asked += 1; return ready; } });
+    try {
+      await p.ws.load(p.state);
+      assert.equal(asked, 0, role);
+      assert.match(text(p.state.root.querySelector('.ui-faceplate__aside')), /Camera unavailable/);
+    } finally { p.done(); }
+  }
 });
 
 test('page: picking the Room view switches, and the printer camera coming back puts the view back on it', async () => {

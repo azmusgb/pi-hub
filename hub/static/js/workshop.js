@@ -648,8 +648,8 @@ export async function load(state) {
   // read-only.
   const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false, unanswered: true }),
     settle(api("/api/projects"), 6000, { available: false }), settle(whoami(), 6000, { role: "none" })]);
-  // The Room view only for someone signed in (its routes refuse anyone else); a failed read leaves the aside as before A17.
-  const room = ["household", "owner"].includes(me?.role) ? await settle(api("/api/camera/room"), 6000, null) : null;
+  // The Room view only for the owner (its routes refuse anyone else); a failed read leaves the aside as before A17.
+  const room = me?.role === "owner" ? await settle(api("/api/camera/room"), 6000, null) : null;
   const v = workshopView(d, { role: me?.role, last: state.last });
   if (!v) throw new Error("The workshop status came back empty.");
   if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
