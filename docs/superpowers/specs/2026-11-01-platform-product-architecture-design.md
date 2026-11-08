@@ -1060,6 +1060,27 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   or Larger (100, 115, 130%) from the footer beside Theme; the kit multiplies its fluid root by it, so type and space
   grow together and the browser's own text size still applies; the width sweep runs at all three. Proposed on 6 Nov
   2026 from the owner's "Comfortable+" Home prototype, whose ideas (not its look) the owner chose to take.
+- **A12b. Start may wait for the bed to cool** (`2026-11-07-amendment-a12b-bed-hold.md`): when the bed's temperature
+  is the only thing the start check refuses, Start may be tapped as "Start when the bed is cool". Pi Hub holds one
+  request in memory for up to 45 minutes, checks everything again every 10 seconds and sends only when nothing refuses.
+  The owner can cancel the hold, and a restart drops it. Approved by the owner on 7 Nov 2026 (pi-hub #162).
+- **A15. Pi Hub signs the owner in to Bambuddy** (`2026-11-07-amendment-a15-bambuddy-sign-in.md`): Pi Hub becomes a
+  minimal OpenID Connect provider for one client (Bambuddy) and one person (the owner), from the existing owner session.
+  It uses authorization code with PKCE, one exact redirect, single-use 60-second codes and no refresh tokens. That is
+  A12's one named Bambuddy write besides staged prints. Approved by the owner on 7 Nov 2026 (pi-hub #165).
+- **A16. The lab page is where the owner looks at, plans and approves an experiment**
+  (`2026-11-07-amendment-a16-lab-plan-preview.md`): the Mac writes a preview of each planned build into the mirrored
+  record (outlines, the settings that differ, the estimate, both budgets, guards and analysis), and Pi Hub only shows it.
+  Then come a model viewer, planning from the page and a result view, each its own PR. Approved by the owner on 7 Nov
+  2026 (pi-hub #167).
+- **A17. Room view** (`2026-11-07-amendment-a17-room-camera.md`): the Pi's own camera, which looks at the X2D through
+  the door, is a second view of the printer on Workshop › Printer, always called "Room view". Pi Hub owns it, and the
+  printer's camera stays the first view. Approved by the owner on 7 Nov 2026 (pi-hub #173); owner only, by the owner's
+  choice (#176).
+- **A18. The owner sets the Room view's camera from the page** (`2026-11-07-amendment-a18-room-camera-controls.md`):
+  a closed-by-default "Camera settings" disclosure under the Room view, for the owner only, holds every camera option
+  this sensor supports. The settings are stored in Pi Hub, and applying them restarts only the capture. This replaces
+  A17's rotation file and its one fixed quality. Approved by the owner on 7 Nov 2026 (pi-hub #178).
 - **A19. Quick Print** (`2026-11-08-amendment-a19-quick-print.md`): an ordinary STL goes from a Workshop page to the X2D
   without an experiment. Pi Hub owns the job and its sliced file, the Mac slices through the request queue, and Pi Hub's
   one printer-control path gains Start a staged quick print (owner only, sheet with two ticks, same lock as A12). A slice
