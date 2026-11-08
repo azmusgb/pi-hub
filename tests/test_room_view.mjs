@@ -549,3 +549,102 @@ test('CSS: the settings panel has no motion and wraps its groups', () => {
   assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
   assert.match(block, /\.ws-set-body \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
 });
+
+// ---- P2 review fixes ----
+
+test('page: the fields lock while applying, so nothing edited then is lost', async () => {
+  let release;
+  const p = await ownerPage({ '/api/camera/room/settings': (url, opts) => (opts?.method === 'POST'
+    ? new Promise((r) => { release = () => r({ ...model(), settings: JSON.parse(opts.body), state: ready90 }); }) : model()) });
+  try {
+    const d = panel(p);
+    change(d.querySelector('#set-ev'), 1);
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick();
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => f.disabled));
+    release();
+    await tick(); await tick(); await tick();
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => !f.disabled));
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
+  } finally { p.done(); }
+});
+
+test('page: a room read that began before an apply answered does not undo the new picture shape', async () => {
+  let roomAnswer = ready90;
+  let hold = null;
+  const p = await ownerPage({
+    '/api/camera/room': () => (hold ? hold.promise : roomAnswer),
+    '/api/camera/room/settings': (url, opts) => (opts?.method === 'POST'
+      ? { ...model(), settings: JSON.parse(opts.body), state: { ...ready90, size: [1920, 1080] } } : model()),
+  });
+  try {
+    let resolve;
+    hold = { promise: new Promise((r) => { resolve = r; }) };
+    const slowLoad = p.ws.load(p.state);  // started before the apply, answers after it
+    await tick();
+    hold = null;
+    panel(p).querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    resolve(ready90);  // the old shape
+    await slowLoad;
+    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--w: 1920; --h: 1080/);
+  } finally { p.done(); }
+});
+
+test('page: after Applied, the camera failing says why and that Reset puts it back', async () => {
+  let room = ready90;
+  const p = await ownerPage({ '/api/camera/room': () => room });
+  try {
+    const d = panel(p);
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
+    room = down('capture_failed');
+    p.state.set.appliedAt = 0;  // a later read, not one from before the apply
+    await p.ws.load(p.state);
+    assert.match(text(d.querySelector('.ws-set-note')), /Reset to defaults puts every setting back/);
+  } finally { p.done(); }
+});
+
+test('page: a still that failed while an apply restarted the camera does not lock the panel', async () => {
+  let fail;
+  const p = await ownerPage({ '/api/camera/room.jpg': () => new Promise((r) => { fail = () => r(undefined); }) });
+  try {
+    const img = p.state.root.querySelector('img.room-img[data-refresh]');
+    const pending = p.ws.refreshRoomStill(p.state, img);  // asked before the apply
+    await tick();
+    panel(p).querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    fail();  // 503 during the restart
+    await pending;
+    assert.equal(p.state.room.state, 'ready');
+    assert.ok(!panel(p).querySelector('[data-key="cam-apply"]').disabled);
+  } finally { p.done(); }
+});
+
+test('page: a refusal for a field that cannot take focus moves focus to the status line', async () => {
+  const p = await ownerPage();
+  try {
+    withStatus(p, 422, { field: 'centre_x', reason: 'Centre across is from 0 to 100.' });
+    const d = panel(p);
+    assert.ok(d.querySelector('#set-centre_x').disabled, 'zoom is 1×');
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(p.dom.document.activeElement, d.querySelector('.ws-set-note'));
+    assert.equal(text(d.querySelector('#set-centre_x-err')), 'Centre across is from 0 to 100.');
+  } finally { p.done(); }
+});
+
+test('page: Reset after a failed capture checks for a picture and unlocks when there is one', async () => {
+  const p = await ownerPage({ '/api/camera/room/settings/reset': () => ({ ...model(), settings: { ...DEFAULTS }, state: down('capture_failed') }) },
+    down('capture_failed'));
+  try {
+    globalThis.ApplianceConfirm = { ask: async () => true };
+    const d = panel(p);
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => f.disabled));
+    d.querySelector('[data-key="cam-reset"]').click();
+    for (let i = 0; i < 8; i += 1) await tick();
+    assert.equal(p.state.room.state, 'ready', 'a picture came back, so the camera is no longer out');
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => !f.disabled));
+  } finally { p.done(); }
+});

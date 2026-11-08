@@ -288,7 +288,7 @@ function makeSettings(state) {
   const set = { model: null, draft: null, applying: false, failed: false, loading: false, message: "", refused: null };
   state.set = set;
   set.body = h("div", { class: "ws-set-body" });
-  set.note = h("p", { class: "meta ws-set-note", role: "status" });
+  set.note = h("p", { class: "meta ws-set-note", role: "status", tabindex: "-1" });
   set.apply = h("button", { type: "button", class: "primary small", dataset: { key: "cam-apply" } }, "Apply");
   set.apply.addEventListener("click", () => sendSettings(state, "apply"));
   set.reset = h("button", { type: "button", class: "ghost small", dataset: { key: "cam-reset" } }, "Reset to defaults");
@@ -345,7 +345,8 @@ function syncSettings(state) {
   const set = state.set;
   const why = state.room?.state === "unavailable" ? state.room.reason : null;
   const dirty = !!set.model && JSON.stringify(set.draft) !== JSON.stringify(set.model.settings);
-  for (const g of set.body.querySelectorAll("fieldset")) g.disabled = !!why;
+  // Locked while applying too, so nothing is edited that the hub's answer would then overwrite.
+  for (const g of set.body.querySelectorAll("fieldset")) g.disabled = !!why || set.applying;
   for (const c of set.model?.controls || []) {
     const field = set.body.querySelector(`[data-field="${c.key}"].ws-set-field`);
     const input = field?.querySelector(`[data-key="set-${c.key}"]`);
@@ -366,8 +367,10 @@ function syncSettings(state) {
   for (const b of [set.apply, set.reset]) {
     if (set.applying) b.setAttribute("aria-disabled", "true"); else b.removeAttribute("aria-disabled");
   }
-  const note = set.message || (why === "not_detected" ? SETTINGS_WORDS.notDetected : why ? SETTINGS_WORDS.captureFailed
-    : dirty ? SETTINGS_WORDS.edited : "");
+  // Why the camera is out wins over an older message ("Applied."), so the way back (Reset) is always said.
+  const note = set.applying ? SETTINGS_WORDS.applying
+    : why === "not_detected" ? SETTINGS_WORDS.notDetected : why ? SETTINGS_WORDS.captureFailed
+      : set.message || (dirty ? SETTINGS_WORDS.edited : "");
   if (set.note.textContent !== note) set.note.textContent = note;
 }
 
@@ -389,15 +392,18 @@ async function sendSettings(state, kind) {
   } catch { /* status 0: the hub didn't answer */ }
   set.applying = false;
   if (state.left) return;
+  syncSettings(state);  // unlock the fields before redrawing them
   if (status === 200 && data?.settings) {
     set.model = { ...set.model, ...data };
     set.draft = { ...data.settings };
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
     set.message = kind === "reset" ? SETTINGS_WORDS.reset : SETTINGS_WORDS.applied;
+    set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
     if (data.state) state.room = data.state;
     drawCam(state);
     const img = state.camView.querySelector("img.room-img[data-refresh]");
     if (img) refreshRoomStill(state, img);  // the new picture now, not at the next tick
+    else recheckRoom(state);
     return;
   }
   set.message = status === 422 ? `Not applied: ${data?.reason || "the hub refused a setting."}`
@@ -405,7 +411,24 @@ async function sendSettings(state, kind) {
       : status === 401 ? SETTINGS_WORDS.signIn : SETTINGS_WORDS.failedSend;
   if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
   drawSettings(state);
-  if (set.refused) set.body.querySelector(`[data-key="set-${set.refused.field}"]`)?.focus();
+  if (set.refused || status === 422) {
+    const field = set.refused && set.body.querySelector(`[data-key="set-${set.refused.field}"]`);
+    // A field that can't take focus (locked, or one the form doesn't have) leaves the reason in the status line.
+    (field && !field.disabled && !field.closest("fieldset")?.disabled ? field : set.note).focus();
+  }
+}
+
+// After an apply, whether the camera gives a picture with the new settings: a failed capture otherwise stays
+// "unavailable" until something asks for a picture, and the unavailable view has no picture to ask with.
+async function recheckRoom(state) {
+  try {
+    const r = await fetch(`/api/camera/room.jpg?t=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
+    if (state.left || !state.room) return;
+    if (r.ok && state.room.state === "unavailable") {
+      state.room = { ...state.room, state: "ready", reason: null };
+      drawCam(state);
+    }
+  } catch { /* the next load says */ }
 }
 
 const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
@@ -798,6 +821,7 @@ export async function refreshRoomStill(state, img) {
     return;
   }
   state.roomBusy = true;
+  const started = Date.now();
   try {
     const r = await fetch(`${img.dataset.refresh}?t=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     // The page was left, or this still was replaced (by live or a redraw) while it loaded: nothing to show it in.
@@ -805,7 +829,8 @@ export async function refreshRoomStill(state, img) {
     if (gone()) return;
     if (!r.ok) {
       const why = await r.json().catch(() => ({}));
-      if (gone()) return;
+      // Gone, or asked before the last apply answered (a capture restarting then isn't the camera failing).
+      if (gone() || state.set?.appliedAt > started) return;
       state.room = { ...(state.room || {}), state: "unavailable", reason: why.reason === "not_detected" ? "not_detected" : "capture_failed" };
       drawCam(state);
       return;
@@ -839,6 +864,7 @@ export function workshopSources(printer, cam) {
 }
 
 export async function load(state) {
+  const started = Date.now();
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
   // read-only.
   const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false, unanswered: true }),
@@ -861,7 +887,8 @@ export async function load(state) {
     writeCamPref("printer");
   }
   state.cam = cam;
-  state.room = room;
+  // A room read that began before the last apply answered is older than what that apply said; keep the newer.
+  if (!(room && state.set.appliedAt > started)) state.room = room;
   if (room && !state.set.model) loadSettings(state);
   drawCam(state);
   redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, Math.floor(Date.now() / 60000)]), () => {
