@@ -110,7 +110,7 @@ test('Room view picked but unavailable: says why in its place, the switch stays 
   } finally { dom.uninstall(); }
 });
 
-test('live: the stream, Stop live, and the notes for paused and busy', async () => {
+test('live: the stream and Stop live; stopped, the still and Watch live again', async () => {
   const { dom, ws } = await mod();
   try {
     const a = ws.cameraAside(camUp, { room: ready, pref: 'room', live: { on: true } });
@@ -118,13 +118,11 @@ test('live: the stream, Stop live, and the notes for paused and busy', async () 
     assert.match(img.getAttribute('src'), /^\/api\/camera\/room\/live/);
     assert.equal(img.dataset.refresh, undefined, 'live is never swapped for stills');
     assert.equal(text(a.querySelector('[data-key="room-live"]')), 'Stop live');
-    const paused = ws.cameraAside(camUp, { room: ready, pref: 'room', live: { on: false, note: ws.LIVE_PAUSED } });
-    assert.equal(text(paused.querySelector('.ws-cam-note')), 'Live paused after 5 minutes.');
-    assert.equal(text(paused.querySelector('[data-key="room-live"]')), 'Watch live');
-    assert.equal(paused.querySelector('.ws-cam-note').getAttribute('role'), 'status');
-    const busy = ws.cameraAside(camUp, { room: ready, pref: 'room', live: { on: false, note: ws.ROOM_WORDS.busy } });
-    assert.equal(text(busy.querySelector('.ws-cam-note')), 'Live is busy: four people are already watching.');
-    assert.ok(busy.querySelector('img.room-img[data-refresh]'), 'stills continue');
+    const stopped = ws.cameraAside(camUp, { room: ready, pref: 'room', live: { on: false, note: ws.LIVE_PAUSED } });
+    assert.equal(text(stopped.querySelector('[data-key="room-live"]')), 'Watch live');
+    assert.ok(stopped.querySelector('img.room-img[data-refresh]'), 'stills continue');
+    // The note is the page's one status line (so it is announced), not part of the redrawn aside.
+    assert.ok(!stopped.querySelector('.ws-cam-note'));
   } finally { dom.uninstall(); }
 });
 
@@ -231,5 +229,92 @@ test('page: Watch live starts the stream and keeps focus on its button; Stop liv
     assert.equal(p.state.root.querySelector('img.room-img'), img);
     p.state.root.querySelector('[data-key="room-live"]').click();
     assert.ok(p.state.root.querySelector('img.room-img[data-refresh]'));
+  } finally { p.done(); }
+});
+
+test('page: live fails with four watching: the busy note in the one status line, kept across redraws', async () => {
+  let room = ready;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': () => room });
+  try {
+    await p.ws.load(p.state);
+    const note = p.state.root.querySelector('.ws-cam-note');
+    assert.equal(note.getAttribute('role'), 'status');
+    assert.equal(text(note), '');
+    p.state.root.querySelector('[data-key="room-live"]').click();
+    room = { ...ready, viewers: 4 };
+    await p.state.root.querySelector('img.room-img').onerror();
+    assert.equal(p.state.live.on, false);
+    assert.equal(p.state.root.querySelector('.ws-cam-note'), note, 'the same status element, so the change is heard');
+    assert.equal(text(note), 'Live is busy: four people are already watching.');
+    assert.ok(p.state.root.querySelector('img.room-img[data-refresh]'));
+  } finally { p.done(); }
+});
+
+test('page: a stale live failure does not stop the session started after it', async () => {
+  let answer;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': () => answer ?? ready });
+  try {
+    await p.ws.load(p.state);
+    p.state.root.querySelector('[data-key="room-live"]').click();
+    let release;
+    answer = new Promise((r) => { release = r; });
+    const failing = p.state.root.querySelector('img.room-img').onerror();
+    p.state.root.querySelector('[data-key="room-live"]').click(); // Stop live
+    p.state.root.querySelector('[data-key="room-live"]').click(); // Watch live again
+    release(ready);
+    await failing;
+    assert.equal(p.state.live.on, true);
+    assert.match(p.state.root.querySelector('img.room-img').getAttribute('src'), /\/live/);
+  } finally { p.done(); }
+});
+
+test('page: the Room view going unavailable mid-live closes the stream instead of leaving it open', async () => {
+  let room = ready;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camUp, '/api/camera/room': () => room });
+  try {
+    await p.ws.load(p.state);
+    p.state.root.querySelector('[data-key="cam-room"]').click();
+    p.state.root.querySelector('[data-key="room-live"]').click();
+    const live = p.state.root.querySelector('img.room-img');
+    room = down('capture_failed');
+    await p.ws.load(p.state);
+    assert.equal(p.state.live.on, false);
+    assert.equal(live.getAttribute('src'), null, 'its src is gone, so the connection closes');
+    assert.match(text(p.state.root.querySelector('.ui-faceplate__aside')), /Room view unavailable/);
+    room = ready;
+    await p.ws.load(p.state);
+    assert.ok(p.state.root.querySelector('img.room-img[data-refresh]'), 'it comes back as a still, never live by itself');
+  } finally { p.done(); }
+});
+
+test('page: a printer camera read that times out keeps the Room view chosen', async () => {
+  let cam = camUp;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': () => cam, '/api/camera/room': ready });
+  try {
+    await p.ws.load(p.state);
+    p.state.root.querySelector('[data-key="cam-room"]').click();
+    cam = new Error('no answer'); // the hub didn't answer: not the printer saying its camera is out
+    await p.ws.load(p.state);
+    cam = camUp;
+    await p.ws.load(p.state);
+    assert.deepEqual(pressed(p.state.root.querySelector('.ui-faceplate__aside')), [['Printer camera', 'false'], ['Room view', 'true']]);
+  } finally { p.done(); }
+});
+
+test('page: a still that arrives after leaving is dropped, with no picture made for it', async () => {
+  let release;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': ready,
+    '/api/camera/room.jpg': () => new Promise((r) => { release = r; }) });
+  try {
+    await p.ws.load(p.state);
+    const img = p.state.root.querySelector('img.room-img[data-refresh]');
+    const before = img.getAttribute('src');
+    const pending = p.ws.refreshRoomStill(p.state, img);
+    await new Promise((r) => setTimeout(r, 0));
+    p.ws.leave(p.state);
+    release({});
+    await pending;
+    assert.equal(p.state.roomUrl ?? null, null);
+    assert.equal(img.getAttribute('src'), before);
   } finally { p.done(); }
 });
