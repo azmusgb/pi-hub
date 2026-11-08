@@ -71,7 +71,7 @@ scopes, and the installed Bambu Studio version.
 - **Mac channel:** the Mac asks `GET /api/lab/{project}/requests` every 60 s with its own key (`hub/lab.py:700`,
   `hub/mac_lab.py:2`), refused without `X-Hub-Mac-Key` (`hub/lab_guard.py`). Requests are `lab_requests` rows keyed by
   project (`hub/lab.py:77`); limits 4 KiB per request, 20 pending per project, 100 in all (`hub/lab.py:32-36`). The Mac
-  is called silent after 180 s (`hub/mac_lab.py:11`). The hub already takes files from the Mac under caps (photos 8 MiB,
+  is called silent after 180 s (`hub/mac_lab.py:9`). The hub already takes files from the Mac under caps (photos 8 MiB,
   `hub/lab.py:30`, `read_capped`; 500 MiB incoming in all, :40).
 - **Mac side:** `lab pull` runs every 60 s, applies requests and links prints (`lab/pull.py:214`, 607); it holds a
   per-project file lock (`.pull.lock`, :216), and its HTTP timeout is 10 s (:607). A slice can run up to 1800 s
