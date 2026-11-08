@@ -16,6 +16,7 @@ the capture once."""
 import asyncio
 import math
 import os
+import threading
 import time
 
 SOI, EOI = b"\xff\xd8", b"\xff\xd9"
@@ -134,9 +135,9 @@ def _check(c, v):
             if type(v) is type(o["value"]) and v == o["value"]:
                 return v
         raise Invalid(key, f"{c['label']} is one of: {', '.join(o['label'] for o in c['options'])}.")
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)):
         raise Invalid(key, f"{c['label']} is a number.")
-    if not c["min"] <= v <= c["max"]:
+    if not c["min"] <= v <= c["max"]:  # before any float arithmetic, so a huge integer is refused, not an overflow
         raise Invalid(key, f"{c['label']} is from {c['min']:g} to {c['max']:g}.")
     steps = (v - c["min"]) / c["step"]
     if abs(steps - round(steps)) > 1e-6:
@@ -246,11 +247,22 @@ def _shown(c, v):
     return f"{v:g}{c.get('unit') and ' ' + c['unit'] or ''}"
 
 
+LOG_ROOM = 200  # auth.log keeps this much of a result
+
+
 def describe_changes(old, new):
-    """For the action log (plan decision 9): "Exposure compensation 0 EV → 1 EV, White balance Auto → Tungsten"."""
+    """For the action log (plan decision 9): "Exposure compensation 0 EV → 1 EV, White balance Auto → Tungsten". Past
+    what the log keeps, it ends with how many more changed rather than being cut mid-word."""
     parts = [f"{c['label']} {_shown(c, old[c['key']])} → {_shown(c, new[c['key']])}"
              for c in CONTROLS if old[c["key"]] != new[c["key"]]]
-    return ", ".join(parts) or "No change"
+    if not parts:
+        return "No change"
+    line = ", ".join(parts)
+    for n in range(len(parts) - 1, 0, -1):
+        if len(line) <= LOG_ROOM:
+            break
+        line = f"{', '.join(parts[:n])}, and {len(parts) - n} more"
+    return line[:LOG_ROOM]
 
 
 class FrameSplitter:
@@ -301,6 +313,7 @@ class RoomCamera:
         self.vid_cmd, self.still_cmd, self.list_cmd = vid or VID, still or STILL, listing or LISTING
         self.store, self.env_file = store or DbStore(), env_file
         self._settings = None
+        self._seed_lock = threading.Lock()  # the settings route runs in a worker thread, apply on the event loop
         self.settings_at = 0.0  # a frame older than the last apply is never shared as current
         self.applying = False
         self.last_args = None   # the newest capture's command line, for tests
@@ -323,13 +336,14 @@ class RoomCamera:
     def settings(self):
         """The stored settings; on the very first read, the defaults with "Turn" seeded from A17's file, stored at once
         so the file is never read again (plan decision 6)."""
-        if self._settings is None:
-            raw = self.store.get()
-            if raw is None:
-                raw = {**DEFAULTS, "turn": seed_turn(self.env_file)}
-                self.store.put(raw)
-            self._settings = _stored(raw)
-        return dict(self._settings)
+        with self._seed_lock:
+            if self._settings is None:
+                raw = self.store.get()
+                if raw is None:
+                    raw = {**DEFAULTS, "turn": seed_turn(self.env_file)}
+                    self.store.put(raw)
+                self._settings = _stored(raw)
+            return dict(self._settings)
 
     async def apply(self, values):
         """Check, store, and restart the capture once if it is running (A18 C3). Returns the new settings. Raises
@@ -341,8 +355,10 @@ class RoomCamera:
         self.applying = True
         try:
             async with self._lock:  # a still being taken finishes first; no capture starts or stops meanwhile
-                self.store.put(new)
-                self._settings = new
+                self.settings()  # any first-read seed lands before, never over, this change
+                with self._seed_lock:
+                    self.store.put(new)
+                    self._settings = new
                 self.settings_at = time.time()
                 p, self.proc = self.proc, None
                 if p is not None:
@@ -377,7 +393,8 @@ class RoomCamera:
         self._wake()
 
     def _recent(self):
-        if self.frame and time.time() - self.frame_at < MAX_AGE:
+        # Never a frame from before the last apply: it shows the old settings (A18 C3).
+        if self.frame and time.time() - self.frame_at < MAX_AGE and self.frame_at > self.settings_at:
             return self.frame, self.frame_at
         raise Unavailable(self.reason or "capture_failed")
 
@@ -440,7 +457,9 @@ class RoomCamera:
 
     async def _live_frame(self):
         if not self._shareable():
-            await self._next_frame(self.frame_at, WAIT_FOR)
+            # A capture just (re)started, after an apply, gets as long for its first frame as a fresh start does.
+            first = self.frame_at < self.started_at
+            await self._next_frame(self.frame_at, FIRST_FRAME if first else WAIT_FOR)
         return self._recent()
 
     async def _next_frame(self, after, timeout):
@@ -551,12 +570,14 @@ class RoomCamera:
             while (left := end - loop.time()) > 0:
                 fps = PRESETS[self.settings()["preset"]]["fps"]
                 await asyncio.sleep(max(0.0, sent_at + 1 / fps - loop.time()))  # at most the preset's rate, not slower
-                jpg = await self._next_frame(sent, min(left, STALL))
+                # Restarted by an apply and no frame yet: the first frame gets FIRST_FRAME, as at a fresh start.
+                quiet = FIRST_FRAME if self.frame_at < self.started_at else STALL
+                jpg = await self._next_frame(sent, min(left, quiet))
                 if jpg is None:
                     p = self.proc
                     if p is None:
                         raise Unavailable(self.reason or "capture_failed")
-                    if time.time() - max(self.frame_at, self.started_at) >= STALL:
+                    if time.time() - max(self.frame_at, self.started_at) >= quiet:
                         await self._failed(p)  # frozen: restart once, or end with the reason
                     continue
                 sent, sent_at = self.frame_at, loop.time()

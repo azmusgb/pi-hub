@@ -1,7 +1,7 @@
 """A stand-in for rpicam-vid and rpicam-still in tests/test_room_camera.py. argv[1] picks the part played:
 vid (JPEG frames on stdout until killed), still (one JPEG, then exit), list (the camera list), die (exit at once with no
 frame), none (the list with no camera), silent (runs, never writes), freeze (three frames, then runs silent),
-stubborn (vid that ignores SIGTERM). Writes nothing anywhere but stdout."""
+stubborn (vid that ignores SIGTERM), slow (vid whose first frame takes a second). Writes nothing anywhere but stdout."""
 import signal
 import sys
 import time
@@ -17,6 +17,9 @@ mode = sys.argv[1]
 out = sys.stdout.buffer
 if mode == "stubborn":
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    mode = "vid"
+if mode == "slow":
+    time.sleep(1.0)
     mode = "vid"
 if mode == "silent":
     time.sleep(3600)

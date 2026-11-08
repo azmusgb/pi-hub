@@ -461,7 +461,7 @@ def test_defaults_and_every_number_control_at_its_edges_are_accepted():
 @pytest.mark.parametrize("key,value", [
     ("zoom", 4.5), ("zoom", 0.5), ("zoom", 1.25), ("ev", -2.5), ("ev", 0.3), ("brightness", 0.6), ("contrast", 0.4),
     ("saturation", 2.05), ("sharpness", -0.05), ("gain", 17), ("centre_x", 101), ("centre_y", -1),
-    ("zoom", "2"), ("zoom", True), ("zoom", None), ("zoom", float("nan")), ("ev", float("inf")),
+    ("zoom", 10**400), ("gain", -10**400), ("zoom", "2"), ("zoom", True), ("zoom", None), ("zoom", float("nan")), ("ev", float("inf")),
     ("turn", "90"), ("turn", 45), ("turn", 90.5), ("mirror", 1), ("mirror", "yes"), ("manual", None),
     ("awb", "sunset"), ("awb", "auto; rm -rf /"), ("awb", "auto --output /tmp/x"), ("metering", "Centre"),
     ("denoise", "cdn_hq"), ("shutter", 1500), ("shutter", "33333"), ("preset", "4k"), ("exposure", ["normal"]),
@@ -696,3 +696,66 @@ def test_reset_route_restores_the_defaults_and_logs_it(client, monkeypatch):
     from hub import auth
     last = auth.recent_actions(1)[0]
     assert last["action"] == "room-camera:reset" and "Zoom 2 × → 1 ×" in last["result"]
+
+
+# ---- review fixes ----
+
+def test_after_an_apply_a_failed_still_is_unavailable_not_the_old_picture():
+    c = Cam(vid=fake("vid"), still=fake("die"), listing=fake("list"))
+
+    async def go():
+        c.frame, c.frame_at = b"\xff\xd8old\xff\xd9", time.time()  # taken with the old settings
+        await c.apply(with_(awb="tungsten"))
+        with pytest.raises(room_camera.Unavailable):
+            await c.still()
+    run(go())
+
+
+def test_a_capture_restarted_by_apply_gets_the_first_frame_wait_not_the_stall_one(cam, monkeypatch):
+    monkeypatch.setattr(room_camera, "STALL", 0.3)
+    monkeypatch.setattr(room_camera, "FIRST_FRAME", 4.0)
+
+    async def go():
+        s = cam.live()
+        await s.__anext__()
+        cam.vid_cmd = fake("slow")  # the new settings' capture takes a second for its first frame
+        await cam.apply(with_(preset="sharp"))
+        await s.__anext__()
+        assert cam.starts == 2  # exactly the one restart the apply made, none spent on a slow start
+        await s.aclose()
+    run(go())
+
+
+def test_the_log_line_fits_the_log_and_says_how_many_more():
+    changed = {c["key"]: (c["options"][-1]["value"] if c["kind"] == "choice" else
+                          (not c["default"]) if c["kind"] == "switch" else c["max"]) for c in room_camera.CONTROLS}
+    line = room_camera.describe_changes(D, changed)
+    assert len(line) <= 200 and line.endswith("more")
+    assert line.startswith("Turn 0° → 270°")
+
+
+def test_a_first_read_seed_never_lands_over_an_apply(tmp_path):
+    import threading
+    env = tmp_path / "room-camera.env"
+    env.write_text("ROOM_CAMERA_ROTATE=90\n")
+    reading, go_on = threading.Event(), threading.Event()
+
+    class SlowStore(room_camera.MemoryStore):
+        def get(self):
+            value = super().get()  # nothing stored yet: this thread will seed
+            reading.set()
+            go_on.wait(5)  # the settings route's thread, paused between reading and seeding
+            return value
+
+    store = SlowStore()
+    c = Cam(store=store, env_file=str(env))
+    t = threading.Thread(target=c.settings)
+    t.start()
+    reading.wait(5)
+
+    async def apply():
+        threading.Timer(0.2, go_on.set).start()
+        await c.apply(with_(ev=1))
+    run(apply())
+    t.join(5)
+    assert store.value["ev"] == 1 and c.settings()["ev"] == 1
