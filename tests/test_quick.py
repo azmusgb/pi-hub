@@ -204,17 +204,17 @@ def _forge_sizes(data: bytes, size: int) -> bytes:
 
 def test_declared_sizes_are_not_trusted(env, monkeypatch):
     monkeypatch.setattr(quick, "MAX_EXPANDED", 100_000)
-    bomb = three_mf({"big.bin": b"0" * 3_000_000})  # compresses to a few KB, unpacks to 3 MB
+    bomb = three_mf({"big.bin": b"0" * 300_000})  # compresses to a few hundred bytes, unpacks to 300 KB, three times the budget
     r = send(env, _forge_sizes(bomb, 10), "a.3mf")
     assert r.status_code == 422, r.text
     assert quick.usage()["files"] == 0 and db.one("SELECT COUNT(*) AS n FROM quick_jobs")["n"] == 0
     # an honest archive over the budget is refused by the unpacking too, not only by its header
-    monkeypatch.setattr(quick, "MAX_EXPANDED", 2_000_000)
+    monkeypatch.setattr(quick, "MAX_EXPANDED", 200_000)
     z = io.BytesIO()
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as w:
         w.writestr("3D/3dmodel.model", "<model/>")
-        w.writestr("a.bin", b"0" * 1_500_000)
-        w.writestr("b.bin", b"1" * 1_500_000)
+        w.writestr("a.bin", b"0" * 150_000)
+        w.writestr("b.bin", b"1" * 150_000)
     assert send(env, _forge_sizes(z.getvalue(), 10), "b.3mf").status_code == 422
 
 
@@ -269,13 +269,16 @@ def test_every_legal_transition(env, a, b):
     assert quick.transition(j, b)["state"] == b
 
 
-@pytest.mark.parametrize("a,b", [(a, b) for a in quick.STATES for b in quick.STATES if b not in quick.ALLOWED[a]])
-def test_every_illegal_transition_is_refused(env, a, b):
+def test_every_illegal_transition_is_refused(env):
+    """Every state pair the table doesn't allow, on one job (set up once: a job per pair made the suite slow on the Pi)."""
     j = upload(env, stl(3), "t.stl")["id"]
-    force(j, state=a, slice_sha256="a" * 64, sliced_hash=raw_job(j)["request_hash"])
-    with pytest.raises(quick.QuickError) as e:
-        quick.transition(j, b)
-    assert e.value.status == 409 and raw_job(j)["state"] == a
+    pairs = [(a, b) for a in quick.STATES for b in quick.STATES if b not in quick.ALLOWED[a]]
+    assert len(pairs) > 50
+    for a, b in pairs:
+        force(j, state=a, slice_sha256="a" * 64, sliced_hash=raw_job(j)["request_hash"])
+        with pytest.raises(quick.QuickError) as e:
+            quick.transition(j, b)
+        assert e.value.status == 409 and raw_job(j)["state"] == a, f"{a} -> {b}"
 
 
 def test_compare_and_set_stops_a_second_mover(env):
