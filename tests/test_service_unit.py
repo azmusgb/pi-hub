@@ -15,3 +15,12 @@ def test_uvicorn_stops_within_seconds_even_with_open_streams():
 def test_systemd_backstop_is_shorter_than_its_default():
     m = re.search(r"^TimeoutStopSec=(\d+)$", UNIT, re.M)
     assert m and int(m.group(1)) <= 20
+
+
+def test_the_hub_may_open_the_pis_camera_and_read_its_rotation():
+    # The Room view (A17): rpicam needs /dev/video*, /dev/media* and /dev/dma_heap/*, all root:video, mode 0660.
+    assert re.search(r"^SupplementaryGroups=video$", UNIT, re.M)
+    # Optional: without the file the hub still starts, and the picture isn't turned.
+    assert re.search(r"^EnvironmentFile=-/etc/pi-hub/room-camera\.env$", UNIT, re.M)
+    # Still nothing outside its own state is writable: frames never reach disk.
+    assert "ProtectSystem=strict" in UNIT and "PrivateTmp=yes" in UNIT

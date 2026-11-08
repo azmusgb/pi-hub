@@ -6,6 +6,10 @@ Wants=network-online.target
 [Service]
 User=pi-hub
 Group=pi-hub
+# The Room view (amendment A17, plan decision 1): the hub runs the Pi's camera itself, whose devices are root:video.
+SupplementaryGroups=video
+# ROOM_CAMERA_ROTATE=0|90|180|270 for the Room view (A17 R8); optional.
+EnvironmentFile=-/etc/pi-hub/room-camera.env
 WorkingDirectory=/opt/pi-hub/current
 ExecStart=/usr/bin/python3 -m uvicorn hub.app:app --host 127.0.0.1 --port 8100 --no-access-log --proxy-headers --timeout-graceful-shutdown 5
 NoNewPrivileges=yes

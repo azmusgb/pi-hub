@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, room_camera, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -628,6 +628,52 @@ def api_camera():
 @app.get("/api/camera")
 def api_camera_health():
     return fresh(sources.camera_health())
+
+
+# ---- Room view: the Pi's own camera (amendment A17), for a signed-in viewer only ----
+
+def _room_unavailable(e):
+    return JSONResponse({"reason": e.reason, "detail": str(e)}, status_code=429 if e.reason == "busy" else 503,
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/camera/room")
+def api_room_camera(request: Request):
+    need(request, "household")
+    return fresh(room_camera.CAMERA.state())
+
+
+@app.get("/api/camera/room.jpg")
+async def api_room_camera_still(request: Request):
+    need(request, "household")
+    try:
+        jpg, at = await room_camera.CAMERA.still()
+    except room_camera.Unavailable as e:
+        return _room_unavailable(e)
+    return Response(jpg, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Frame-At": f"{at:.3f}"})
+
+
+@app.get("/api/camera/room/live")
+async def api_room_camera_live(request: Request):
+    need(request, "household")
+    stream = room_camera.CAMERA.live()
+    try:
+        first = await stream.__anext__()  # busy or a failed capture answers in words, before any part is sent
+    except room_camera.Unavailable as e:
+        return _room_unavailable(e)
+
+    async def parts():
+        try:
+            yield first
+            async for p in stream:
+                yield p
+        except room_camera.Unavailable:
+            pass  # the capture failed mid-stream: the stream just ends, and the page falls back to the still
+        finally:
+            await stream.aclose()
+
+    return StreamingResponse(parts(), media_type="multipart/x-mixed-replace; boundary=frame",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 # ---- Print ----
