@@ -88,6 +88,16 @@ CREATE TABLE IF NOT EXISTS quick_uploads (
   id TEXT PRIMARY KEY, filename TEXT NOT NULL, ext TEXT NOT NULL, size INTEGER NOT NULL, started INTEGER NOT NULL,
   touched INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS quick_attempts (
+  attempt TEXT PRIMARY KEY, job TEXT NOT NULL, generation INTEGER NOT NULL, worker TEXT NOT NULL,
+  claimed_at INTEGER NOT NULL, lease_end INTEGER NOT NULL, last_heartbeat INTEGER NOT NULL, phase TEXT NOT NULL,
+  studio_version TEXT, request_hash TEXT NOT NULL, cancel_requested INTEGER NOT NULL DEFAULT 0,
+  artifact_sha TEXT, artifact_bytes INTEGER, terminal TEXT, cause TEXT, ended_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS quick_attempts_live ON quick_attempts(job) WHERE terminal IS NULL;
+CREATE TABLE IF NOT EXISTS quick_workers (
+  id TEXT PRIMARY KEY, os TEXT, studio_version TEXT, presets TEXT, phase TEXT, last_seen INTEGER NOT NULL
+);
 """
 _ready_dbs: set = set()
 
@@ -96,6 +106,7 @@ def ready():
     path = os.environ.get("HUB_DB", "")
     if path not in _ready_dbs:
         db.conn().executescript(DB_SCHEMA)
+        db.ensure_columns("quick_jobs", {"slice_info": "TEXT"})
         _ready_dbs.add(path)
 
 
@@ -197,6 +208,8 @@ def sweep(now: float | None = None) -> None:
     reservation row (only its scratch folder, once it has been idle that long)."""
     ready()
     now = now or time.time()
+    from . import quick_worker
+    quick_worker.reap()  # a lapsed attempt ends (and frees its reservation) before anything is judged in flight
     for u in db.rows("SELECT id, touched FROM quick_uploads"):
         if now - u["touched"] >= TMP_SECONDS:
             (QUICK_DIR / "tmp" / f"up-{u['id']}.part").unlink(missing_ok=True)
@@ -292,10 +305,10 @@ def transition(job_id: str, to: str, *, expect: str | None = None, reason: str |
     callers can't both move the same job. Staging or starting needs the stored slice still present."""
     ready()
     allowed_fields = {"slice_sha256", "slice_file", "slice_bytes", "slice_reserved", "sliced_hash", "bambuddy_file_id",
-                      "queue_item_id", "hold", "awaiting_cleanup"}
+                      "queue_item_id", "hold", "awaiting_cleanup", "slice_info"}
     if to not in STATES or set(fields) - allowed_fields:
         raise QuickError(500, "Bad state change.")
-    with db.transaction() as c:
+    with _tx() as c:
         row = c.execute("SELECT * FROM quick_jobs WHERE id = ?", (job_id,)).fetchone()
         if not row:
             raise QuickError(404, "No such Quick Print job.")
@@ -349,6 +362,7 @@ def public(job: dict) -> dict:
     out = {k: job[k] for k in keep}
     out["transform"] = json.loads(job["transform"]) if job["transform"] else None
     out["settings"] = json.loads(job["settings"])
+    out["slice_info"] = json.loads(job["slice_info"]) if job.get("slice_info") else None
     out["can_reprint_file"] = not job["file_removed"] and bool(job["slice_sha256"])
     return out
 
@@ -630,8 +644,9 @@ async def edit_job(job_id: str, request: Request):
 @router.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str, request: Request):
     who, device = _owner(request)
+    from . import quick_worker
     try:
-        job = transition(job_id, "canceled", reason="Canceled.")
+        job = quick_worker.cancel(job_id)
     except QuickError as e:
         raise _http(e)
     auth.log(who, device, "quick print", f"canceled {job_id}")
