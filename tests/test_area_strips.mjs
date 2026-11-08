@@ -24,7 +24,7 @@ test('each area has its strip, with the approved names in the approved order', (
   assert.deepEqual(hrefs('network'), ['/devices', '/network', '/weather']);
   assert.deepEqual(names('system'), ['Health', 'Backups', 'Versions', 'Alerts', 'Automations', 'Settings', 'Site map']);
   assert.equal(hrefs('system').at(-1), '/map');
-  assert.deepEqual(names('workshop'), ['Printer', 'Print lab']);
+  assert.deepEqual(names('workshop'), ['Printer', 'Print lab', 'Quick Print']);
 });
 
 test('every strip page belongs to the section of its strip, and the section lists it', () => {

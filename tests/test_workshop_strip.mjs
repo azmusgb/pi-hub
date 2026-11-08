@@ -10,8 +10,8 @@ import { otherSystemRows } from '../hub/static/js/health.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test("Workshop's strip is Printer | Print lab, and System's is unchanged", () => {
-  assert.deepEqual(STRIPS.workshop.entries, [['/workshop', 'Printer'], ['/lab', 'Print lab']]);
+test("Workshop's strip is Printer | Print lab | Quick Print (A19 P4), and System's is unchanged", () => {
+  assert.deepEqual(STRIPS.workshop.entries, [['/workshop', 'Printer'], ['/lab', 'Print lab'], ['/quick', 'Quick Print']]);
   assert.equal(STRIPS.workshop.label, 'Workshop');
   assert.equal(STRIPS.system.entries, STRIP);
   assert.equal(STRIPS.system.label, 'System');
@@ -21,6 +21,7 @@ test('on each Workshop page the strip marks that page current, and only that one
   assert.deepEqual(stripItems('/workshop'), [
     { href: '/workshop', label: 'Printer', current: true },
     { href: '/lab', label: 'Print lab', current: false },
+    { href: '/quick', label: 'Quick Print', current: false },
   ]);
   assert.deepEqual(stripItems('/lab').filter((i) => i.current).map((i) => i.href), ['/lab']);
   assert.equal(stripFor('/lab').key, 'workshop');
