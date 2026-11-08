@@ -68,11 +68,21 @@ export function mount(state) {
       return el;
     }));
   state.root.append(state.sourceNotice, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
-  // A new frame every 2 seconds while this page is open and visible.
+  // The camera aside lives across redraws of the band, so a live Room view isn't restarted by every new reading.
+  state.camBox = h("div", { class: "ws-cam-box" });
+  state.camPref = readCamPref();
+  state.live = { on: false, note: "" };
+  // A new still every 2 seconds while this page is open and visible; a live picture is never swapped.
   state.camTimer = setInterval(() => {
-    const img = state.root.querySelector(".cam-img");
-    if (img && !document.hidden) img.src = `/api/camera.jpg?t=${Date.now()}`;
+    if (document.hidden) return;
+    for (const img of state.root.querySelectorAll("img[data-refresh]")) {
+      if (img.classList.contains("room-img")) refreshRoomStill(state, img);
+      else img.src = `${img.dataset.refresh}?t=${Date.now()}`;
+    }
   }, 2000);
+  // Live stops when the page is hidden (A17 R4), and says so.
+  state.onHidden = () => { if (document.hidden && state.live.on) stopLive(state, LIVE_HIDDEN); };
+  document.addEventListener("visibilitychange", state.onHidden);
   if (typeof EventSource !== "undefined") {
     try {
       const es = new EventSource("/api/records/stream");
@@ -89,6 +99,10 @@ export function mount(state) {
 
 export function leave(state) {
   clearInterval(state.camTimer);
+  stopLive(state, "", false);
+  document.removeEventListener("visibilitychange", state.onHidden);
+  if (state.roomUrl) URL.revokeObjectURL?.(state.roomUrl);
+  state.roomUrl = null;
   if (state.es) {
     try { state.es.close(); } catch {}
     state.es = null;
@@ -100,8 +114,14 @@ function section(key, title, ...body) {
     h("h2", { class: "section-title", id: `ws-${key}-title` }, title), ...body);
 }
 
-// The camera, as the faceplate's aside (A7 P1: "aside: camera, if any"). With no picture it says why, in words.
-export function cameraAside(c) {
+// The printer camera's reason in a few words, for the Room view's stand-in line and the "No camera" state.
+function printerCamWhy(c) {
+  return c?.reason === "liveview_off" ? "LAN Only Liveview is off on the printer"
+    : c?.reason === "printer_unreachable" ? "the printer isn't answering on the network" : "no picture from it right now";
+}
+
+// The printer camera, or why there is no picture (A7 P1: "aside: camera, if any"), in words.
+function printerCam(c) {
   if (!c?.ok) {
     // The camera's own reason says the most: its video switched off (common after the printer restarts) or the
     // printer not answering. Either way it is the camera that's unavailable; the faceplate says what the printer is doing.
@@ -119,10 +139,76 @@ export function cameraAside(c) {
       h("p", { class: "meta" }, tips.length ? `No picture: ${tips.join(", and ")}.` : "No picture from the camera right now."));
   }
   return h("figure", { class: "ws-cam" },
-    h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }),
+    h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera.jpg" },
+      alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }),
     h("figcaption", { class: "meta" }, c.source === "MacBook"
       ? "From the MacBook (backup). For a picture without the Mac, turn on LAN Only Liveview on the printer's screen."
-      : c.source === "Pi" ? "From the Pi" : "Live"));
+      : c.source === "Pi" ? "Through the Pi" : "Live"));
+}
+
+// The Room view (amendment A17): the Pi's own camera, a fixed view of the printer from outside. It is always "Room
+// view", never "the camera" (R1). The printer camera stays first; the Room view is the second view to switch to (R2)
+// and stands in, saying why, when the printer camera is out (R3). A still every 2 seconds, live on request (R4).
+export const ROOM_WORDS = {
+  not_detected: "The Pi's camera isn't detected. Check its ribbon cable.",
+  capture_failed: "The Pi's camera isn't giving pictures right now.",
+  busy: "Live is busy: four people are already watching.",
+};
+export const LIVE_PAUSED = "Live paused after 5 minutes.";
+export const LIVE_HIDDEN = "Live paused while this page was in the background.";
+export const LIVE_MS = 5 * 60 * 1000;
+
+const CAM_KEY = "hub-workshop-camera";
+export function readCamPref(store = storage()) {
+  try { return store?.getItem(CAM_KEY) === "room" ? "room" : "printer"; } catch { return "printer"; }
+}
+export function writeCamPref(view, store = storage()) {
+  try { store?.setItem(CAM_KEY, view === "room" ? "room" : "printer"); } catch { /* not remembered this time */ }
+}
+
+// Which view the aside shows. `room` is /api/camera/room's state, or null when there is none to show (not signed in,
+// or the hub didn't answer): then the aside is exactly the printer camera, as before A17.
+export function cameraChoice(cam, room, pref) {
+  if (!room) return { view: "printer", switcher: false, standIn: false };
+  if (cam?.ok) return { view: pref === "room" ? "room" : "printer", switcher: true, standIn: false };
+  return room.state !== "unavailable" ? { view: "room", switcher: false, standIn: true } : { view: "none", switcher: false, standIn: false };
+}
+
+function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null } = {}) {
+  if (room.state === "unavailable") {
+    return h("div", { class: "ws-cam ws-cam--none" }, h("p", { class: "ws-cam-word" }, "Room view unavailable"),
+      h("p", {}, ROOM_WORDS[room.reason] || ROOM_WORDS.capture_failed));
+  }
+  const turn = room.rotate === 90 || room.rotate === 270 ? ` ws-cam--turn${room.rotate}` : "";
+  const img = live.on
+    ? h("img", { class: "cam-img room-img", src: `/api/camera/room/live?t=${Date.now()}`, alt: "Room view of the printer, live", width: 384, height: 288 })
+    : h("img", { class: "cam-img room-img", src: `/api/camera/room.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera/room.jpg" },
+      alt: "Room view of the printer, from the Pi, updated every 2 seconds", width: 384, height: 288 });
+  return h("figure", { class: `ws-cam ws-cam--room${turn}` },
+    h("div", { class: "ws-cam-frame" }, img),
+    h("figcaption", { class: "meta" }, standIn ? `Room view. The printer's camera is unavailable: ${printerCamWhy(cam)}.`
+      : live.on ? "Room view, live from the Pi." : "Room view, from the Pi. A new picture every 2 seconds."),
+    h("p", { class: "meta ws-cam-age", hidden: true }),
+    h("div", { class: "ws-cam-live" },
+      h("button", { type: "button", class: "ghost small", dataset: { key: "room-live" }, onclick: onLive }, live.on ? "Stop live" : "Watch live"),
+      h("p", { class: "meta ws-cam-note", role: "status" }, live.note || "")));
+}
+
+// The faceplate's aside: the printer camera, the Room view, or why there is neither. `opts.room` absent keeps the
+// aside as it was before A17.
+export function cameraAside(c, { room = null, pref = "printer", live = {}, onPick = null, onLive = null } = {}) {
+  const choice = cameraChoice(c, room, pref);
+  const body = choice.view === "printer" ? printerCam(c)
+    : choice.view === "room" ? roomCam(room, { live, standIn: choice.standIn, cam: c, onLive })
+      : h("div", { class: "ws-cam ws-cam--none" }, h("p", { class: "ws-cam-word" }, "No camera"),
+        h("p", {}, `The printer's camera is unavailable: ${printerCamWhy(c)}.`),
+        h("p", {}, ROOM_WORDS[room.reason] || ROOM_WORDS.capture_failed));
+  if (!choice.switcher) return body;
+  const pick = (view, label) => h("button", { type: "button", class: "seg-btn", "aria-pressed": String(choice.view === view),
+    dataset: { key: `cam-${view}` }, onclick: () => onPick?.(view) }, label);
+  return h("div", { class: "ws-cam-wrap" },
+    h("div", { class: "seg ws-cam-switch", role: "group", "aria-label": "Camera view" },
+      pick("printer", "Printer camera"), pick("room", "Room view")), body);
 }
 
 const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
@@ -131,7 +217,7 @@ const STATE_WORD = { printing: "Printing", paused: "Paused", error: "Needs a loo
 // The printer as the faceplate (A7 P1), pure so it is tested without a page. A printer no source answers for is
 // unknown, never idle; a stale source keeps its last readings and says so. A heater with no target shows one number
 // (decision 6).
-export function printerPlate(p, cam, { lastPrint = null, actions = null } = {}) {
+export function printerPlate(p, cam, { lastPrint = null, actions = null, aside = null } = {}) {
   p ||= {};
   const tel = telemetryLabel(p);
   const busy = p.state === "printing" || p.state === "paused";
@@ -160,7 +246,7 @@ export function printerPlate(p, cam, { lastPrint = null, actions = null } = {}) 
       lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
     ],
     actions: actions ? [actions] : [],
-    aside: cameraAside(cam),
+    aside: aside ?? cameraAside(cam),
   });
 }
 
@@ -447,6 +533,80 @@ function redraw(state, name, el, sig, draw) {
   if (key && !el.contains(globalThis.document.activeElement)) el.querySelector(`[data-key="${key}"]`)?.focus();
 }
 
+// The camera aside, redrawn only when what it shows changes (and then focus returns to the same button).
+function drawCam(state) {
+  const room = state.room ? [state.room.state, state.room.reason, state.room.rotate] : null;
+  const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
+  redraw(state, "cam", state.camBox, sig, () => state.camBox.replaceChildren(cameraAside(state.cam, {
+    room: state.room, pref: state.camPref, live: state.live,
+    onPick: (view) => {
+      state.camPref = view;
+      writeCamPref(view);
+      if (view !== "room") stopLive(state, "", false);
+      drawCam(state);
+    },
+    onLive: () => (state.live.on ? stopLive(state, "") : startLive(state)),
+  })));
+  const live = state.camBox.querySelector("img.room-img:not([data-refresh])");
+  if (live) live.onerror = () => liveFailed(state);
+}
+
+function startLive(state) {
+  clearTimeout(state.liveTimer);
+  state.live = { on: true, note: "" };
+  state.liveTimer = setTimeout(() => stopLive(state, LIVE_PAUSED), LIVE_MS);
+  drawCam(state);
+}
+
+// Closing the stream: the img lets go of its connection when its src goes, so the Pi's camera can stop.
+function stopLive(state, note, draw = true) {
+  clearTimeout(state.liveTimer);
+  const img = state.camBox?.querySelector("img.room-img:not([data-refresh])");
+  if (img) { img.onerror = null; img.removeAttribute("src"); }
+  state.live = { on: false, note };
+  if (draw && state.camBox) drawCam(state);
+}
+
+// The live picture failed to load or ended early: busy (four already watching), or the camera itself, in words.
+async function liveFailed(state) {
+  if (!state.live.on) return;
+  const room = await settle(api("/api/camera/room"), 6000, null);
+  if (room) state.room = room;
+  stopLive(state, room?.state === "unavailable" ? "" : room?.viewers >= 4 ? ROOM_WORDS.busy : "Live stopped. Watch live to try again.");
+}
+
+// A new Room view still, read with its time so a picture that is getting old says so (A17 R7). A failure redraws the
+// aside with the camera's reason instead of leaving an old picture up as if it were current.
+async function refreshRoomStill(state, img) {
+  if (state.roomBusy || typeof URL.createObjectURL !== "function") {
+    if (!state.roomBusy) img.src = `${img.dataset.refresh}?t=${Date.now()}`;
+    return;
+  }
+  state.roomBusy = true;
+  try {
+    const r = await fetch(`${img.dataset.refresh}?t=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
+    if (!r.ok) {
+      const why = await r.json().catch(() => ({}));
+      state.room = { ...(state.room || {}), state: "unavailable", reason: why.reason === "not_detected" ? "not_detected" : "capture_failed" };
+      drawCam(state);
+      return;
+    }
+    const at = Number(r.headers.get("X-Frame-At"));
+    const url = URL.createObjectURL(await r.blob());
+    if (state.roomUrl) URL.revokeObjectURL(state.roomUrl);
+    state.roomUrl = url;
+    img.src = url;
+    const age = Number.isFinite(at) && at > 0 ? Math.round(Date.now() / 1000 - at) : 0;
+    const note = img.closest(".ws-cam")?.querySelector(".ws-cam-age");
+    if (note) {
+      note.hidden = age < 10;
+      note.textContent = age >= 10 ? `Picture from ${age} seconds ago.` : "";
+    }
+  } catch { /* the next tick tries again */ } finally {
+    state.roomBusy = false;
+  }
+}
+
 // The sources line at the foot of the page (A7 P1, P8): Bambuddy by the printer card's telemetry, in the phrase table's
 // words when it isn't answering, and the camera.
 export function workshopSources(printer, cam) {
@@ -462,6 +622,8 @@ export async function load(state) {
   // read-only.
   const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false }),
     settle(api("/api/projects"), 6000, { available: false }), settle(whoami(), 6000, { role: "none" })]);
+  // The Room view only for someone signed in (its routes refuse anyone else); a failed read leaves the aside as before A17.
+  const room = ["household", "owner"].includes(me?.role) ? await settle(api("/api/camera/room"), 6000, null) : null;
   const v = workshopView(d, { role: me?.role, last: state.last });
   if (!v) throw new Error("The workshop status came back empty.");
   if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
@@ -471,12 +633,17 @@ export async function load(state) {
   // While Bambuddy is down the notice above says so, with when it was last seen; the faceplate doesn't say it again.
   const shown = v.down && d.printer.stale ? { ...d.printer, detail: "" } : d.printer;
   // Its readings change while printing; its "checked" age is redrawn at least once a minute.
-  const camSig = [cam.ok, cam.source, cam.reason];
-  redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, camSig, Math.floor(Date.now() / 60000)]), () => {
+  // The printer camera coming back puts the view back on it (A17 R3); a live Room view stops if it's no longer shown.
+  if (cam.ok && state.cam && !state.cam.ok) { state.camPref = "printer"; writeCamPref("printer"); }
+  state.cam = cam;
+  state.room = room;
+  if (state.live.on && cameraChoice(cam, room, state.camPref).view !== "room") stopLive(state, "", false);
+  drawCam(state);
+  redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, Math.floor(Date.now() / 60000)]), () => {
     const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));
     const listed = printerActionList({ actions: v.bandActions });
     buttons?.querySelectorAll("button").forEach((b, i) => { b.dataset.key = `printer-${listed[i]?.action}`; });
-    state.bandBox.replaceChildren(printerPlate(shown, cam, { lastPrint: v.lastPrint, actions: buttons }));
+    state.bandBox.replaceChildren(printerPlate(shown, cam, { lastPrint: v.lastPrint, actions: buttons, aside: state.camBox }));
   });
   state.facts = d.printer.headline;
   const notice = nextSourceNotice(state.notice, v.down, v.seen);
