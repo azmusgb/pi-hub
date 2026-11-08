@@ -15,15 +15,17 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, room_camera, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, room_camera, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
+app.include_router(quick_worker.worker_router)  # before lab: its /api/lab/quick/worker paths are the Mac's
 app.include_router(lab.router)
 app.include_router(uploads.router)
 app.include_router(quick.router)
+app.include_router(quick_worker.owner_router)
 app.include_router(display_routes.router)
 app.include_router(notify_routes.router)
 sampler = sources.Sampler()
