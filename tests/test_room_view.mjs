@@ -371,7 +371,7 @@ test("settings fields: the hub's groups in order, each control a native input wi
 });
 
 async function ownerPage(extra = {}, room = ready90) {
-  localStorage?.removeItem?.('hub-workshop-camera');
+  globalThis.localStorage?.removeItem?.('hub-workshop-camera');  // not every Node has localStorage (the Pi's 20 doesn't)
   const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': room,
     '/api/camera/room/settings': model(), '/api/camera/room.jpg': {}, ...extra });
   await p.ws.load(p.state);
