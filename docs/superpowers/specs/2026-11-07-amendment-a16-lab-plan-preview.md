@@ -1,6 +1,6 @@
 # Amendment A16: the lab page is where the owner looks at, plans and approves an experiment
 
-Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: A7 (one page) for the lab
+Date: 2026-11-07 · Status: **approved** 7 November 2026 (pi-hub #167) · Amends: A7 (one page) for the lab
 page, and the print-lab design's rule that the Mac is the record and Pi Hub only mirrors it.
 
 ## Why

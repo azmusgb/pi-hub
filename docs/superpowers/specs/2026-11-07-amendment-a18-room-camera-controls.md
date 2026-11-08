@@ -1,6 +1,6 @@
 # Amendment A18: the owner sets the Room view's camera from the page
 
-Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: A17 (Room view), its R8
+Date: 2026-11-07 · Status: **approved** 7 November 2026 (pi-hub #178) · Amends: A17 (Room view), its R8
 (rotation from a file in `/etc/pi-hub/`) and its R4 (one fixed live quality). Everything else in A17 stands.
 
 ## Why

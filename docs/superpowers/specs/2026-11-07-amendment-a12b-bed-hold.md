@@ -1,6 +1,6 @@
 # Amendment A12b: Start may wait for the bed to cool
 
-Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: A12 D-S5 (print-lab spec
+Date: 2026-11-07 · Status: **approved** 7 November 2026 (pi-hub #162) · Amends: A12 D-S5 (print-lab spec
 S5, "any miss shows the reason and leaves the Start button disabled") for one reason only, the bed temperature.
 
 ## Why

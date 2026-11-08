@@ -1,6 +1,6 @@
 # Amendment A15: Pi Hub signs the owner in to Bambuddy
 
-Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: A12 D1 ("Nothing else writes to
+Date: 2026-11-07 · Status: **approved** 7 November 2026 (pi-hub #165) · Amends: A12 D1 ("Nothing else writes to
 Bambuddy: no settings, keys, …") by one named write; and `docs/status.md` item 17 (Authentik: skip) for Bambuddy only.
 
 ## Why

@@ -1,6 +1,6 @@
 # Amendment A17: the Pi's camera is a second view of the printer, "Room view"
 
-Date: 2026-11-07 · Status: **proposed** (approved when the owner merges this PR) · Amends: the baseline's Workshop
+Date: 2026-11-07 · Status: **approved** 7 November 2026 (pi-hub #173) · Amends: the baseline's Workshop
 rows (§3 Fabrication, the `/workshop` row, the Workshop › Printer source row and "Mac asleep"). Those know only one
 camera, the printer's own, through the camera bridge.
 
