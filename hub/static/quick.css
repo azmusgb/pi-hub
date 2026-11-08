@@ -25,3 +25,26 @@
 .ui-rows .ui-row__value, .ui-rows .ui-row__detail { overflow-wrap: anywhere; min-inline-size: 0; }
 .ui-section .ui-row__value { white-space: normal; text-align: end; }
 #page-sources .ui-chip { white-space: normal; max-inline-size: 100%; }
+
+/* The layer inspector (P5). */
+.quick-layers { display: grid; gap: 12px; margin-block-start: 20px; min-inline-size: 0; }
+.quick-layers h3 { margin: 0; font-size: var(--ui-fs-4, 1rem); }
+.quick-layers__status { display: grid; gap: 6px; min-inline-size: 0; }
+.quick-layers__status:empty { display: none; }
+.quick-layers__controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+.quick-layers__lab { display: grid; gap: 4px; font-size: var(--ui-fs-2, .8125rem); color: var(--ui-muted, inherit); min-inline-size: 0; }
+.quick-layers__lab:has(.quick-layers__slider) { flex: 1 1 12rem; }
+.quick-layers__slider { inline-size: 100%; min-block-size: 44px; accent-color: var(--ui-accent, currentColor); }
+.quick-layers__number { inline-size: 6rem; min-block-size: 44px; }
+.quick-layers .ui-btn { min-block-size: 44px; }
+.quick-layers__stage { inline-size: 100%; max-inline-size: 36rem; margin-inline: auto; background: var(--ui-surface-2, transparent); border-radius: 8px; overflow: hidden; }
+.quick-layers__canvas { display: block; inline-size: 100%; }
+.quick-layers__opts { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: start; }
+.quick-layers__opts select { min-block-size: 44px; }
+.quick-layers__cats { display: flex; flex-wrap: wrap; gap: 4px 16px; border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.quick-layers__cats legend { padding: 0; font-size: var(--ui-fs-2, .8125rem); color: var(--ui-muted, inherit); }
+.quick-layers__cat { display: inline-flex; align-items: center; gap: 8px; min-block-size: 44px; }
+.quick-layers__cat input { inline-size: 20px; block-size: 20px; }
+.quick-layers__sw { display: inline-block; inline-size: 14px; block-size: 14px; border-radius: 3px; flex: none; }
+.quick-layers__facts { min-inline-size: 0; }
+.quick-layers .ui-meter { max-inline-size: 24rem; }

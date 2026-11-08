@@ -149,6 +149,12 @@ def slice_path(job: dict) -> Path | None:
     return QUICK_DIR / "slices" / job["slice_file"] if job.get("slice_file") and not job["file_removed"] else None
 
 
+def _layer_files(job: dict) -> list[Path]:
+    """The layer reader's sidecars (P5) beside a slice; they go with it."""
+    p = slice_path(job)
+    return [p.with_name(p.name + ext) for ext in (".layers", ".layers.json", ".layers.part")] if p else []
+
+
 def _tree_bytes(path: Path) -> int:
     total = 0
     if path.is_file():
@@ -223,6 +229,15 @@ def sweep(now: float | None = None) -> None:
                     p.unlink()
             except OSError:
                 pass
+    slices = QUICK_DIR / "slices"
+    if slices.is_dir():  # layer sidecars (P5): one whose slice is gone, or a half-written one gone cold
+        for p in slices.iterdir():
+            base = re.sub(r"\.layers(\.json|\.part)?$", "", p.name)
+            try:
+                if base != p.name and (not (slices / base).exists() or (p.name.endswith(".part") and now - p.stat().st_mtime >= TMP_SECONDS)):
+                    p.unlink(missing_ok=True)
+            except OSError:
+                pass
     scratch = QUICK_DIR / "scratch"
     if scratch.is_dir():
         for p in scratch.iterdir():
@@ -274,7 +289,7 @@ def evict(need: int, now: float | None = None) -> int:
             fresh = c.execute("SELECT * FROM quick_jobs WHERE id = ?", (j["id"],)).fetchone()
             if not fresh or _tier(dict(fresh), now) is None:  # became active meanwhile
                 continue
-            for p in (model_path(j), slice_path(j)):
+            for p in (model_path(j), slice_path(j), *_layer_files(j)):
                 if p and p.exists():
                     freed += p.stat().st_size
                     p.unlink(missing_ok=True)
