@@ -76,7 +76,7 @@ test('Room view picked: its still, refreshed, with Watch live; never called "the
   } finally { dom.uninstall(); }
 });
 
-test('stand-in: the printer camera is out, the Room view shows with that camera\'s reason in words', async () => {
+test("stand-in: the printer camera is out, the Room view shows with that camera\'s reason in words", async () => {
   const { dom, ws } = await mod();
   try {
     const a = ws.cameraAside(camOff, { room: ready, pref: 'printer' });
@@ -155,7 +155,9 @@ test('CSS: the turned frame, the 4:3 picture and no motion are defined', () => {
   assert.match(css, /#view \.ws-cam--turn270 \.ws-cam-frame img[^{]*\{[^}]*rotate\(270deg\)/);
   // Held to the page's #view img rule, the turned picture would sit inside its frame instead of filling it.
   assert.match(css, /#view \.ws-cam--turn90 \.ws-cam-frame img, #view \.ws-cam--turn270 \.ws-cam-frame img \{[^}]*max-width: none/);
-  assert.match(css, /\.room-img \{[^}]*aspect-ratio: 4 \/ 3/);
+  // The picture's shape is its live preset's (A18): --w by --h on the figure, 4:3 when not given.
+  assert.match(css, /\.room-img \{[^}]*aspect-ratio: var\(--w, 4\) \/ var\(--h, 3\)/);
+  assert.match(css, /ws-cam--turn270 \.ws-cam-frame \{[^}]*aspect-ratio: var\(--h, 3\) \/ var\(--w, 4\)/);
   const room = css.slice(css.indexOf('/* Room view'), css.indexOf('.ws-skeleton {'));
   assert.ok(room.length > 100);
   assert.doesNotMatch(room.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
@@ -318,5 +320,331 @@ test('page: a still that arrives after leaving is dropped, with no picture made 
     await pending;
     assert.equal(p.state.roomUrl ?? null, null);
     assert.equal(img.getAttribute('src'), before);
+  } finally { p.done(); }
+});
+
+
+// ---- Camera settings (A18 P2) ----
+
+const CONTROLS = [
+  { key: 'turn', label: 'Turn', group: 'Orientation', kind: 'choice', options: [{ value: 0, label: '0°' }, { value: 90, label: '90°' }, { value: 180, label: '180°' }, { value: 270, label: '270°' }], default: 0 },
+  { key: 'mirror', label: 'Mirror', group: 'Orientation', kind: 'switch', default: false },
+  { key: 'zoom', label: 'Zoom', group: 'Framing', kind: 'number', min: 1, max: 4, step: 0.5, default: 1, unit: '×' },
+  { key: 'centre_x', label: 'Centre across', group: 'Framing', kind: 'number', min: 0, max: 100, step: 1, default: 50, unit: '%' },
+  { key: 'ev', label: 'Exposure compensation', group: 'Light', kind: 'number', min: -2, max: 2, step: 0.5, default: 0, unit: 'EV' },
+  { key: 'manual', label: 'Manual exposure', group: 'Light', kind: 'switch', default: false },
+  { key: 'shutter', label: 'Shutter', group: 'Light', kind: 'choice', options: [{ value: 1000, label: '1/1000 s' }, { value: 33333, label: '1/30 s' }], default: 33333 },
+  { key: 'awb', label: 'White balance', group: 'Colour', kind: 'choice', options: [{ value: 'auto', label: 'Auto' }, { value: 'tungsten', label: 'Tungsten' }], default: 'auto' },
+  { key: 'sharpness', label: 'Sharpness', group: 'Detail', kind: 'number', min: 0, max: 2, step: 0.05, default: 1 },
+  { key: 'preset', label: 'Live quality', group: 'Live quality', kind: 'choice', options: [{ value: 'saver', label: 'Data saver (about 1.4 Mbit/s)' }, { value: 'sharp', label: 'Sharp (about 22 Mbit/s)' }], default: 'saver' },
+];
+const SETTINGS = { turn: 90, mirror: false, zoom: 1, centre_x: 50, ev: 0, manual: false, shutter: 33333, awb: 'auto', sharpness: 1, preset: 'saver' };
+const DEFAULTS = { ...SETTINGS, turn: 0 };
+const model = () => ({ settings: { ...SETTINGS }, defaults: { ...DEFAULTS }, controls: CONTROLS, applying: false });
+const ready90 = { ...ready, rotate: 90, size: [640, 480] };
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+function change(el, value) {
+  if (el.type === 'checkbox') el.checked = value; else el.value = String(value);
+  el.dispatchEvent({ type: el.tagName === 'INPUT' && el.type === 'range' ? 'input' : 'change', target: el });
+}
+
+test("settings fields: the hub's groups in order, each control a native input with a visible label", async () => {
+  const { dom, ws } = await mod();
+  try {
+    const groups = ws.settingsFields(CONTROLS, SETTINGS);
+    assert.deepEqual(groups.map((g) => text(g.querySelector('legend'))), ['Orientation', 'Framing', 'Light', 'Colour', 'Detail', 'Live quality']);
+    const all = { children: groups };
+    const q = (sel) => groups.map((g) => g.querySelector(sel)).find(Boolean);
+    assert.equal(q('#set-turn').tagName, 'SELECT');
+    assert.equal(q('#set-turn option[selected]').getAttribute('value'), '90');
+    assert.equal(q('#set-mirror').getAttribute('type'), 'checkbox');
+    assert.equal(q('#set-zoom').getAttribute('type'), 'range');
+    assert.equal(q('#set-zoom').getAttribute('step'), '0.5');
+    assert.equal(text(q('label[for="set-ev"]')), 'Exposure compensation 0 EV');
+    assert.equal(q('#set-ev').getAttribute('aria-describedby'), 'set-ev-err');
+    assert.equal(q('label[for="set-preset"]').getAttribute('class'), 'sr', 'not shown twice under its own heading');
+    assert.equal(q('label[for="set-turn"]').getAttribute('class'), null);
+    assert.match(text(q('#set-preset')), /Data saver \(about 1\.4 Mbit\/s\).*Sharp \(about 22 Mbit\/s\)/);
+    void all;
+  } finally { dom.uninstall(); }
+});
+
+async function ownerPage(extra = {}, room = ready90) {
+  localStorage?.removeItem?.('hub-workshop-camera');
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': room,
+    '/api/camera/room/settings': model(), '/api/camera/room.jpg': {}, ...extra });
+  await p.ws.load(p.state);
+  await tick();
+  return p;
+}
+const panel = (p) => p.state.root.querySelector('details.ws-set');
+
+test("page: the owner gets a closed Camera settings panel under the Room view, drawn from the hub's table", async () => {
+  const p = await ownerPage();
+  try {
+    const d = panel(p);
+    assert.ok(d && !d.hidden && !d.open);
+    assert.equal(text(d.querySelector('summary')), 'Camera settings');
+    assert.equal(d.querySelectorAll('fieldset').length, 6);
+    assert.equal(text(d.querySelector('.ws-set-note')), '');
+    assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
+  } finally { p.done(); }
+});
+
+test('page: not the owner, or the printer camera chosen: no settings panel', async () => {
+  const p = await page({ '/api/me': { role: 'household' }, '/api/camera': camOff, '/api/camera/room': ready });
+  try {
+    await p.ws.load(p.state);
+    assert.ok(!panel(p) || panel(p).hidden);
+  } finally { p.done(); }
+  const q = await page({ '/api/me': { role: 'owner' }, '/api/camera': camUp, '/api/camera/room': ready, '/api/camera/room/settings': model() });
+  try {
+    await q.ws.load(q.state);
+    assert.ok(panel(q).hidden, 'the printer camera is the chosen view');
+    q.state.root.querySelector('[data-key="cam-room"]').click();
+    assert.ok(!panel(q).hidden);
+  } finally { q.done(); }
+});
+
+test('page: an edit says not applied yet, enables what depends on it, and survives the aside being redrawn', async () => {
+  let room = ready90;
+  const p = await ownerPage({ '/api/camera/room': () => room });
+  try {
+    const d = panel(p);
+    d.open = true;
+    assert.ok(d.querySelector('#set-centre_x').disabled, 'centre only means something when zoomed');
+    assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
+    const zoom = d.querySelector('#set-zoom');
+    change(zoom, 2);
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Not applied yet.');
+    assert.equal(text(d.querySelector('label[for="set-zoom"] output')), '2 ×');
+    assert.ok(!d.querySelector('#set-centre_x').disabled);
+    change(d.querySelector('#set-manual'), true);
+    assert.ok(!d.querySelector('#set-shutter').disabled);
+    room = { ...ready90, rotate: 270 };  // the aside redraws
+    await p.ws.load(p.state);
+    assert.equal(panel(p), d);
+    assert.ok(d.open);
+    assert.equal(d.querySelector('#set-zoom'), zoom, 'the same field, not a rebuilt one');
+    assert.equal(p.state.set.draft.zoom, 2);
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Not applied yet.');
+  } finally { p.done(); }
+});
+
+test('page: Apply sends every setting, says Applied, and the picture takes the new shape', async () => {
+  let sent;
+  const p = await ownerPage({ '/api/camera/room/settings': (url, opts) => {
+    if (opts?.method === 'POST') {
+      sent = JSON.parse(opts.body);
+      return { ...model(), settings: sent, state: { ...ready90, size: [1920, 1080] } };
+    }
+    return model();
+  } });
+  try {
+    const d = panel(p);
+    change(d.querySelector('#set-preset'), 'sharp');
+    d.querySelector('[data-key="cam-apply"]').click();
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applying…');
+    assert.equal(d.querySelector('[data-key="cam-apply"]').getAttribute('aria-disabled'), 'true');
+    await tick(); await tick(); await tick();
+    assert.deepEqual(Object.keys(sent).sort(), Object.keys(SETTINGS).sort());
+    assert.equal(sent.preset, 'sharp');
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
+    assert.equal(d.querySelector('[data-key="cam-apply"]').getAttribute('aria-disabled'), null);
+    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--w: 1920; --h: 1080/);
+  } finally { p.done(); }
+});
+
+function withStatus(p, status, body) {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => (opts?.method === 'POST' && String(url).startsWith('/api/camera/room/settings')
+    ? new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }) : real(url, opts));
+}
+
+test('page: a refused setting is named beside its field, focused, and nothing is applied', async () => {
+  const p = await ownerPage();
+  try {
+    withStatus(p, 422, { field: 'ev', reason: 'Exposure compensation is from -2 to 2.' });
+    const d = panel(p);
+    change(d.querySelector('#set-ev'), 1);
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Not applied: Exposure compensation is from -2 to 2.');
+    const err = d.querySelector('#set-ev-err');
+    assert.ok(!err.hidden);
+    assert.equal(text(err), 'Exposure compensation is from -2 to 2.');
+    assert.equal(d.querySelector('#set-ev').getAttribute('aria-invalid'), 'true');
+    assert.equal(p.dom.document.activeElement, d.querySelector('#set-ev'));
+    change(d.querySelector('#set-ev'), 0.5);  // editing the field clears its reason
+    assert.ok(d.querySelector('#set-ev-err').hidden);
+  } finally { p.done(); }
+});
+
+test('page: busy and no answer each say so, and change nothing', async () => {
+  const p = await ownerPage();
+  try {
+    const d = panel(p);
+    withStatus(p, 409, { field: null, reason: 'The camera is still applying the last change.' });
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(text(d.querySelector('.ws-set-note')), 'The camera is still applying the last change.');
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick();
+    assert.equal(text(d.querySelector('.ws-set-note')), "The hub didn't answer. Nothing changed.");
+    assert.equal(p.state.set.model.settings.turn, 90);
+  } finally { p.done(); }
+});
+
+test('page: Reset asks first; declined, nothing is sent', async () => {
+  let posts = 0;
+  const p = await ownerPage({ '/api/camera/room/settings/reset': () => { posts += 1; return { ...model(), settings: { ...DEFAULTS } }; } });
+  try {
+    globalThis.ApplianceConfirm = { ask: async () => false };
+    panel(p).querySelector('[data-key="cam-reset"]').click();
+    await tick(); await tick();
+    assert.equal(posts, 0);
+    globalThis.ApplianceConfirm = { ask: async () => true };
+    panel(p).querySelector('[data-key="cam-reset"]').click();
+    await tick(); await tick(); await tick(); await tick();
+    assert.equal(posts, 1);
+    assert.equal(text(panel(p).querySelector('.ws-set-note')), 'Every setting is back to its default.');
+    assert.equal(panel(p).querySelector('#set-turn option[selected]').getAttribute('value'), '0', 'the fields show what the hub stored');
+  } finally { p.done(); }
+});
+
+test('page: the camera failing locks the fields but keeps Reset; not detected locks both', async () => {
+  const p = await ownerPage({}, down('capture_failed'));
+  try {
+    const d = panel(p);
+    assert.ok(!d.hidden, 'still there, so a setting that broke the capture can be reset');
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => f.disabled));
+    assert.ok(d.querySelector('[data-key="cam-apply"]').disabled);
+    assert.ok(!d.querySelector('[data-key="cam-reset"]').disabled);
+    assert.match(text(d.querySelector('.ws-set-note')), /Reset to defaults puts every setting back/);
+  } finally { p.done(); }
+  const q = await ownerPage({ '/api/camera': camUp }, down('not_detected'));
+  try {
+    q.state.root.querySelector('[data-key="cam-room"]').click();  // the Room view chosen, saying why it's out
+    const d = panel(q);
+    assert.ok(!d.hidden);
+    assert.ok(d.querySelector('[data-key="cam-reset"]').disabled);
+    assert.match(text(d.querySelector('.ws-set-note')), /isn't detected/);
+  } finally { q.done(); }
+});
+
+test('page: the hub not answering for the settings says so instead of an empty panel', async () => {
+  const p = await ownerPage({ '/api/camera/room/settings': new Error('down') });
+  try {
+    assert.match(text(panel(p).querySelector('.ws-set-body')), /The hub didn't answer/);
+    assert.ok(panel(p).querySelector('[data-key="cam-apply"]').disabled);
+  } finally { p.done(); }
+});
+
+test('CSS: the settings panel has no motion and wraps its groups', () => {
+  const css = readFileSync(new URL('../hub/static/workshop-pi-rich.css', import.meta.url), 'utf8');
+  const block = css.slice(css.indexOf('/* Camera settings (amendment A18)'), css.indexOf('.ws-skeleton {'));
+  assert.ok(block.length > 100);
+  assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
+  assert.match(block, /\.ws-set-body \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
+});
+
+// ---- P2 review fixes ----
+
+test('page: the fields lock while applying, so nothing edited then is lost', async () => {
+  let release;
+  const p = await ownerPage({ '/api/camera/room/settings': (url, opts) => (opts?.method === 'POST'
+    ? new Promise((r) => { release = () => r({ ...model(), settings: JSON.parse(opts.body), state: ready90 }); }) : model()) });
+  try {
+    const d = panel(p);
+    change(d.querySelector('#set-ev'), 1);
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick();
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => f.disabled));
+    release();
+    await tick(); await tick(); await tick();
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => !f.disabled));
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
+  } finally { p.done(); }
+});
+
+test('page: a room read that began before an apply answered does not undo the new picture shape', async () => {
+  let roomAnswer = ready90;
+  let hold = null;
+  const p = await ownerPage({
+    '/api/camera/room': () => (hold ? hold.promise : roomAnswer),
+    '/api/camera/room/settings': (url, opts) => (opts?.method === 'POST'
+      ? { ...model(), settings: JSON.parse(opts.body), state: { ...ready90, size: [1920, 1080] } } : model()),
+  });
+  try {
+    let resolve;
+    hold = { promise: new Promise((r) => { resolve = r; }) };
+    const slowLoad = p.ws.load(p.state);  // started before the apply, answers after it
+    await tick();
+    hold = null;
+    panel(p).querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    resolve(ready90);  // the old shape
+    await slowLoad;
+    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--w: 1920; --h: 1080/);
+  } finally { p.done(); }
+});
+
+test('page: after Applied, the camera failing says why and that Reset puts it back', async () => {
+  let room = ready90;
+  const p = await ownerPage({ '/api/camera/room': () => room });
+  try {
+    const d = panel(p);
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
+    room = down('capture_failed');
+    p.state.set.appliedAt = 0;  // a later read, not one from before the apply
+    await p.ws.load(p.state);
+    assert.match(text(d.querySelector('.ws-set-note')), /Reset to defaults puts every setting back/);
+  } finally { p.done(); }
+});
+
+test('page: a still that failed while an apply restarted the camera does not lock the panel', async () => {
+  let fail;
+  const p = await ownerPage({ '/api/camera/room.jpg': () => new Promise((r) => { fail = () => r(undefined); }) });
+  try {
+    const img = p.state.root.querySelector('img.room-img[data-refresh]');
+    const pending = p.ws.refreshRoomStill(p.state, img);  // asked before the apply
+    await tick();
+    panel(p).querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    fail();  // 503 during the restart
+    await pending;
+    assert.equal(p.state.room.state, 'ready');
+    assert.ok(!panel(p).querySelector('[data-key="cam-apply"]').disabled);
+  } finally { p.done(); }
+});
+
+test('page: a refusal for a field that cannot take focus moves focus to the status line', async () => {
+  const p = await ownerPage();
+  try {
+    withStatus(p, 422, { field: 'centre_x', reason: 'Centre across is from 0 to 100.' });
+    const d = panel(p);
+    assert.ok(d.querySelector('#set-centre_x').disabled, 'zoom is 1×');
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(p.dom.document.activeElement, d.querySelector('.ws-set-note'));
+    assert.equal(text(d.querySelector('#set-centre_x-err')), 'Centre across is from 0 to 100.');
+  } finally { p.done(); }
+});
+
+test('page: Reset after a failed capture checks for a picture and unlocks when there is one', async () => {
+  const p = await ownerPage({ '/api/camera/room/settings/reset': () => ({ ...model(), settings: { ...DEFAULTS }, state: down('capture_failed') }) },
+    down('capture_failed'));
+  try {
+    globalThis.ApplianceConfirm = { ask: async () => true };
+    const d = panel(p);
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => f.disabled));
+    d.querySelector('[data-key="cam-reset"]').click();
+    for (let i = 0; i < 8; i += 1) await tick();
+    assert.equal(p.state.room.state, 'ready', 'a picture came back, so the camera is no longer out');
+    assert.ok([...d.querySelectorAll('fieldset')].every((f) => !f.disabled));
   } finally { p.done(); }
 });

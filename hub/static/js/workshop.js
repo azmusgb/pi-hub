@@ -1,7 +1,7 @@
 // Workshop › Printer (workshop flow W.2), top to bottom: Now (the band and the camera), Needs you here, Filament loaded,
 // This week, More in the workshop (filament, history, projects, the lab queue) and one "Open in" row. The touchscreen's
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
-import { api, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
+import { api, askFirst, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./now.js";
 import { faceplate, faceplateLoading } from "./page-parts.js";
 import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
@@ -69,7 +69,10 @@ export function mount(state) {
     }));
   state.root.append(state.sourceNotice, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
   // The camera aside lives across redraws of the band, so a live Room view isn't restarted by every new reading.
-  state.camBox = h("div", { class: "ws-cam-box" });
+  // The view part is redrawn; the settings panel (A18) beside it is kept, so an edit and its open state survive.
+  state.camView = h("div", { class: "ws-cam-view" });
+  makeSettings(state);
+  state.camBox = h("div", { class: "ws-cam-box" }, state.camView, state.set.el);
   state.camPref = readCamPref();
   state.live = { on: false, note: "" };
   state.left = false;
@@ -184,11 +187,13 @@ function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null }
       h("p", {}, ROOM_WORDS[room.reason] || ROOM_WORDS.capture_failed));
   }
   const turn = room.rotate === 90 || room.rotate === 270 ? ` ws-cam--turn${room.rotate}` : "";
+  // The live preset's shape (A18 plan decision 5): 4:3 for Data saver and Clear, 16:9 for Sharp.
+  const [w, hgt] = Array.isArray(room.size) && room.size[0] > 0 && room.size[1] > 0 ? room.size : [4, 3];
   const img = live.on
     ? h("img", { class: "cam-img room-img", src: `/api/camera/room/live?t=${Date.now()}`, alt: "Room view of the printer, live", width: 384, height: 288 })
     : h("img", { class: "cam-img room-img", src: `/api/camera/room.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera/room.jpg" },
       alt: "Room view of the printer, from the Pi, updated every 2 seconds", width: 384, height: 288 });
-  return h("figure", { class: `ws-cam ws-cam--room${turn}` },
+  return h("figure", { class: `ws-cam ws-cam--room${turn}`, style: `--w: ${Number(w)}; --h: ${Number(hgt)}` },
     h("div", { class: "ws-cam-frame" }, img),
     h("figcaption", { class: "meta" }, standIn ? `Room view. The printer's camera is unavailable: ${printerCamWhy(cam)}.`
       : live.on ? "Room view, live from the Pi." : "Room view, from the Pi. A new picture every 2 seconds."),
@@ -212,6 +217,218 @@ export function cameraAside(c, { room = null, pref = "printer", live = {}, onPic
   return h("div", { class: "ws-cam-wrap" },
     h("div", { class: "seg ws-cam-switch", role: "group", "aria-label": "Camera view" },
       pick("printer", "Printer camera"), pick("room", "Room view")), body);
+}
+
+// ---- Camera settings (amendment A18): the owner sets the Room view's camera ----
+// The form is drawn from the hub's own table of controls (GET /api/camera/room/settings), so nothing here repeats
+// a range or a choice. One Apply restarts the camera once; nothing restarts while a slider moves.
+
+export const SETTINGS_WORDS = {
+  loading: "Loading the camera's settings…",
+  noAnswer: "The hub didn't answer, so the camera's settings can't be shown. This page tries again in 15 seconds.",
+  edited: "Not applied yet.",
+  applying: "Applying…",
+  applied: "Applied.",
+  reset: "Every setting is back to its default.",
+  busy: "The camera is still applying the last change.",
+  signIn: "Sign in as the owner to change the camera.",
+  failedSend: "The hub didn't answer. Nothing changed.",
+  captureFailed: "The Pi's camera isn't giving pictures right now. Reset to defaults puts every setting back, in case one caused it.",
+  notDetected: "The Pi's camera isn't detected. Check its ribbon cable. Settings can be changed once it's back.",
+  resetAsk: "Every camera setting goes back to its default, including Turn. The picture restarts.",
+};
+
+function shownValue(c, v) {
+  const n = Number(v);
+  return `${Number.isFinite(n) ? Number(n.toFixed(2)) : v}${c.unit ? ` ${c.unit}` : ""}`;
+}
+
+// One control, as a native input with a visible label and a place for the hub's reason if it refuses the value.
+function settingField(c, value, onInput) {
+  const id = `set-${c.key}`;
+  const err = h("p", { class: "ws-set-err", id: `${id}-err`, hidden: true });
+  const common = { id, dataset: { key: id, field: c.key }, "aria-describedby": `${id}-err` };
+  if (c.kind === "switch") {
+    const box = h("input", { ...common, type: "checkbox", checked: value === true });
+    box.addEventListener("change", () => onInput(c.key, box.checked === true));
+    return h("div", { class: "ws-set-field ws-set-field--switch", dataset: { field: c.key } }, box, h("label", { for: id }, c.label), err);
+  }
+  if (c.kind === "choice") {
+    const sel = h("select", common, ...(c.options || []).map((o) =>
+      h("option", { value: String(o.value), selected: o.value === value }, o.label)));
+    sel.addEventListener("change", () => {
+      const o = (c.options || []).find((x) => String(x.value) === String(sel.value));
+      if (o) onInput(c.key, o.value);
+    });
+    // A label that only repeats its group's heading ("Live quality") is kept for screen readers, not shown twice.
+    return h("div", { class: "ws-set-field", dataset: { field: c.key } },
+      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err);
+  }
+  const out = h("output", { for: id, class: "ws-set-value" }, shownValue(c, value));
+  const range = h("input", { ...common, type: "range", min: String(c.min), max: String(c.max), step: String(c.step), value: String(value) });
+  range.addEventListener("input", () => {
+    const n = Number(range.value);
+    if (Number.isFinite(n)) onInput(c.key, n);
+  });
+  return h("div", { class: "ws-set-field", dataset: { field: c.key } }, h("label", { for: id }, c.label, " ", out), range, err);
+}
+
+// The groups, in the hub's order (A18 C2): Orientation, Framing, Light, Colour, Detail, Live quality.
+export function settingsFields(controls, draft, onInput = () => {}) {
+  const groups = new Map();
+  for (const c of Array.isArray(controls) ? controls : []) {
+    if (!c?.key || !c.group) continue;
+    if (!groups.has(c.group)) groups.set(c.group, []);
+    groups.get(c.group).push(settingField(c, draft?.[c.key] ?? c.default, onInput));
+  }
+  return [...groups].map(([name, fields]) => h("fieldset", { class: "ws-set-group" }, h("legend", {}, name), ...fields));
+}
+
+function makeSettings(state) {
+  const set = { model: null, draft: null, applying: false, failed: false, loading: false, message: "", refused: null };
+  state.set = set;
+  set.body = h("div", { class: "ws-set-body" });
+  set.note = h("p", { class: "meta ws-set-note", role: "status", tabindex: "-1" });
+  set.apply = h("button", { type: "button", class: "primary small", dataset: { key: "cam-apply" } }, "Apply");
+  set.apply.addEventListener("click", () => sendSettings(state, "apply"));
+  set.reset = h("button", { type: "button", class: "ghost small", dataset: { key: "cam-reset" } }, "Reset to defaults");
+  set.reset.addEventListener("click", async () => {
+    if (set.applying || !set.model) return;
+    if (await askFirst(set.reset, SETTINGS_WORDS.resetAsk, { confirm: "Reset" })) sendSettings(state, "reset");
+  });
+  set.el = h("details", { class: "ws-set", hidden: true }, h("summary", { dataset: { key: "cam-settings" } }, "Camera settings"),
+    h("div", { class: "ws-set-inner" }, set.body, h("div", { class: "ws-set-actions" }, set.apply, set.reset), set.note));
+}
+
+async function loadSettings(state) {
+  const set = state.set;
+  if (set.loading) return;
+  set.loading = true;
+  const got = await settle(api("/api/camera/room/settings"), 6000, null);
+  set.loading = false;
+  if (state.left) return;
+  if (got?.settings && Array.isArray(got.controls)) {
+    set.model = got;
+    set.draft = { ...got.settings };
+    set.failed = false;
+  } else {
+    set.failed = true;  // the next load() tries again
+  }
+  drawSettings(state);
+}
+
+// Under the Room view while it's the chosen view; also with no view at all when the capture is what failed, so a
+// setting that broke it can still be reset (plan decision 7).
+function settingsShown(state) {
+  if (!state.room) return false;
+  const view = cameraChoice(state.cam, state.room, state.camPref).view;
+  return view === "room" || (view === "none" && state.room.reason === "capture_failed");
+}
+
+function drawSettings(state) {
+  const set = state.set;
+  const shown = settingsShown(state);
+  set.el.hidden = !shown;
+  if (!shown) return;
+  redraw(state, "camset", set.body, JSON.stringify([set.model?.settings ? 1 : 0, set.failed, set.model?.controls?.length, set.version || 0]), () =>
+    set.body.replaceChildren(...(set.model ? settingsFields(set.model.controls, set.draft, (key, v) => {
+      set.draft[key] = v;
+      set.message = "";
+      if (set.refused?.field === key) set.refused = null;
+      syncSettings(state);
+    }) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
+  syncSettings(state);
+}
+
+// Everything that changes while the owner edits, done in place: no rebuild, so a slider or select keeps focus.
+function syncSettings(state) {
+  const set = state.set;
+  const why = state.room?.state === "unavailable" ? state.room.reason : null;
+  const dirty = !!set.model && JSON.stringify(set.draft) !== JSON.stringify(set.model.settings);
+  // Locked while applying too, so nothing is edited that the hub's answer would then overwrite.
+  for (const g of set.body.querySelectorAll("fieldset")) g.disabled = !!why || set.applying;
+  for (const c of set.model?.controls || []) {
+    const field = set.body.querySelector(`[data-field="${c.key}"].ws-set-field`);
+    const input = field?.querySelector(`[data-key="set-${c.key}"]`);
+    if (!input) continue;
+    input.disabled = (["centre_x", "centre_y"].includes(c.key) && !(set.draft.zoom > 1))
+      || (["shutter", "gain"].includes(c.key) && set.draft.manual !== true);
+    const out = field.querySelector("output");
+    if (out) out.textContent = shownValue(c, set.draft[c.key]);
+    const err = field.querySelector(".ws-set-err");
+    const refused = set.refused?.field === c.key;
+    err.hidden = !refused;
+    err.textContent = refused ? set.refused.reason : "";
+    if (refused) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+  }
+  // Apply and Reset stay focusable while applying (aria-disabled), so focus isn't lost; the handlers refuse meanwhile.
+  set.apply.disabled = !set.model || !!why;
+  set.reset.disabled = !set.model || why === "not_detected";
+  for (const b of [set.apply, set.reset]) {
+    if (set.applying) b.setAttribute("aria-disabled", "true"); else b.removeAttribute("aria-disabled");
+  }
+  // Why the camera is out wins over an older message ("Applied."), so the way back (Reset) is always said.
+  const note = set.applying ? SETTINGS_WORDS.applying
+    : why === "not_detected" ? SETTINGS_WORDS.notDetected : why ? SETTINGS_WORDS.captureFailed
+      : set.message || (dirty ? SETTINGS_WORDS.edited : "");
+  if (set.note.textContent !== note) set.note.textContent = note;
+}
+
+async function sendSettings(state, kind) {
+  const set = state.set;
+  if (set.applying || !set.model) return;
+  set.applying = true;
+  set.refused = null;
+  set.message = SETTINGS_WORDS.applying;
+  syncSettings(state);
+  const path = kind === "reset" ? "/api/camera/room/settings/reset" : "/api/camera/room/settings";
+  let status = 0;
+  let data = {};
+  try {
+    const r = await fetch(path, { method: "POST", cache: "no-store", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: kind === "reset" ? undefined : JSON.stringify(set.draft) });
+    status = r.status;
+    data = await r.json().catch(() => ({}));
+  } catch { /* status 0: the hub didn't answer */ }
+  set.applying = false;
+  if (state.left) return;
+  syncSettings(state);  // unlock the fields before redrawing them
+  if (status === 200 && data?.settings) {
+    set.model = { ...set.model, ...data };
+    set.draft = { ...data.settings };
+    set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
+    set.message = kind === "reset" ? SETTINGS_WORDS.reset : SETTINGS_WORDS.applied;
+    set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
+    if (data.state) state.room = data.state;
+    drawCam(state);
+    const img = state.camView.querySelector("img.room-img[data-refresh]");
+    if (img) refreshRoomStill(state, img);  // the new picture now, not at the next tick
+    else recheckRoom(state);
+    return;
+  }
+  set.message = status === 422 ? `Not applied: ${data?.reason || "the hub refused a setting."}`
+    : status === 409 ? data?.reason || SETTINGS_WORDS.busy
+      : status === 401 ? SETTINGS_WORDS.signIn : SETTINGS_WORDS.failedSend;
+  if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
+  drawSettings(state);
+  if (set.refused || status === 422) {
+    const field = set.refused && set.body.querySelector(`[data-key="set-${set.refused.field}"]`);
+    // A field that can't take focus (locked, or one the form doesn't have) leaves the reason in the status line.
+    (field && !field.disabled && !field.closest("fieldset")?.disabled ? field : set.note).focus();
+  }
+}
+
+// After an apply, whether the camera gives a picture with the new settings: a failed capture otherwise stays
+// "unavailable" until something asks for a picture, and the unavailable view has no picture to ask with.
+async function recheckRoom(state) {
+  try {
+    const r = await fetch(`/api/camera/room.jpg?t=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
+    if (state.left || !state.room) return;
+    if (r.ok && state.room.state === "unavailable") {
+      state.room = { ...state.room, state: "ready", reason: null };
+      drawCam(state);
+    }
+  } catch { /* the next load says */ }
 }
 
 const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
@@ -542,9 +759,9 @@ function drawCam(state) {
   if (state.live.on && (state.room?.state === "unavailable" || cameraChoice(state.cam, state.room, state.camPref).view !== "room")) {
     stopLive(state, "", false);
   }
-  const room = state.room ? [state.room.state, state.room.reason, state.room.rotate] : null;
+  const room = state.room ? [state.room.state, state.room.reason, state.room.rotate, state.room.size] : null;
   const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
-  redraw(state, "cam", state.camBox, sig, () => state.camBox.replaceChildren(cameraAside(state.cam, {
+  redraw(state, "cam", state.camView, sig, () => state.camView.replaceChildren(cameraAside(state.cam, {
     room: state.room, pref: state.camPref, live: state.live,
     onPick: (view) => {
       state.camPref = view;
@@ -561,6 +778,7 @@ function drawCam(state) {
   if (spot && state.camNote.parentNode !== spot) spot.append(state.camNote);
   else if (!spot) state.camNote.remove();
   if (state.camNote.textContent !== (state.live.note || "")) state.camNote.textContent = state.live.note || "";
+  drawSettings(state);
 }
 
 function liveImg(state) {
@@ -603,6 +821,7 @@ export async function refreshRoomStill(state, img) {
     return;
   }
   state.roomBusy = true;
+  const started = Date.now();
   try {
     const r = await fetch(`${img.dataset.refresh}?t=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     // The page was left, or this still was replaced (by live or a redraw) while it loaded: nothing to show it in.
@@ -610,7 +829,8 @@ export async function refreshRoomStill(state, img) {
     if (gone()) return;
     if (!r.ok) {
       const why = await r.json().catch(() => ({}));
-      if (gone()) return;
+      // Gone, or asked before the last apply answered (a capture restarting then isn't the camera failing).
+      if (gone() || state.set?.appliedAt > started) return;
       state.room = { ...(state.room || {}), state: "unavailable", reason: why.reason === "not_detected" ? "not_detected" : "capture_failed" };
       drawCam(state);
       return;
@@ -644,6 +864,7 @@ export function workshopSources(printer, cam) {
 }
 
 export async function load(state) {
+  const started = Date.now();
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
   // read-only.
   const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false, unanswered: true }),
@@ -666,7 +887,9 @@ export async function load(state) {
     writeCamPref("printer");
   }
   state.cam = cam;
-  state.room = room;
+  // A room read that began before the last apply answered is older than what that apply said; keep the newer.
+  if (!(room && state.set.appliedAt > started)) state.room = room;
+  if (room && !state.set.model) loadSettings(state);
   drawCam(state);
   redraw(state, "band", state.bandBox, JSON.stringify([shown, v.bandActions, v.lastPrint, busy, Math.floor(Date.now() / 60000)]), () => {
     const buttons = printerButtons({ ...d.printer, actions: v.bandActions }, () => load(state));

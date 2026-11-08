@@ -106,19 +106,21 @@
 /* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
 .ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--surface-3); }
 .ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
-/* Room view (amendment A17): the Pi's camera is 4:3. A quarter turn (ROOM_CAMERA_ROTATE 90 or 270) is turned here, in a
-   frame that already has the turned shape, so nothing moves when the picture arrives. No motion: frames just replace. */
+/* Room view (amendment A17): the picture's shape is its live preset's, --w by --h, set on the figure (A18; 4:3 unless
+   told otherwise). A quarter turn ("Turn" 90 or 270) is turned here, in a frame that already has the turned shape, so
+   nothing moves when the picture arrives. No motion: frames just replace. */
 .ws-cam-wrap { display: grid; gap: .5rem; align-content: start; }
 .ws-cam-switch { margin: 0; }
-.ws-now .room-img { aspect-ratio: 4 / 3; }
-.room-img { aspect-ratio: 4 / 3; }
+.ws-now .room-img { aspect-ratio: var(--w, 4) / var(--h, 3); }
+.room-img { aspect-ratio: var(--w, 4) / var(--h, 3); }
 .ws-cam-frame { position: relative; }
 .ws-cam--turn90 .ws-cam-frame, .ws-cam--turn270 .ws-cam-frame {
-  width: min(100%, calc(40vh * 3 / 4)); aspect-ratio: 3 / 4; margin-inline: auto; overflow: hidden; border-radius: 14px; background: #000;
+  width: min(100%, calc(40vh * var(--h, 3) / var(--w, 4))); aspect-ratio: var(--h, 3) / var(--w, 4); margin-inline: auto; overflow: hidden; border-radius: 14px; background: #000;
 }
 /* #view: the page's own `#view img { max-width: 100% }` would otherwise hold the turned picture to the frame's width. */
 #view .ws-cam--turn90 .ws-cam-frame img, #view .ws-cam--turn270 .ws-cam-frame img {
-  position: absolute; top: 50%; left: 50%; width: 133.334%; height: 75%; max-width: none; max-height: none; aspect-ratio: auto;
+  position: absolute; top: 50%; left: 50%; max-width: none;
+  width: calc(100% * var(--w, 4) / var(--h, 3)); height: calc(100% * var(--h, 3) / var(--w, 4)); max-height: none; aspect-ratio: auto;
   border: 0; border-radius: 0; object-fit: cover;
 }
 #view .ws-cam--turn90 .ws-cam-frame img { transform: translate(-50%, -50%) rotate(90deg); }
@@ -126,6 +128,33 @@
 .ws-cam-live { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
 .ws-cam-note:empty { display: none; }
 .ws-cam-age, .ws-cam-note { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
+/* Camera settings (amendment A18): a closed disclosure under the Room view; groups stack on a phone and sit side by side
+   where there is room. Native controls only; no motion. */
+.ws-set { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.ws-set[hidden] { display: none; }
+.ws-set > summary { display: flex; align-items: center; min-height: 44px; padding: .75rem 1.1rem; cursor: pointer;
+  font-weight: 600; border-radius: inherit; }
+.ws-set > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ws-set[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.ws-set-inner { padding: 1rem 1.1rem; }
+.ws-set-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1.25rem 1.5rem; }
+.ws-set-group { display: grid; gap: .75rem; align-content: start; min-width: 0; margin: 0; padding: 0; border: 0; }
+.ws-set-group > legend { padding: 0; margin-bottom: .25rem; font-weight: 600; }
+.ws-set-group[disabled], .ws-set-field :disabled { opacity: .55; }
+.ws-set-field { display: grid; gap: .3rem; min-width: 0; }
+.ws-set-field > label { font-size: var(--ui-fs-2); }
+.ws-set-field select, .ws-set-field input[type=range] { width: 100%; min-height: 44px; }
+.ws-set-field--switch { grid-template-columns: auto 1fr; align-items: center; column-gap: .6rem; }
+.ws-set-field--switch > label { min-height: 44px; display: flex; align-items: center; }
+.ws-set-field--switch > input { width: 1.25rem; height: 1.25rem; margin: 0; }
+.ws-set-field--switch > .ws-set-err { grid-column: 1 / -1; }
+.ws-set-value { color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+.ws-set-err { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-bad); }
+.ws-set-err[hidden] { display: none; }
+.ws-set-actions { display: flex; flex-wrap: wrap; gap: .5rem .75rem; margin-top: 1.25rem; }
+.ws-set-actions [aria-disabled=true] { opacity: .55; cursor: progress; }
+.ws-set-note { margin: .6rem 0 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
+.ws-set-note:empty { display: none; }
 .ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
 .ws-skel-line { height: .9rem; }
 .ws-skel-head { height: 2.2rem; width: 60%; }
