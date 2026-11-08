@@ -2,7 +2,7 @@
 // The router (main.js, sections.js) imports this, and the server (hub/app.py) reads the same object at start-up to
 // answer every other path with a real 404. Everything after "export default" is plain JSON, so keep it that way.
 export default {
-  "pages": ["/", "/wall", "/weather", "/workshop", "/lab", "/documents", "/print", "/lists", "/media", "/drives",
+  "pages": ["/", "/wall", "/weather", "/workshop", "/lab", "/quick", "/documents", "/print", "/lists", "/media", "/drives",
             "/devices", "/network", "/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map", "/more",
             "/assistant"],
   "redirects": {

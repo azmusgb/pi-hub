@@ -8,6 +8,7 @@ import * as moviesPage from "./movies.js";
 import * as workshopPage from "./workshop.js";
 import * as labPage from "./lab.js";
 import * as printPage from "./print.js";
+import * as quickPage from "./quick.js";
 import * as listsPage from "./lists.js";
 import * as healthPage from "./health.js";
 import * as backupsPage from "./backups.js";
@@ -61,6 +62,7 @@ const PAGES = {
   "/wall": { key: "now", title: "Wall", mod: nowPage },
   "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
+  "/quick": { key: "workshop", title: "Quick Print", mod: quickPage },
   "/print": { key: "print", title: "Print", mod: printPage },
   "/lists": { key: "lists", title: "Lists", mod: listsPage },
   "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
@@ -99,6 +101,7 @@ const subtitles = {
   "/weather": "Current conditions and forecast",
   "/workshop": "The X2D, filament and projects",
   "/lab": "Experiments, test coupons and operator verdicts",
+  "/quick": "Slice an STL or 3MF on the Mac and look at the result",
   "/print": "Send jobs to the HP DeskJet",
   "/lists": "Shopping, to-dos, and notes",
   "/rules": "Set up things the house can do for you",

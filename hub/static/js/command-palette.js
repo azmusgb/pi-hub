@@ -10,6 +10,7 @@ const PAGES = [
   { label: "Home", href: "/", area: "Home", keywords: "home overview now needs you" },
   { label: "Wall display", href: "/wall", area: "Home", keywords: "wall display kiosk ambient" },
   { label: "Printer", href: "/workshop", area: "Workshop", keywords: "workshop printer bambu x2d camera spools ams" },
+  { label: "Quick Print", href: "/quick", area: "Workshop", keywords: "quick print stl 3mf slice model upload x2d" },
   { label: "Print lab", href: "/lab", area: "Workshop", keywords: "print lab experiments coupons verdicts judge" },
   { label: "Papers", href: "/documents", area: "Documents", keywords: "documents papers paperless scan pdf tax" },
   { label: "Print", href: "/print", area: "Documents", keywords: "print a document paper hp deskjet cups ink" },

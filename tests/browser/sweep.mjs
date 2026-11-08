@@ -11,7 +11,7 @@ const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const BASE = (args.find((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--pages') || 'http://127.0.0.1:8799').replace(/\/$/, '');
 const OUT = new URL('./out/', import.meta.url).pathname;
-const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
+const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/quick': 'quick', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.

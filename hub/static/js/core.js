@@ -377,6 +377,7 @@ export async function api(
       ),
     );
     failure.status = response.status;
+    failure.body = body;
     throw failure;
   }
 
