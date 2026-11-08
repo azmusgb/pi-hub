@@ -80,6 +80,15 @@ def orbi_exporter(text):
     return text.replace('HTTPServer(("0.0.0.0", LISTEN_PORT)', 'HTTPServer(("127.0.0.1", LISTEN_PORT)')
 
 
+# Cockpit is served through Caddy at pi.rahe-home.duckdns.org. Without this its web socket is refused (the browser's
+# Origin is that name, not Cockpit's own address) and a phone sign-in ends in "Connection failed".
+COCKPIT_CONF = """# Cockpit sits behind Caddy at pi.rahe-home.duckdns.org (one home, step 6); allow that origin for its web socket.
+[WebService]
+Origins = https://pi.rahe-home.duckdns.org wss://pi.rahe-home.duckdns.org https://127.0.0.1:9090 wss://127.0.0.1:9090
+ProtocolHeader = X-Forwarded-Proto
+ForwardedForHeader = X-Forwarded-For
+"""
+
 # (name, file, change). A change is a function of the file's text, or a str: the whole of a file the lock creates.
 EDITS = [
     ("Homebox :7745", "opt/homebox/compose.yml", lambda t: bind_ports(t, [7745])),
@@ -96,6 +105,7 @@ EDITS = [
     ("Homebridge UI :8581", "var/lib/homebridge/config.json", homebridge_ui),
     ("Cockpit :9090", "etc/systemd/system/cockpit.socket.d/listen.conf",
      "# one home, step 6 (pi-lock.py): Cockpit only through the gate\n[Socket]\nListenStream=\nListenStream=127.0.0.1:9090\n"),
+    ("Cockpit origin", "etc/cockpit/cockpit.conf", COCKPIT_CONF),
     ("pi-status :8099", "etc/systemd/system/pi-status.service.d/lock.conf",
      "# one home, step 6 (pi-lock.py): pi-status only for the hub\n[Service]\nEnvironment=PI_STATUS_BIND=127.0.0.1\n"),
     ("Bambuddy :8000 rule", "etc/pi-lock/firewall.nft", (HERE / "pi-lock-firewall.nft").read_text()),

@@ -81,6 +81,14 @@ def test_cockpit_and_pi_status_drop_ins(root):
         root / "etc/systemd/system/pi-status.service.d/lock.conf").read_text()
 
 
+def test_cockpit_allows_the_gate_origin(root):
+    run(root, "apply")
+    conf = (root / "etc/cockpit/cockpit.conf").read_text()
+    assert "wss://pi.rahe-home.duckdns.org" in conf and "ProtocolHeader = X-Forwarded-Proto" in conf
+    run(root, "undo")
+    assert not (root / "etc/cockpit/cockpit.conf").exists()
+
+
 def test_apply_twice_is_a_no_op(root):
     run(root, "apply")
     once = files(root)
