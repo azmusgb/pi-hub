@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/lab")
 
 SCHEMA_VERSION = "print-lab-index/1"
 PROJECT_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+RESERVED_PROJECT = "quick"  # Quick Print's own requests (A19); never a real print lab project
 ID_RE = re.compile(r"^[A-Z]{1,4}-\d{1,6}$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 REQUEST_ID_RE = re.compile(r"^rq-[0-9a-f]{16}$")
@@ -173,7 +174,7 @@ def _prune_incoming():
 
 
 def check_project(project: str):
-    if not _full(PROJECT_RE, project):
+    if not _full(PROJECT_RE, project) or project == RESERVED_PROJECT:
         raise HTTPException(400, "Invalid project name")
 
 
@@ -300,7 +301,7 @@ def workshop_summary() -> Optional[dict]:
 def list_projects(request: Request):
     need(request, "household")
     ready()
-    rows = db.rows("SELECT project, meta FROM lab_projects ORDER BY project")
+    rows = db.rows("SELECT project, meta FROM lab_projects WHERE project != ? ORDER BY project", RESERVED_PROJECT)
     projects = []
     for r in rows:
         meta = json.loads(r["meta"]) if r["meta"] else {}
@@ -618,6 +619,7 @@ def queue_request(project: str, data: dict, by: str) -> dict:
     the lab page's route and the workshop display's Judge it; the caller checks who may send and that the project
     exists. `by` is who sent it (the signed-in device, or "display")."""
     ready()
+    check_project(project)
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid JSON request body")
 
