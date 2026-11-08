@@ -191,6 +191,33 @@ def test_zip_bomb_and_too_many_entries(env, monkeypatch):
     assert r.status_code == 422 and "more than" in r.json()["detail"]
 
 
+def _forge_sizes(data: bytes, size: int) -> bytes:
+    """The same archive claiming every entry is `size` bytes, in both the local and the central headers."""
+    b = bytearray(data)
+    for sig, off in ((b"PK\x03\x04", 22), (b"PK\x01\x02", 24)):
+        i = b.find(sig)
+        while i >= 0:
+            b[i + off:i + off + 4] = struct.pack("<I", size)
+            i = b.find(sig, i + 4)
+    return bytes(b)
+
+
+def test_declared_sizes_are_not_trusted(env, monkeypatch):
+    monkeypatch.setattr(quick, "MAX_EXPANDED", 100_000)
+    bomb = three_mf({"big.bin": b"0" * 3_000_000})  # compresses to a few KB, unpacks to 3 MB
+    r = send(env, _forge_sizes(bomb, 10), "a.3mf")
+    assert r.status_code == 422, r.text
+    assert quick.usage()["files"] == 0 and db.one("SELECT COUNT(*) AS n FROM quick_jobs")["n"] == 0
+    # an honest archive over the budget is refused by the unpacking too, not only by its header
+    monkeypatch.setattr(quick, "MAX_EXPANDED", 2_000_000)
+    z = io.BytesIO()
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as w:
+        w.writestr("3D/3dmodel.model", "<model/>")
+        w.writestr("a.bin", b"0" * 1_500_000)
+        w.writestr("b.bin", b"1" * 1_500_000)
+    assert send(env, _forge_sizes(z.getvalue(), 10), "b.3mf").status_code == 422
+
+
 def test_a_3mf_with_no_model_is_refused(env):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:

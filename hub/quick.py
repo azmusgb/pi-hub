@@ -15,9 +15,9 @@ import stat
 import struct
 import time
 import zipfile
-from pathlib import Path
-
+import zlib
 from contextlib import contextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -404,19 +404,28 @@ def _check_3mf(path: Path) -> None:
                 raise QuickError(422, "The 3MF contains a symbolic link.")
         if not any(i.filename.lower().endswith(".model") for i in infos):
             raise QuickError(422, "The 3MF has no 3D model in it.")
+        # The declared sizes are the archive's own claim, so they prove nothing: unpack every entry in chunks under one
+        # running budget (what Studio will really unpack), and read the references only from what actually came out.
         budget = MAX_EXPANDED
-        for i in infos:
-            if not (i.filename.endswith(".rels") or i.filename.lower().endswith(".model")):
-                continue
-            with z.open(i) as f:  # read with a cap, whatever the header claims
-                data = f.read(min(budget, 64 * 1024 ** 2) + 1)
-            budget -= len(data)
-            if budget < 0 or len(data) > 64 * 1024 ** 2:
-                raise QuickError(422, "The 3MF is too large to check.")
-            text = data.decode("utf-8", "ignore")
-            for ref in re.findall(r'(?:Target|p:path)="([^"]*)"', text):
-                if "://" in ref or ref.startswith("//") or ".." in ref.split("/") or "\\" in ref:
-                    raise QuickError(422, "The 3MF refers to a file outside itself.")
+        try:
+            for i in infos:
+                keep = i.filename.endswith(".rels") or i.filename.lower().endswith(".model")
+                text = bytearray()
+                with z.open(i) as f:
+                    while chunk := f.read(1 << 20):
+                        budget -= len(chunk)
+                        if budget < 0:
+                            raise QuickError(422, f"The 3MF unpacks to more than {MAX_EXPANDED >> 20} MiB.")
+                        if keep:
+                            text += chunk
+                            if len(text) > 64 * 1024 ** 2:
+                                raise QuickError(422, "The 3MF is too large to check.")
+                if keep:
+                    for ref in re.findall(r'(?:Target|p:path)="([^"]*)"', text.decode("utf-8", "ignore")):
+                        if "://" in ref or ref.startswith("//") or ".." in ref.split("/") or "\\" in ref:
+                            raise QuickError(422, "The 3MF refers to a file outside itself.")
+        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError):
+            raise QuickError(422, "The 3MF is damaged or its sizes don't match its contents.") from None
 
 
 # ---- Routes (owner only) --------------------------------------------------------------------------------------
