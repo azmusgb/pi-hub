@@ -2,6 +2,7 @@
 // Settings, Slice, Print and History. The faceplate is the job in hand; the lamp says what is known, never what is hoped.
 // No 3D library and no layer view yet (P5, P7); Prepare and Start arrive in P6, so Print says so and stays disabled.
 import { api, h, post, toast } from "./core.js";
+import { layerInspector } from "./quick-layers.js";
 import { faceplate, faceplateLoading, fillNeedsHere, lampRows, needsHere, section } from "./page-parts.js";
 
 export const every = 10;
@@ -227,12 +228,13 @@ export function mount(state) {
   state.modelBox = h("div");
   state.settingsBox = h("div");
   state.sliceBox = h("div");
+  state.layersBox = h("div", { class: "quick-layers-box" });
   state.printBox = h("div");
   state.historyBox = h("div");
   state.root.append(state.notice, state.plate, state.needs,
     section("Model", [state.modelBox], { id: "quick-model" }),
     section("Settings", [state.settingsBox], { id: "quick-settings", note: "Standard 0.20 mm PLA, X2D 0.4 mm nozzle. Only settings checked on the Mac are offered." }),
-    section("Slice", [state.sliceBox], { id: "quick-slice" }),
+    section("Slice", [state.sliceBox, state.layersBox], { id: "quick-slice" }),
     section("Print", [state.printBox], { id: "quick-print-section" }),
     section("History", [state.historyBox], { id: "quick-history" }));
   drawUpload(state);
@@ -346,6 +348,15 @@ function draw(state) {
       catch (e) { toast(ERROR_TEXT(e), "bad"); }
     },
   }));
+  // The layer inspector keeps its canvas and place across the 10 s refresh: it is rebuilt only for another slice.
+  const lkey = job && job.state === "sliced" && job.slice_sha256 ? `${job.id}|${job.slice_sha256}` : "";
+  if (state.layersKey !== lkey) {
+    state.layers?.destroy();
+    state.layers = null;
+    state.layersKey = lkey;
+    state.layersBox.replaceChildren();
+    if (lkey) state.layers = layerInspector(state.layersBox, job.id);
+  }
   state.printBox.replaceChildren(printBody(job));
   state.historyBox.replaceChildren((state.jobs || []).length ? historyRows(state.jobs, state.selected, (id) => select(state, id)) : h("p", { class: "ui-empty" }, "Nothing sliced yet. Choose a model above."));
 }
@@ -370,4 +381,5 @@ export function failed(state) {
 
 export function leave(state) {
   state.upload?.abort?.abort();
+  state.layers?.destroy();
 }
