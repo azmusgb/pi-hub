@@ -244,3 +244,37 @@ test('the Site map is easy to find: a footer link on every page, and a row on th
     assert.ok(links.includes('/devices') && links.includes('/system'));
   } finally { dom.uninstall(); }
 });
+
+test('the Site map filters as you type: every word must match, an area name keeps its area, nothing left says so', async () => {
+  const { mount, applyFilter } = await import('../hub/static/js/map.js');
+  const dom = install();
+  try {
+    const root = document.createElement('div');
+    mount({ root });
+    const areas = root.querySelectorAll('.map-areas > section');
+    const shownAreas = () => areas.filter((a) => !a.hidden).map((a) => a.dataset.area);
+    const shownRows = () => areas.filter((a) => !a.hidden).flatMap((a) => a.querySelectorAll('li').filter((li) => !li.hidden));
+
+    assert.equal(applyFilter(areas, '/lab'), 1);
+    assert.deepEqual(shownAreas(), ['workshop']);
+    assert.match(text(shownRows()[0]), /Print lab/);
+    const workshop = areas.find((a) => a.dataset.area === 'workshop');
+    assert.ok(workshop.querySelector('[data-list="tools"]').hidden, 'a tool list with no match is hidden');
+    assert.ok(workshop.querySelector('.map-sub').hidden, 'and so is its heading');
+
+    applyFilter(areas, 'backups restoring');
+    assert.deepEqual(shownRows().map((li) => text(li).trim().split(/\s/)[0]), ['Backrest'], 'every word must match');
+
+    const all = areas.find((a) => a.dataset.area === 'media').querySelectorAll('li').length;
+    assert.equal(applyFilter(areas, 'MEDIA'), all, 'an area named by the query shows all of it, any case');
+
+    assert.equal(applyFilter(areas, 'zzz'), 0);
+    assert.deepEqual(shownAreas(), []);
+
+    const total = applyFilter(areas, '');
+    assert.equal(total, root.querySelectorAll('.map-areas li').length, 'an empty query shows everything');
+    assert.match(text(root.querySelector('#map-count')), new RegExp(`^${total} pages and tools$`));
+    assert.ok(root.querySelector('.map-empty').hidden);
+    assert.equal(root.querySelector('label[for="map-find"]') && text(root.querySelector('label[for="map-find"]')), 'Find a page or tool');
+  } finally { dom.uninstall(); }
+});

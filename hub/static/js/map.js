@@ -65,14 +65,70 @@ export function mapPlate(groups) {
     readings: [["Areas", String(SECTIONS.length)], ["Tools", String(tools)]] });
 }
 
+// What a filter matches against: a page's name and address, a tool's name, purpose and host. Lower case, one string.
+const findText = (...parts) => parts.filter(Boolean).join(" ").toLowerCase();
+
+// Show only what matches every word of the query; an area whose own name matches keeps all of it. Returns the count shown.
+export function applyFilter(areas, query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (s) => words.every((w) => s.includes(w));
+  let shown = 0;
+  for (const area of areas) {
+    const whole = words.length > 0 && hit(area.dataset.find);
+    let inArea = 0;
+    for (const list of area.querySelectorAll("[data-list]")) {
+      let inList = 0;
+      for (const li of list.querySelectorAll("li")) {
+        li.hidden = !(whole || hit(li.dataset.find));
+        if (!li.hidden) inList++;
+      }
+      list.hidden = inList === 0;
+      if (list.dataset.list === "tools") { const sub = area.querySelector(".map-sub"); if (sub) sub.hidden = inList === 0; }
+      inArea += inList;
+    }
+    area.hidden = inArea === 0;
+    shown += inArea;
+  }
+  return shown;
+}
+
+function areaSection(g) {
+  const pages = g.pages.length ? h("ul", { class: "more", dataset: { list: "pages" } }, g.pages.map((p) =>
+    h("li", { dataset: { find: findText(p.label, p.href) } },
+      h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href))))) : null;
+  // A tool leaves Pi Hub, so its rows sit under their own small heading rather than among the pages.
+  const tools = g.tools.length ? [
+    g.machine ? null : h("h3", { class: "map-sub" }, "Tools, in a new tab"),
+    h("ul", { class: "more", dataset: { list: "tools" } }, g.tools.map((t) => {
+      const li = toolItem(t, g.machine);
+      li.dataset.find = findText(t.name, t.purpose, t.host);
+      return li;
+    }))] : [];
+  return h("section", { class: "more-group", dataset: { area: g.key, find: findText(g.title) } },
+    h("h2", {}, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title), pages, ...tools);
+}
+
 export function mount(state) {
   const groups = siteMap();
-  state.root.append(mapPlate(groups),
-    h("div", { class: "map-areas" }, groups.map((g) => h("section", { class: "more-group", dataset: { area: g.key } },
-      h("h2", {}, g.path ? h("a", { href: g.path, "data-link": true }, g.title) : g.title),
-      g.pages.length ? h("ul", { class: "more" }, g.pages.map((p) =>
-        h("li", {}, h("a", { href: p.href, "data-link": true }, h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href))))) : null,
-      g.tools.length ? h("ul", { class: "more" }, g.tools.map((t) => toolItem(t, g.machine))) : null))));
+  const areas = groups.map(areaSection);
+  const total = groups.reduce((n, g) => n + g.pages.length + g.tools.length, 0);
+  const input = h("input", { type: "search", id: "map-find", class: "ui-field", autocomplete: "off", spellcheck: "false",
+    placeholder: "A page, an address or a tool", "aria-describedby": "map-count" });
+  const count = h("p", { id: "map-count", class: "meta map-count", role: "status" }, `${total} pages and tools`);
+  const clear = h("button", { type: "button", class: "ui-btn ui-btn--ghost" }, "Show everything");
+  const empty = h("div", { class: "ui-empty map-empty", hidden: true }, h("p", {}, ""), clear);
+  const run = () => {
+    const q = input.value.trim();
+    const shown = applyFilter(areas, q);
+    count.textContent = !q ? `${total} pages and tools` : !shown ? "No matches" : shown === 1 ? "1 match" : `${shown} matches`;
+    empty.hidden = shown > 0;
+    empty.firstChild.textContent = shown ? "" : `Nothing matches “${q}”. Try a page name, an address such as /lab, or a tool.`;
+  };
+  input.addEventListener("input", run);
+  clear.addEventListener("click", () => { input.value = ""; run(); input.focus(); });
+  const find = h("form", { class: "map-find", role: "search", onsubmit: (e) => e.preventDefault() },
+    h("label", { for: "map-find" }, "Find a page or tool"), input, count);
+  state.root.append(mapPlate(groups), find, empty, h("div", { class: "map-areas" }, areas));
 }
 
 export async function load() {}

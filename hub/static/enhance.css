@@ -580,12 +580,22 @@ input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 .more a .meta { color: var(--text-2); }
 /* System › Site map: the areas side by side where there is room, one column on a phone; a page's address sits beside its
    name, so each area reads at a glance. */
-.map-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 1.75rem 2rem; align-items: start; }
+/* Areas flow down two columns where there is room, so a short area never leaves a hole beside a long one. */
+.map-areas { columns: 2 19rem; column-gap: 2.5rem; }
+.map-areas .more-group { break-inside: avoid; margin: 0 0 2rem; }
 .map-areas .more-group + .more-group { margin-top: 0; }
+.map-areas [hidden], .map-empty[hidden] { display: none !important; }
+.map-sub { margin: 1rem 0 0; font-size: .8125rem; font-weight: 600; color: var(--text-2); }
+.map-find { display: grid; grid-template-columns: minmax(0, 32rem); gap: .375rem; margin: 1.25rem 0 1.5rem; }
+.map-find label { font-weight: 600; }
+.map-find .ui-field { min-height: 44px; }
+.map-count { margin: 0; }
+.map-empty { display: grid; justify-items: center; gap: 1rem; }
+.map-empty p { margin: 0; max-width: 36ch; }
 .map-areas .more { gap: 0; }
 .map-areas .more a[data-link] { display: flex; flex-wrap: wrap; align-items: baseline; gap: .125rem .625rem; min-height: 44px; box-sizing: border-box; padding: .625rem 2rem .625rem 0; }
 .map-areas .more a[data-link] .meta { font-size: .8125rem; font-family: var(--mono, ui-monospace, monospace); }
-.map-areas .more a[target] { display: grid; gap: .125rem; padding: .625rem 0; }
+.map-areas .more a[target] { display: flex; flex-wrap: wrap; align-items: baseline; gap: .125rem .625rem; min-height: 44px; box-sizing: border-box; padding: .625rem 0; }
 .map-areas [data-area="machine"] li { display: grid; gap: .125rem; padding: .625rem 0; border-bottom: 1px solid var(--line); }
 .map-areas [data-area="machine"] .meta { color: var(--text-2); overflow-wrap: anywhere; }
 .fix-result { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
