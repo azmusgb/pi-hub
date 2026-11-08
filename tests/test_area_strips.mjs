@@ -188,7 +188,7 @@ test('the Site map lists every page and every registry tool, built from routes.j
   assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
 });
 
-test('the Site map reads at a glance: areas side by side, a page with its address, a tool marked as opening a new tab', async () => {
+test('the Site map reads at a glance: one band per area, its pages in strip order with their addresses, then its tools past the line', async () => {
   const { mount } = await import('../hub/static/js/map.js');
   const dom = install();
   try {
@@ -197,7 +197,10 @@ test('the Site map reads at a glance: areas side by side, a page with its addres
     const grid = root.querySelector('.map-areas');
     assert.ok(grid, 'the areas sit in one grid');
     assert.equal(grid.querySelectorAll('.more-group').length, root.querySelectorAll('.more-group').length);
-    const printer = [...root.querySelectorAll('.more a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
+    const workshop = root.querySelector('[data-area="workshop"]');
+    assert.deepEqual(workshop.querySelectorAll('.map-run a').map((a) => a.getAttribute('href')), ['/workshop', '/lab', '/quick'], 'the strip\'s order');
+    assert.ok(workshop.querySelector('.map-out a[target="_blank"]'), 'tools sit on the far side of the line');
+    const printer = [...root.querySelectorAll('.map-run a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
     assert.equal(text(printer).replace(/\s+/g, ' ').trim(), 'Printer /workshop');
     const bambuddy = [...root.querySelectorAll('a[target="_blank"]')].find((a) => /Bambuddy/.test(text(a)));
     assert.match(text(bambuddy), /opens in a new tab/);
@@ -205,7 +208,8 @@ test('the Site map reads at a glance: areas side by side, a page with its addres
     assert.match(text(machine), /^Workshop display feed\s*·?\s+home\.home\.arpa/, 'name and host never run together');
   } finally { dom.uninstall(); }
   const css = read('hub/static/enhance.css');
-  assert.match(css, /\.map-areas\s*\{[^}]*grid-template-columns/);
+  assert.match(css, /\.map-areas\s*\{[^}]*grid-template-columns/, 'name, pages and tools are columns');
+  assert.match(css, /\.map-band\s*\{[^}]*grid-template-columns:\s*subgrid/, 'every band shares them, so the line falls in one place');
 });
 
 test('no card or description still says Storage once the page is Drives (A6 N2 review)', async () => {
@@ -241,5 +245,44 @@ test('the Site map is easy to find: a footer link on every page, and a row on th
     const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
     assert.ok(links.includes('/map'), 'More lists /map');
     assert.ok(links.includes('/devices') && links.includes('/system'));
+  } finally { dom.uninstall(); }
+});
+
+test('the Site map filters as you type: every word must match, an area name keeps its area, nothing left says so', async () => {
+  const { mount, applyFilter } = await import('../hub/static/js/map.js');
+  const dom = install();
+  try {
+    const root = document.createElement('div');
+    mount({ root });
+    const areas = root.querySelectorAll('.map-areas > section');
+    const shownAreas = () => areas.filter((a) => !a.hidden).map((a) => a.dataset.area);
+    const shownRows = () => areas.filter((a) => !a.hidden).flatMap((a) => a.querySelectorAll('li').filter((li) => !li.hidden));
+
+    assert.equal(applyFilter(areas, '/lab'), 1);
+    assert.deepEqual(shownAreas(), ['workshop']);
+    assert.match(text(shownRows()[0]), /Print lab/);
+    const workshop = areas.find((a) => a.dataset.area === 'workshop');
+    assert.ok(workshop.querySelector('.map-out li').hidden, 'a tool that does not match is hidden');
+    assert.ok(!workshop.querySelector('.map-out').hidden, 'but its list stays, so the band keeps its line');
+    const other = areas.find((a) => a.dataset.area === 'other');
+    applyFilter(areas, 'more');
+    assert.ok(other.querySelector('.map-none').hidden, '"No tools" is not a match');
+    applyFilter(areas, '');
+    assert.ok(!other.querySelector('.map-none').hidden, 'and it is back with no query');
+
+    applyFilter(areas, 'backups restoring');
+    assert.deepEqual(shownRows().map((li) => text(li).trim().split(/\s/)[0]), ['Backrest'], 'every word must match');
+
+    const all = areas.find((a) => a.dataset.area === 'media').querySelectorAll('li').length;
+    assert.equal(applyFilter(areas, 'MEDIA'), all, 'an area named by the query shows all of it, any case');
+
+    assert.equal(applyFilter(areas, 'zzz'), 0);
+    assert.deepEqual(shownAreas(), []);
+
+    const total = applyFilter(areas, '');
+    assert.equal(total, root.querySelectorAll('.map-areas li').filter((li) => li.dataset.find !== undefined).length, 'an empty query shows everything');
+    assert.match(text(root.querySelector('#map-count')), new RegExp(`^${total} pages and tools$`));
+    assert.ok(root.querySelector('.map-empty').hidden);
+    assert.equal(root.querySelector('label[for="map-find"]') && text(root.querySelector('label[for="map-find"]')), 'Find a page or tool');
   } finally { dom.uninstall(); }
 });
