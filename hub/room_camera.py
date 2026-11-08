@@ -23,6 +23,9 @@ MAX_VIEWERS = 4
 MAX_FPS = 10
 MAX_FRAME = 2 * 1024 * 1024
 STILL_TIMEOUT = 10.0
+FIRST_FRAME = 13.0   # a live capture with no frame by then has failed, even if the process still runs
+STALL = 5.0          # a live capture with no new frame for this long has failed
+KILL_AFTER = 2.0     # SIGTERM, then SIGKILL after this
 
 # 640x480 at 10 frames a second, quality 50: about 1.4 Mbit/s and 6% of one core, measured on the Pi on 7 Nov 2026.
 VID = ["rpicam-vid", "-n", "-t", "0", "--codec", "mjpeg", "--quality", "50", "--width", "640", "--height", "480",
@@ -83,6 +86,22 @@ def part(jpg):
     return b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n%s\r\n" % (len(jpg), jpg)
 
 
+async def _kill(p):
+    """Terminate, then kill; returns once the process has exited. Callers shield it, so a cancelled caller never leaves
+    a capture holding the camera."""
+    try:
+        if p.returncode is None:
+            p.terminate()
+            try:
+                await asyncio.wait_for(p.wait(), KILL_AFTER)
+            except asyncio.TimeoutError:
+                pass
+    finally:
+        if p.returncode is None:
+            p.kill()
+        await p.wait()
+
+
 class RoomCamera:
     def __init__(self, vid=None, still=None, listing=None):
         self.vid_cmd, self.still_cmd, self.list_cmd = vid or VID, still or STILL, listing or LISTING
@@ -115,8 +134,7 @@ class RoomCamera:
     def _got(self, jpg):
         self.frame, self.frame_at = jpg, time.time()
         self.reason, self.checked = None, True
-        ev, self._event = self._event, asyncio.Event()
-        ev.set()
+        self._wake()
 
     def _recent(self):
         if self.frame and time.time() - self.frame_at < MAX_AGE:
@@ -128,8 +146,12 @@ class RoomCamera:
         try:
             p = await asyncio.create_subprocess_exec(*self.list_cmd, stdout=asyncio.subprocess.PIPE,
                                                      stderr=asyncio.subprocess.STDOUT)
+        except OSError:
+            return "capture_failed"
+        try:
             out, _ = await asyncio.wait_for(p.communicate(), STILL_TIMEOUT)
-        except (OSError, asyncio.TimeoutError):
+        except asyncio.TimeoutError:
+            await asyncio.shield(_kill(p))
             return "capture_failed"
         return "not_detected" if b"No cameras available" in out else "capture_failed"
 
@@ -193,7 +215,11 @@ class RoomCamera:
                 return None
         return self.frame
 
-    async def _start(self):
+    # Every start and stop of the live capture happens under self._lock, so two never overlap and a dying one has
+    # exited before the next (or a one-shot still) opens the camera.
+
+    async def _spawn(self):
+        """Start the live capture. The caller holds the lock."""
         self.starts += 1
         self.started_at = time.time()
         try:
@@ -201,9 +227,14 @@ class RoomCamera:
                                                              stderr=asyncio.subprocess.DEVNULL)
         except OSError:
             self.proc = None
-            await self._ended(None)
+            self.reason, self.checked = "capture_failed", True
+            self._wake()
             return
         asyncio.create_task(self._read(self.proc))
+
+    def _wake(self):
+        ev, self._event = self._event, asyncio.Event()
+        ev.set()
 
     async def _read(self, proc):
         split = FrameSplitter()
@@ -212,51 +243,53 @@ class RoomCamera:
                 for jpg in split.feed(chunk):
                     if self.proc is proc:
                         self._got(jpg)
-            await proc.wait()
         except Exception:
-            proc.kill()
-        if self.proc is proc:  # it ended by itself, not by _stop
-            self.proc = None
-            await self._ended(proc)
+            pass
+        await self._failed(proc)
 
-    async def _ended(self, proc):
-        if self.viewers and self.restarts_left:
-            self.restarts_left -= 1
-            await self._start()
-            return
-        self.reason, self.checked = await self._why(), True
-        ev, self._event = self._event, asyncio.Event()
-        ev.set()  # wake the viewers so they see it ended
+    async def _failed(self, proc):
+        """The capture ended by itself or stalled: restart it once while someone watches, else say why."""
+        async with self._lock:
+            if self.proc is not proc:
+                await asyncio.shield(_kill(proc))  # already stopped or replaced; make sure it is gone
+                return
+            self.proc = None
+            await asyncio.shield(_kill(proc))
+            if self.viewers and self.restarts_left:
+                self.restarts_left -= 1
+                await self._spawn()
+                return
+            if self.viewers:
+                self.reason, self.checked = await self._why(), True
+        self._wake()  # the viewers see it ended
 
     async def _ensure_running(self):
         async with self._lock:
             if self.proc is None:
                 self.restarts_left = 1
-                await self._start()
-        started = self.started_at
+                await self._spawn()
         while True:
-            if self.frame_at >= started:
-                return
-            if self.proc is None and self.reason:
-                raise Unavailable(self.reason)
-            if await self._next_frame(self.frame_at, WAIT_FOR + STILL_TIMEOUT) is None and self.proc is None:
+            p = self.proc
+            if p is None:
                 raise Unavailable(self.reason or "capture_failed")
+            if self.frame_at >= self.started_at:
+                return
+            if await self._next_frame(self.frame_at, FIRST_FRAME) is None and self.proc is p \
+                    and self.frame_at < self.started_at:
+                await self._failed(p)  # running but silent: a failure, not a wait without end
 
     async def _stop(self):
-        p, self.proc = self.proc, None
-        if p is None or p.returncode is not None:
-            return
-        p.terminate()
-        try:
-            await asyncio.wait_for(p.wait(), 2)
-        except asyncio.TimeoutError:
-            p.kill()
-            await p.wait()
+        async with self._lock:
+            if self.viewers:
+                return  # someone arrived while this waited for the lock
+            p, self.proc = self.proc, None
+            if p is not None:
+                await asyncio.shield(_kill(p))
 
     async def _stop_later(self):
         await asyncio.sleep(STOP_AFTER)
-        if not self.viewers:
-            await self._stop()
+        self._stopper = None  # past its wait: a new viewer no longer cancels it, and _stop re-checks for viewers
+        await self._stop()
 
     async def live(self):
         """Multipart parts of the live view, at most MAX_FPS a second, for LIVE_LIMIT seconds. Raises Unavailable
@@ -275,16 +308,19 @@ class RoomCamera:
             sent, sent_at = 0.0, 0.0
             while (left := end - loop.time()) > 0:
                 await asyncio.sleep(max(0.0, sent_at + 1 / MAX_FPS - loop.time()))  # at most MAX_FPS, not slower
-                jpg = await self._next_frame(sent, min(left, 5.0))
+                jpg = await self._next_frame(sent, min(left, STALL))
                 if jpg is None:
-                    if self.proc is None:
+                    p = self.proc
+                    if p is None:
                         raise Unavailable(self.reason or "capture_failed")
+                    if time.time() - max(self.frame_at, self.started_at) >= STALL:
+                        await self._failed(p)  # frozen: restart once, or end with the reason
                     continue
                 sent, sent_at = self.frame_at, loop.time()
                 yield part(jpg)
         finally:
             self.viewers -= 1
-            if not self.viewers and self.proc is not None:
+            if not self.viewers and not self._stopper:  # even mid-restart, so a capture never runs unwatched
                 self._stopper = asyncio.create_task(self._stop_later())
 
 

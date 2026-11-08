@@ -209,6 +209,81 @@ def test_a_capture_that_dies_is_restarted_once_then_capture_failed(monkeypatch):
     run(go())
 
 
+def test_a_capture_that_never_sends_a_frame_fails_instead_of_hanging(monkeypatch):
+    monkeypatch.setattr(room_camera, "FIRST_FRAME", 0.3)
+    monkeypatch.setattr(room_camera, "STOP_AFTER", 0.2)
+    c = room_camera.RoomCamera(vid=fake("silent"), still=fake("die"), listing=fake("list"))
+
+    async def go():
+        t = time.monotonic()
+        with pytest.raises(room_camera.Unavailable) as e:
+            async for _ in c.live():
+                pass
+        assert e.value.reason == "capture_failed"
+        assert time.monotonic() - t < 5
+        assert c.starts == 2 and c.proc is None and c.viewers == 0
+        await asyncio.sleep(0.4)
+        assert c.proc is None
+    run(go())
+
+
+def test_a_capture_that_freezes_mid_stream_is_restarted_once_then_ends(monkeypatch):
+    monkeypatch.setattr(room_camera, "STALL", 0.3)
+    monkeypatch.setattr(room_camera, "FIRST_FRAME", 0.5)
+    c = room_camera.RoomCamera(vid=fake("freeze"), still=fake("die"), listing=fake("list"))
+
+    async def go():
+        n = 0
+        with pytest.raises(room_camera.Unavailable):
+            async for _ in c.live():
+                n += 1
+        assert n >= 2  # frames from both runs reached the viewer
+        assert c.starts == 2 and c.proc is None and c.viewers == 0
+        assert c.state()["reason"] == "capture_failed"
+    run(go())
+
+
+def test_a_viewer_arriving_while_the_capture_stops_never_overlaps_it(monkeypatch):
+    monkeypatch.setattr(room_camera, "STOP_AFTER", 0.1)
+    monkeypatch.setattr(room_camera, "KILL_AFTER", 0.5)
+    c = room_camera.RoomCamera(vid=fake("stubborn"), still=fake("still"), listing=fake("list"))
+    spawned = []
+    spawn = c._spawn
+
+    async def watched():
+        assert all(p.returncode is not None for p in spawned), "a capture started while another still ran"
+        await spawn()
+        if c.proc:
+            spawned.append(c.proc)
+    c._spawn = watched
+
+    async def go():
+        await take(c.live(), 2)
+        await asyncio.sleep(0.15)  # the stop has begun: SIGTERM ignored, the kill is due at KILL_AFTER
+        parts = await take(c.live(), 2)
+        assert len(parts) == 2
+        assert c.starts in (1, 2)
+        await c._stop()
+        assert all(p.returncode is not None for p in spawned)
+    run(go())
+
+
+def test_the_last_viewer_leaving_during_a_restart_still_stops_the_capture(monkeypatch):
+    monkeypatch.setattr(room_camera, "STOP_AFTER", 0.1)
+    c = room_camera.RoomCamera(vid=fake("vid"), still=fake("still"), listing=fake("list"))
+
+    async def go():
+        s = c.live()
+        await s.__anext__()
+        first = c.proc
+        first.kill()  # dies: the reader restarts it while the viewer is leaving
+        await s.aclose()
+        await asyncio.sleep(1.0)
+        assert c.proc is None
+        assert first.returncode is not None
+    run(go())
+
+
 def test_a_still_during_live_is_the_newest_live_frame(cam):
     async def go():
         s = cam.live()
