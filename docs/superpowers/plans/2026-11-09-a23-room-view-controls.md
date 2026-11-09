@@ -17,7 +17,7 @@ itself, a look is one tap, and the panel below shows one short group at a time.
 
 **Before P1: the amendment list.** The baseline counts an amendment as approved once it is merged under
 `## Amendments` (line 1012 of the baseline). Today that list holds A17, A18, A19 and A21. **A23 is not in it, and
-neither is A20**, although #218 and #191 merged their files. A small docs PR adds both entries (A23: "Approved by the
+neither is A20**, although #218 and #191 merged their files. A small docs PR (#219) adds both entries (A23: "Approved by the
 owner on 9 Nov 2026 (pi-hub #218)") and sets each file's status line to match. P1 waits for the owner to merge it; no
 step of this plan is built on an amendment that isn't listed.
 
@@ -216,7 +216,7 @@ No stacked PRs: each is based on main after the one before it merges. P1 can mer
 
 ### Owner steps outside the PRs
 
-- **The amendment-list PR** (before P1): merge.
+- **The amendment-list PR (#219)** (before P1): merge.
 - **Releases:** each deploy restarts `pi-hub`, as every release does, with the preflight; no confirmation needed.
 
 ## Coverage
