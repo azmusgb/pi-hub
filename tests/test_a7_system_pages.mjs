@@ -109,6 +109,24 @@ test('Alerts: the faceplate counts what is still open, lit by the worst; no answ
   } finally { down.dom.uninstall(); }
 });
 
+test('Alerts: a cause still open across several days counts once, and so does one over across several days', async () => {
+  const now = Math.floor(Date.now() / 1000), day = 86400;
+  const alerts = { alerts: [
+    { ts: now - 60, title: 'Workshop display went offline', tag: 'warning', cause: 'display', side: 'problem' },
+    { ts: now - 2 * day, title: 'Workshop display is back', tag: 'white_check_mark', cause: 'display', side: 'recovery' },
+    { ts: now - 2 * day - 600, title: 'Workshop display went offline', tag: 'warning', cause: 'display', side: 'problem' },
+    { ts: now - 3 * day, title: 'Workshop display went offline', tag: 'warning', cause: 'display', side: 'problem' },
+    { ts: now - 120, title: 'Plex is running again', tag: 'white_check_mark', cause: 'plex', side: 'recovery' },
+    { ts: now - 3 * day - 60, title: 'Plex stopped', tag: 'rotating_light', cause: 'plex', side: 'problem' },
+  ] };
+  const { dom, state } = await render('alerts.js', { '/api/alerts': alerts }, '/alerts');
+  try {
+    const plate = onePlateNoCards(state, 'Alerts');
+    assert.equal(text(plate.querySelector('.ui-readout')), '1 still open');
+    assert.match(text(plate), /1 over or fine/);
+  } finally { dom.uninstall(); }
+});
+
 test('Site map: one faceplate counting the pages, with no lamp', async () => {
   const dom = install();
   try {
