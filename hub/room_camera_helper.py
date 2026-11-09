@@ -28,7 +28,8 @@ DENOISE = {"auto": "Fast", "off": "Off", "fast": "Fast", "hq": "HighQuality"}
 def controls_from(s, fps):
     """Picamera2 controls for settings s, as plain names and numbers (enum members are looked up by the caller, so this
     is testable without libcamera). Manual exposure turns auto exposure off and holds the frame time open for a shutter
-    longer than one frame, which lowers the frame rate rather than clamping the shutter."""
+    longer than one frame, which lowers the frame rate rather than clamping the shutter. Auto exposure may do the same, down
+    to the preset's own rate, so a dim room gets the exposure the preset always had."""
     c = {"Brightness": float(s["brightness"]), "Contrast": float(s["contrast"]), "Saturation": float(s["saturation"]),
          "Sharpness": float(s["sharpness"]), "AwbMode": AWB[s["awb"]], "AeMeteringMode": METERING[s["metering"]],
          "AeExposureMode": EXPOSURE[s["exposure"]], "NoiseReductionMode": DENOISE[s["denoise"]]}
@@ -38,7 +39,8 @@ def controls_from(s, fps):
         c.update(AeEnable=False, ExposureTime=shutter, AnalogueGain=float(s["gain"]),
                  FrameDurationLimits=(max(frame_us, shutter), max(frame_us, shutter)))
     else:
-        c.update(AeEnable=True, ExposureValue=float(s["ev"]), FrameDurationLimits=(frame_us, frame_us))
+        slowest_us = max(frame_us, int(1_000_000 / s["fps"])) if s.get("fps") else frame_us
+        c.update(AeEnable=True, ExposureValue=float(s["ev"]), FrameDurationLimits=(frame_us, slowest_us))
     return c
 
 

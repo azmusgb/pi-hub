@@ -348,6 +348,14 @@ def test_every_hub_word_has_a_camera_name_and_every_live_key_a_control():
     assert out["AeEnable"] is True and out["ExposureValue"] == 0 and out["FrameDurationLimits"] == (100000, 100000)
 
 
+def test_auto_exposure_may_slow_the_frame_down_to_the_presets_rate_in_a_dim_room():
+    out = room_camera_helper.controls_from({**S, "fps": 10}, room_camera_helper.CAMERA_FPS)
+    assert out["FrameDurationLimits"] == (33333, 100000)
+    sharp = room_camera_helper.controls_from({**S, "fps": 15}, room_camera_helper.CAMERA_FPS)
+    assert sharp["FrameDurationLimits"] == (33333, 66666)
+    assert room_camera_helper.controls_from({**S, "fps": 60}, room_camera_helper.CAMERA_FPS)["FrameDurationLimits"] == (33333, 33333)
+
+
 def test_manual_exposure_holds_the_frame_open_for_a_long_shutter():
     out = room_camera_helper.controls_from({**S, "manual": True, "shutter": 500000, "gain": 4}, 10)
     assert out["AeEnable"] is False and out["ExposureTime"] == 500000 and out["AnalogueGain"] == 4.0
