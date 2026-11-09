@@ -3,6 +3,7 @@
 // No 3D library and no layer view yet (P5, P7); Prepare and Start arrive in P6, so Print says so and stays disabled.
 import { api, h, post, toast } from "./core.js";
 import { layerInspector } from "./quick-layers.js";
+import { PRINTER_ACTIONS, runPrinterAction } from "./printer-actions.js";
 import { faceplate, faceplateLoading, fillNeedsHere, lampRows, needsHere, section } from "./page-parts.js";
 
 export const every = 10;
@@ -16,7 +17,7 @@ export const STATE_WORDS = {
   canceled: ["unknown", "Canceled"], stale: ["warn", "Out of date"], staging: ["ok", "Preparing to print", true],
   staged: ["ok", "Ready to print"], queued_in_bambuddy: ["ok", "Queued on the printer"],
   start_requested: ["ok", "Starting", true], start_accepted: ["ok", "Starting", true],
-  printing_confirmed: ["ok", "Printing", true], outcome_uncertain: ["bad", "Outcome uncertain"],
+  printing_confirmed: ["ok", "Printing", true], outcome_uncertain: ["bad", "Outcome uncertain"], finished: ["ok", "Finished"],
 };
 export const stateLamp = (s) => STATE_WORDS[s] || ["unknown", "Unknown"];
 const BUSY = new Set(["queued", "preparing", "slicing", "validating"]);
@@ -216,7 +217,64 @@ export function holdLine(check) {
   return check?.last?.say || null;
 }
 
-export function printBody(job, check, { onPrepare, onUnprepare, onStart, onResolve, onCancelHold, ticks = { plate: false, filament: false }, onTick = () => {} } = {}) {
+// What the printer reports, as reported: a missing figure is "Not reported", never 0 (P8).
+const num = (v) => Number.isFinite(v) ? v : null;
+const deg = (v) => num(v) === null ? "Not reported" : `${Math.round(v)} °C`;
+const left = (m) => num(m) === null ? "Not reported" : m >= 60 ? `${Math.floor(m / 60)} h ${Math.round(m % 60)} min` : `${Math.round(m)} min`;
+const minutes = (m) => num(m) === null ? "Not reported" : left(m);
+const grams = (g) => num(g) === null ? "Not reported" : `${Math.round(g * 10) / 10} g`;
+
+export function monitorRows(m) {
+  const p = m?.printer;
+  if (!p) return [];
+  const conn = p.source === "ok" ? ["ok", "Connected"] : p.source === "disconnected" ? ["bad", "Disconnected"] : ["unknown", "Can't read"];
+  const target = (v, t) => (num(t) !== null && num(v) !== null ? `${deg(v)} (target ${Math.round(t)} °C)` : deg(v));
+  return [
+    { title: "The printer", detail: p.source === "ok" ? "as the printer reports it" : p.source === "disconnected" ? "Bambuddy says the printer is disconnected" : "the hub couldn't read the printer just now", tone: conn[0], word: conn[1] },
+    { title: "State", detail: "the printer's own word", value: p.state ? String(p.state).toLowerCase() : "Not reported" },
+    { title: "Progress", detail: "percent", value: num(p.progress) === null ? "Not reported" : `${Math.round(p.progress)}%` },
+    { title: "Layer", value: num(p.layer) === null ? "Not reported" : `${p.layer}${num(p.total_layers) === null ? "" : ` of ${p.total_layers}`}` },
+    { title: "Time left", value: left(p.remaining_minutes) },
+    { title: "Nozzle", value: target(p.nozzle, p.nozzle_target) },
+    { title: "Bed", value: target(p.bed, p.bed_target) },
+  ];
+}
+
+export function monitorBody(job, m, { onAction = () => {}, stale = null } = {}) {
+  const out = [];
+  const p = m?.printer;
+  if (!m) { out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, "The hub couldn't read the printer's status just now, so no figures are shown. It keeps trying.")); return out; }
+  if (stale) out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `These figures are stale: the hub last read the printer ${stale}.`));
+  if (p?.source === "ok" && p.this_job === false) out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, "The printer isn't showing this job right now, so there are no figures for it."));
+  out.push(lampRows(monitorRows(m)));
+  const acts = (m.actions || []).filter((a) => PRINTER_ACTIONS[a]);
+  const btns = acts.map((a) => h("button", { type: "button", class: "ui-btn", onclick: (e) => onAction(a, e.currentTarget) }, PRINTER_ACTIONS[a].label));
+  if (btns.length) out.push(h("div", { class: "quick-actions" }, ...btns));
+  out.push(h("p", { class: "meta" }, "Pause and resume are the printer's own actions. To stop this print, use the printer; the hub has no stop of its own."));
+  return out;
+}
+
+export function outcomeBody(job, m, { onReprint = () => {} } = {}) {
+  const o = job.outcome || m?.outcome;
+  const out = [];
+  const bad = job.state === "failed";
+  out.push(h("p", { class: `ui-notice${bad ? " ui-notice--bad" : ""}`, role: "status" }, bad ? (job.reason || "The print didn't finish.") : "Finished. Bambuddy's print log says this print completed."));
+  const c = m?.compare;
+  if (o) out.push(lampRows([
+    { title: "Outcome", detail: "from Bambuddy's print log", tone: bad ? "bad" : "ok", word: o.word || o.status || "Unknown" },
+    { title: "Time", detail: `estimated ${minutes(c?.estimate_minutes)}`, value: minutes(c?.actual_minutes) },
+    { title: "Filament", detail: `estimated ${grams(c?.estimate_grams)}`, value: grams(c?.actual_grams) },
+  ]));
+  if (job.file_removed) {
+    out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, "Its files were removed to make room, so a reprint needs a new slice: upload the model again."));
+  } else {
+    out.push(h("p", { class: "meta" }, "A reprint makes a new job from the stored files after they pass the same checks. It still needs Prepare and Start with both ticks."));
+    out.push(h("div", { class: "quick-actions" }, h("button", { type: "button", class: "ui-btn ui-btn--primary", onclick: onReprint }, "Reprint")));
+  }
+  return out;
+}
+
+export function printBody(job, check, { onPrepare, onUnprepare, onStart, onResolve, onCancelHold, monitor = null, monitorStale = null, onAction, onReprint, ticks = { plate: false, filament: false }, onTick = () => {} } = {}) {
   const st = job?.state;
   if (!job) return h("div", { class: "quick-print" }, h("p", { class: "ui-empty" }, "Slice a model first."));
   const out = [];
@@ -259,10 +317,14 @@ export function printBody(job, check, { onPrepare, onUnprepare, onStart, onResol
   } else if (st === "queued_in_bambuddy" || st === "start_requested" || st === "start_accepted") {
     out.push(h("p", { class: "meta", role: "status" }, "Sent to the printer. This says Printing only once the hub sees the printer printing it."));
   } else if (st === "printing_confirmed") {
-    out.push(h("p", { class: "ui-notice", role: "status" }, "Printing. The hub saw the printer print this job."));
+    out.push(h("p", { class: "ui-notice", role: "status" }, "Printing. The hub saw the printer print this job. It says Finished only when Bambuddy's print log says so."));
+    out.push(...monitorBody(job, monitor, { onAction, stale: monitorStale }));
+  } else if (st === "finished" || (st === "failed" && job.outcome)) {
+    out.push(...outcomeBody(job, monitor, { onReprint }));
   } else if (st === "outcome_uncertain") {
     out.push(h("p", { class: "ui-notice ui-notice--bad", role: "status" }, job.reason || "The hub isn't sure whether this started."));
     out.push(h("p", { class: "meta" }, "Look at the printer. The hub will not send it again by itself. If the printer shows it printing, the page will say so within a few seconds. If it isn't printing, this puts the job back to Prepared (it checks the printer and the queue first); starting again needs both ticks again."));
+    out.push(...monitorBody(job, monitor, { onAction, stale: monitorStale }));
     out.push(h("div", { class: "quick-actions" }, h("button", { type: "button", class: "ui-btn", onclick: onResolve }, "It isn't printing: go back")));
   } else {
     out.push(h("p", { class: "meta" }, "Slice a model first."));
@@ -270,10 +332,18 @@ export function printBody(job, check, { onPrepare, onUnprepare, onStart, onResol
   return h("div", { class: "quick-print" }, ...out);
 }
 
+// "· 61 min · 9.4 g" from the print log's own figures; a figure the log didn't give is left out, not zeroed.
+export function outcomeBits(j) {
+  const o = j.outcome;
+  if (!o) return "";
+  const parts = [num(o.seconds) === null ? null : `${Math.round(o.seconds / 60)} min`, num(o.grams) === null ? null : grams(o.grams)].filter(Boolean);
+  return ` · ${o.word || o.status || "ended"}${parts.length ? ` · ${parts.join(" · ")}` : ""}`;
+}
+
 export function historyRows(jobs, selected, onOpen) {
   return lampRows(jobs.map((j) => {
     const [tone, word] = stateLamp(j.state);
-    return { title: j.name, detail: `${ago(j.updated)}${j.file_removed ? " · file removed, needs a new slice" : ""}`, tone, word,
+    return { title: j.name, detail: `${ago(j.updated)}${outcomeBits(j)}${j.file_removed ? " · file removed, needs a new slice" : ""}`, tone, word,
       action: h("button", { type: "button", class: "ui-btn", "aria-current": j.id === selected ? "true" : null, onclick: () => onOpen(j.id) }, j.id === selected ? "Open (shown)" : "Open") };
   }));
 }
@@ -457,7 +527,7 @@ function draw(state) {
 
 function drawPrint(state, job) {
   const c = state.check;
-  const key = job ? [job.id, job.state, job.reason, JSON.stringify(c?.reasons), c?.hold?.expires, c?.hold ? "" : c?.last?.at, c?.bed_only].join("|") : "";
+  const key = job ? [job.id, job.state, job.reason, JSON.stringify(c?.reasons), c?.hold?.expires, c?.hold ? "" : c?.last?.at, c?.bed_only, JSON.stringify(state.monitor?.printer), JSON.stringify(state.monitor?.actions), state.monitorFailed, JSON.stringify(job.outcome)].join("|") : "";
   if (state.printKey === key) return; // the ticks live in the DOM: redraw only when what the sheet shows changed
   state.printKey = key;
   const act = (path, method, body, ok) => async () => {
@@ -475,6 +545,17 @@ function drawPrint(state, job) {
     onPrepare: act("prepare", "POST"), onUnprepare: act("prepare", "DELETE", null, "Taken back out."),
     onStart: (wait) => act("start", "POST", { plate_clear: ticks.plate, filament_ok: ticks.filament, wait_for_bed: wait })(),
     onResolve: act("resolve", "POST"), onCancelHold: act("start", "DELETE", null, "Stopped waiting."),
+    monitor: state.monitor, monitorStale: state.monitorFailed && state.monitorAt ? ago(state.monitorAt / 1000) || "a while ago" : null,
+    onAction: (a, btn) => runPrinterAction(a, [btn], () => { state.printKey = null; load(state); }),
+    onReprint: async () => {
+      try {
+        const r = await post(`/api/quick/jobs/${job.id}/reprint`);
+        toast("Made a new job from the stored files. Prepare it to print again.");
+        state.selected = r.job.id;
+      } catch (e) { toast(ERROR_TEXT(e), "bad"); }
+      state.printKey = null;
+      await load(state);
+    },
   }));
 }
 
@@ -486,6 +567,12 @@ export async function load(state) {
   if (state.selected && !state.jobs.some((j) => j.id === state.selected)) state.selected = state.jobs[0]?.id || null;
   const sel = state.jobs.find((j) => j.id === state.selected);
   state.check = sel && sel.state === "staged" ? await api(`/api/quick/jobs/${sel.id}/start`).catch(() => null) : null;
+  const watched = sel && (["printing_confirmed", "outcome_uncertain", "finished"].includes(sel.state) || (sel.state === "failed" && sel.outcome));
+  if (watched) {
+    if (state.monitorJob !== sel.id) { state.monitor = null; state.monitorAt = null; state.monitorJob = sel.id; }
+    try { state.monitor = await api(`/api/quick/jobs/${sel.id}/monitor`); state.monitorAt = Date.now(); state.monitorFailed = false; }
+    catch { state.monitorFailed = true; } // the last figures stay, marked stale, never shown as current
+  } else { state.monitor = null; state.monitorJob = null; state.monitorAt = null; state.monitorFailed = false; }
   state.sources = [{ name: "The hub", tone: "ok" },
     worker ? { name: "The Mac's slicer", tone: worker.state === "idle" || worker.state === "busy" ? "ok" : "unknown", word: worker.state === "none" ? "not heard from yet" : worker.state === "asleep" ? (ago(worker.last_seen) ? `asleep, seen ${ago(worker.last_seen)}` : "asleep") : worker.state === "busy" ? "slicing" : "ready" }
       : { name: "The Mac's slicer", tone: "unknown", word: "can't be read" }];

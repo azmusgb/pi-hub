@@ -44,7 +44,7 @@ RESERVED_PROJECT = "quick"  # a project name no experiment route accepts; Quick 
 
 STATES = ("draft", "ready_to_slice", "queued", "preparing", "slicing", "validating", "sliced", "needs_attention",
           "failed", "canceled", "stale", "staging", "staged", "queued_in_bambuddy", "start_requested",
-          "start_accepted", "printing_confirmed", "outcome_uncertain")
+          "start_accepted", "printing_confirmed", "outcome_uncertain", "finished")
 # A19 Q7. `preparing` is the claim of a slice (plan decision 6) and `staging` is Prepare's upload (decision 10).
 ALLOWED = {
     "draft": {"ready_to_slice", "canceled"},
@@ -63,8 +63,9 @@ ALLOWED = {
     "queued_in_bambuddy": {"start_requested", "staged", "failed"},
     "start_requested": {"start_accepted", "outcome_uncertain", "failed", "staged"},  # staged: Bambuddy refused and the queue item is confirmed gone
     "start_accepted": {"printing_confirmed", "outcome_uncertain", "failed"},
-    "printing_confirmed": set(),  # P8 adds how a print ends
+    "printing_confirmed": {"finished", "failed", "outcome_uncertain"},  # from the printer's print-log entry (P8)
     "outcome_uncertain": {"staged", "printing_confirmed", "failed"},
+    "finished": set(),
 }
 # Retention never removes the files of a job in one of these, or with any live reference (Q11, decision 8).
 PROTECTED = {"queued", "preparing", "slicing", "validating", "staging", "staged", "queued_in_bambuddy",
@@ -106,7 +107,7 @@ def ready():
     path = os.environ.get("HUB_DB", "")
     if path not in _ready_dbs:
         db.conn().executescript(DB_SCHEMA)
-        db.ensure_columns("quick_jobs", {"slice_info": "TEXT"})
+        db.ensure_columns("quick_jobs", {"slice_info": "TEXT", "outcome": "TEXT"})
         _ready_dbs.add(path)
 
 
@@ -267,7 +268,7 @@ def _tier(job: dict, now: float) -> int | None:
         return 1
     if job["state"] in ("canceled", "failed", "needs_attention", "stale"):
         return 2
-    if job["state"] == "finished":  # reached by P8's history
+    if job["state"] == "finished":  
         return 3
     if job["state"] == "sliced" and age >= SLICED_SECONDS:
         return 4
@@ -320,7 +321,7 @@ def transition(job_id: str, to: str, *, expect: str | None = None, reason: str |
     callers can't both move the same job. Staging or starting needs the stored slice still present."""
     ready()
     allowed_fields = {"slice_sha256", "slice_file", "slice_bytes", "slice_reserved", "sliced_hash", "bambuddy_file_id",
-                      "queue_item_id", "hold", "awaiting_cleanup", "slice_info"}
+                      "queue_item_id", "hold", "awaiting_cleanup", "slice_info", "outcome"}
     if to not in STATES or set(fields) - allowed_fields:
         raise QuickError(500, "Bad state change.")
     with _tx() as c:
@@ -378,6 +379,7 @@ def public(job: dict) -> dict:
     out["transform"] = json.loads(job["transform"]) if job["transform"] else None
     out["settings"] = json.loads(job["settings"])
     out["slice_info"] = json.loads(job["slice_info"]) if job.get("slice_info") else None
+    out["outcome"] = json.loads(job["outcome"]) if job.get("outcome") else None
     out["can_reprint_file"] = not job["file_removed"] and bool(job["slice_sha256"])
     return out
 
