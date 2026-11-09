@@ -750,6 +750,95 @@ async def api_room_camera_reset(request: Request):
     return await _room_apply(request, dict(room_camera.DEFAULTS), "room-camera:reset")
 
 
+# --- Quick Looks and Snapshots (amendment A20 D2/D3, plan P2) ---
+
+@app.get("/api/camera/room/looks")
+def api_room_camera_looks(request: Request):
+    need(request, "owner")
+    return fresh({"looks": room_camera.get_looks()})
+
+
+@app.post("/api/camera/room/looks")
+async def api_room_camera_save_look(request: Request):
+    role, device = need(request, "owner")
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict) or "name" not in body or "values" not in body:
+        return JSONResponse({"field": None, "reason": "Send look as {name, values}."}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    try:
+        look = room_camera.save_look(body["name"], body["values"])
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    auth.log(role, device, "room-camera:look", f"saved '{look['name']}'")
+    return fresh({"look": look, "looks": room_camera.get_looks()})
+
+
+@app.delete("/api/camera/room/looks/{name}")
+def api_room_camera_delete_look(name: str, request: Request):
+    role, device = need(request, "owner")
+    try:
+        room_camera.delete_look(name)
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    auth.log(role, device, "room-camera:look", f"deleted '{name}'")
+    return fresh({"deleted": name, "looks": room_camera.get_looks()})
+
+
+@app.get("/api/camera/room/snapshots")
+def api_room_camera_list_snapshots(request: Request):
+    need(request, "owner")
+    return fresh({"snapshots": room_camera.list_snapshots()})
+
+
+@app.post("/api/camera/room/snapshots")
+async def api_room_camera_take_snapshot(request: Request):
+    role, device = need(request, "owner")
+    try:
+        meta = await room_camera.save_snapshot()
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    except room_camera.Unavailable as e:
+        return _room_unavailable(e)
+    auth.log(role, device, "room-camera:snapshot", f"saved snapshot '{meta['id']}'")
+    return fresh({"snapshot": meta, "snapshots": room_camera.list_snapshots()})
+
+
+@app.get("/api/camera/room/snapshots/{snapshot_id}.jpg")
+def api_room_camera_get_snapshot_jpg(snapshot_id: str, request: Request):
+    need(request, "owner")
+    try:
+        path = room_camera.get_snapshot_path(snapshot_id, "jpg")
+    except room_camera.Invalid:
+        return Response(status_code=404)
+    if not os.path.exists(path):
+        return Response(status_code=404)
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return Response(status_code=404)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.delete("/api/camera/room/snapshots/{snapshot_id}")
+def api_room_camera_delete_snapshot(snapshot_id: str, request: Request):
+    role, device = need(request, "owner")
+    try:
+        room_camera.delete_snapshot(snapshot_id)
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    auth.log(role, device, "room-camera:snapshot", f"deleted snapshot '{snapshot_id}'")
+    return fresh({"deleted": snapshot_id, "snapshots": room_camera.list_snapshots()})
+
+
+
 # ---- Print ----
 
 @app.get("/api/print")
