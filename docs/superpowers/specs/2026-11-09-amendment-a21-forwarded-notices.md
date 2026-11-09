@@ -150,4 +150,4 @@ second choice, and it needs the owner's say because it writes history.
 3. A forwarded problem with no recovery shows as over after 7 days, and a new post with its topic opens it again.
 4. Two different failed jobs from one source stay two causes.
 5. Local AI no longer posts a not-deployed notice, and System › Versions still shows what is live and what is waiting.
-6. A senders that sends no `topic` behaves as it does today, and the existing notify tests still pass.
+6. A sender that sends no `topic` behaves as it does today, and the existing notify tests still pass.
