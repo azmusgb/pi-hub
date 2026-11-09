@@ -3,7 +3,7 @@
 A zip read, never a slice. The same rules as print-lab's `lab/quick/start_check.py` (the Mac checks first, so a bug there
 alone can't publish a bad file): the start block's command sequence against a reference taken from a known-good build, its
 line count, the printer's start G-code hash and the filament ids. The reference is a copy of print-lab's
-`presets/quick/x2d-start-reference.json`; until a sync step owns it (P9), a change there is mirrored here by hand."""
+`presets/quick/x2d-start-reference.json`; `tools/sync_quick_reference.py` keeps the two equal (A19 P9)."""
 import hashlib
 import json
 import re
