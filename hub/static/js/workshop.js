@@ -72,10 +72,20 @@ export function mount(state) {
   // The view part is redrawn; the settings panel (A18) beside it is kept, so an edit and its open state survive.
   state.camView = h("div", { class: "ws-cam-view" });
   makeSettings(state);
-  state.camBox = h("div", { class: "ws-cam-box" }, state.camView, state.set.el);
+  state.snapshotsSection = makeSnapshots(state);
+  state.camBox = h("div", { class: "ws-cam-box" }, state.camView, state.set.el, state.snapshotsSection);
   state.camPref = readCamPref();
   state.live = { on: false, note: "" };
   state.left = false;
+  // Viewing tools state (A20 D4)
+  state.viewTools = {
+    grid: false,
+    hist: false,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    histTimer: null,
+  };
   // One status line for the live notes, kept across redraws so a screen reader hears each new note.
   state.camNote = h("p", { class: "meta ws-cam-note", role: "status" });
   // A new still every 2 seconds while this page is open and visible; a live picture is never swapped.
@@ -106,6 +116,7 @@ export function mount(state) {
 export function leave(state) {
   state.left = true;
   clearInterval(state.camTimer);
+  stopHistogram(state);
   stopLive(state, "", false);
   document.removeEventListener("visibilitychange", state.onHidden);
   if (state.roomUrl) URL.revokeObjectURL?.(state.roomUrl);
@@ -181,7 +192,7 @@ export function cameraChoice(cam, room, pref) {
   return room.state !== "unavailable" ? { view: "room", switcher: false, standIn: true } : { view: "none", switcher: false, standIn: false };
 }
 
-function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null } = {}) {
+function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null, state = null } = {}) {
   if (room.state === "unavailable") {
     return h("div", { class: "ws-cam ws-cam--none" }, h("p", { class: "ws-cam-word" }, "Room view unavailable"),
       h("p", {}, ROOM_WORDS[room.reason] || ROOM_WORDS.capture_failed));
@@ -193,8 +204,31 @@ function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null }
     ? h("img", { class: "cam-img room-img", src: `/api/camera/room/live?t=${Date.now()}`, alt: "Room view of the printer, live", width: 384, height: 288 })
     : h("img", { class: "cam-img room-img", src: `/api/camera/room.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera/room.jpg" },
       alt: "Room view of the printer, from the Pi, updated every 2 seconds", width: 384, height: 288 });
+
+  // Viewing tools integration (A20 D4)
+  const vt = state?.viewTools;
+  const frameClass = `ws-cam-frame${vt?.grid ? " has-grid" : ""}`;
+  const histCanvas = h("canvas", { class: "ws-hist-canvas", width: 160, height: 120 });
+  if (!vt?.hist) histCanvas.hidden = true;
+
+  const frame = h("div", { class: frameClass }, img, histCanvas);
+
+  // Pan & zoom styling
+  if (vt && (vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0)) {
+    img.style.transform = `scale(${vt.zoom}) translate(${vt.panX}px, ${vt.panY}px)`;
+    img.style.transformOrigin = "center center";
+  }
+  img.style.touchAction = "none";
+
+  if (state) {
+    attachViewingHandlers(state, frame, img, histCanvas);
+  }
+
+  const tools = state ? renderViewTools(state) : null;
+
   return h("figure", { class: `ws-cam ws-cam--room${turn}`, style: `--w: ${Number(w)}; --h: ${Number(hgt)}` },
-    h("div", { class: "ws-cam-frame" }, img),
+    frame,
+    tools,
     h("figcaption", { class: "meta" }, standIn ? `Room view. The printer's camera is unavailable: ${printerCamWhy(cam)}.`
       : live.on ? "Room view, live from the Pi." : "Room view, from the Pi. A new picture every 2 seconds."),
     h("p", { class: "meta ws-cam-age", hidden: true }),
@@ -204,10 +238,10 @@ function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null }
 
 // The faceplate's aside: the printer camera, the Room view, or why there is neither. `opts.room` absent keeps the
 // aside as it was before A17.
-export function cameraAside(c, { room = null, pref = "printer", live = {}, onPick = null, onLive = null } = {}) {
+export function cameraAside(c, { room = null, pref = "printer", live = {}, onPick = null, onLive = null, state = null } = {}) {
   const choice = cameraChoice(c, room, pref);
   const body = choice.view === "printer" ? printerCam(c)
-    : choice.view === "room" ? roomCam(room, { live, standIn: choice.standIn, cam: c, onLive })
+    : choice.view === "room" ? roomCam(room, { live, standIn: choice.standIn, cam: c, onLive, state })
       : h("div", { class: "ws-cam ws-cam--none" }, h("p", { class: "ws-cam-word" }, "No camera"),
         h("p", {}, `The printer's camera is unavailable: ${printerCamWhy(c)}.`),
         h("p", {}, ROOM_WORDS[room.reason] || ROOM_WORDS.capture_failed));
@@ -321,7 +355,9 @@ function makeSettings(state) {
     if (set.applying || !set.model) return;
     if (await askFirst(set.reset, SETTINGS_WORDS.resetAsk, { confirm: "Reset" })) sendSettings(state, "reset");
   });
-  set.actions = h("div", { class: "ws-set-actions" }, set.save, set.apply, set.reset);
+  set.snapshot = h("button", { type: "button", class: "ghost small", dataset: { key: "cam-snapshot" } }, "Save snapshot");
+  set.snapshot.addEventListener("click", () => takeSnapshot(state));
+  set.actions = h("div", { class: "ws-set-actions" }, set.save, set.apply, set.reset, set.snapshot);
   set.el = h("details", { class: "ws-set", hidden: true },
     h("summary", { dataset: { key: "cam-settings" } }, "Camera settings"),
     h("div", { class: "ws-set-inner" }, set.looksEl, set.body, set.actions, set.note));
@@ -333,6 +369,7 @@ function makeSettings(state) {
         startLive(state);
       }
       loadLooks(state);
+      loadSnapshots(state);
     }
   });
 }
@@ -485,6 +522,7 @@ function drawSettings(state) {
       }
     }, engine) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
   syncSettings(state);
+  drawSnapshots(state);
 }
 
 // Everything that changes while the owner edits, done in place: no rebuild, so a slider or select keeps focus.
@@ -593,6 +631,415 @@ async function recheckRoom(state) {
       drawCam(state);
     }
   } catch { /* the next load says */ }
+}
+
+// ---- Snapshots Gallery (amendment A20 D3, plan P2 & P4) ----
+
+function makeSnapshots(state) {
+  const headTitle = h("h3", { class: "ws-snapshots-title" }, "Snapshots");
+  const countEl = h("span", { class: "ws-snapshots-count" }, "0 of 200");
+  const head = h("div", { class: "ws-snapshots-head" }, headTitle, countEl);
+  const listEl = h("div", { class: "ws-snapshots-list", role: "region", "aria-label": "Snapshots list" });
+  const sectionEl = h("section", { class: "ws-snapshots-section", hidden: true }, head, listEl);
+
+  state.snaps = {
+    el: sectionEl,
+    countEl,
+    listEl,
+    items: [],
+    loading: false,
+    saving: false,
+    message: "",
+  };
+  return sectionEl;
+}
+
+export async function loadSnapshots(state) {
+  const snaps = state.snaps;
+  if (!snaps || snaps.loading || state.left) return;
+  snaps.loading = true;
+  try {
+    const got = await settle(api("/api/camera/room/snapshots"), 6000, null);
+    if (state.left) return;
+    if (Array.isArray(got?.snapshots)) {
+      snaps.items = got.snapshots;
+      drawSnapshots(state);
+    }
+  } finally {
+    snaps.loading = false;
+  }
+}
+
+export function drawSnapshots(state) {
+  const snaps = state.snaps;
+  if (!snaps) return;
+  const shown = settingsShown(state);
+  snaps.el.hidden = !shown;
+  if (!shown) return;
+
+  const count = snaps.items.length;
+  snaps.countEl.textContent = `${count} of 200`;
+
+  if (!count) {
+    snaps.listEl.replaceChildren(h("p", { class: "meta" }, "No snapshots yet."));
+    return;
+  }
+
+  const cards = snaps.items.map((it) => {
+    const timeStr = it.created_at ? new Date(it.created_at * 1000).toLocaleString([], {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+    }) : it.id;
+    const thumb = h("img", {
+      class: "ws-snap-thumb",
+      src: `/api/camera/room/snapshots/${it.id}.jpg`,
+      alt: `Snapshot from ${timeStr}`,
+      loading: "lazy",
+      dataset: { key: `snap-thumb-${it.id}` },
+    });
+    const link = h("a", {
+      href: `/api/camera/room/snapshots/${it.id}.jpg`,
+      target: "_blank",
+      rel: "noopener",
+      title: "Open full image in new tab",
+    }, thumb);
+
+    const timeEl = h("span", { class: "ws-snap-time" }, timeStr);
+    const delBtn = h("button", {
+      type: "button",
+      class: "ghost small ws-snap-del",
+      dataset: { key: `snap-del-${it.id}` },
+    }, "Delete");
+    delBtn.addEventListener("click", async () => {
+      if (await askFirst(delBtn, `Delete snapshot from ${timeStr}?`, { confirm: "Delete" })) {
+        await deleteSnapshot(state, it.id);
+      }
+    });
+
+    const meta = h("div", { class: "ws-snap-meta" }, timeEl, delBtn);
+    return h("div", { class: "ws-snap-card", dataset: { key: `snap-card-${it.id}` } }, link, meta);
+  });
+
+  snaps.listEl.replaceChildren(...cards);
+}
+
+export async function takeSnapshot(state) {
+  const set = state.set;
+  const snaps = state.snaps;
+  if (!set || set.snapshotSaving || state.left) return;
+  set.snapshotSaving = true;
+  const origText = set.snapshot.textContent;
+  set.snapshot.textContent = "Saving…";
+  set.snapshot.disabled = true;
+
+  try {
+    const r = await fetch("/api/camera/room/snapshots", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      if (data?.snapshot && snaps) {
+        snaps.items = [data.snapshot, ...snaps.items.filter((s) => s.id !== data.snapshot.id)].slice(0, 200);
+        drawSnapshots(state);
+      }
+      set.message = "Saved snapshot.";
+    } else {
+      set.message = "Failed to save snapshot.";
+    }
+  } catch {
+    set.message = "The hub didn't answer. Snapshot not saved.";
+  } finally {
+    set.snapshotSaving = false;
+    set.snapshot.disabled = false;
+    set.snapshot.textContent = origText;
+    syncSettings(state);
+  }
+}
+
+async function deleteSnapshot(state, id) {
+  try {
+    const r = await fetch(`/api/camera/room/snapshots/${id}`, {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (r.ok && state.snaps) {
+      state.snaps.items = state.snaps.items.filter((s) => s.id !== id);
+      drawSnapshots(state);
+    }
+  } catch {
+    // network error
+  }
+}
+
+// ---- Viewing tools (amendment A20 D4, plan P4) ----
+
+function renderViewTools(state) {
+  const vt = state.viewTools;
+  const isZoomed = vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0;
+
+  const fsBtn = h("button", {
+    type: "button",
+    class: "ws-tool-btn",
+    dataset: { key: "cam-fullscreen" },
+  }, "Fullscreen");
+  fsBtn.addEventListener("click", () => toggleFullscreen(state));
+
+  const zoomBtn = h("button", {
+    type: "button",
+    class: "ws-tool-btn",
+    dataset: { key: "cam-view-zoom" },
+    "aria-pressed": String(isZoomed),
+  }, isZoomed ? `View zoom: ${vt.zoom.toFixed(1)}×` : "View zoom: 1×");
+  zoomBtn.addEventListener("click", () => {
+    // Tapping view zoom button toggles between 1x and 2x or resets pan
+    if (vt.zoom > 1 || vt.panX !== 0 || vt.panY !== 0) {
+      resetViewZoom(state);
+    } else {
+      setViewZoom(state, 2, 0, 0);
+    }
+  });
+
+  const gridBtn = h("button", {
+    type: "button",
+    class: "ws-tool-btn",
+    dataset: { key: "cam-grid" },
+    "aria-pressed": String(vt.grid),
+  }, "Grid");
+  gridBtn.addEventListener("click", () => {
+    vt.grid = !vt.grid;
+    drawCam(state);
+  });
+
+  const histBtn = h("button", {
+    type: "button",
+    class: "ws-tool-btn",
+    dataset: { key: "cam-hist" },
+    "aria-pressed": String(vt.hist),
+  }, "Histogram");
+  histBtn.addEventListener("click", () => {
+    vt.hist = !vt.hist;
+    if (vt.hist) {
+      startHistogram(state);
+    } else {
+      stopHistogram(state);
+    }
+    drawCam(state);
+  });
+
+  return h("div", { class: "ws-view-tools", role: "toolbar", "aria-label": "Viewing tools" },
+    fsBtn, zoomBtn, gridBtn, histBtn);
+}
+
+function resetViewZoom(state) {
+  setViewZoom(state, 1, 0, 0);
+}
+
+function setViewZoom(state, zoom, panX, panY) {
+  const vt = state.viewTools;
+  vt.zoom = Math.max(1, Math.min(5, Number(zoom.toFixed(2))));
+  if (vt.zoom === 1) {
+    vt.panX = 0;
+    vt.panY = 0;
+  } else {
+    vt.panX = Math.round(panX);
+    vt.panY = Math.round(panY);
+  }
+  drawCam(state);
+}
+
+function toggleFullscreen(state) {
+  const frame = state.camBox?.querySelector(".ws-cam-frame");
+  if (!frame) return;
+
+  if (typeof frame.requestFullscreen === "function") {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      frame.requestFullscreen().catch(() => {});
+    }
+    return;
+  }
+
+  // iOS Safari fallback: full screen fixed overlay
+  let overlay = document.querySelector(".ws-cam-fullscreen-overlay");
+  if (overlay) {
+    overlay.remove();
+    return;
+  }
+
+  overlay = h("div", { class: "ws-cam-fullscreen-overlay" });
+  const closeBtn = h("button", {
+    type: "button",
+    class: "ws-cam-fs-close",
+    dataset: { key: "cam-fs-close" },
+  }, "Close ✕");
+  closeBtn.addEventListener("click", () => overlay.remove());
+
+  // Escape key leaves
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+  };
+  document.addEventListener("keydown", onKey);
+
+  const imgCopy = frame.querySelector("img")?.cloneNode?.(true) || h("div");
+  const overlayFrame = h("div", { class: "ws-cam-frame" }, imgCopy);
+  overlay.append(closeBtn, overlayFrame);
+  document.body.append(overlay);
+}
+
+function attachViewingHandlers(state, frame, img, histCanvas) {
+  const vt = state.viewTools;
+
+  // Keyboard navigation for zoom & pan (when frame or img focused)
+  frame.tabIndex = 0;
+  frame.addEventListener("keydown", (e) => {
+    let handled = false;
+    if (e.key === "+" || e.key === "=") {
+      setViewZoom(state, vt.zoom + 0.5, vt.panX, vt.panY);
+      handled = true;
+    } else if (e.key === "-" || e.key === "_") {
+      setViewZoom(state, vt.zoom - 0.5, vt.panX, vt.panY);
+      handled = true;
+    } else if (e.key === "0") {
+      resetViewZoom(state);
+      handled = true;
+    } else if (e.key === "ArrowLeft") {
+      setViewZoom(state, vt.zoom, vt.panX + 20, vt.panY);
+      handled = true;
+    } else if (e.key === "ArrowRight") {
+      setViewZoom(state, vt.zoom, vt.panX - 20, vt.panY);
+      handled = true;
+    } else if (e.key === "ArrowUp") {
+      setViewZoom(state, vt.zoom, vt.panX, vt.panY + 20);
+      handled = true;
+    } else if (e.key === "ArrowDown") {
+      setViewZoom(state, vt.zoom, vt.panX, vt.panY - 20);
+      handled = true;
+    }
+    if (handled) {
+      e.preventDefault();
+    }
+  });
+
+  // Pointer events for pinch & pan
+  let activePointers = new Map();
+  let initialDist = 0;
+  let initialZoom = 1;
+  let startX = 0, startY = 0;
+  let initialPanX = 0, initialPanY = 0;
+
+  frame.addEventListener("pointerdown", (e) => {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.size === 1) {
+      startX = e.clientX;
+      startY = e.clientY;
+      initialPanX = vt.panX;
+      initialPanY = vt.panY;
+    } else if (activePointers.size === 2) {
+      const [p1, p2] = [...activePointers.values()];
+      initialDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      initialZoom = vt.zoom;
+    }
+    frame.setPointerCapture?.(e.pointerId);
+  });
+
+  frame.addEventListener("pointermove", (e) => {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size === 2) {
+      const [p1, p2] = [...activePointers.values()];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      if (initialDist > 0) {
+        const factor = dist / initialDist;
+        setViewZoom(state, initialZoom * factor, vt.panX, vt.panY);
+      }
+    } else if (activePointers.size === 1 && vt.zoom > 1) {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      setViewZoom(state, vt.zoom, initialPanX + dx, initialPanY + dy);
+    }
+  });
+
+  const onPointerEnd = (e) => {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) initialDist = 0;
+  };
+  frame.addEventListener("pointerup", onPointerEnd);
+  frame.addEventListener("pointercancel", onPointerEnd);
+
+  // If histogram is active, run sampling
+  if (vt.hist) {
+    sampleHistogram(img, histCanvas);
+  }
+}
+
+function startHistogram(state) {
+  stopHistogram(state);
+  state.viewTools.histTimer = setInterval(() => {
+    if (document.hidden) return;
+    const img = state.camBox?.querySelector("img.room-img");
+    const canvas = state.camBox?.querySelector(".ws-hist-canvas");
+    if (img && canvas && !canvas.hidden) {
+      sampleHistogram(img, canvas);
+    }
+  }, 500); // 2 samples per second (500ms)
+}
+
+function stopHistogram(state) {
+  if (state.viewTools?.histTimer) {
+    clearInterval(state.viewTools.histTimer);
+    state.viewTools.histTimer = null;
+  }
+}
+
+function sampleHistogram(img, canvas) {
+  if (!img || !canvas || typeof canvas.getContext !== "function") return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.width || 160;
+  const h = canvas.height || 120;
+
+  try {
+    // Draw scaled down copy
+    ctx.drawImage(img, 0, 0, w, h);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+
+    // 256 luminance bins
+    const bins = new Uint32Array(256);
+    let maxBin = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      // Rec. 601 luminance
+      const y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      bins[y]++;
+      if (bins[y] > maxBin) maxBin = bins[y];
+    }
+
+    // Clear and draw histogram curve / bars
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, w, h);
+
+    if (maxBin > 0) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      for (let x = 0; x < w; x++) {
+        const binIdx = Math.floor((x / w) * 256);
+        const val = bins[binIdx];
+        const barH = Math.round((val / maxBin) * (h - 4));
+        ctx.fillRect(x, h - barH, 1, barH);
+      }
+    }
+  } catch {
+    // CORS or security error if canvas tainted
+  }
 }
 
 const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
@@ -924,9 +1371,10 @@ function drawCam(state) {
     stopLive(state, "", false);
   }
   const room = state.room ? [state.room.state, state.room.reason, state.room.rotate, state.room.size] : null;
-  const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
+  const vt = state.viewTools ? [state.viewTools.grid, state.viewTools.hist, state.viewTools.zoom, state.viewTools.panX, state.viewTools.panY] : null;
+  const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live, vt]);
   redraw(state, "cam", state.camView, sig, () => state.camView.replaceChildren(cameraAside(state.cam, {
-    room: state.room, pref: state.camPref, live: state.live,
+    room: state.room, pref: state.camPref, live: state.live, state,
     onPick: (view) => {
       state.camPref = view;
       writeCamPref(view);

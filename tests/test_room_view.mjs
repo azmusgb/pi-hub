@@ -728,3 +728,115 @@ test('page: restart-class control shows "Restarts the picture" hint in picamera2
     assert.equal(text(turnHint), 'Restarts the picture');
   } finally { dom.uninstall(); }
 });
+
+// ---- P4: Viewing tools & Snapshot gallery ----
+
+test('page: viewing tools bar renders fullscreen, view zoom, grid and hist buttons', async () => {
+  const p = await ownerPage();
+  try {
+    const aside = p.state.root.querySelector('.ui-faceplate__aside');
+    const tools = aside.querySelector('.ws-view-tools');
+    assert.ok(tools, 'viewing tools toolbar rendered');
+    assert.ok(tools.querySelector('[data-key="cam-fullscreen"]'));
+    assert.ok(tools.querySelector('[data-key="cam-view-zoom"]'));
+    assert.ok(tools.querySelector('[data-key="cam-grid"]'));
+    assert.ok(tools.querySelector('[data-key="cam-hist"]'));
+  } finally { p.done(); }
+});
+
+test('page: toggling grid adds has-grid class to frame', async () => {
+  const p = await ownerPage();
+  try {
+    const aside = p.state.root.querySelector('.ui-faceplate__aside');
+    const gridBtn = aside.querySelector('[data-key="cam-grid"]');
+    const frame = aside.querySelector('.ws-cam-frame');
+    assert.ok(!frame.classList.contains('has-grid'));
+    assert.equal(gridBtn.getAttribute('aria-pressed'), 'false');
+
+    gridBtn.click();
+    assert.ok(p.state.viewTools.grid);
+    const updatedFrame = p.state.root.querySelector('.ws-cam-frame');
+    assert.ok(updatedFrame.classList.contains('has-grid'));
+  } finally { p.done(); }
+});
+
+test('page: keyboard zoom and pan keys adjust view zoom and pan', async () => {
+  const p = await ownerPage();
+  try {
+    const aside = p.state.root.querySelector('.ui-faceplate__aside');
+    const frame = aside.querySelector('.ws-cam-frame');
+    assert.equal(p.state.viewTools.zoom, 1);
+
+    // Zoom in with '+'
+    frame.dispatchEvent({ type: 'keydown', key: '+', preventDefault() {} });
+    assert.equal(p.state.viewTools.zoom, 1.5);
+
+    // Pan with arrow keys
+    frame.dispatchEvent({ type: 'keydown', key: 'ArrowLeft', preventDefault() {} });
+    assert.equal(p.state.viewTools.panX, 20);
+
+    // Reset with '0'
+    frame.dispatchEvent({ type: 'keydown', key: '0', preventDefault() {} });
+    assert.equal(p.state.viewTools.zoom, 1);
+    assert.equal(p.state.viewTools.panX, 0);
+  } finally { p.done(); }
+});
+
+test('page: save snapshot button sends POST /api/camera/room/snapshots and updates gallery', async () => {
+  let snapSaved = false;
+  const mockSnap = { id: '1700000000123', created_at: 1700000000.123, preset: 'saver' };
+  const p = await ownerPage({
+    '/api/camera/room/snapshots': (url, opts) => {
+      if (opts?.method === 'POST') {
+        snapSaved = true;
+        return { snapshot: mockSnap };
+      }
+      return { snapshots: snapSaved ? [mockSnap] : [] };
+    },
+  });
+  try {
+    const d = panel(p);
+    d.open = true;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    await tick(); await tick();
+
+    const snapBtn = d.querySelector('[data-key="cam-snapshot"]');
+    assert.ok(snapBtn);
+    snapBtn.click();
+    await tick(); await tick();
+
+    assert.ok(snapSaved, 'snapshot POST sent');
+    assert.equal(p.state.snaps.items.length, 1);
+    const card = p.state.snapshotsSection.querySelector('[data-key="snap-card-1700000000123"]');
+    assert.ok(card, 'snapshot card rendered in gallery');
+  } finally { p.done(); }
+});
+
+test('page: delete snapshot in gallery sends DELETE /api/camera/room/snapshots/{id} after confirm', async () => {
+  let deletedId = null;
+  const mockSnap = { id: '1700000000123', created_at: 1700000000.123, preset: 'saver' };
+  const p = await ownerPage({
+    '/api/camera/room/snapshots': { snapshots: [mockSnap] },
+    '/api/camera/room/snapshots/1700000000123': (url, opts) => {
+      if (opts?.method === 'DELETE') {
+        deletedId = '1700000000123';
+        return { ok: true };
+      }
+      return {};
+    },
+  });
+  try {
+    const d = panel(p);
+    d.open = true;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    await tick(); await tick();
+
+    const delBtn = p.state.snapshotsSection.querySelector('[data-key="snap-del-1700000000123"]');
+    assert.ok(delBtn);
+    delBtn.click();
+    await tick(); await tick();
+
+    assert.equal(deletedId, '1700000000123');
+    assert.equal(p.state.snaps.items.length, 0);
+  } finally { p.done(); }
+});
