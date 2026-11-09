@@ -96,7 +96,7 @@ async function render(routes) {
   return { dom, state };
 }
 
-test('page: a sliced job shows one faceplate, honest estimates, a disabled Print', async () => {
+test('page: a sliced job shows one faceplate, honest estimates, and Prepare (which starts nothing)', async () => {
   const { dom, state } = await render({ '/api/quick/jobs': { jobs: [JOB] }, '/api/quick/worker': { state: 'idle', text: 'Mac ready' }, '/api/needs': { items: [] } });
   try {
     assert.equal(state.root.querySelectorAll('.ui-faceplate').length, 1);
@@ -104,9 +104,10 @@ test('page: a sliced job shows one faceplate, honest estimates, a disabled Print
     assert.match(t, /about 42/);
     assert.match(t, /about 12.5 g/);
     assert.match(t, /Slice again/);
-    assert.match(t, /isn't switched on yet/);
+    assert.match(t, /does not start the printer/);
     assert.doesNotMatch(t, /\bnull\b|undefined|NaN/);
-    assert.equal(state.root.querySelectorAll('#quick-print-section button[disabled]').length, 1);
+    assert.equal(state.root.querySelectorAll('#quick-print-section button[disabled]').length, 0);
+    assert.deepEqual(state.root.querySelectorAll('#quick-print-section button').map(text), ['Prepare to print']);
   } finally { dom.restore?.(); }
 });
 

@@ -197,13 +197,77 @@ export function sliceBody(job, worker, { onSlice, onCancel } = {}) {
   return h("div", { class: "quick-slice" }, ...out);
 }
 
-export function printBody(job) {
-  const sliced = job?.state === "sliced";
-  return h("div", { class: "quick-print" },
-    h("button", { type: "button", class: "ui-btn", disabled: true, "aria-describedby": "quick-print-why" }, "Prepare to print"),
-    h("p", { class: "meta", id: "quick-print-why" }, sliced
-      ? "Sending a sliced file to the printer isn't switched on yet. Nothing here can start the X2D."
-      : "Slice a model first. Sending to the printer isn't switched on yet either."));
+// The Print section (A19 P6). Prepare puts the file in Bambuddy and starts nothing; Start is its own tap, with the two
+// ticks beside it. The page says Printing only when the hub has seen the printer print the job (the server decides).
+const WORKING = new Set(["staging", "queued_in_bambuddy", "start_requested", "start_accepted"]);
+
+function tick(id, label, on, onChange) {
+  const box = h("input", { type: "checkbox", id, class: "quick-tick__box" });
+  box.checked = on;
+  box.addEventListener("change", () => onChange(box.checked, id));
+  return h("label", { class: "quick-tick", for: id }, box, h("span", {}, label));
+}
+
+export function holdLine(check) {
+  if (check?.hold) {
+    const bed = Number.isFinite(check.hold.bed) ? ` (the bed is ${Math.round(check.hold.bed)} °C)` : "";
+    return `Waiting for the bed to cool${bed}. It starts by itself, for up to ${check.hold.minutes} minutes, if nothing else gets in the way.`;
+  }
+  return check?.last?.say || null;
+}
+
+export function printBody(job, check, { onPrepare, onUnprepare, onStart, onResolve, onCancelHold, ticks = { plate: false, filament: false }, onTick = () => {} } = {}) {
+  const st = job?.state;
+  if (!job) return h("div", { class: "quick-print" }, h("p", { class: "ui-empty" }, "Slice a model first."));
+  const out = [];
+  if (st === "sliced") {
+    out.push(h("p", { class: "meta" }, "Prepare sends the sliced file to the printer's library and checks it came through unchanged. It does not start the printer."));
+    if (job.reason) out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, job.reason));
+    out.push(h("div", { class: "quick-actions" }, h("button", { type: "button", class: "ui-btn ui-btn--primary", onclick: onPrepare }, "Prepare to print")));
+  } else if (st === "staging") {
+    out.push(h("p", { class: "meta", role: "status" }, "Sending the file to the printer's library and checking it came back byte for byte…"));
+  } else if (st === "staged") {
+    const known = !!check;
+    const reasons = check?.reasons || [];
+    const bedOnly = !!check?.bed_only;
+    const info = job.slice_info || {};
+    out.push(h("p", {}, h("strong", {}, job.name), " is ready. ",
+      Number.isFinite(info.minutes) ? `About ${Math.round(info.minutes)} min` : "Time not reported",
+      check?.needs?.length ? `, ${check.needs.join(" + ")} filament.` : "."));
+    out.push(lampRows([
+      { title: "The file", detail: "in the printer's library, identical to the slice", tone: "ok", word: "Prepared" },
+      { title: "The printer", detail: !known ? "the hub couldn't read the printer's state just now" : reasons.length ? reasons.join(" ") : "connected, idle, no error, bed cool, filament loaded", tone: !known ? "unknown" : reasons.length ? (bedOnly ? "warn" : "bad") : "ok", word: !known ? "Can't read" : reasons.length ? (bedOnly ? "Bed warm" : "Not ready") : "Ready" },
+    ]));
+    const line = holdLine(check);
+    if (check?.hold) {
+      out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, line));
+      out.push(h("div", { class: "quick-actions" }, h("button", { type: "button", class: "ui-btn", onclick: onCancelHold }, "Cancel waiting")));
+    } else {
+      if (line) out.push(h("p", { class: "meta", role: "status" }, line));
+      if (job.reason) out.push(h("p", { class: "ui-notice ui-notice--warn", role: "status" }, job.reason));
+      const ticked = ticks.plate && ticks.filament;
+      out.push(h("div", { class: "quick-ticks" },
+        tick("quick-tick-plate", "The plate is clear and dry", ticks.plate, (v, id) => onTick({ ...ticks, plate: v }, id)),
+        tick("quick-tick-filament", "The filament matches", ticks.filament, (v, id) => onTick({ ...ticks, filament: v }, id))));
+      const why = !known ? "The printer's state can't be read, so Start is off." : !ticked ? "Tick both first." : reasons.length && !bedOnly ? reasons.join(" ") : null;
+      const start = h("button", { type: "button", class: "ui-btn ui-btn--primary", disabled: !!why, "aria-describedby": why ? "quick-start-why" : null,
+        onclick: () => onStart(bedOnly) }, bedOnly ? "Start when the bed is cool" : "Start print");
+      out.push(h("div", { class: "quick-actions" }, start,
+        h("button", { type: "button", class: "ui-btn", onclick: onUnprepare }, "Take it back out of the printer's library")));
+      if (why) out.push(h("p", { class: "meta", id: "quick-start-why" }, why));
+    }
+  } else if (st === "queued_in_bambuddy" || st === "start_requested" || st === "start_accepted") {
+    out.push(h("p", { class: "meta", role: "status" }, "Sent to the printer. This says Printing only once the hub sees the printer printing it."));
+  } else if (st === "printing_confirmed") {
+    out.push(h("p", { class: "ui-notice", role: "status" }, "Printing. The hub saw the printer print this job."));
+  } else if (st === "outcome_uncertain") {
+    out.push(h("p", { class: "ui-notice ui-notice--bad", role: "status" }, job.reason || "The hub isn't sure whether this started."));
+    out.push(h("p", { class: "meta" }, "Look at the printer. The hub will not send it again by itself. If the printer shows it printing, the page will say so within a few seconds. If it isn't printing, this puts the job back to Prepared (it checks the printer and the queue first); starting again needs both ticks again."));
+    out.push(h("div", { class: "quick-actions" }, h("button", { type: "button", class: "ui-btn", onclick: onResolve }, "It isn't printing: go back")));
+  } else {
+    out.push(h("p", { class: "meta" }, "Slice a model first."));
+  }
+  return h("div", { class: "quick-print" }, ...out);
 }
 
 export function historyRows(jobs, selected, onOpen) {
@@ -357,8 +421,31 @@ function draw(state) {
     state.layersBox.replaceChildren();
     if (lkey) state.layers = layerInspector(state.layersBox, job.id);
   }
-  state.printBox.replaceChildren(printBody(job));
+  drawPrint(state, job);
   state.historyBox.replaceChildren((state.jobs || []).length ? historyRows(state.jobs, state.selected, (id) => select(state, id)) : h("p", { class: "ui-empty" }, "Nothing sliced yet. Choose a model above."));
+}
+
+function drawPrint(state, job) {
+  const c = state.check;
+  const key = job ? [job.id, job.state, job.reason, JSON.stringify(c?.reasons), c?.hold?.expires, c?.hold ? "" : c?.last?.at, c?.bed_only].join("|") : "";
+  if (state.printKey === key) return; // the ticks live in the DOM: redraw only when what the sheet shows changed
+  state.printKey = key;
+  const act = (path, method, body, ok) => async () => {
+    try {
+      const r = await api(`/api/quick/jobs/${job.id}/${path}`, { method, ...(body ? { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } } : {}) });
+      toast(ok || (r && r.say) || "Done.");
+    } catch (e) { toast(ERROR_TEXT(e), "bad"); }
+    state.printKey = null;
+    await load(state);
+  };
+  const ticks = state.ticks?.job === job?.id ? state.ticks : { job: job?.id, plate: false, filament: false };
+  state.ticks = ticks;
+  state.printBox.replaceChildren(printBody(job, c, {
+    ticks, onTick: (t, id) => { state.ticks = { job: job.id, ...t }; state.printKey = null; draw(state); document.getElementById(id)?.focus(); },
+    onPrepare: act("prepare", "POST"), onUnprepare: act("prepare", "DELETE", null, "Taken back out."),
+    onStart: (wait) => act("start", "POST", { plate_clear: ticks.plate, filament_ok: ticks.filament, wait_for_bed: wait })(),
+    onResolve: act("resolve", "POST"), onCancelHold: act("start", "DELETE", null, "Stopped waiting."),
+  }));
 }
 
 export async function load(state) {
@@ -367,6 +454,8 @@ export async function load(state) {
   state.worker = worker;
   if (!state.selected && state.jobs[0]) state.selected = state.jobs[0].id;
   if (state.selected && !state.jobs.some((j) => j.id === state.selected)) state.selected = state.jobs[0]?.id || null;
+  const sel = state.jobs.find((j) => j.id === state.selected);
+  state.check = sel && sel.state === "staged" ? await api(`/api/quick/jobs/${sel.id}/start`).catch(() => null) : null;
   state.sources = [{ name: "The hub", tone: "ok" },
     worker ? { name: "The Mac's slicer", tone: worker.state === "idle" || worker.state === "busy" ? "ok" : "unknown", word: worker.state === "none" ? "not heard from yet" : worker.state === "asleep" ? (ago(worker.last_seen) ? `asleep, seen ${ago(worker.last_seen)}` : "asleep") : worker.state === "busy" ? "slicing" : "ready" }
       : { name: "The Mac's slicer", tone: "unknown", word: "can't be read" }];

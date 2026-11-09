@@ -57,21 +57,13 @@ def mirror(project, experiment):
     return next((x for x in idx.get("experiments") or [] if isinstance(x, dict) and x.get("id") == experiment), None)
 
 
-def refusals(printer, x, ignore_bed=False):
-    """Why Start can't run now (S5), in the owner's words; empty when it can. `ignore_bed` leaves the bed's
-    temperature out, to tell whether it is the only thing in the way (A12b)."""
+def printer_refusals(printer, ignore_bed=False):
+    """The printer-only part of S5, in the owner's words (empty when the printer can take a print): connected, idle (IDLE
+    or FINISH), no HMS error, bed below 35 °C. Experiments and Quick Print (A19) both call this one function.
+    `ignore_bed` leaves the bed's temperature out, to tell whether it is the only thing in the way (A12b)."""
     out = []
-    if not x:
-        return ["The print lab has no such experiment."]
-    staged = x.get("staged") if isinstance(x.get("staged"), dict) else None
-    if x.get("status") not in ("ready", "approved") or not staged:
-        out.append(f"{x.get('id')} isn't staged: approve it, then the lab uploads it when the printer has been idle "
-                   "10 minutes.")
-    elif not isinstance(staged.get("library_file"), int) or not isinstance(staged.get("sha256"), str):
-        out.append("The lab's record of the staged file is incomplete. Stage it again on the Mac.")
     if not printer or not printer.get("connected"):
-        out.append("Bambuddy can't see the printer.")
-        return out
+        return ["Bambuddy can't see the printer."]
     if printer.get("bambuddy_state") not in IDLE:
         out.append(f"The printer isn't idle ({str(printer.get('bambuddy_state') or 'unknown').lower()}).")
     if printer.get("hms"):
@@ -84,6 +76,20 @@ def refusals(printer, x, ignore_bed=False):
     elif bed >= BED_MAX_C:
         out.append(f"The bed is {bed:.0f} °C; wait until it is below {BED_MAX_C:.0f} °C.")
     return out
+
+
+def refusals(printer, x, ignore_bed=False):
+    """Why Start can't run now (S5), in the owner's words; empty when it can."""
+    out = []
+    if not x:
+        return ["The print lab has no such experiment."]
+    staged = x.get("staged") if isinstance(x.get("staged"), dict) else None
+    if x.get("status") not in ("ready", "approved") or not staged:
+        out.append(f"{x.get('id')} isn't staged: approve it, then the lab uploads it when the printer has been idle "
+                   "10 minutes.")
+    elif not isinstance(staged.get("library_file"), int) or not isinstance(staged.get("sha256"), str):
+        out.append("The lab's record of the staged file is incomplete. Stage it again on the Mac.")
+    return out + printer_refusals(printer, ignore_bed)
 
 
 def bed_only(printer, x):

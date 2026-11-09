@@ -41,24 +41,27 @@ def _call(method, url, body, headers):
         raise SystemExit("Bambuddy isn't answering on the Pi (port 8000).")
 
 
-def make_key(url, user, password, call=_call):
+BY_HAND = "Bambuddy › Settings › API keys, \"Control printer\" only, printer 1."
+CONTROL_BODY = {"name": "Pi Hub control", "can_control_printer": True, "printer_ids": [1], **{f: False for f in FLAGS_OFF}}
+
+
+def make_key(url, user, password, call=_call, body=None, by_hand=BY_HAND):
     login = call("POST", url + "/api/v1/auth/login", {"username": user, "password": password}, {})
     token = login.get("access_token")
     if login.get("requires_2fa") or not token:
         raise SystemExit("Bambuddy didn't sign in (two-step sign-in on, or the password changed). "
-                         "Make the key by hand: Bambuddy › Settings › API keys, \"Control printer\" only, printer 1.")
-    body = {"name": "Pi Hub control", "can_control_printer": True, "printer_ids": [1], **{f: False for f in FLAGS_OFF}}
-    key = call("POST", url + "/api/v1/api-keys/", body, {"Authorization": f"Bearer {token}"}).get("key")
+                         f"Make the key by hand: {by_hand}")
+    key = call("POST", url + "/api/v1/api-keys/", body or CONTROL_BODY, {"Authorization": f"Bearer {token}"}).get("key")
     if not key:
         raise SystemExit("Bambuddy made no key. Check Bambuddy › Settings › API keys.")
     return key
 
 
-def get_key(url, user, saved, ask, call=_call):
+def get_key(url, user, saved, ask, call=_call, **kw):
     """The saved password first; if there is none or Bambuddy refuses it, ask once (ask is None without a terminal)."""
     if saved:
         try:
-            return make_key(url, user, saved, call)
+            return make_key(url, user, saved, call, **kw)
         except LoginRefused:
             if ask is None:
                 raise SystemExit("Bambuddy refused the saved password. Run this in a terminal (ssh -t) to type it.")
@@ -66,7 +69,7 @@ def get_key(url, user, saved, ask, call=_call):
         raise SystemExit("No saved Bambuddy password. Run this in a terminal (ssh -t) to type it.")
     typed_user, typed = ask()
     try:
-        return make_key(url, typed_user or user, typed, call)
+        return make_key(url, typed_user or user, typed, call, **kw)
     except LoginRefused:
         raise SystemExit("Bambuddy didn't accept that username and password. Nothing was made; run it again to retry.")
 
@@ -77,13 +80,13 @@ def _ask():
     return who, getpass.getpass("  Bambuddy password (not shown): ")
 
 
-def main():
+def main(key_file=KEY_FILE, what="control", **kw):
     if os.geteuid() != 0:
         raise SystemExit("Run it with sudo.")
     try:
-        with open(KEY_FILE) as f:
+        with open(key_file) as f:
             if f.read().strip():
-                print("The hub's control key is already set up.")
+                print(f"The hub's {what} key is already set up.")
                 return
     except OSError:
         pass
@@ -92,13 +95,13 @@ def main():
             saved = f.read().strip()
     except OSError:
         saved = None
-    key = get_key(URL, USER, saved, _ask if sys.stdin.isatty() else None)
+    key = get_key(URL, USER, saved, _ask if sys.stdin.isatty() else None, **kw)
     os.umask(0o077)
-    with open(KEY_FILE, "w") as f:
+    with open(key_file, "w") as f:
         f.write(key + "\n")
-    os.chown(KEY_FILE, 0, grp.getgrnam("pi-hub").gr_gid)
-    os.chmod(KEY_FILE, 0o640)
-    print("Made the hub's control key (Bambuddy › Settings › API keys › Pi Hub control).")
+    os.chown(key_file, 0, grp.getgrnam("pi-hub").gr_gid)
+    os.chmod(key_file, 0o640)
+    print(f"Made the hub's {what} key (Bambuddy › Settings › API keys).")
 
 
 if __name__ == "__main__":
