@@ -958,13 +958,28 @@ function storageCard(storage) {
   );
 }
 
+// "3 software updates" / "1 software update", and whether the data says any is a security update.
+export function updatesSummary(updates) {
+  if (!Array.isArray(updates)) return { known: false, text: "Couldn't check for updates", pill: "Unknown" };
+  if (!updates.length) return { known: true, count: 0, text: "Everything's up to date. Security fixes install by themselves each day.", pill: "Up to date" };
+  const n = updates.length;
+  const security = updates.filter((u) => u?.security === true).length;
+  const lead = `${n} software update${n === 1 ? "" : "s"} waiting`;
+  return {
+    known: true,
+    count: n,
+    text: security ? `${lead}, ${security === n ? (n === 1 ? "and it is a security update" : "all security updates") : `${security} of them security`}.` : `${lead}.`,
+    pill: `${n} waiting`,
+  };
+}
+
 function updatesCard(
   state,
   data,
   actionsData,
 ) {
-  const updates =
-    asArray(data?.updates);
+  const updates = Array.isArray(data?.updates) ? data.updates : null;
+  const sum = updatesSummary(updates);
 
   const actionUpdates =
     asObject(
@@ -978,54 +993,35 @@ function updatesCard(
   return card(
     "Updates",
     {
-      pill: updates.length
-        ? `${updates.length} waiting`
-        : "Up to date",
-
-      tone: updates.length
-        ? "warn"
-        : "ok",
+      pill: sum.pill,
+      tone: !sum.known ? "warn" : sum.count ? "warn" : "ok",
     },
 
-    updates.length
-      ? h(
-          "ul",
-          {
-            class: "pkg",
-          },
+    sum.known && sum.count
+      ? h("p", { class: "updates-summary" }, sum.text)
+      : empty(sum.text),
 
-          updates
-            .slice(0, 12)
-            .map((update) =>
+    sum.known && sum.count
+      ? h(
+          "details",
+          { class: "updates-detail" },
+          h("summary", {}, "Show package names"),
+          h(
+            "ul",
+            { class: "pkg" },
+            updates.map((update) =>
               h(
                 "li",
                 {},
-
-                h(
-                  "strong",
-                  {},
-                  update?.name ||
-                    "Package",
-                ),
-
-                update?.version
-                  ? h(
-                      "span",
-                      {
-                        class:
-                          "meta",
-                      },
-                      update.version,
-                    )
-                  : null,
+                h("strong", {}, update?.name || "Package"),
+                update?.version ? h("span", { class: "meta" }, update.version) : null,
               ),
             ),
+          ),
         )
-      : empty(
-          "Everything's up to date. Security fixes install by themselves each day.",
-        ),
+      : null,
 
-    updates.length
+    sum.known && sum.count
       ? h(
           "button",
           {
