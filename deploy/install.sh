@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 quiet() { grep -v "post-quantum\|store now\|openssh.com/pq\|server may need" || true; }
 
 [ -z "$(git status --porcelain)" ] || { echo "Commit your changes first; only committed work ships."; exit 1; }
+bash deploy/kit-drift.sh  # prints the kit copy's drift line; warn-only unless KIT_DRIFT_ENFORCE=1
 
 # Caddy with the DuckDNS module, for the house names' certificate (docs/superpowers/specs/2026-11-01-real-names-design.md).
 # Built by Caddy's own build server at a pinned version; the Pi installs it only if its SHA-256 matches. To update, change
