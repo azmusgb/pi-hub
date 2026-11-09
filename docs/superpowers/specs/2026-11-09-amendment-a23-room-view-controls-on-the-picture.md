@@ -1,6 +1,6 @@
 # Amendment A23: Room view controls on the picture
 
-Date: 2026-11-09 · Status: **proposed** · Amends: A20 D5 (where the controls live and their order). Everything else
+Date: 2026-11-09 · Status: **approved** 9 November 2026 (pi-hub #218) · Amends: A20 D5 (where the controls live and their order). Everything else
 in A17, A18 and A20 stands: the same controls and ranges (A18 C2), live adjust (A20 D1), looks (A20 D2), snapshots
 (A20 D3), viewing tools (A20 D4) and validation (A20 D6). A plan follows only after the owner merges this.
 

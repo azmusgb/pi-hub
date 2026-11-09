@@ -1086,8 +1086,17 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   one printer-control path gains Start a staged quick print (owner only, sheet with two ticks, same lock as A12). A slice
   without the X2D start sequence is refused, and a pinned Three.js is allowed on the Quick Print page only. Proposed on 8 Nov
   2026; the owner chose the 3D library the same day.
+- **A20. Richer Room view controls** (`2026-11-08-amendment-a20-room-camera-richer-controls.md`): the Room view's
+  light, colour and detail change on the running camera without a restart, saved looks apply in one tap, the owner can
+  keep a snapshot (at most 200, never otherwise stored), and the picture has fullscreen, view zoom, a grid and a
+  histogram. Amends A17 R5 and A18 C3. Approved by the owner on 8 Nov 2026 (pi-hub #191).
 - **A21. Forwarded notices close and don't repeat** (`2026-11-09-amendment-a21-forwarded-notices.md`): a notice posted by
   another system is keyed by its source and a topic the sender names, never by its words. A sender's recovery closes it,
   a stated 7-day expiry backs that up, and plain information never opens a cause. "Commits merged, not deployed" for a
   ship-gated target raises no alert, since System › Versions already shows it. Stored notices are read with the new rules,
   not edited. Proposed on 9 Nov 2026.
+- **A23. Room view controls on the picture** (`2026-11-09-amendment-a23-room-view-controls-on-the-picture.md`):
+  Adjust (the renamed Camera settings) puts Turn, Flip, Mirror, camera zoom, Fit, Grid, Histogram, Snapshot and Full
+  screen in three bars on the picture, a drag frames the zoomed camera, looks are chips with Auto first, and the panel
+  shows one of Light, Colour or Detail at a time. Leaving Adjust keeps unsaved changes running. Amends A20 D5.
+  Approved by the owner on 9 Nov 2026 (pi-hub #218).

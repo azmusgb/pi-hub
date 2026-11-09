@@ -1,6 +1,6 @@
 # Amendment A20: richer Room view controls (live adjust, quick looks, capture, viewing tools)
 
-Date: 2026-11-08 · Status: **proposed** · Amends: A17 R5 (frames are never stored) and A18 C3 (Apply restarts the
+Date: 2026-11-08 · Status: **approved** 8 November 2026 (pi-hub #191) · Amends: A17 R5 (frames are never stored) and A18 C3 (Apply restarts the
 camera). Everything else in A17 and A18 stands. A plan follows only after the owner merges this.
 
 ## Why
