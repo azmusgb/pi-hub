@@ -48,3 +48,7 @@
 .quick-layers__sw { display: inline-block; inline-size: 14px; block-size: 14px; border-radius: 3px; flex: none; }
 .quick-layers__facts { min-inline-size: 0; }
 .quick-layers .ui-meter { max-inline-size: 24rem; }
+
+.quick-ticks { display: grid; gap: 4px; margin-block-start: 12px; }
+.quick-tick { display: flex; align-items: center; gap: 12px; min-block-size: 44px; overflow-wrap: anywhere; }
+.quick-tick__box { inline-size: 24px; block-size: 24px; flex: none; accent-color: var(--accent); }
