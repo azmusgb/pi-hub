@@ -341,7 +341,7 @@ const CONTROLS = [
 const SETTINGS = { turn: 90, mirror: false, zoom: 1, centre_x: 50, ev: 0, manual: false, shutter: 33333, awb: 'auto', sharpness: 1, preset: 'saver' };
 const DEFAULTS = { ...SETTINGS, turn: 0 };
 const model = () => ({ settings: { ...SETTINGS }, defaults: { ...DEFAULTS }, controls: CONTROLS, applying: false });
-const ready90 = { ...ready, rotate: 90, size: [640, 480] };
+const ready90 = { ...ready, rotate: 90, size: [640, 480], engine: 'picamera2' };
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 function change(el, value) {
@@ -417,7 +417,7 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
     assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
     const zoom = d.querySelector('#set-zoom');
     change(zoom, 2);
-    assert.equal(text(d.querySelector('.ws-set-note')), 'Not applied yet.');
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
     assert.equal(text(d.querySelector('label[for="set-zoom"] output')), '2 ×');
     assert.ok(!d.querySelector('#set-centre_x').disabled);
     change(d.querySelector('#set-manual'), true);
@@ -428,7 +428,7 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
     assert.ok(d.open);
     assert.equal(d.querySelector('#set-zoom'), zoom, 'the same field, not a rebuilt one');
     assert.equal(p.state.set.draft.zoom, 2);
-    assert.equal(text(d.querySelector('.ws-set-note')), 'Not applied yet.');
+    assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
   } finally { p.done(); }
 });
 
@@ -647,4 +647,84 @@ test('page: Reset after a failed capture checks for a picture and unlocks when t
     assert.equal(p.state.room.state, 'ready', 'a picture came back, so the camera is no longer out');
     assert.ok([...d.querySelectorAll('fieldset')].every((f) => !f.disabled));
   } finally { p.done(); }
+});
+
+// ---- P3: Live sliders, quick looks, Save & fallback engine ----
+
+test('page: opening settings starts live stream and loads quick looks', async () => {
+  const p = await ownerPage({
+    '/api/camera/room/looks': { looks: [
+      { name: 'Night', builtin: true, values: { ev: 1.5 } },
+      { name: 'Custom Look', builtin: false, values: { contrast: 1.2 } },
+    ] },
+  });
+  try {
+    const d = panel(p);
+    assert.equal(p.state.live.on, false);
+    d.open = true;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    await tick(); await tick();
+    assert.equal(p.state.live.on, true, 'live stream automatically started');
+    const chips = d.querySelectorAll('.ws-look-chip');
+    assert.equal(chips.length, 2);
+    assert.equal(text(chips[0]), 'Night');
+    assert.equal(text(chips[1]), 'Custom Look');
+  } finally { p.done(); }
+});
+
+test('page: tapping a quick look applies its values and marks chip active', async () => {
+  let liveSent = [];
+  const p = await ownerPage({
+    '/api/camera/room/looks': { looks: [
+      { name: 'Night', builtin: true, values: { ev: 1.5, brightness: 0.1 } },
+    ] },
+    '/api/camera/room/live-controls': (url, opts) => {
+      liveSent.push(JSON.parse(opts.body));
+      return { ok: true };
+    },
+  });
+  try {
+    const d = panel(p);
+    d.open = true;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    await tick(); await tick();
+    const nightChip = d.querySelector('[data-key="look-Night"]');
+    assert.ok(nightChip);
+    nightChip.click();
+    await tick();
+    const updatedChip = d.querySelector('[data-key="look-Night"]');
+    assert.equal(updatedChip.getAttribute('aria-pressed'), 'true');
+    assert.equal(p.state.set.draft.ev, 1.5);
+    assert.equal(p.state.set.draft.brightness, 0.1);
+  } finally { p.done(); }
+});
+
+test('page: fallback engine rpicam shows Apply with fallback notice', async () => {
+  const p = await ownerPage({}, { ...ready90, engine: 'rpicam' });
+  try {
+    const d = panel(p);
+    assert.ok(!d.querySelector('[data-key="cam-apply"]').hidden, 'Apply is shown');
+    assert.ok(d.querySelector('[data-key="cam-save"]').hidden, 'Save is hidden');
+    assert.match(text(d.querySelector('.ws-set-note')), /Live adjust isn't available, so changes apply with Apply/);
+  } finally { p.done(); }
+});
+
+test('page: picamera2 engine shows Save button', async () => {
+  const p = await ownerPage({}, { ...ready90, engine: 'picamera2' });
+  try {
+    const d = panel(p);
+    assert.ok(d.querySelector('[data-key="cam-apply"]').hidden, 'Apply is hidden');
+    assert.ok(!d.querySelector('[data-key="cam-save"]').hidden, 'Save is shown');
+  } finally { p.done(); }
+});
+
+test('page: restart-class control shows "Restarts the picture" hint in picamera2', async () => {
+  const { dom, ws } = await mod();
+  try {
+    const groups = ws.settingsFields(CONTROLS, SETTINGS, () => {}, 'picamera2');
+    const q = (sel) => groups.map((g) => g.querySelector(sel)).find(Boolean);
+    const turnHint = q('[data-field="turn"] .ws-set-restart');
+    assert.ok(turnHint, 'Turn is restart-class');
+    assert.equal(text(turnHint), 'Restarts the picture');
+  } finally { dom.uninstall(); }
 });
