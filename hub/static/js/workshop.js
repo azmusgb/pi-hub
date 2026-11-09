@@ -72,6 +72,7 @@ export function mount(state) {
   // The view part is redrawn; the settings panel (A18) beside it is kept, so an edit and its open state survive.
   state.camView = h("div", { class: "ws-cam-view" });
   makeSettings(state);
+  makeBars(state);
   state.snapshotsSection = makeSnapshots(state);
   state.camBox = h("div", { class: "ws-cam-box" }, state.camView, state.set.el, state.snapshotsSection);
   state.camPref = readCamPref();
@@ -94,6 +95,7 @@ export function mount(state) {
   state.camTimer = setInterval(() => {
     if (document.hidden) return;
     state.camTick += 1;
+    liveArrived(state);
     for (const img of state.root.querySelectorAll("img[data-refresh]")) {
       if (!img.classList.contains("room-img")) img.src = `${img.dataset.refresh}?t=${Date.now()}`;
       else if (state.camTick % 2 === 0) refreshRoomStill(state, img);
@@ -118,6 +120,7 @@ export function mount(state) {
 
 export function leave(state) {
   state.left = true;
+  state.fsClose?.();
   clearInterval(state.camTimer);
   stopHistogram(state);
   stopLive(state, "", false);
@@ -332,7 +335,8 @@ function makeSettings(state) {
     refused: null,
     ratePending: null,
     inFlight: false,
-    nextLiveChange: null,
+    pending: new Map(),  // control → newest value not yet sent (A23 plan decision 4)
+    confirmed: {},       // control → the value the camera last confirmed
   };
   state.set = set;
   set.looksEl = h("div", { class: "ws-looks" });
@@ -347,11 +351,11 @@ function makeSettings(state) {
     if (set.applying || !set.model) return;
     if (await askFirst(set.reset, SETTINGS_WORDS.resetAsk, { confirm: "Reset" })) sendSettings(state, "reset");
   });
-  set.snapshot = h("button", { type: "button", class: "ghost small", dataset: { key: "cam-snapshot" } }, "Save snapshot");
-  set.snapshot.addEventListener("click", () => takeSnapshot(state));
-  set.actions = h("div", { class: "ws-set-actions" }, set.save, set.apply, set.reset, set.snapshot);
+  set.actions = h("div", { class: "ws-set-actions" }, set.save, set.apply, set.reset);
+  // Leaving Adjust keeps what is running (A23 D7), so the summary says when the camera shows changes not saved.
+  set.unsaved = h("span", { class: "ws-set-unsaved", hidden: true }, "Unsaved changes");
   set.el = h("details", { class: "ws-set", hidden: true },
-    h("summary", { dataset: { key: "cam-settings" } }, "Camera settings"),
+    h("summary", { dataset: { key: "cam-settings" } }, h("span", {}, "Adjust"), set.unsaved),
     h("div", { class: "ws-set-inner" }, set.looksEl, set.body, set.actions, set.note));
 
   set.el.addEventListener("toggle", () => {
@@ -363,6 +367,7 @@ function makeSettings(state) {
       loadLooks(state);
       loadSnapshots(state);
     }
+    mountBars(state);
   });
 }
 
@@ -413,13 +418,9 @@ async function applyLook(state, look) {
     syncSettings(state);
     await sendSettings(state, "apply");
   } else {
-    // Try live controls for live-capable keys
-    for (const [k, v] of Object.entries(values)) {
-      if (isLive(state, k)) {
-        queueLiveControl(state, k, v);
-      }
-    }
+    queueLive(state, Object.fromEntries(Object.entries(values).filter(([k]) => isLive(state, k))));
   }
+  syncBars(state);
 }
 
 // Every control changes on the running camera; the hub's table says so (c.live), so nothing here repeats it.
@@ -427,53 +428,65 @@ function isLive(state, key) {
   return state.set?.model?.controls?.find((c) => c.key === key)?.live === true;
 }
 
-function queueLiveControl(state, key, value) {
+// One pending value per control, newest wins (A23 plan decision 4): rapid taps on one control send only the last, and
+// whatever is pending goes in one request, at most 5 a second. A look, Auto or Fit is one request ({values}).
+function queueLive(state, values) {
   const set = state.set;
-  set.nextLiveChange = { key, value };
-  if (!set.ratePending) {
-    set.ratePending = setTimeout(() => {
-      set.ratePending = null;
-      sendNextLive(state);
-    }, 200); // at most 5 per second (200ms)
-  }
+  for (const [k, v] of Object.entries(values)) set.pending.set(k, v);
+  if (!set.pending.size || set.ratePending) return;
+  set.ratePending = setTimeout(() => {
+    set.ratePending = null;
+    sendNextLive(state);
+  }, 200);
 }
+
+const LIVE_WORDS = {
+  409: "Live adjust isn't running. Use Apply.",
+  429: "Slow down: the camera takes ten changes a second.",
+};
 
 async function sendNextLive(state) {
   const set = state.set;
-  if (!set.nextLiveChange || set.inFlight || state.left) return;
-  const change = set.nextLiveChange;
-  set.nextLiveChange = null;
+  if (!set.pending.size || set.inFlight || state.left) return;
+  const sent = Object.fromEntries(set.pending);
+  set.pending.clear();
   set.inFlight = true;
+  const keys = Object.keys(sent);
+  let status = 0;
+  let data = null;
   try {
     const r = await fetch("/api/camera/room/live-controls", {
       method: "POST",
       cache: "no-store",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(change),
+      body: JSON.stringify(keys.length === 1 ? { key: keys[0], value: sent[keys[0]] } : { values: sent }),
     });
-    if (r.ok) {
-      const body = await r.json().catch(() => null);
-      if (body?.state && !state.left) {
-        const was = JSON.stringify([state.room?.rotate, state.room?.size]);
-        state.room = { ...state.room, ...body.state };
-        if (JSON.stringify([state.room.rotate, state.room.size]) !== was) drawCam(state);
-      }
-    } else if (r.status === 409) {
-      set.message = "Live adjust isn't running. Use Apply.";
-      syncSettings(state);
-    } else if (r.status === 429) {
-      set.message = "Slow down: the camera takes ten changes a second.";
-      syncSettings(state);
+    status = r.status;
+    data = await r.json().catch(() => null);
+  } catch { /* status 0: the hub didn't answer */ }
+  set.inFlight = false;
+  if (state.left) return;
+  if (status === 200) {
+    Object.assign(set.confirmed, data?.values || (typeof data?.key === "string" ? { [data.key]: data.value } : sent));
+    if (data?.state) {
+      const was = JSON.stringify([state.room?.rotate, state.room?.size]);
+      state.room = { ...state.room, ...data.state };
+      if (JSON.stringify([state.room.rotate, state.room.size]) !== was) drawCam(state);
     }
-  } catch {
-    // network error
-  } finally {
-    set.inFlight = false;
-    if (set.nextLiveChange) {
-      queueLiveControl(state, set.nextLiveChange.key, set.nextLiveChange.value);
-    }
+  } else if (status === 409) {
+    set.message = data?.reason || LIVE_WORDS[409];  // the edit stays for Apply
+  } else {
+    // Refused, too fast or no answer: each control goes back to what the camera last confirmed, unless a newer value
+    // for it is already waiting, and the status line says why.
+    for (const k of keys) if (!set.pending.has(k) && k in set.confirmed) set.draft[k] = set.confirmed[k];
+    set.message = data?.reason || LIVE_WORDS[status] || SETTINGS_WORDS.failedSend;
+    if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
   }
+  syncSettings(state);
+  drawLooks(state);
+  syncBars(state);
+  queueLive(state, {});
 }
 
 async function loadSettings(state) {
@@ -485,7 +498,9 @@ async function loadSettings(state) {
   if (state.left) return;
   if (got?.settings && Array.isArray(got.controls)) {
     set.model = got;
-    set.draft = { ...got.settings };
+    // The camera may be running tries not saved (A23 D7): the panel shows what the picture shows.
+    set.confirmed = { ...got.settings, ...(state.room?.live_values || {}) };
+    set.draft = { ...set.confirmed };
     set.failed = false;
   } else {
     set.failed = true;  // the next load() tries again
@@ -508,19 +523,19 @@ function drawSettings(state) {
   if (!shown) return;
   const engine = state.room?.engine || "picamera2";
   redraw(state, "camset", set.body, JSON.stringify([set.model?.settings ? 1 : 0, set.failed, set.model?.controls?.length, engine, set.version || 0]), () =>
-    set.body.replaceChildren(...(set.model ? settingsFields(set.model.controls, set.draft, (key, v) => {
+    set.body.replaceChildren(...(set.model ? settingsFields(set.model.controls.filter((c) => !ON_PICTURE.has(c.key)), set.draft, (key, v) => {
       set.draft[key] = v;
       set.activeLook = null;
       set.message = "";
       if (set.refused?.field === key) set.refused = null;
       syncSettings(state);
       drawLooks(state);
-      if (engine === "picamera2" && isLive(state, key)) {
-        queueLiveControl(state, key, v);
-      }
+      if (engine === "picamera2" && isLive(state, key)) queueLive(state, { [key]: v });
+      syncBars(state);
     }) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
   syncSettings(state);
   drawSnapshots(state);
+  mountBars(state);
 }
 
 // Everything that changes while the owner edits, done in place: no rebuild, so a slider or select keeps focus.
@@ -537,6 +552,8 @@ function syncSettings(state) {
     if (!input) continue;
     input.disabled = (["centre_x", "centre_y"].includes(c.key) && !(set.draft.zoom > 1))
       || (["shutter", "gain"].includes(c.key) && set.draft.manual !== true);
+    if (input.type === "checkbox") input.checked = set.draft[c.key] === true;
+    else if (set.draft[c.key] !== undefined && input.value !== String(set.draft[c.key])) input.value = String(set.draft[c.key]);
     const out = field.querySelector("output");
     if (out) out.textContent = shownValue(c, set.draft[c.key]);
     const err = field.querySelector(".ws-set-err");
@@ -568,6 +585,9 @@ function syncSettings(state) {
     ? (dirty ? SETTINGS_WORDS.edited : SETTINGS_WORDS.fallbackNotice)
     : (dirty ? SETTINGS_WORDS.edited : "");
 
+  const live = state.room?.live_values || {};
+  set.unsaved.hidden = !Object.keys(live).some((k) => JSON.stringify(live[k]) !== JSON.stringify(set.model?.settings?.[k]));
+
   const note = set.applying ? (set.message || SETTINGS_WORDS.saving)
     : why === "not_detected" ? SETTINGS_WORDS.notDetected : why ? SETTINGS_WORDS.captureFailed
       : set.message || defaultNote;
@@ -596,6 +616,7 @@ async function sendSettings(state, kind) {
   if (status === 200 && data?.settings) {
     set.model = { ...set.model, ...data };
     set.draft = { ...data.settings };
+    set.confirmed = { ...data.settings };
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
     set.message = kind === "reset" ? SETTINGS_WORDS.reset : kind === "save" ? SETTINGS_WORDS.saved : SETTINGS_WORDS.applied;
     set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
@@ -753,6 +774,7 @@ export async function takeSnapshot(state) {
     set.snapshot.disabled = false;
     set.snapshot.textContent = origText;
     syncSettings(state);
+    syncBars(state);
   }
 }
 
@@ -800,6 +822,7 @@ function applyViewTools(state) {
   set("cam-view-zoom", zoomed, zoomed ? `View zoom: ${vt.zoom.toFixed(1)}×` : "View zoom: 1×");
   set("cam-grid", vt.grid);
   set("cam-hist", vt.hist);
+  syncBars(state);
 }
 
 function renderViewTools(state) {
@@ -834,10 +857,7 @@ function renderViewTools(state) {
     dataset: { key: "cam-grid" },
     "aria-pressed": String(vt.grid),
   }, "Grid");
-  gridBtn.addEventListener("click", () => {
-    vt.grid = !vt.grid;
-    applyViewTools(state);
-  });
+  gridBtn.addEventListener("click", () => toggleGrid(state));
 
   const histBtn = h("button", {
     type: "button",
@@ -845,18 +865,166 @@ function renderViewTools(state) {
     dataset: { key: "cam-hist" },
     "aria-pressed": String(vt.hist),
   }, "Histogram");
-  histBtn.addEventListener("click", () => {
-    vt.hist = !vt.hist;
-    if (vt.hist) {
-      startHistogram(state);
-    } else {
-      stopHistogram(state);
-    }
-    applyViewTools(state);
-  });
+  histBtn.addEventListener("click", () => toggleHist(state));
 
   return h("div", { class: "ws-view-tools", role: "toolbar", "aria-label": "Viewing tools" },
     fsBtn, zoomBtn, gridBtn, histBtn);
+}
+
+function toggleGrid(state) {
+  state.viewTools.grid = !state.viewTools.grid;
+  applyViewTools(state);
+}
+
+function toggleHist(state) {
+  const vt = state.viewTools;
+  vt.hist = !vt.hist;
+  if (vt.hist) startHistogram(state); else stopHistogram(state);
+  applyViewTools(state);
+}
+
+// ---- Adjust: the camera's controls on the picture (amendment A23 D1, D2, D9) ----
+// Three bars, built once and moved into whichever frame shows the picture (the page's, the browser's full screen, or the
+// iPhone overlay), never rebuilt: a quarter turn redraws the figure, and the bars keep their focus and state across it.
+// They show only while adjusting. Each bar is a small dark-themed area on the kit's surface, so it reads over any picture.
+
+// What moved from the panel onto the picture. The centre stays in the panel until drag to frame (A23 plan decision 12).
+export const ON_PICTURE = new Set(["turn", "mirror", "flip", "zoom"]);
+const BAR_WHY = {
+  not_detected: "No picture: camera not detected",
+  capture_failed: "No picture: camera not giving pictures",
+  busy: "No picture: four already watching",
+};
+
+function makeBars(state) {
+  const set = state.set;
+  const button = (key, label, attrs = {}) =>
+    h("button", { type: "button", class: "ui-btn ws-bar-btn", dataset: { key }, ...attrs }, label);
+  const b = {};
+  b.badge = h("span", { class: "ui-chip ui-chip--unknown ws-bar-badge" }, "Starting…");
+  b.turn = button("bar-turn", "Turn 0°");
+  b.flip = button("bar-flip", "Flip", { "aria-pressed": "false" });
+  b.mirror = button("bar-mirror", "Mirror", { "aria-pressed": "false" });
+  b.zoomIn = button("bar-zoom-in", "+", { class: "ui-btn ui-btn--icon ws-bar-btn", "aria-label": "Zoom in" });
+  b.zoomOut = button("bar-zoom-out", "−", { class: "ui-btn ui-btn--icon ws-bar-btn", "aria-label": "Zoom out" });
+  b.fit = button("bar-fit", "Fit");
+  b.line = h("span", { class: "ws-bar-line" }, "Camera zoom 1×");
+  b.grid = button("bar-grid", "Grid", { "aria-pressed": "false" });
+  b.hist = button("bar-hist", "Histogram", { "aria-pressed": "false" });
+  set.snapshot = button("cam-snapshot", "Snapshot");  // takeSnapshot shows its progress here
+  b.fs = button("bar-fullscreen", "Full screen");
+  b.camera = [b.turn, b.flip, b.mirror, b.zoomIn, b.zoomOut, b.fit, set.snapshot];
+
+  const zoomBy = (dir) => {
+    const c = control(state, "zoom");
+    const z = Number(set.draft?.zoom ?? 1);
+    const next = c ? Math.min(c.max, Math.max(c.min, Number((z + dir * c.step).toFixed(2)))) : z;
+    if (next !== z) setOnPicture(state, { zoom: next });
+  };
+  b.turn.addEventListener("click", () => setOnPicture(state, { turn: ((Number(set.draft?.turn) || 0) + 90) % 360 }));
+  b.flip.addEventListener("click", () => setOnPicture(state, { flip: set.draft?.flip !== true }));
+  b.mirror.addEventListener("click", () => setOnPicture(state, { mirror: set.draft?.mirror !== true }));
+  b.zoomIn.addEventListener("click", () => zoomBy(1));
+  b.zoomOut.addEventListener("click", () => zoomBy(-1));
+  b.fit.addEventListener("click", () => setOnPicture(state, { zoom: 1, centre_x: 50, centre_y: 50 }));
+  b.grid.addEventListener("click", () => toggleGrid(state));
+  b.hist.addEventListener("click", () => toggleHist(state));
+  set.snapshot.addEventListener("click", () => takeSnapshot(state));
+  b.fs.addEventListener("click", () => toggleFullscreen(state));
+
+  b.el = h("div", { class: "ws-bars", dataset: { theme: "dark", key: "cam-bars" } },
+    h("div", { class: "ws-bar ws-bar--top", role: "group", "aria-label": "Turn and flip" }, b.badge,
+      h("span", { class: "ws-bar-set" }, b.turn, b.flip, b.mirror)),
+    h("div", { class: "ws-bar ws-bar--side", role: "group", "aria-label": "Camera zoom" }, b.zoomIn, b.zoomOut, b.fit),
+    h("div", { class: "ws-bar ws-bar--bottom", role: "group", "aria-label": "Picture tools" }, b.line,
+      h("span", { class: "ws-bar-set" }, b.grid, b.hist, set.snapshot, b.fs)));
+  state.bars = b;
+}
+
+function control(state, key) {
+  return state.set?.model?.controls?.find((c) => c.key === key) || null;
+}
+
+// A change made on the picture: shown at once, sent live (or kept for Apply on the fallback engine). The picture's own
+// shape follows only what the hub confirms (state.room), so nothing claims a turn the camera hasn't taken.
+function setOnPicture(state, values) {
+  const set = state.set;
+  if (barsWhy(state)) return;
+  Object.assign(set.draft, values);
+  set.activeLook = null;
+  set.message = "";
+  if ((state.room?.engine || "picamera2") === "picamera2") queueLive(state, values);
+  else set.message = SETTINGS_WORDS.fallbackNotice;
+  syncSettings(state);
+  drawLooks(state);
+  syncBars(state);
+}
+
+// Why the camera's buttons are off, in the badge's words, or null when the camera can take a change.
+function barsWhy(state) {
+  if (state.room?.state === "unavailable") return BAR_WHY[state.room.reason] || BAR_WHY.capture_failed;
+  if (!state.live.on) return "Paused";
+  if (!state.live.frame || !state.set?.model) return "Starting…";
+  return null;
+}
+
+// The live preset's frame rate, from the hub's own words for it ("Data saver (384×288, 10 fps, …)").
+function liveFps(state) {
+  const c = control(state, "preset");
+  const o = c?.options?.find((x) => x.value === state.set.confirmed?.preset);
+  const m = /(\d+) fps/.exec(o?.label || "");
+  return m ? Number(m[1]) : null;
+}
+
+function syncBars(state) {
+  const b = state.bars;
+  const set = state.set;
+  if (!b?.el.isConnected) return;
+  const d = set.draft || {};
+  const why = barsWhy(state);
+  const fps = liveFps(state);
+  b.badge.textContent = why || (fps ? `Live · ${fps} fps` : "Live");
+  b.badge.className = `ui-chip ws-bar-badge ${why ? "ui-chip--unknown" : "ui-chip--ok ui-chip--live"}`;
+  for (const el of b.camera) {
+    if (el !== set.snapshot || !set.snapshotSaving) el.disabled = !!why;
+  }
+  b.turn.textContent = `Turn ${Number(d.turn) || 0}°`;
+  b.flip.setAttribute("aria-pressed", String(d.flip === true));
+  b.mirror.setAttribute("aria-pressed", String(d.mirror === true));
+  const c = control(state, "zoom");
+  const z = Number(d.zoom ?? 1);
+  if (c) {
+    b.zoomIn.disabled = b.zoomIn.disabled || z >= c.max;
+    b.zoomOut.disabled = b.zoomOut.disabled || z <= c.min;
+  }
+  b.line.textContent = `Camera zoom ${Number(z.toFixed(2))}×`;
+  b.grid.setAttribute("aria-pressed", String(state.viewTools.grid === true));
+  b.hist.setAttribute("aria-pressed", String(state.viewTools.hist === true));
+}
+
+// The bars go on the picture while adjusting and the Room view shows, and the watching toolbar steps aside so no tool
+// shows twice (A23 D2). Otherwise the picture carries no camera controls (A23 D1).
+function mountBars(state) {
+  const b = state.bars;
+  if (!b) return;
+  const frame = state.fsFrame || state.camBox?.querySelector(".ws-cam--room .ws-cam-frame");
+  const adjusting = !!frame && state.set.el.open && !state.set.el.hidden;
+  if (adjusting) {
+    if (b.el.parentNode !== frame) frame.append(b.el);
+  } else {
+    b.el.remove();
+  }
+  const tools = state.camBox?.querySelector(".ws-view-tools");
+  if (tools) tools.hidden = adjusting;
+  syncBars(state);
+}
+
+// The live picture's first frame: the camera's buttons wait for it (A23 D2, "Starting…").
+function liveArrived(state) {
+  const img = liveImg(state);
+  if (!state.live.on || state.live.frame || !img || !(img.naturalWidth > 0)) return;
+  state.live.frame = true;
+  syncBars(state);
 }
 
 function resetViewZoom(state) {
@@ -882,6 +1050,10 @@ function setViewZoom(state, zoom, panX, panY) {
 }
 
 function toggleFullscreen(state) {
+  if (state.fsClose) {
+    state.fsClose();
+    return;
+  }
   const frame = state.camBox?.querySelector(".ws-cam-frame");
   if (!frame) return;
 
@@ -894,34 +1066,42 @@ function toggleFullscreen(state) {
     return;
   }
 
-  // iOS Safari fallback: full screen fixed overlay
-  let overlay = document.querySelector(".ws-cam-fullscreen-overlay");
-  if (overlay) {
-    overlay.remove();
-    return;
-  }
-
-  overlay = h("div", { class: "ws-cam-fullscreen-overlay" });
-  const closeBtn = h("button", {
-    type: "button",
-    class: "ws-cam-fs-close",
-    dataset: { key: "cam-fs-close" },
-  }, "Close ✕");
-  closeBtn.addEventListener("click", () => overlay.remove());
-
-  // Escape key leaves
+  // iOS Safari has no element full screen: the frame itself moves into a fixed overlay and back on Close, so the picture
+  // keeps its one stream and the bars come with it (A23 plan decision 5).
+  const home = { parent: frame.parentNode, next: frame.nextSibling };
+  const opener = document.activeElement;
+  const overlay = h("div", { class: "ws-cam-fullscreen-overlay", role: "dialog", "aria-modal": "true", "aria-label": "Room view, full screen" });
+  const closeBtn = h("button", { type: "button", class: "ws-cam-fs-close", dataset: { key: "cam-fs-close" } }, "Close ✕");
   const onKey = (e) => {
     if (e.key === "Escape") {
-      overlay.remove();
-      document.removeEventListener("keydown", onKey);
+      close();
+      return;
     }
+    if (e.key !== "Tab") return;
+    // Focus stays in the overlay while it is open (DESIGN.md: dialogs trap focus).
+    const all = [...overlay.querySelectorAll("button:not([disabled]), [tabindex='0']")];
+    const first = all[0];
+    const last = all[all.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
   };
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+    state.fsFrame = null;
+    state.fsClose = null;
+    if (home.parent?.isConnected) home.parent.insertBefore(frame, home.next?.parentNode === home.parent ? home.next : null);
+    mountBars(state);
+    if (opener?.isConnected) opener.focus?.();
+  };
+  closeBtn.addEventListener("click", close);
   document.addEventListener("keydown", onKey);
-
-  const imgCopy = frame.querySelector("img")?.cloneNode?.(true) || h("div");
-  const overlayFrame = h("div", { class: "ws-cam-frame" }, imgCopy);
-  overlay.append(closeBtn, overlayFrame);
+  overlay.append(closeBtn, frame);
   document.body.append(overlay);
+  state.fsFrame = frame;
+  state.fsClose = close;
+  mountBars(state);
+  closeBtn.focus?.();
 }
 
 function attachViewingHandlers(state, frame, img, histCanvas) {
@@ -930,6 +1110,7 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
   // Keyboard navigation for zoom & pan (when frame or img focused)
   frame.tabIndex = 0;
   frame.addEventListener("keydown", (e) => {
+    if (e.target !== frame) return;  // a key on a bar's button is that button's
     let handled = false;
     if (e.key === "+" || e.key === "=") {
       setViewZoom(state, vt.zoom + 0.5, vt.panX, vt.panY);
@@ -966,6 +1147,7 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
   let initialPanX = 0, initialPanY = 0;
 
   frame.addEventListener("pointerdown", (e) => {
+    if (e.target?.closest?.(".ws-bars")) return;  // a tap on a bar is a click, never captured as a pan
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (activePointers.size === 1) {
       startX = e.clientX;
@@ -1403,7 +1585,7 @@ function drawCam(state) {
   }
   const room = state.room ? [state.room.state, state.room.reason, state.room.rotate, state.room.size] : null;
   const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
-  redraw(state, "cam", state.camView, sig, () => state.camView.replaceChildren(cameraAside(state.cam, {
+  redraw(state, "cam", state.camView, sig, () => { state.fsClose?.(); state.camView.replaceChildren(cameraAside(state.cam, {
     room: state.room, pref: state.camPref, live: state.live, state,
     onPick: (view) => {
       state.camPref = view;
@@ -1412,9 +1594,12 @@ function drawCam(state) {
       drawCam(state);
     },
     onLive: () => (state.live.on ? stopLive(state, "") : startLive(state)),
-  })));
+  })); });
   const live = liveImg(state);
-  if (live) live.onerror = () => liveFailed(state);
+  if (live) {
+    live.onerror = () => liveFailed(state);
+    live.onload = () => liveArrived(state);
+  }
   // The note sits under the live button when there is one, and is otherwise kept out of the page (and so silent).
   const spot = state.camBox.querySelector(".ws-cam-live");
   if (spot && state.camNote.parentNode !== spot) spot.append(state.camNote);
@@ -1439,7 +1624,7 @@ function startLive(state) {
 function stopLive(state, note, draw = true) {
   clearTimeout(state.liveTimer);
   const img = liveImg(state);
-  if (img) { img.onerror = null; img.removeAttribute("src"); }
+  if (img) { img.onerror = null; img.onload = null; img.removeAttribute("src"); }
   state.live = { on: false, note };
   if (draw && state.camBox) drawCam(state);
 }
