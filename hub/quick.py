@@ -61,7 +61,7 @@ ALLOWED = {
     "staging": {"staged", "sliced", "failed"},
     "staged": {"queued_in_bambuddy", "sliced", "stale", "canceled"},
     "queued_in_bambuddy": {"start_requested", "staged", "failed"},
-    "start_requested": {"start_accepted", "outcome_uncertain", "failed"},
+    "start_requested": {"start_accepted", "outcome_uncertain", "failed", "staged"},  # staged: Bambuddy refused and the queue item is confirmed gone
     "start_accepted": {"printing_confirmed", "outcome_uncertain", "failed"},
     "printing_confirmed": set(),  # P8 adds how a print ends
     "outcome_uncertain": {"staged", "printing_confirmed", "failed"},
