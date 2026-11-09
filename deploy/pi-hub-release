@@ -105,8 +105,12 @@ mkdir -p /var/tmp
 TESTDB=$(mktemp -d -p /var/tmp pi-hub-test.XXXXXX)
 mkdir -p "$TESTDB/tmp"
 export TMPDIR="$TESTDB/tmp"
-if ! (cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 600 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1); then
+# 15 minutes: on the SD card the full suite took 608 s on 8 Nov, past the old 600 s limit with every test passing.
+rc=0
+(cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 900 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1) || rc=$?
+if [ "$rc" != 0 ]; then
   tail -15 "$TESTDB/test.log"
+  [ "$rc" = 124 ] && say "tests ran past 15 minutes and were stopped"
   say "tests failed; the running version is unchanged"
   record failed "Tests failed; nothing changed."
   report failed "" "Tests failed; nothing changed."
