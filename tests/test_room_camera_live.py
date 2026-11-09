@@ -173,6 +173,88 @@ def test_more_than_ten_a_second_from_one_device_is_refused_and_another_device_is
     run(go())
 
 
+def test_several_values_reach_the_helper_as_one_message_and_count_as_one_change():
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        got = await cam.live_controls({"ev": 1.5, "brightness": 0.1, "denoise": "hq", "metering": "average"}, "phone")
+        assert got == {"ev": 1.5, "brightness": 0.1, "denoise": "hq", "metering": "average"}
+        frame = await latest(cam, b"values:")
+        assert frame.count(b"values:") == 1  # one message, not four
+        assert b"values:ev=1.5+brightness=0.1+denoise=hq+metering=average" in frame
+        assert cam.live_values == got and cam.settings()["ev"] == 0  # a try, not saved
+        for i in range(9):  # the batch was one change: nine more fit in the second
+            await cam.live_control("contrast", 1.0, "phone")
+        with pytest.raises(room_camera.TooFast):
+            await cam.live_controls({"ev": 0}, "phone")
+        await s.aclose()
+    run(go())
+
+
+def test_fit_is_zoom_and_centre_in_one_change():
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        await cam.live_controls({"zoom": 1, "centre_x": 50, "centre_y": 50}, "phone")
+        await latest(cam, b"values:zoom=1.0+centre_x=50+centre_y=50")
+        assert cam.state()["live_values"] == {"zoom": 1, "centre_x": 50, "centre_y": 50}
+        await s.aclose()
+    run(go())
+
+
+@pytest.mark.parametrize("values,field", [
+    ({"ev": 1, "bogus": 2}, "bogus"),
+    ({"ev": 1, "zoom": 9}, "zoom"),
+    ({"ev": 1, "turn": "90"}, "turn"),
+    ({}, None),
+    ([["ev", 1]], None),
+    ("ev=1", None),
+    ({1: 2}, None),
+])
+def test_one_bad_value_refuses_the_whole_change_and_nothing_reaches_the_camera(values, field):
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        with pytest.raises(room_camera.Invalid) as e:
+            await cam.live_controls(values, "phone")
+        assert e.value.field == field
+        await asyncio.sleep(0.1)
+        assert b"values:" not in cam.frame and b"ev=" not in cam.frame.split(b"|")[1]
+        assert cam.live_values == {}
+        await s.aclose()
+    run(go())
+
+
+def test_several_values_with_no_live_capture_are_not_live():
+    async def go():
+        cam = Cam()
+        with pytest.raises(room_camera.NotLive):
+            await cam.live_controls({"ev": 1}, "phone")
+        assert cam.starts == 0
+    run(go())
+
+
+def test_a_preset_in_several_values_goes_as_its_numbers():
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        await cam.live_controls({"preset": "clear", "ev": 0.5}, "phone")
+        p = room_camera.PRESETS["clear"]
+        frame = await latest(cam, b"values:preset=")
+        assert str({"width": p["width"], "height": p["height"], "fps": p["fps"], "quality": p["quality"]}).encode() in frame
+        assert cam.live_values == {"preset": "clear", "ev": 0.5}
+        await s.aclose()
+    run(go())
+
+
 def test_the_limiter_forgets_old_events_and_does_not_grow():
     lim = room_camera.Limiter(2, 1.0)
     assert lim.allow("a", 0) and lim.allow("a", 0.1) and not lim.allow("a", 0.5) and lim.allow("a", 1.2)
@@ -428,13 +510,17 @@ def test_zoom_crops_around_the_centre_keeps_the_shape_and_stays_inside_the_senso
 
 
 def test_the_helper_takes_only_known_live_changes_from_stdin():
-    assert room_camera_helper.parse_line('{"key": "ev", "value": 1}') == ("ev", 1)
-    assert room_camera_helper.parse_line('{"key": "zoom", "value": 2}') == ("zoom", 2)
+    assert room_camera_helper.parse_line('{"key": "ev", "value": 1}') == [("ev", 1)]
+    assert room_camera_helper.parse_line('{"key": "zoom", "value": 2}') == [("zoom", 2)]
     ok = {"width": 640, "height": 480, "fps": 10, "quality": 50}
-    assert room_camera_helper.parse_line(json.dumps({"key": "preset", "value": ok})) == ("preset", ok)
+    assert room_camera_helper.parse_line(json.dumps({"key": "preset", "value": ok})) == [("preset", ok)]
+    assert room_camera_helper.parse_line(json.dumps({"values": {"zoom": 1, "centre_x": 50, "preset": ok}})) == \
+        [("zoom", 1), ("centre_x", 50), ("preset", ok)]
     for bad in ('{"key": "bogus", "value": 2}', '{"key": "preset", "value": "clear"}',
-                '{"key": "preset", "value": {"width": 1}}', '{"key": "ev"}', "[]", "nonsense", '{"key": 1, "value": 1}', ""):
-        assert room_camera_helper.parse_line(bad) is None
+                '{"key": "preset", "value": {"width": 1}}', '{"key": "ev"}', "[]", "nonsense", '{"key": 1, "value": 1}', "",
+                '{"values": {}}', '{"values": [["ev", 1]]}', '{"values": {"ev": 1, "bogus": 2}}',
+                '{"values": {"ev": 1, "preset": "clear"}}', '{"key": "ev", "value": 1, "values": {"ev": 1}}'):
+        assert room_camera_helper.parse_line(bad) is None, bad
 
 
 def test_changes_say_whether_the_stream_is_rebuilt_or_only_the_crop_moves():
@@ -462,11 +548,12 @@ def signed_in(monkeypatch):
 
 
 def test_the_live_route_refuses_signed_out_and_household_viewers(client, monkeypatch):
-    body = {"key": "ev", "value": 1}
-    assert client.post("/api/camera/room/live-controls", json=body, headers=ORIGIN).status_code == 401
     from hub import auth
-    monkeypatch.setattr(auth, "who", lambda request: ("household", "kitchen tablet"))
-    assert client.post("/api/camera/room/live-controls", json=body, headers=ORIGIN).status_code == 401
+    for body in ({"key": "ev", "value": 1}, {"values": {"ev": 1, "contrast": 1.2}}):
+        assert client.post("/api/camera/room/live-controls", json=body, headers=ORIGIN).status_code == 401
+        with monkeypatch.context() as m:
+            m.setattr(auth, "who", lambda request: ("household", "kitchen tablet"))
+            assert client.post("/api/camera/room/live-controls", json=body, headers=ORIGIN).status_code == 401
     assert room_camera.CAMERA.live_values == {} and room_camera.CAMERA.starts == 0
 
 
@@ -480,7 +567,13 @@ def test_the_live_route_answers_in_words_for_each_refusal(client, monkeypatch):
     assert r.status_code == 422 and r.json()["field"] == "bogus"
     r = post(json={"key": "ev", "value": 99})
     assert r.status_code == 422 and r.json()["field"] == "ev"
-    for bad in ({"key": "ev"}, {"key": "ev", "value": 1, "extra": 1}, [1], "x"):
+    r = post(json={"key": 5, "value": 1})
+    assert r.status_code == 422 and r.json() == {"field": None, "reason": "There is no such camera setting."}
+    r = post(json={"values": {"ev": 1, "bogus": 2}})
+    assert r.status_code == 422 and r.json()["field"] == "bogus"
+    assert post(json={"values": {"ev": 1}}).status_code == 409  # nothing live yet
+    for bad in ({"key": "ev"}, {"key": "ev", "value": 1, "extra": 1}, [1], "x", {"values": {}}, {"values": [1]},
+                {"key": "ev", "value": 1, "values": {"ev": 1}}, {"values": {"ev": 1}, "extra": 1}):
         assert post(json=bad).status_code == 422, bad
     assert post(content=b"not json", headers={**ORIGIN, "content-type": "application/json"}).status_code == 422
 

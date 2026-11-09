@@ -726,16 +726,21 @@ async def api_room_camera_apply(request: Request):
 
 @app.post("/api/camera/room/live-controls")
 async def api_room_camera_live_control(request: Request):
-    """One live change to the running Room view camera (amendment A20 D1): {"key": ..., "value": ...}."""
+    """A live change to the running Room view camera (amendment A20 D1): {"key": ..., "value": ...} for one setting, or
+    {"values": {...}} for several applied as one change (a look, Auto or Fit; A23 plan decision 2)."""
     role, device = need(request, "owner")
     try:
         body = await request.json()
     except ValueError:
         body = None
-    if not isinstance(body, dict) or set(body) != {"key", "value"}:
-        return JSONResponse({"field": None, "reason": "Send one setting, as {key, value}."}, status_code=422,
-                            headers={"Cache-Control": "no-store"})
+    if not isinstance(body, dict) or set(body) not in ({"key", "value"}, {"values"}):
+        return JSONResponse({"field": None, "reason": "Send one setting as {key, value}, or several as {values}."},
+                            status_code=422, headers={"Cache-Control": "no-store"})
     try:
+        if "values" in body:
+            values = await room_camera.CAMERA.live_controls(body["values"], device)
+            return fresh({"values": values, "live_values": dict(room_camera.CAMERA.live_values),
+                          "state": room_camera.CAMERA.state()})
         value = await room_camera.CAMERA.live_control(body["key"], body["value"], device)
     except room_camera.Invalid as e:
         return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422, headers={"Cache-Control": "no-store"})

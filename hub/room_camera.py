@@ -438,7 +438,7 @@ class RoomCamera:
                     # so Save stores the settings without restarting the picture.
                     try:
                         for key in [k for k in new if new[k] != self.helper_values.get(k)]:
-                            await self._tell_helper(p, key, new[key])
+                            await self._tell_helper(p, {key: new[key]}, single=True)
                             self.settings_at = time.time()
                         self._wake()
                         return dict(new)
@@ -647,36 +647,54 @@ class RoomCamera:
         """Try one live change on the running camera (A20 D1). Raises Invalid (not a live key, or a bad value), TooFast
         (more than LIVE_RATE per device), NotLive (no Picamera2 capture is running), or Unavailable. The value goes to
         the helper as a number or a word from CONTROLS, checked here; it is held until the capture stops or an apply."""
-        c = BY_KEY.get(key) if isinstance(key, str) else None
-        if c is None or not c["live"]:
-            raise Invalid(key if isinstance(key, str) else None,
-                          "That setting changes with Apply, not while you adjust." if c else "There is no such camera setting.")
-        value = _check(c, value)
+        if not isinstance(key, str):
+            raise Invalid(None, "There is no such camera setting.")
+        return (await self._try_live({key: value}, who, single=True))[key]
+
+    async def live_controls(self, values, who):
+        """Try several live changes as one (A23 plan decision 2): a look, Auto or Fit. Every value is checked before
+        any is sent, so a refusal sends nothing; the helper gets them in one message, and they count as one change."""
+        return await self._try_live(values, who)
+
+    async def _try_live(self, values, who, single=False):
+        if not isinstance(values, dict) or not values:
+            raise Invalid(None, "Send at least one setting, as {values: {...}}.")
+        checked = {}
+        for key, value in values.items():
+            c = BY_KEY.get(key) if isinstance(key, str) else None
+            if c is None or not c["live"]:
+                raise Invalid(key if isinstance(key, str) else None,
+                              "That setting changes with Apply, not while you adjust." if c else "There is no such camera setting.")
+            checked[key] = _check(c, value)
         self._bind()
         if not self.limiter.allow(who):
             raise TooFast()
         p = self.proc
         if p is None or self.proc_engine != "picamera2" or p.stdin is None or self.proc_frames == 0:
             raise NotLive()
-        await self._tell_helper(p, key, value)
+        await self._tell_helper(p, checked, single)
         if self.proc is p:
-            self.live_values[key] = value
+            self.live_values.update(checked)
             self.settings_at = time.time()  # a frame from before this change shows the old picture
-        return value
+        return checked
 
-    async def _tell_helper(self, p, key, value):
-        """One change to the helper's stdin. The preset goes as its numbers, so the helper holds no table of its own."""
-        sent = value
-        if key == "preset":
-            q = PRESETS[value]
-            sent = {"width": q["width"], "height": q["height"], "fps": q["fps"], "quality": q["quality"]}
+    async def _tell_helper(self, p, values, single=False):
+        """One message on the helper's stdin: {key, value} for one change, {values} for several. The preset goes as its
+        numbers, so the helper holds no table of its own."""
+        sent = {}
+        for key, value in values.items():
+            if key == "preset":
+                q = PRESETS[value]
+                value = {"width": q["width"], "height": q["height"], "fps": q["fps"], "quality": q["quality"]}
+            sent[key] = value
+        msg = {"key": next(iter(sent)), "value": next(iter(sent.values()))} if single else {"values": sent}
         try:
-            p.stdin.write(json.dumps({"key": key, "value": sent}).encode() + b"\n")
+            p.stdin.write(json.dumps(msg).encode() + b"\n")
             await asyncio.wait_for(p.stdin.drain(), 1.0)
         except (OSError, asyncio.TimeoutError):
             raise Unavailable("capture_failed")
         if self.proc is p:
-            self.helper_values[key] = value
+            self.helper_values.update(values)
 
     async def _stop(self):
         async with self._lock:
