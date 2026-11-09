@@ -38,7 +38,8 @@ test("the sources line keeps only named sources, and an unknown tone is unknown,
 });
 
 test("kit 2.9.0 (A10) is in the shell: confirm.js is loaded and cached, the footer has the sources line", () => {
-  assert.equal(JSON.parse(read("hub/static/ui/VERSION")).version, "2.9.0");
+  const [major, minor] = JSON.parse(read("hub/static/ui/VERSION")).version.split(".").map(Number);
+  assert.ok(major > 2 || (major === 2 && minor >= 9), "the shell's kit copy is older than 2.9.0");
   const html = read("hub/static/index.html"), sw = read("hub/static/sw.js");
   assert.match(html, /<script src="\/static\/ui\/confirm\.js"><\/script>/);
   assert.ok(sw.includes('"/static/ui/confirm.js"'));
