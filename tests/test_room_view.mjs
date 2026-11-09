@@ -379,14 +379,30 @@ async function ownerPage(extra = {}, room = ready90) {
   return p;
 }
 const panel = (p) => p.state.root.querySelector('details.ws-set');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const bar = (p, key) => p.state.root.querySelector(`.ws-bars [data-key="${key}"]`);
+// Open Adjust and let the live picture's first frame arrive, so the controls on the picture can take a change.
+async function adjusting(p) {
+  const d = panel(p);
+  d.open = true;
+  d.dispatchEvent({ type: 'toggle', target: d });
+  await tick(); await tick();
+  const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+  img.naturalWidth = 384;
+  img.onload?.();
+  return d;
+}
 
 test("page: the owner gets a closed Camera settings panel under the Room view, drawn from the hub's table", async () => {
   const p = await ownerPage();
   try {
     const d = panel(p);
     assert.ok(d && !d.hidden && !d.open);
-    assert.equal(text(d.querySelector('summary')), 'Camera settings');
-    assert.equal(d.querySelectorAll('fieldset').length, 6);
+    assert.equal(text(d.querySelector('summary > span')), 'Adjust');
+    assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
+    // Orientation's controls and Zoom are on the picture now (A23 D2); the centre stays until drag to frame (P3).
+    assert.equal(d.querySelectorAll('fieldset').length, 5);
+    assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
     assert.equal(text(d.querySelector('.ws-set-note')), '');
     assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
   } finally { p.done(); }
@@ -409,16 +425,16 @@ test('page: not the owner, or the printer camera chosen: no settings panel', asy
 
 test('page: an edit says not applied yet, enables what depends on it, and survives the aside being redrawn', async () => {
   let room = ready90;
-  const p = await ownerPage({ '/api/camera/room': () => room });
+  const p = await ownerPage({ '/api/camera/room': () => room, '/api/camera/room/live-controls': (u, o) => JSON.parse(o.body) });
   try {
-    const d = panel(p);
-    d.open = true;
+    const d = await adjusting(p);
     assert.ok(d.querySelector('#set-centre_x').disabled, 'centre only means something when zoomed');
     assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
-    const zoom = d.querySelector('#set-zoom');
-    change(zoom, 2);
+    const zoom = bar(p, 'bar-zoom-in');
+    zoom.click();
+    zoom.click();
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
-    assert.equal(text(d.querySelector('label[for="set-zoom"] output')), '2 ×');
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2×');
     assert.ok(!d.querySelector('#set-centre_x').disabled);
     change(d.querySelector('#set-manual'), true);
     assert.ok(!d.querySelector('#set-shutter').disabled);
@@ -426,7 +442,7 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
     await p.ws.load(p.state);
     assert.equal(panel(p), d);
     assert.ok(d.open);
-    assert.equal(d.querySelector('#set-zoom'), zoom, 'the same field, not a rebuilt one');
+    assert.equal(bar(p, 'bar-zoom-in'), zoom, 'the same button, moved into the new frame, not a rebuilt one');
     assert.equal(p.state.set.draft.zoom, 2);
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
   } finally { p.done(); }
@@ -510,7 +526,9 @@ test('page: Reset asks first; declined, nothing is sent', async () => {
     await tick(); await tick(); await tick(); await tick();
     assert.equal(posts, 1);
     assert.equal(text(panel(p).querySelector('.ws-set-note')), 'Every setting is back to its default.');
-    assert.equal(panel(p).querySelector('#set-turn option[selected]').getAttribute('value'), '0', 'the fields show what the hub stored');
+    assert.equal(p.state.set.draft.turn, 0, 'the draft is what the hub stored');
+    await adjusting(p);
+    assert.equal(text(bar(p, 'bar-turn')), 'Turn 0°', 'the picture shows what the hub stored');
   } finally { p.done(); }
 });
 
@@ -817,12 +835,8 @@ test('page: save snapshot button sends POST /api/camera/room/snapshots and updat
     },
   });
   try {
-    const d = panel(p);
-    d.open = true;
-    d.dispatchEvent({ type: 'toggle', target: d });
-    await tick(); await tick();
-
-    const snapBtn = d.querySelector('[data-key="cam-snapshot"]');
+    await adjusting(p);
+    const snapBtn = bar(p, 'cam-snapshot');  // on the picture's bottom bar now (A23 D2)
     assert.ok(snapBtn);
     snapBtn.click();
     await tick(); await tick();
@@ -883,5 +897,262 @@ test('page: the printer camera takes a new still every second; the Room view kee
       await new Promise((r) => setTimeout(r, 0));
     }
     assert.equal(roomStills, 2, 'two Room stills in 4 s: one every 2 s, not every second');
+  } finally { p.done(); }
+});
+
+// ---- A23 P2: watching and adjusting, the controls on the picture, the live channel ----
+
+function liveRoute(sent, answer = (b) => b) {
+  return { '/api/camera/room/live-controls': (u, o) => { const b = JSON.parse(o.body); sent.push(b); return answer(b); } };
+}
+
+test('A23: watching, the picture carries no camera controls and the view tools show', async () => {
+  const p = await ownerPage();
+  try {
+    const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+    assert.ok(!frame.querySelector('.ws-bars'));
+    assert.ok(!p.state.root.querySelector('.ws-view-tools').hidden);
+  } finally { p.done(); }
+});
+
+test('A23: adjusting puts three bars on the picture, in reading order, and hides the watching toolbar', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const bars = p.state.root.querySelector('.ws-cam--room .ws-cam-frame > .ws-bars');
+    assert.ok(bars);
+    assert.equal(bars.dataset.theme, 'dark');
+    assert.deepEqual(bars.querySelectorAll('button').map((b) => b.dataset.key), ['bar-turn', 'bar-flip', 'bar-mirror',
+      'bar-zoom-in', 'bar-zoom-out', 'bar-fit', 'bar-grid', 'bar-hist', 'cam-snapshot', 'bar-fullscreen']);
+    assert.equal(bar(p, 'bar-zoom-in').getAttribute('aria-label'), 'Zoom in');
+    assert.ok(p.state.root.querySelector('.ws-view-tools').hidden);
+    const d = panel(p);
+    d.open = false;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    assert.ok(!p.state.root.querySelector('.ws-bars'), 'leaving Adjust takes them off the picture');
+    assert.ok(!p.state.root.querySelector('.ws-view-tools').hidden);
+  } finally { p.done(); }
+});
+
+test('A23: until the first live frame, the camera buttons are off and the badge says Starting', async () => {
+  const p = await ownerPage();
+  try {
+    const d = panel(p);
+    d.open = true;
+    d.dispatchEvent({ type: 'toggle', target: d });
+    await tick(); await tick();
+    assert.equal(text(p.state.root.querySelector('.ws-bar-badge')), 'Starting…');
+    assert.ok(bar(p, 'bar-turn').disabled && bar(p, 'cam-snapshot').disabled && bar(p, 'bar-fit').disabled);
+    assert.ok(!bar(p, 'bar-grid').disabled, 'a view tool needs no camera');
+    const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+    img.naturalWidth = 384;
+    img.onload();
+    assert.equal(text(p.state.root.querySelector('.ws-bar-badge')), 'Live');
+    assert.ok(!bar(p, 'bar-turn').disabled);
+    p.ws.leave(p.state);  // live stops
+  } finally { p.done(); }
+});
+
+test('A23: live stopping turns the camera buttons off with Paused', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    p.state.root.querySelector('[data-key="room-live"]').click();  // Stop live
+    assert.equal(text(p.state.root.querySelector('.ws-bar-badge')), 'Paused');
+    assert.ok(bar(p, 'bar-turn').disabled);
+  } finally { p.done(); }
+});
+
+test('A23: four quick taps on Turn send one value, the last', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent));
+  try {
+    await adjusting(p);
+    for (let i = 0; i < 3; i += 1) bar(p, 'bar-turn').click();
+    bar(p, 'bar-flip').click();
+    assert.equal(text(bar(p, 'bar-turn')), 'Turn 0°', 'shown at once: 90 + 3 quarter turns');
+    assert.equal(bar(p, 'bar-flip').getAttribute('aria-pressed'), 'true');
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { turn: 0, flip: true } }]);
+    assert.equal(p.state.set.confirmed.turn, 0);
+  } finally { p.done(); }
+});
+
+test('A23: a refused change goes back to what the camera confirmed, and says why', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (String(url).startsWith('/api/camera/room/live-controls')
+      ? new Response(JSON.stringify({ field: 'turn', reason: 'Turn is one of: 0°, 90°.' }), { status: 422, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    bar(p, 'bar-turn').click();
+    assert.equal(text(bar(p, 'bar-turn')), 'Turn 180°');
+    await wait(260);
+    assert.equal(text(bar(p, 'bar-turn')), 'Turn 90°', 'back to the confirmed turn');
+    assert.equal(p.state.set.draft.turn, 90);
+    assert.equal(text(panel(p).querySelector('.ws-set-note')), 'Turn is one of: 0°, 90°.');
+  } finally { p.done(); }
+});
+
+test('A23: no answer for a change puts it back too', async () => {
+  const p = await ownerPage({ '/api/camera/room/live-controls': () => new Error('down') });
+  try {
+    await adjusting(p);
+    bar(p, 'bar-mirror').click();
+    await wait(260);
+    assert.equal(bar(p, 'bar-mirror').getAttribute('aria-pressed'), 'false');
+  } finally { p.done(); }
+});
+
+test('A23: a look reaches the camera whole, in one request (the one-slot defect)', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...liveRoute(sent),
+    // As the hub's table: every control changes live (A20 D1).
+    '/api/camera/room/settings': { ...model(), controls: CONTROLS.map((c) => ({ ...c, live: true })) },
+    '/api/camera/room/looks': { looks: [{ name: 'Night', builtin: true, values: { sharpness: 1.2, awb: 'tungsten' } }] } });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    d.querySelector('[data-key="look-Night"]').click();
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { sharpness: 1.2, awb: 'tungsten' } }]);
+  } finally { p.done(); }
+});
+
+test('A23: Fit is one change of zoom and centre; zoom stops at its ends', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent));
+  try {
+    await adjusting(p);
+    assert.ok(bar(p, 'bar-zoom-out').disabled, 'already at 1×');
+    bar(p, 'bar-zoom-in').click();
+    await wait(260);
+    bar(p, 'bar-fit').click();
+    await wait(260);
+    assert.deepEqual(sent, [{ key: 'zoom', value: 1.5 }, { values: { zoom: 1, centre_x: 50, centre_y: 50 } }]);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 1×');
+  } finally { p.done(); }
+});
+
+test('A23: a quarter turn moves the same bars into the redrawn frame', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent, (b) => ({ ...b, state: { ...ready90, rotate: 0, size: [640, 480] } })));
+  try {
+    await adjusting(p);
+    const bars = p.state.bars.el;
+    const before = bars.parentNode;
+    bar(p, 'bar-turn').click();  // 90 → 180: the hub says rotate 0, so the figure is redrawn
+    await wait(260);
+    assert.ok(p.state.root.querySelector('figure.ws-cam--room:not(.ws-cam--turn90)') || !p.state.root.querySelector('.ws-cam--turn90'));
+    assert.notEqual(bars.parentNode, before, 'a new frame');
+    assert.ok(bars.isConnected && bars.parentNode.classList.contains('ws-cam-frame'));
+  } finally { p.done(); }
+});
+
+test('A23: on a phone without element full screen, the frame itself moves to the overlay and back', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+    const imgs = () => p.dom.document.body.querySelectorAll('img.room-img').length;
+    const before = imgs();
+    bar(p, 'bar-fullscreen').click();
+    const overlay = p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay');
+    assert.ok(overlay && overlay.querySelector('.ws-cam-frame') === frame, 'the same frame, not a copy');
+    assert.equal(imgs(), before, 'no second picture, so no second stream');
+    assert.ok(frame.querySelector('.ws-bars'), 'the bars come along');
+    assert.equal(overlay.getAttribute('aria-modal'), 'true');
+    overlay.querySelector('[data-key="cam-fs-close"]').click();
+    assert.ok(!p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay'));
+    assert.equal(p.state.root.querySelector('.ws-cam--room .ws-cam-frame'), frame, 'back where it was');
+  } finally { p.done(); }
+});
+
+test('A23: the summary says Unsaved changes while the camera runs a try, and not after Save', async () => {
+  const p = await ownerPage({ '/api/camera/room/settings': () => ({ ...model(), state: { ...ready90, live_values: {} } }) },
+    { ...ready90, live_values: { ev: 1 } });
+  try {
+    const d = panel(p);
+    assert.ok(!d.querySelector('.ws-set-unsaved').hidden);
+    assert.equal(p.state.set.draft.ev, 1, 'the panel shows what the picture shows');
+    d.querySelector('[data-key="cam-save"]').click();
+    await tick(); await tick(); await tick();
+    assert.ok(d.querySelector('.ws-set-unsaved').hidden);
+  } finally { p.done(); }
+});
+
+test('A23: on the fallback engine a tap is kept for Apply, never sent live', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent), { ...ready90, engine: 'rpicam' });
+  try {
+    await adjusting(p);
+    bar(p, 'bar-flip').click();
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(p.state.set.draft.flip, true);
+    assert.match(text(panel(p).querySelector('.ws-set-note')), /apply with Apply/);
+  } finally { p.done(); }
+});
+
+test('A23: a key or a tap on a bar is the bar\'s, never the view\'s zoom or pan', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+    frame.dispatchEvent({ type: 'keydown', key: '+', target: bar(p, 'bar-grid'), preventDefault() {} });
+    assert.equal(p.state.viewTools.zoom, 1);
+    frame.dispatchEvent({ type: 'keydown', key: '+', target: frame, preventDefault() {} });
+    assert.equal(p.state.viewTools.zoom, 1.5);
+  } finally { p.done(); }
+});
+
+test('A23 CSS: the bars stack in a grid over the picture, reach 44 px on touch and do not move', () => {
+  const css = readFileSync(new URL('../hub/static/workshop-pi-rich.css', import.meta.url), 'utf8');
+  const part = css.slice(css.indexOf('/* Adjust (amendment A23'), css.indexOf('/* end A23 */'));
+  assert.ok(part.length > 200);
+  assert.match(part, /grid-template-areas/);
+  assert.match(part, /\.ws-view-tools\[hidden\]/);
+  assert.match(part, /min-height: 44px/);
+  assert.doesNotMatch(part.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation|#[0-9a-f]{3,6}\b|rgba?\(/i);
+});
+
+// ---- A23 P2 review findings ----
+
+test('A23: the first live frame does not redraw the picture (no second stream)', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+    await p.ws.load(p.state);
+    await tick();
+    assert.equal(p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh), img, 'the same live picture');
+    assert.ok(!bar(p, 'bar-turn').disabled);
+  } finally { p.done(); }
+});
+
+test('A23: a turn that redraws the picture keeps focus on Turn', async () => {
+  const p = await ownerPage(liveRoute([], (b) => ({ ...b, state: { ...ready90, rotate: 0, size: [640, 480] } })));
+  try {
+    await adjusting(p);
+    bar(p, 'bar-turn').focus();
+    bar(p, 'bar-turn').click();
+    await wait(260);
+    assert.equal(p.dom.document.activeElement, bar(p, 'bar-turn'));
+  } finally { p.done(); }
+});
+
+test('A23: in the iPhone overlay, Grid draws on the picture and stopping live closes the stream', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+    const img = frame.querySelector('img.room-img');
+    bar(p, 'bar-fullscreen').click();
+    frame.querySelector('[data-key="bar-grid"]').click();
+    assert.ok(frame.classList.contains('has-grid'));
+    p.state.root.querySelector('[data-key="room-live"]').click();  // Stop live
+    assert.equal(img.getAttribute('src'), null, 'the picture let go of its stream');
+    assert.ok(!p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay'));
   } finally { p.done(); }
 });

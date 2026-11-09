@@ -250,6 +250,39 @@
   font-weight: 600;
 }
 
+/* Adjust (amendment A23 D2, D9): the camera's controls on the picture, in three bars. The frame becomes a one-cell grid
+   holding the picture and the bars, so the bars never overlap each other: where the picture is too short for them (a
+   narrow phone), the frame grows and the picture keeps its shape inside it. The bars are a dark-themed area
+   (data-theme="dark") on the kit's surface, so every pair in them is one the kit measures, over any picture, in either
+   theme. Targets are 44 px; no motion. */
+.ws-view-tools[hidden] { display: none; }
+.ws-cam-frame:has(> .ws-bars) { display: grid; }
+.ws-cam-frame:has(> .ws-bars) > img, .ws-bars { grid-area: 1 / 1; }
+/* The picture fills the frame, letterboxed inside its own box, so the bars always sit on the picture, never off its edge. */
+.ws-now .ws-cam-frame:has(> .ws-bars) > img { justify-self: stretch; width: 100%; min-height: 100%; object-fit: contain; }
+.ws-bars {
+  position: relative; z-index: 6; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto;
+  grid-template-areas: "top top" ". side" "bottom bottom"; gap: calc(var(--ui-space) * 2); padding: calc(var(--ui-space) * 2);
+  pointer-events: none; color: var(--ui-text); font-family: var(--ui-font);
+}
+.ws-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ui-space) calc(var(--ui-space) * 1.5);
+  min-width: 0; padding: var(--ui-space); border-radius: var(--ui-r-2); background: var(--ui-surface); pointer-events: auto;
+}
+.ws-bar--top { grid-area: top; }
+.ws-bar--side { grid-area: side; flex-direction: column; flex-wrap: nowrap; align-self: center; }
+.ws-bar--bottom { grid-area: bottom; }
+.ws-bar-set { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ui-space) calc(var(--ui-space) * 1.5); }
+.ws-bar-btn.ui-btn { min-width: 44px; min-height: 44px; padding: 0 calc(var(--ui-space) * 2.5); font-size: var(--ui-fs-2); }
+.ws-bar-btn.ui-btn--icon { width: 44px; padding: 0; font-size: var(--ui-fs-5); }
+.ws-bar-btn[aria-pressed="true"] { background: var(--ui-accent-soft); border-color: var(--ui-accent); color: var(--ui-accent-text); }
+.ws-bar-btn:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ws-bar-badge, .ws-bar-line { padding-inline: var(--ui-space); }
+.ws-bar-line { font-size: var(--ui-fs-2); color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+.ws-cam-frame:has(> .ws-bars) .ws-hist-canvas { top: 50%; bottom: auto; left: calc(var(--ui-space) * 2); right: auto; transform: translateY(-50%); }
+.ws-set > summary .ws-set-unsaved { margin-left: auto; font-size: var(--ui-fs-2); font-weight: 600; color: var(--ui-warn); }
+/* end A23 */
+
 /* Snapshot Gallery (A20 D3) */
 .ws-snapshots-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .ws-snapshots-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
