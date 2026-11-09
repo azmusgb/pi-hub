@@ -443,7 +443,7 @@ def step(printer, now=time.time) -> None:
 
 def in_flight() -> bool:
     ready()
-    return bool(db.one("SELECT 1 AS x FROM quick_jobs WHERE state IN ('start_accepted', 'outcome_uncertain') LIMIT 1"))
+    return bool(db.one("SELECT 1 AS x FROM quick_jobs WHERE state IN ('start_accepted', 'outcome_uncertain', 'printing_confirmed') LIMIT 1"))
 
 
 def run(printer_now):
@@ -451,7 +451,14 @@ def run(printer_now):
     while True:
         try:
             if in_flight():
-                step(printer_now())
+                printer = printer_now()
+                step(printer)
+                from . import bambuddy, quick_monitor
+                try:
+                    prints = bambuddy.prints()
+                except Exception:
+                    prints = None  # the log can't be read: nothing is decided from it
+                quick_monitor.step(printer, prints)
         except Exception:
             import traceback
             traceback.print_exc()
