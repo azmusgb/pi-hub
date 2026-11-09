@@ -115,7 +115,7 @@ sudo chown root:pi-hub /etc/pi-hub/setup-code && sudo chmod 640 /etc/pi-hub/setu
 # What the hub, its tests and its helpers need. (caddy is the front gate; each release gives it its Caddyfile.)
 need=""
 for p in librsvg2-bin rsync smartmontools parted python3-qrcode python3-icalendar python3-recurring-ical-events \
-         python3-pytest python3-httpx git nodejs caddy; do dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"; done
+         python3-pytest python3-httpx python3-picamera2 git nodejs caddy; do dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"; done
 [ -z "$need" ] || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $need >/dev/null
 sudo mkdir -p /var/lib/pi-status && sudo touch /var/lib/pi-status/alerts.jsonl && sudo chmod 644 /var/lib/pi-status/alerts.jsonl
 

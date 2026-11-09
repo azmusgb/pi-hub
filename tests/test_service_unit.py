@@ -24,3 +24,10 @@ def test_the_hub_may_open_the_pis_camera_and_no_longer_loads_a17s_rotation_file(
     assert "room-camera.env" not in UNIT and "ROOM_CAMERA_ROTATE" not in UNIT
     # Still nothing outside its own state is writable: frames never reach disk.
     assert "ProtectSystem=strict" in UNIT and "PrivateTmp=yes" in UNIT
+
+
+def test_install_lists_picamera2_so_a_rebuilt_pi_has_the_room_view_helper_dependency():
+    # A20 plan decision 12: the OS image brought it today; a rebuild must not depend on that, or the Room view falls
+    # back to rpicam-vid without anyone seeing why.
+    install = (pathlib.Path(__file__).resolve().parent.parent / "deploy/install.sh").read_text()
+    assert "python3-picamera2" in install

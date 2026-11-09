@@ -719,6 +719,32 @@ async def api_room_camera_apply(request: Request):
     return await _room_apply(request, values, "room-camera:settings")
 
 
+@app.post("/api/camera/room/live-controls")
+async def api_room_camera_live_control(request: Request):
+    """One live change to the running Room view camera (amendment A20 D1): {"key": ..., "value": ...}."""
+    role, device = need(request, "owner")
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict) or set(body) != {"key", "value"}:
+        return JSONResponse({"field": None, "reason": "Send one setting, as {key, value}."}, status_code=422,
+                            headers={"Cache-Control": "no-store"})
+    try:
+        value = await room_camera.CAMERA.live_control(body["key"], body["value"], device)
+    except room_camera.Invalid as e:
+        return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422, headers={"Cache-Control": "no-store"})
+    except room_camera.TooFast:
+        return JSONResponse({"field": None, "reason": "Slow down: the camera takes ten changes a second."}, status_code=429,
+                            headers={"Cache-Control": "no-store"})
+    except room_camera.NotLive:
+        return JSONResponse({"field": None, "reason": "Live adjust isn't running. Use Apply."}, status_code=409,
+                            headers={"Cache-Control": "no-store"})
+    except room_camera.Unavailable as e:
+        return _room_unavailable(e)
+    return fresh({"key": body["key"], "value": value, "live_values": dict(room_camera.CAMERA.live_values)})
+
+
 @app.post("/api/camera/room/settings/reset")
 async def api_room_camera_reset(request: Request):
     return await _room_apply(request, dict(room_camera.DEFAULTS), "room-camera:reset")
