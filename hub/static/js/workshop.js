@@ -88,14 +88,17 @@ export function mount(state) {
   };
   // One status line for the live notes, kept across redraws so a screen reader hears each new note.
   state.camNote = h("p", { class: "meta ws-cam-note", role: "status" });
-  // A new still every 2 seconds while this page is open and visible; a live picture is never swapped.
+  // While this page is open and visible: a new printer still every second, a Room view still every 2 seconds (A17 R4);
+  // a live picture is never swapped.
+  state.camTick = 0;
   state.camTimer = setInterval(() => {
     if (document.hidden) return;
+    state.camTick += 1;
     for (const img of state.root.querySelectorAll("img[data-refresh]")) {
-      if (img.classList.contains("room-img")) refreshRoomStill(state, img);
-      else img.src = `${img.dataset.refresh}?t=${Date.now()}`;
+      if (!img.classList.contains("room-img")) img.src = `${img.dataset.refresh}?t=${Date.now()}`;
+      else if (state.camTick % 2 === 0) refreshRoomStill(state, img);
     }
-  }, 2000);
+  }, 1000);
   // Live stops when the page is hidden (A17 R4), and says so.
   state.onHidden = () => { if (document.hidden && state.live.on) stopLive(state, LIVE_HIDDEN); };
   document.addEventListener("visibilitychange", state.onHidden);
@@ -158,7 +161,7 @@ function printerCam(c) {
   }
   return h("figure", { class: "ws-cam" },
     h("img", { class: "cam-img", src: `/api/camera.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera.jpg" },
-      alt: "The X2D's camera, updated every 2 seconds", width: 384, height: 216 }),
+      alt: "The X2D's camera, updated every second", width: 384, height: 216 }),
     h("figcaption", { class: "meta" }, c.source === "MacBook"
       ? "From the MacBook (backup). For a picture without the Mac, turn on LAN Only Liveview on the printer's screen."
       : c.source === "Pi" ? "Through the Pi" : "Live"));
