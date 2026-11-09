@@ -205,20 +205,12 @@ function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null, 
     : h("img", { class: "cam-img room-img", src: `/api/camera/room.jpg?t=${Date.now()}`, dataset: { refresh: "/api/camera/room.jpg" },
       alt: "Room view of the printer, from the Pi, updated every 2 seconds", width: 384, height: 288 });
 
-  // Viewing tools integration (A20 D4)
+  // Viewing tools integration (A20 D4): drawn once here, then changed in place (applyViewTools), never by redrawing
+  // the picture: a redraw reopens the live stream.
   const vt = state?.viewTools;
-  const frameClass = `ws-cam-frame${vt?.grid ? " has-grid" : ""}`;
   const histCanvas = h("canvas", { class: "ws-hist-canvas", width: 160, height: 120 });
-  if (!vt?.hist) histCanvas.hidden = true;
-
-  const frame = h("div", { class: frameClass }, img, histCanvas);
-
-  // Pan & zoom styling
-  if (vt && (vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0)) {
-    img.style.transform = `scale(${vt.zoom}) translate(${vt.panX}px, ${vt.panY}px)`;
-    img.style.transformOrigin = "center center";
-  }
-  img.style.touchAction = "none";
+  const frame = h("div", { class: "ws-cam-frame" }, img, histCanvas);
+  paintViewTools(frame, vt);
 
   if (state) {
     attachViewingHandlers(state, frame, img, histCanvas);
@@ -779,6 +771,34 @@ async function deleteSnapshot(state, id) {
 
 // ---- Viewing tools (amendment A20 D4, plan P4) ----
 
+// The frame's look for the viewing tools, as classes and CSS variables the stylesheet reads (it composes the zoom with
+// a turned picture's own transform). Called on a new frame and, in place, on every tool change.
+function paintViewTools(frame, vt) {
+  if (!frame || !vt) return;
+  frame.classList.toggle("has-grid", vt.grid === true);
+  frame.style.setProperty("--vz", String(vt.zoom));
+  frame.style.setProperty("--vx", `${vt.panX}px`);
+  frame.style.setProperty("--vy", `${vt.panY}px`);
+  const canvas = frame.querySelector(".ws-hist-canvas");
+  if (canvas) canvas.hidden = !vt.hist;
+}
+
+// A tool change touches the frame and the toolbar where they stand: redrawing the camera would reopen the stream.
+function applyViewTools(state) {
+  const vt = state.viewTools;
+  paintViewTools(state.camBox?.querySelector(".ws-cam-frame"), vt);
+  const zoomed = vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0;
+  const set = (key, pressed, label) => {
+    const b = state.camBox?.querySelector(`[data-key="${key}"]`);
+    if (!b) return;
+    b.setAttribute("aria-pressed", String(pressed));
+    if (label) b.textContent = label;
+  };
+  set("cam-view-zoom", zoomed, zoomed ? `View zoom: ${vt.zoom.toFixed(1)}×` : "View zoom: 1×");
+  set("cam-grid", vt.grid);
+  set("cam-hist", vt.hist);
+}
+
 function renderViewTools(state) {
   const vt = state.viewTools;
   const isZoomed = vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0;
@@ -813,7 +833,7 @@ function renderViewTools(state) {
   }, "Grid");
   gridBtn.addEventListener("click", () => {
     vt.grid = !vt.grid;
-    drawCam(state);
+    applyViewTools(state);
   });
 
   const histBtn = h("button", {
@@ -829,7 +849,7 @@ function renderViewTools(state) {
     } else {
       stopHistogram(state);
     }
-    drawCam(state);
+    applyViewTools(state);
   });
 
   return h("div", { class: "ws-view-tools", role: "toolbar", "aria-label": "Viewing tools" },
@@ -847,10 +867,15 @@ function setViewZoom(state, zoom, panX, panY) {
     vt.panX = 0;
     vt.panY = 0;
   } else {
-    vt.panX = Math.round(panX);
-    vt.panY = Math.round(panY);
+    // Pan is in screen pixels and stops where the picture's edge meets the frame's.
+    const frame = state.camBox?.querySelector(".ws-cam-frame");
+    const room = (size) => (size > 0 ? ((vt.zoom - 1) * size) / 2 : Infinity);  // not measured (not shown): no limit
+    const mx = room(frame?.clientWidth);
+    const my = room(frame?.clientHeight);
+    vt.panX = Math.round(Math.max(-mx, Math.min(mx, panX)));
+    vt.panY = Math.round(Math.max(-my, Math.min(my, panY)));
   }
-  drawCam(state);
+  applyViewTools(state);
 }
 
 function toggleFullscreen(state) {
@@ -1374,8 +1399,7 @@ function drawCam(state) {
     stopLive(state, "", false);
   }
   const room = state.room ? [state.room.state, state.room.reason, state.room.rotate, state.room.size] : null;
-  const vt = state.viewTools ? [state.viewTools.grid, state.viewTools.hist, state.viewTools.zoom, state.viewTools.panX, state.viewTools.panY] : null;
-  const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live, vt]);
+  const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
   redraw(state, "cam", state.camView, sig, () => state.camView.replaceChildren(cameraAside(state.cam, {
     room: state.room, pref: state.camPref, live: state.live, state,
     onPick: (view) => {
