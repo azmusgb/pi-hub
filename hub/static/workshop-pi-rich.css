@@ -151,8 +151,6 @@
 .ws-set-value { color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .ws-set-err { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-bad); }
 .ws-set-err[hidden] { display: none; }
-.ws-set-restart { margin: 0; font-size: var(--ui-fs-1); color: var(--ui-muted); }
-.ws-set-restart[hidden] { display: none; }
 .ws-set-actions { display: flex; flex-wrap: wrap; gap: .5rem .75rem; margin-top: 1.25rem; }
 .ws-set-actions [aria-disabled=true] { opacity: .55; cursor: progress; }
 .ws-set-note { margin: .6rem 0 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
