@@ -15,8 +15,11 @@ import time
 # The sensor runs at this rate whatever the preset sends. A change takes about seven frames to reach the picture, so a
 # faster camera shows it sooner (0.74 s at 10 fps, measured on the Pi, 8 Nov 2026); only the preset's rate is sent.
 CAMERA_FPS = 30
-LIVE_KEYS = ("ev", "brightness", "contrast", "saturation", "sharpness", "awb", "metering", "exposure", "manual",
-             "shutter", "gain", "denoise")
+CONTROL_KEYS = ("ev", "brightness", "contrast", "saturation", "sharpness", "awb", "metering", "exposure", "manual",
+                "shutter", "gain", "denoise")
+CROP_KEYS = ("zoom", "centre_x", "centre_y")       # a new crop on the running camera
+REBUILD_KEYS = ("turn", "mirror", "flip", "preset")  # a new stream: stop, configure, start (about a second)
+LIVE_KEYS = CONTROL_KEYS + CROP_KEYS + REBUILD_KEYS
 # The hub's words for each choice, as Picamera2/libcamera names them (libcamera controls: AwbModeEnum etc.).
 AWB = {"auto": "Auto", "incandescent": "Incandescent", "tungsten": "Tungsten", "fluorescent": "Fluorescent",
        "indoor": "Indoor", "daylight": "Daylight", "cloudy": "Cloudy"}
@@ -73,7 +76,25 @@ def parse_line(line):
         return None
     if not isinstance(msg, dict) or msg.get("key") not in LIVE_KEYS or "value" not in msg:
         return None
+    if msg["key"] == "preset":  # the hub sends the preset's numbers: {"width", "height", "fps", "quality"}
+        v = msg["value"]
+        if not isinstance(v, dict) or set(v) != {"width", "height", "fps", "quality"}:
+            return None
     return msg["key"], msg["value"]
+
+
+def apply_changes(state, changes):
+    """Fold the changes into `state`. Returns (rebuild, crop): whether the stream must be rebuilt (a new size, turn or
+    flip), and whether only the crop moved."""
+    rebuild = crop = False
+    for key, value in changes:
+        if key == "preset":
+            state.update(value)
+        else:
+            state[key] = value
+        rebuild = rebuild or key in REBUILD_KEYS
+        crop = crop or key in CROP_KEYS
+    return rebuild, crop
 
 
 def main(argv, stdin, stdout):
@@ -104,34 +125,47 @@ def main(argv, stdin, stdout):
         stop.set()  # the hub closed our stdin: it is gone, so the camera is released
 
     threading.Thread(target=read_stdin, daemon=True).start()
-    size = (int(cfg["width"]), int(cfg["height"]))
     cam = Picamera2()
-    hflip, vflip = transform_from(cfg)
-    # Few buffers, so a frame is never older than the queue it waited in (six made a change show 1.4 s late).
-    cam.configure(cam.create_video_configuration(main={"size": size, "format": "RGB888"}, buffer_count=2,
-                                                 transform=Transform(hflip=hflip, vflip=vflip)))
-    crop = scaler_crop(cfg, cam.camera_properties["ScalerCropMaximum"], size)
-    cam.set_controls(to_libcamera(controls_from(state, CAMERA_FPS)))
-    cam.start()
-    if crop:
-        cam.set_controls({"ScalerCrop": crop})
-    period, last = 1 / cfg["fps"], 0.0
+
+    def start():
+        """Configure and start the stream for `state`: a new size, turn or flip needs a new configuration."""
+        size = (int(state["width"]), int(state["height"]))
+        hflip, vflip = transform_from(state)
+        # Few buffers, so a frame is never older than the queue it waited in (six made a change show 1.4 s late).
+        cam.configure(cam.create_video_configuration(main={"size": size, "format": "RGB888"}, buffer_count=2,
+                                                     transform=Transform(hflip=hflip, vflip=vflip)))
+        cam.set_controls(to_libcamera(controls_from(state, CAMERA_FPS)))
+        cam.start()
+        set_crop()
+
+    def set_crop():
+        size = (int(state["width"]), int(state["height"]))
+        crop = scaler_crop(state, cam.camera_properties["ScalerCropMaximum"], size)
+        cam.set_controls({"ScalerCrop": crop or cam.camera_properties["ScalerCropMaximum"]})
+
+    start()
+    last = 0.0
     try:
         while not stop.is_set():
             with lock:
                 changes, pending[:] = list(pending), []
             if changes:
-                for key, value in changes:
-                    state[key] = value
-                cam.set_controls(to_libcamera(controls_from(state, CAMERA_FPS)))
+                rebuild, crop = apply_changes(state, changes)
+                if rebuild:
+                    cam.stop()
+                    start()
+                else:
+                    cam.set_controls(to_libcamera(controls_from(state, CAMERA_FPS)))
+                    if crop:
+                        set_crop()
             request = cam.capture_request()
             try:
                 now = time.monotonic()
-                if now - last < period - 0.5 / CAMERA_FPS:
+                if now - last < 1 / state["fps"] - 0.5 / CAMERA_FPS:
                     continue  # the camera is faster than the preset sends: this frame is only a quicker pipeline
                 last = now  # from the start of the encode, so the preset's rate holds when encoding is quick enough
                 buf = io.BytesIO()
-                request.make_image("main").save(buf, format="JPEG", quality=int(cfg["quality"]))
+                request.make_image("main").save(buf, format="JPEG", quality=int(state["quality"]))
             finally:
                 request.release()
             stdout.write(buf.getvalue())

@@ -282,18 +282,15 @@ function shownValue(c, v) {
 }
 
 // One control, as a native input with a visible label and a place for the hub's reason if it refuses the value.
-function settingField(c, value, onInput, engine = "picamera2") {
+function settingField(c, value, onInput) {
   const id = `set-${c.key}`;
   const err = h("p", { class: "ws-set-err", id: `${id}-err`, hidden: true });
-  const restartHint = c.live !== true && engine === "picamera2"
-    ? h("p", { class: "ws-set-restart" }, "Restarts the picture")
-    : null;
   const common = { id, dataset: { key: id, field: c.key }, "aria-describedby": `${id}-err` };
   if (c.kind === "switch") {
     const box = h("input", { ...common, type: "checkbox", checked: value === true });
     box.addEventListener("change", () => onInput(c.key, box.checked === true));
     return h("div", { class: "ws-set-field ws-set-field--switch", dataset: { field: c.key } },
-      box, h("label", { for: id }, c.label), err, restartHint);
+      box, h("label", { for: id }, c.label), err);
   }
   if (c.kind === "choice") {
     const sel = h("select", common, ...(c.options || []).map((o) =>
@@ -304,7 +301,7 @@ function settingField(c, value, onInput, engine = "picamera2") {
     });
     // A label that only repeats its group's heading ("Live quality") is kept for screen readers, not shown twice.
     return h("div", { class: "ws-set-field", dataset: { field: c.key } },
-      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err, restartHint);
+      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err);
   }
   const out = h("output", { for: id, class: "ws-set-value" }, shownValue(c, value));
   const range = h("input", { ...common, type: "range", min: String(c.min), max: String(c.max), step: String(c.step), value: String(value) });
@@ -313,16 +310,16 @@ function settingField(c, value, onInput, engine = "picamera2") {
     if (Number.isFinite(n)) onInput(c.key, n);
   });
   return h("div", { class: "ws-set-field", dataset: { field: c.key } },
-    h("label", { for: id }, c.label, " ", out), range, err, restartHint);
+    h("label", { for: id }, c.label, " ", out), range, err);
 }
 
 // The groups, in the hub's order (A18 C2): Orientation, Framing, Light, Colour, Detail, Live quality.
-export function settingsFields(controls, draft, onInput = () => {}, engine = "picamera2") {
+export function settingsFields(controls, draft, onInput = () => {}) {
   const groups = new Map();
   for (const c of Array.isArray(controls) ? controls : []) {
     if (!c?.key || !c.group) continue;
     if (!groups.has(c.group)) groups.set(c.group, []);
-    groups.get(c.group).push(settingField(c, draft?.[c.key] ?? c.default, onInput, engine));
+    groups.get(c.group).push(settingField(c, draft?.[c.key] ?? c.default, onInput));
   }
   return [...groups].map(([name, fields]) => h("fieldset", { class: "ws-set-group" }, h("legend", {}, name), ...fields));
 }
@@ -407,7 +404,6 @@ async function applyLook(state, look) {
   if (set.applying || !set.model) return;
   set.activeLook = look.name;
   drawLooks(state);
-  const oldZoom = set.draft.zoom;
   const values = look.values || {};
   for (const [k, v] of Object.entries(values)) {
     set.draft[k] = v;
@@ -416,25 +412,25 @@ async function applyLook(state, look) {
   syncSettings(state);
 
   const engine = state.room?.engine || "picamera2";
-  if (engine !== "picamera2" || (values.zoom !== undefined && values.zoom !== oldZoom)) {
-    // Zoom change or fallback engine restarts capture
+  if (engine !== "picamera2") {
+    // The fallback engine can't adjust live: a look applies with a restart
     set.message = SETTINGS_WORDS.restarting;
     syncSettings(state);
     await sendSettings(state, "apply");
   } else {
     // Try live controls for live-capable keys
     for (const [k, v] of Object.entries(values)) {
-      if (CONTROLS_LIVE.has(k)) {
+      if (isLive(state, k)) {
         queueLiveControl(state, k, v);
       }
     }
   }
 }
 
-const CONTROLS_LIVE = new Set([
-  "ev", "brightness", "contrast", "saturation", "sharpness", "awb",
-  "metering", "exposure", "manual", "shutter", "gain", "denoise"
-]);
+// Every control changes on the running camera; the hub's table says so (c.live), so nothing here repeats it.
+function isLive(state, key) {
+  return state.set?.model?.controls?.find((c) => c.key === key)?.live === true;
+}
 
 function queueLiveControl(state, key, value) {
   const set = state.set;
@@ -461,7 +457,14 @@ async function sendNextLive(state) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(change),
     });
-    if (r.status === 409) {
+    if (r.ok) {
+      const body = await r.json().catch(() => null);
+      if (body?.state && !state.left) {
+        const was = JSON.stringify([state.room?.rotate, state.room?.size]);
+        state.room = { ...state.room, ...body.state };
+        if (JSON.stringify([state.room.rotate, state.room.size]) !== was) drawCam(state);
+      }
+    } else if (r.status === 409) {
       set.message = "Live adjust isn't running. Use Apply.";
       syncSettings(state);
     } else if (r.status === 429) {
@@ -517,10 +520,10 @@ function drawSettings(state) {
       if (set.refused?.field === key) set.refused = null;
       syncSettings(state);
       drawLooks(state);
-      if (engine === "picamera2" && CONTROLS_LIVE.has(key)) {
+      if (engine === "picamera2" && isLive(state, key)) {
         queueLiveControl(state, key, v);
       }
-    }, engine) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
+    }) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
   syncSettings(state);
   drawSnapshots(state);
 }

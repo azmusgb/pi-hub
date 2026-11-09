@@ -746,7 +746,8 @@ async def api_room_camera_live_control(request: Request):
                             headers={"Cache-Control": "no-store"})
     except room_camera.Unavailable as e:
         return _room_unavailable(e)
-    return fresh({"key": body["key"], "value": value, "live_values": dict(room_camera.CAMERA.live_values)})
+    return fresh({"key": body["key"], "value": value, "live_values": dict(room_camera.CAMERA.live_values),
+                  "state": room_camera.CAMERA.state()})
 
 
 @app.post("/api/camera/room/settings/reset")

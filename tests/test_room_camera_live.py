@@ -2,6 +2,7 @@
 and never saved, only for the live group, rate limited, and a fallback to rpicam-vid when the helper can't run. The
 helper is stood in for by tests/fixtures/fake_helper.py; its camera-facing mapping is tested as plain functions."""
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -78,10 +79,10 @@ async def latest(cam, want, tries=100):
 
 # ---- the table ----
 
-def test_the_table_marks_exactly_the_live_group():
+def test_the_table_marks_every_control_live():
     live = {c["key"] for c in room_camera.CONTROLS if c["live"]}
-    assert live == set(room_camera.LIVE_KEYS)
-    assert not live & {"turn", "mirror", "flip", "zoom", "centre_x", "centre_y", "preset"}
+    assert live == set(room_camera.LIVE_KEYS) == {c["key"] for c in room_camera.CONTROLS}
+    assert {"turn", "mirror", "flip", "zoom", "centre_x", "centre_y", "preset"} <= live
     assert set(room_camera_helper.LIVE_KEYS) == live  # the helper and the hub name the same group
 
 
@@ -118,11 +119,11 @@ def test_the_helper_is_started_with_the_preset_and_every_setting():
 
 
 @pytest.mark.parametrize("key,value", [
-    ("turn", 180), ("mirror", True), ("zoom", 2), ("preset", "sharp"), ("centre_x", 10),  # restart-class
+    ("turn", 45), ("zoom", 9), ("preset", "ultra"), ("mirror", "yes"), ("centre_x", 101),
     ("nope", 1), ("ev", 9), ("ev", "1"), ("awb", "sunset"), ("manual", 1), ("ev", float("nan")), ("shutter", 5),
     ("awb", "auto; rm -rf /"), (None, 1), (["ev"], 1), ("gain", True),
 ])
-def test_a_change_that_is_not_live_or_not_valid_is_refused_and_nothing_reaches_the_camera(key, value):
+def test_a_change_that_is_not_valid_is_refused_and_nothing_reaches_the_camera(key, value):
     async def go():
         cam = Cam()
         s = cam.live()
@@ -141,8 +142,8 @@ def test_a_refusal_names_the_field_and_why():
     async def go():
         cam = Cam()
         with pytest.raises(room_camera.Invalid) as e:
-            await cam.live_control("zoom", 2, "phone")
-        assert e.value.field == "zoom" and "Apply" in e.value.reason
+            await cam.live_control("zoom", 9, "phone")
+        assert e.value.field == "zoom" and "1 to 4" in e.value.reason
     run(go())
 
 
@@ -182,7 +183,7 @@ def test_the_limiter_forgets_old_events_and_does_not_grow():
 
 # ---- tries are not saves ----
 
-def test_tries_vanish_when_the_capture_stops_restarts_or_an_apply_saves():
+def test_tries_vanish_when_the_capture_stops_or_an_apply_saves():
     async def go():
         cam = Cam()
         s = cam.live()
@@ -190,28 +191,68 @@ def test_tries_vanish_when_the_capture_stops_restarts_or_an_apply_saves():
         await settle(cam)
         await cam.live_control("contrast", 1.5, "phone")
         assert cam.live_values
-        await cam.apply({**D, "ev": 1.0})  # saves, and restarts the capture once
-        assert cam.live_values == {} and cam.settings()["ev"] == 1.0 and cam.starts == 2
-        await settle(cam)
-        await cam.live_control("contrast", 1.5, "phone")
+        await cam.apply({**D, "ev": 1.0, "contrast": 1.5})  # saves what was tried, and restarts nothing
+        assert cam.live_values == {} and cam.settings()["ev"] == 1.0 and cam.starts == 1
+        await cam.live_control("saturation", 1.5, "phone")
         await s.aclose()
         await asyncio.sleep(room_camera.STOP_AFTER + 0.5)
         assert cam.proc is None and cam.live_values == {}
     run(go())
 
 
-def test_a_restart_class_apply_restarts_once_and_a_live_change_restarts_nothing():
+def test_every_control_is_tried_live_and_nothing_restarts_the_capture():
     async def go():
         cam = Cam()
         s = cam.live()
         await s.__anext__()
         await settle(cam)
-        for v in (0.5, 1.0, 1.5):
-            await cam.live_control("ev", v, f"d{v}")
+        for i, (k, v) in enumerate([("ev", 1.0), ("turn", 90), ("mirror", True), ("flip", True), ("zoom", 2),
+                                    ("centre_x", 20), ("centre_y", 80)]):
+            await cam.live_control(k, v, f"d{i}")
         assert cam.starts == 1
-        await cam.apply({**D, "zoom": 2})
-        assert cam.starts == 2
+        frame = await latest(cam, b"centre_y=80")
+        for want in (b"turn=90", b"mirror=True", b"flip=True", b"zoom=2", b"centre_x=20"):
+            assert want in frame
+        assert cam.state()["rotate"] == 90  # the page turns the picture by the live Turn
         await s.aclose()
+    run(go())
+
+
+def test_the_preset_goes_to_the_helper_as_its_numbers_and_the_state_follows():
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        assert await cam.live_control("preset", "sharp", "phone") == "sharp"
+        p = room_camera.PRESETS["sharp"]
+        await latest(cam, b"preset=")
+        assert cam.state()["size"] == [p["width"], p["height"]] and cam.live_values == {"preset": "sharp"}
+        assert cam.settings()["preset"] != "sharp"
+        await s.aclose()
+    run(go())
+
+
+def test_save_sends_the_helper_only_what_it_does_not_already_hold_and_restarts_nothing():
+    async def go():
+        cam = Cam()
+        s = cam.live()
+        await s.__anext__()
+        await settle(cam)
+        await cam.live_control("ev", 1.0, "phone")
+        await cam.apply({**D, "ev": 1.0, "zoom": 2})  # ev was tried; zoom was only edited in the form
+        assert cam.starts == 1 and cam.proc_engine == "picamera2"
+        frame = await latest(cam, b"zoom=2")
+        assert frame.count(b"ev=1.0") == 1 and cam.settings()["zoom"] == 2 and cam.live_values == {}
+        await s.aclose()
+    run(go())
+
+
+def test_save_with_no_live_capture_only_stores():
+    async def go():
+        cam = Cam()
+        await cam.apply({**D, "turn": 180})
+        assert cam.settings()["turn"] == 180 and cam.starts == 0 and cam.proc is None
     run(go())
 
 
@@ -388,8 +429,22 @@ def test_zoom_crops_around_the_centre_keeps_the_shape_and_stays_inside_the_senso
 
 def test_the_helper_takes_only_known_live_changes_from_stdin():
     assert room_camera_helper.parse_line('{"key": "ev", "value": 1}') == ("ev", 1)
-    for bad in ('{"key": "zoom", "value": 2}', '{"key": "ev"}', "[]", "nonsense", '{"key": 1, "value": 1}', ""):
+    assert room_camera_helper.parse_line('{"key": "zoom", "value": 2}') == ("zoom", 2)
+    ok = {"width": 640, "height": 480, "fps": 10, "quality": 50}
+    assert room_camera_helper.parse_line(json.dumps({"key": "preset", "value": ok})) == ("preset", ok)
+    for bad in ('{"key": "bogus", "value": 2}', '{"key": "preset", "value": "clear"}',
+                '{"key": "preset", "value": {"width": 1}}', '{"key": "ev"}', "[]", "nonsense", '{"key": 1, "value": 1}', ""):
         assert room_camera_helper.parse_line(bad) is None
+
+
+def test_changes_say_whether_the_stream_is_rebuilt_or_only_the_crop_moves():
+    st = dict(S, width=640, height=480, fps=10, quality=50)
+    assert room_camera_helper.apply_changes(st, [("ev", 1.0)]) == (False, False) and st["ev"] == 1.0
+    assert room_camera_helper.apply_changes(st, [("zoom", 2), ("ev", 0)]) == (False, True) and st["zoom"] == 2
+    assert room_camera_helper.apply_changes(st, [("turn", 180), ("zoom", 1)]) == (True, True)
+    new = {"width": 1296, "height": 972, "fps": 15, "quality": 60}
+    assert room_camera_helper.apply_changes(st, [("preset", new)]) == (True, False)
+    assert (st["width"], st["fps"], st["quality"]) == (1296, 15, 60)
 
 
 # ---- the route ----
@@ -421,8 +476,8 @@ def test_the_live_route_answers_in_words_for_each_refusal(client, monkeypatch):
         return client.post("/api/camera/room/live-controls", headers=headers, **kw)
     r = post(json={"key": "ev", "value": 1})
     assert r.status_code == 409 and "Apply" in r.json()["reason"]  # nothing live yet
-    r = post(json={"key": "zoom", "value": 2})
-    assert r.status_code == 422 and r.json()["field"] == "zoom"
+    r = post(json={"key": "bogus", "value": 2})
+    assert r.status_code == 422 and r.json()["field"] == "bogus"
     r = post(json={"key": "ev", "value": 99})
     assert r.status_code == 422 and r.json()["field"] == "ev"
     for bad in ({"key": "ev"}, {"key": "ev", "value": 1, "extra": 1}, [1], "x"):
