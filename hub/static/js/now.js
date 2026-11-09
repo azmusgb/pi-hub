@@ -1211,6 +1211,7 @@ export function mount(state) {
     if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
   }, 15 * 60 * 1000);
 
+  // The printer's camera: a new still every second while the page is visible, as on Workshop.
   if (state._camTimer) clearInterval(state._camTimer);
   state._camTimer = setInterval(() => {
     const imgs = state.root.querySelectorAll(".band-cam-img, .house-cam-img, .kiosk-cam-img");
@@ -1218,7 +1219,7 @@ export function mount(state) {
       const ts = Date.now();
       imgs.forEach(img => { img.src = `/api/camera.jpg?t=${ts}`; });
     }
-  }, 2000);
+  }, 1000);
 }
 
 export async function load(state) {

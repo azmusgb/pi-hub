@@ -862,3 +862,26 @@ test('page: delete snapshot in gallery sends DELETE /api/camera/room/snapshots/{
     assert.equal(p.state.snaps.items.length, 0);
   } finally { p.done(); }
 });
+
+test('page: the printer camera takes a new still every second; the Room view keeps its 2 seconds (A17 R4)', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  let roomStills = 0;
+  const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camUp, '/api/camera/room': ready,
+    '/api/camera/room.jpg': () => { roomStills += 1; return {}; } });
+  try {
+    await p.ws.load(p.state);
+    const still = () => p.state.root.querySelector('.ui-faceplate__aside img.cam-img[data-refresh="/api/camera.jpg"]');
+    const before = still().getAttribute('src');
+    await new Promise((r) => setTimeout(r, 2));
+    t.mock.timers.tick(1000);
+    assert.notEqual(still().getAttribute('src'), before, 'a new printer still after 1 s');
+
+    p.state.root.querySelector('[data-key="cam-room"]').click();
+    roomStills = 0;
+    for (let i = 0; i < 4; i += 1) {
+      t.mock.timers.tick(1000);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    assert.equal(roomStills, 2, 'two Room stills in 4 s: one every 2 s, not every second');
+  } finally { p.done(); }
+});
