@@ -52,3 +52,17 @@
 .quick-ticks { display: grid; gap: 4px; margin-block-start: 12px; }
 .quick-tick { display: flex; align-items: center; gap: 12px; min-block-size: 44px; overflow-wrap: anywhere; }
 .quick-tick__box { inline-size: 24px; block-size: 24px; flex: none; accent-color: var(--accent); }
+
+/* A19 P7: the optional 3D view */
+.quick-3d-box { margin-block-start: 20px; min-inline-size: 0; }
+.quick-3d-box__open { display: grid; gap: 8px; justify-items: start; }
+.quick-3d-box__open p { margin: 0; }
+.quick-3d { display: grid; gap: 10px; min-inline-size: 0; }
+.quick-3d__status, .quick-3d__note { margin: 0; }
+.quick-3d__note { color: var(--ui-muted); font-size: var(--ui-fs-5, 0.875rem); }
+.quick-3d__bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.quick-3d__tog, .quick-3d__cut { display: inline-flex; gap: 6px; align-items: center; }
+.quick-3d__cut input { inline-size: min(220px, 40vw); }
+.quick-3d__stage { position: relative; inline-size: 100%; block-size: clamp(260px, 55vh, 520px); border: 1px solid var(--ui-line, #c8d0d8); border-radius: 8px; overflow: hidden; min-inline-size: 0; }
+.quick-3d__stage:focus-visible { outline: 2px solid var(--ui-focus, currentColor); outline-offset: 2px; }
+.quick-3d__canvas { display: block; inline-size: 100%; block-size: 100%; touch-action: none; }
