@@ -38,13 +38,19 @@ def services():
 
 
 def _updates():
-    lines = _run("apt", "list", "--upgradable", timeout=90).splitlines()
+    """The pending apt upgrades. Raises when apt can't be read, so a failure is never taken for "nothing waiting"."""
+    run = subprocess.run(("apt", "list", "--upgradable"), capture_output=True, text=True, timeout=90)
+    if run.returncode != 0:
+        raise RuntimeError(f"apt list exited {run.returncode}")
     out = []
-    for line in lines:
+    for line in run.stdout.splitlines():
         if "/" in line and "[upgradable" in line:
             name, rest = line.split("/", 1)
             parts = rest.split()
-            out.append({"name": name, "version": parts[1] if len(parts) > 1 else ""})
+            # apt names the archive a package comes from first, e.g. "stable-security,now"; only that says "security"
+            suites = parts[0].split(",") if parts else []
+            out.append({"name": name, "version": parts[1] if len(parts) > 1 else "",
+                        "security": any(x.endswith("-security") for x in suites)})
     return out
 
 

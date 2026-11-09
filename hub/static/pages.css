@@ -116,6 +116,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .store-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .pkg { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
 .pkg li { display: flex; justify-content: space-between; gap: 1rem; }
+.updates-detail summary { cursor: pointer; display: list-item; min-block-size: 44px; align-content: center; }
+.updates-detail summary::marker { color: var(--muted); }
+.updates-detail .pkg { padding-bottom: 0.5rem; }
 
 /* Alerts */
 .day + .day { margin-top: 0.6rem; }
