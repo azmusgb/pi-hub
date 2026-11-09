@@ -718,14 +718,11 @@ test('page: picamera2 engine shows Save button', async () => {
   } finally { p.done(); }
 });
 
-test('page: restart-class control shows "Restarts the picture" hint in picamera2', async () => {
+test('page: every control changes live, so none says it restarts the picture', async () => {
   const { dom, ws } = await mod();
   try {
     const groups = ws.settingsFields(CONTROLS, SETTINGS, () => {}, 'picamera2');
-    const q = (sel) => groups.map((g) => g.querySelector(sel)).find(Boolean);
-    const turnHint = q('[data-field="turn"] .ws-set-restart');
-    assert.ok(turnHint, 'Turn is restart-class');
-    assert.equal(text(turnHint), 'Restarts the picture');
+    assert.ok(!groups.some((g) => g.querySelector('.ws-set-restart')), 'no restart hint');
   } finally { dom.uninstall(); }
 });
 
