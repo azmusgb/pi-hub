@@ -1,7 +1,6 @@
 """A19 P8: how a Quick Print ends (from Bambuddy's print log), the printer's figures only as reported, the history
 comparison, and Reprint with its checks."""
 import json
-import shutil
 
 import pytest
 from fastapi.testclient import TestClient

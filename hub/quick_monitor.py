@@ -120,7 +120,7 @@ def _job(job_id: str, request: Request) -> dict:
 
 @router.get("/jobs/{job_id}/monitor")
 def monitor(job_id: str, request: Request):
-    from . import bambuddy, now
+    from . import now
     job = _job(job_id, request)
     printer = quick_start.printer_now()
     fig = figures(printer, job_id)
