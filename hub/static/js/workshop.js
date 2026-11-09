@@ -811,7 +811,7 @@ function paintViewTools(frame, vt) {
 // A tool change touches the frame and the toolbar where they stand: redrawing the camera would reopen the stream.
 function applyViewTools(state) {
   const vt = state.viewTools;
-  paintViewTools(state.camBox?.querySelector(".ws-cam-frame"), vt);
+  paintViewTools(camFrame(state), vt);
   const zoomed = vt.zoom !== 1 || vt.panX !== 0 || vt.panY !== 0;
   const set = (key, pressed, label) => {
     const b = state.camBox?.querySelector(`[data-key="${key}"]`);
@@ -964,7 +964,7 @@ function setOnPicture(state, values) {
 function barsWhy(state) {
   if (state.room?.state === "unavailable") return BAR_WHY[state.room.reason] || BAR_WHY.capture_failed;
   if (!state.live.on) return "Paused";
-  if (!state.live.frame || !state.set?.model) return "Starting…";
+  if (!state.liveFrame || !state.set?.model) return "Starting…";
   return null;
 }
 
@@ -1022,8 +1022,8 @@ function mountBars(state) {
 // The live picture's first frame: the camera's buttons wait for it (A23 D2, "Starting…").
 function liveArrived(state) {
   const img = liveImg(state);
-  if (!state.live.on || state.live.frame || !img || !(img.naturalWidth > 0)) return;
-  state.live.frame = true;
+  if (!state.live.on || state.liveFrame || !img || !(img.naturalWidth > 0)) return;
+  state.liveFrame = true;  // kept off state.live, which is part of the picture's redraw signature
   syncBars(state);
 }
 
@@ -1039,7 +1039,7 @@ function setViewZoom(state, zoom, panX, panY) {
     vt.panY = 0;
   } else {
     // Pan is in screen pixels and stops where the picture's edge meets the frame's.
-    const frame = state.camBox?.querySelector(".ws-cam-frame");
+    const frame = camFrame(state);
     const room = (size) => (size > 0 ? ((vt.zoom - 1) * size) / 2 : Infinity);  // not measured (not shown): no limit
     const mx = room(frame?.clientWidth);
     const my = room(frame?.clientHeight);
@@ -1197,8 +1197,8 @@ function startHistogram(state) {
   stopHistogram(state);
   state.viewTools.histTimer = setInterval(() => {
     if (document.hidden) return;
-    const img = state.camBox?.querySelector("img.room-img");
-    const canvas = state.camBox?.querySelector(".ws-hist-canvas");
+    const img = camFrame(state)?.querySelector("img.room-img");
+    const canvas = camFrame(state)?.querySelector(".ws-hist-canvas");
     if (img && canvas && !canvas.hidden) {
       sampleHistogram(img, canvas);
     }
@@ -1585,6 +1585,9 @@ function drawCam(state) {
   }
   const room = state.room ? [state.room.state, state.room.reason, state.room.rotate, state.room.size] : null;
   const sig = JSON.stringify([state.cam?.ok, state.cam?.source, state.cam?.reason, room, state.camPref, state.live]);
+  // A redraw takes the bars off the picture and mountBars puts them back after it, so a bar's focus is restored here.
+  const active = document.activeElement;
+  const barKey = state.bars?.el.contains(active) ? active.dataset?.key : null;
   redraw(state, "cam", state.camView, sig, () => { state.fsClose?.(); state.camView.replaceChildren(cameraAside(state.cam, {
     room: state.room, pref: state.camPref, live: state.live, state,
     onPick: (view) => {
@@ -1606,16 +1609,23 @@ function drawCam(state) {
   else if (!spot) state.camNote.remove();
   if (state.camNote.textContent !== (state.live.note || "")) state.camNote.textContent = state.live.note || "";
   drawSettings(state);
+  if (barKey && !state.bars.el.contains(document.activeElement)) state.bars.el.querySelector(`[data-key="${barKey}"]`)?.focus();
+}
+
+// The picture's frame wherever it is shown: the page's aside, or the iPhone full-screen overlay.
+function camFrame(state) {
+  return state.fsFrame || state.camBox?.querySelector(".ws-cam-frame") || null;
 }
 
 function liveImg(state) {
-  const img = state.camBox?.querySelector("img.room-img");
+  const img = camFrame(state)?.querySelector("img.room-img");
   return img && !img.dataset.refresh ? img : null;
 }
 
 function startLive(state) {
   clearTimeout(state.liveTimer);
   state.live = { on: true, note: "" };
+  state.liveFrame = false;
   state.liveTimer = setTimeout(() => stopLive(state, LIVE_PAUSED), LIVE_MS);
   drawCam(state);
 }
@@ -1626,6 +1636,7 @@ function stopLive(state, note, draw = true) {
   const img = liveImg(state);
   if (img) { img.onerror = null; img.onload = null; img.removeAttribute("src"); }
   state.live = { on: false, note };
+  state.liveFrame = false;
   if (draw && state.camBox) drawCam(state);
 }
 

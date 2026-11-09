@@ -1116,3 +1116,43 @@ test('A23 CSS: the bars stack in a grid over the picture, reach 44 px on touch a
   assert.match(part, /min-height: 44px/);
   assert.doesNotMatch(part.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation|#[0-9a-f]{3,6}\b|rgba?\(/i);
 });
+
+// ---- A23 P2 review findings ----
+
+test('A23: the first live frame does not redraw the picture (no second stream)', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+    await p.ws.load(p.state);
+    await tick();
+    assert.equal(p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh), img, 'the same live picture');
+    assert.ok(!bar(p, 'bar-turn').disabled);
+  } finally { p.done(); }
+});
+
+test('A23: a turn that redraws the picture keeps focus on Turn', async () => {
+  const p = await ownerPage(liveRoute([], (b) => ({ ...b, state: { ...ready90, rotate: 0, size: [640, 480] } })));
+  try {
+    await adjusting(p);
+    bar(p, 'bar-turn').focus();
+    bar(p, 'bar-turn').click();
+    await wait(260);
+    assert.equal(p.dom.document.activeElement, bar(p, 'bar-turn'));
+  } finally { p.done(); }
+});
+
+test('A23: in the iPhone overlay, Grid draws on the picture and stopping live closes the stream', async () => {
+  const p = await ownerPage();
+  try {
+    await adjusting(p);
+    const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+    const img = frame.querySelector('img.room-img');
+    bar(p, 'bar-fullscreen').click();
+    frame.querySelector('[data-key="bar-grid"]').click();
+    assert.ok(frame.classList.contains('has-grid'));
+    p.state.root.querySelector('[data-key="room-live"]').click();  // Stop live
+    assert.equal(img.getAttribute('src'), null, 'the picture let go of its stream');
+    assert.ok(!p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay'));
+  } finally { p.done(); }
+});
