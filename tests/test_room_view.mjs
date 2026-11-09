@@ -379,14 +379,30 @@ async function ownerPage(extra = {}, room = ready90) {
   return p;
 }
 const panel = (p) => p.state.root.querySelector('details.ws-set');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const bar = (p, key) => p.state.root.querySelector(`.ws-bars [data-key="${key}"]`);
+// Open Adjust and let the live picture's first frame arrive, so the controls on the picture can take a change.
+async function adjusting(p) {
+  const d = panel(p);
+  d.open = true;
+  d.dispatchEvent({ type: 'toggle', target: d });
+  await tick(); await tick();
+  const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+  img.naturalWidth = 384;
+  img.onload?.();
+  return d;
+}
 
 test("page: the owner gets a closed Camera settings panel under the Room view, drawn from the hub's table", async () => {
   const p = await ownerPage();
   try {
     const d = panel(p);
     assert.ok(d && !d.hidden && !d.open);
-    assert.equal(text(d.querySelector('summary')), 'Camera settings');
-    assert.equal(d.querySelectorAll('fieldset').length, 6);
+    assert.equal(text(d.querySelector('summary > span')), 'Adjust');
+    assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
+    // Orientation's controls and Zoom are on the picture now (A23 D2); the centre stays until drag to frame (P3).
+    assert.equal(d.querySelectorAll('fieldset').length, 5);
+    assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
     assert.equal(text(d.querySelector('.ws-set-note')), '');
     assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
   } finally { p.done(); }
@@ -409,16 +425,16 @@ test('page: not the owner, or the printer camera chosen: no settings panel', asy
 
 test('page: an edit says not applied yet, enables what depends on it, and survives the aside being redrawn', async () => {
   let room = ready90;
-  const p = await ownerPage({ '/api/camera/room': () => room });
+  const p = await ownerPage({ '/api/camera/room': () => room, '/api/camera/room/live-controls': (u, o) => JSON.parse(o.body) });
   try {
-    const d = panel(p);
-    d.open = true;
+    const d = await adjusting(p);
     assert.ok(d.querySelector('#set-centre_x').disabled, 'centre only means something when zoomed');
     assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
-    const zoom = d.querySelector('#set-zoom');
-    change(zoom, 2);
+    const zoom = bar(p, 'bar-zoom-in');
+    zoom.click();
+    zoom.click();
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
-    assert.equal(text(d.querySelector('label[for="set-zoom"] output')), '2 ×');
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2×');
     assert.ok(!d.querySelector('#set-centre_x').disabled);
     change(d.querySelector('#set-manual'), true);
     assert.ok(!d.querySelector('#set-shutter').disabled);
@@ -426,7 +442,7 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
     await p.ws.load(p.state);
     assert.equal(panel(p), d);
     assert.ok(d.open);
-    assert.equal(d.querySelector('#set-zoom'), zoom, 'the same field, not a rebuilt one');
+    assert.equal(bar(p, 'bar-zoom-in'), zoom, 'the same button, moved into the new frame, not a rebuilt one');
     assert.equal(p.state.set.draft.zoom, 2);
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
   } finally { p.done(); }
@@ -510,7 +526,9 @@ test('page: Reset asks first; declined, nothing is sent', async () => {
     await tick(); await tick(); await tick(); await tick();
     assert.equal(posts, 1);
     assert.equal(text(panel(p).querySelector('.ws-set-note')), 'Every setting is back to its default.');
-    assert.equal(panel(p).querySelector('#set-turn option[selected]').getAttribute('value'), '0', 'the fields show what the hub stored');
+    assert.equal(p.state.set.draft.turn, 0, 'the draft is what the hub stored');
+    await adjusting(p);
+    assert.equal(text(bar(p, 'bar-turn')), 'Turn 0°', 'the picture shows what the hub stored');
   } finally { p.done(); }
 });
 
@@ -817,12 +835,8 @@ test('page: save snapshot button sends POST /api/camera/room/snapshots and updat
     },
   });
   try {
-    const d = panel(p);
-    d.open = true;
-    d.dispatchEvent({ type: 'toggle', target: d });
-    await tick(); await tick();
-
-    const snapBtn = d.querySelector('[data-key="cam-snapshot"]');
+    await adjusting(p);
+    const snapBtn = bar(p, 'cam-snapshot');  // on the picture's bottom bar now (A23 D2)
     assert.ok(snapBtn);
     snapBtn.click();
     await tick(); await tick();
@@ -885,3 +899,4 @@ test('page: the printer camera takes a new still every second; the Room view kee
     assert.equal(roomStills, 2, 'two Room stills in 4 s: one every 2 s, not every second');
   } finally { p.done(); }
 });
+
