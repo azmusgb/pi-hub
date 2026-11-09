@@ -226,9 +226,12 @@ export function cameraAside(c, { room = null, pref = "printer", live = {}, onPic
 export const SETTINGS_WORDS = {
   loading: "Loading the camera's settings…",
   noAnswer: "The hub didn't answer, so the camera's settings can't be shown. This page tries again in 15 seconds.",
-  edited: "Not applied yet.",
+  edited: "Not saved.",
+  saving: "Saving…",
+  saved: "Saved.",
   applying: "Applying…",
   applied: "Applied.",
+  restarting: "Restarting…",
   reset: "Every setting is back to its default.",
   busy: "The camera is still applying the last change.",
   signIn: "Sign in as the owner to change the camera.",
@@ -236,6 +239,7 @@ export const SETTINGS_WORDS = {
   captureFailed: "The Pi's camera isn't giving pictures right now. Reset to defaults puts every setting back, in case one caused it.",
   notDetected: "The Pi's camera isn't detected. Check its ribbon cable. Settings can be changed once it's back.",
   resetAsk: "Every camera setting goes back to its default, including Turn. The picture restarts.",
+  fallbackNotice: "Live adjust isn't available, so changes apply with Apply.",
 };
 
 function shownValue(c, v) {
@@ -244,14 +248,18 @@ function shownValue(c, v) {
 }
 
 // One control, as a native input with a visible label and a place for the hub's reason if it refuses the value.
-function settingField(c, value, onInput) {
+function settingField(c, value, onInput, engine = "picamera2") {
   const id = `set-${c.key}`;
   const err = h("p", { class: "ws-set-err", id: `${id}-err`, hidden: true });
+  const restartHint = c.live !== true && engine === "picamera2"
+    ? h("p", { class: "ws-set-restart" }, "Restarts the picture")
+    : null;
   const common = { id, dataset: { key: id, field: c.key }, "aria-describedby": `${id}-err` };
   if (c.kind === "switch") {
     const box = h("input", { ...common, type: "checkbox", checked: value === true });
     box.addEventListener("change", () => onInput(c.key, box.checked === true));
-    return h("div", { class: "ws-set-field ws-set-field--switch", dataset: { field: c.key } }, box, h("label", { for: id }, c.label), err);
+    return h("div", { class: "ws-set-field ws-set-field--switch", dataset: { field: c.key } },
+      box, h("label", { for: id }, c.label), err, restartHint);
   }
   if (c.kind === "choice") {
     const sel = h("select", common, ...(c.options || []).map((o) =>
@@ -262,7 +270,7 @@ function settingField(c, value, onInput) {
     });
     // A label that only repeats its group's heading ("Live quality") is kept for screen readers, not shown twice.
     return h("div", { class: "ws-set-field", dataset: { field: c.key } },
-      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err);
+      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err, restartHint);
   }
   const out = h("output", { for: id, class: "ws-set-value" }, shownValue(c, value));
   const range = h("input", { ...common, type: "range", min: String(c.min), max: String(c.max), step: String(c.step), value: String(value) });
@@ -270,34 +278,167 @@ function settingField(c, value, onInput) {
     const n = Number(range.value);
     if (Number.isFinite(n)) onInput(c.key, n);
   });
-  return h("div", { class: "ws-set-field", dataset: { field: c.key } }, h("label", { for: id }, c.label, " ", out), range, err);
+  return h("div", { class: "ws-set-field", dataset: { field: c.key } },
+    h("label", { for: id }, c.label, " ", out), range, err, restartHint);
 }
 
 // The groups, in the hub's order (A18 C2): Orientation, Framing, Light, Colour, Detail, Live quality.
-export function settingsFields(controls, draft, onInput = () => {}) {
+export function settingsFields(controls, draft, onInput = () => {}, engine = "picamera2") {
   const groups = new Map();
   for (const c of Array.isArray(controls) ? controls : []) {
     if (!c?.key || !c.group) continue;
     if (!groups.has(c.group)) groups.set(c.group, []);
-    groups.get(c.group).push(settingField(c, draft?.[c.key] ?? c.default, onInput));
+    groups.get(c.group).push(settingField(c, draft?.[c.key] ?? c.default, onInput, engine));
   }
   return [...groups].map(([name, fields]) => h("fieldset", { class: "ws-set-group" }, h("legend", {}, name), ...fields));
 }
 
 function makeSettings(state) {
-  const set = { model: null, draft: null, applying: false, failed: false, loading: false, message: "", refused: null };
+  const set = {
+    model: null,
+    draft: null,
+    looks: [],
+    activeLook: null,
+    applying: false,
+    failed: false,
+    loading: false,
+    message: "",
+    refused: null,
+    ratePending: null,
+    inFlight: false,
+    nextLiveChange: null,
+  };
   state.set = set;
+  set.looksEl = h("div", { class: "ws-looks" });
   set.body = h("div", { class: "ws-set-body" });
   set.note = h("p", { class: "meta ws-set-note", role: "status", tabindex: "-1" });
   set.apply = h("button", { type: "button", class: "primary small", dataset: { key: "cam-apply" } }, "Apply");
   set.apply.addEventListener("click", () => sendSettings(state, "apply"));
+  set.save = h("button", { type: "button", class: "primary small", dataset: { key: "cam-save" } }, "Save");
+  set.save.addEventListener("click", () => sendSettings(state, "save"));
   set.reset = h("button", { type: "button", class: "ghost small", dataset: { key: "cam-reset" } }, "Reset to defaults");
   set.reset.addEventListener("click", async () => {
     if (set.applying || !set.model) return;
     if (await askFirst(set.reset, SETTINGS_WORDS.resetAsk, { confirm: "Reset" })) sendSettings(state, "reset");
   });
-  set.el = h("details", { class: "ws-set", hidden: true }, h("summary", { dataset: { key: "cam-settings" } }, "Camera settings"),
-    h("div", { class: "ws-set-inner" }, set.body, h("div", { class: "ws-set-actions" }, set.apply, set.reset), set.note));
+  set.actions = h("div", { class: "ws-set-actions" }, set.save, set.apply, set.reset);
+  set.el = h("details", { class: "ws-set", hidden: true },
+    h("summary", { dataset: { key: "cam-settings" } }, "Camera settings"),
+    h("div", { class: "ws-set-inner" }, set.looksEl, set.body, set.actions, set.note));
+
+  set.el.addEventListener("toggle", () => {
+    state.camBox?.classList.toggle("ws-cam-box--pinned", set.el.open);
+    if (set.el.open) {
+      if (!state.live.on && state.room?.state !== "unavailable") {
+        startLive(state);
+      }
+      loadLooks(state);
+    }
+  });
+}
+
+async function loadLooks(state) {
+  const set = state.set;
+  const got = await settle(api("/api/camera/room/looks"), 6000, null);
+  if (state.left || !got?.looks) return;
+  set.looks = got.looks;
+  drawLooks(state);
+}
+
+function drawLooks(state) {
+  const set = state.set;
+  if (!Array.isArray(set.looks) || !set.looks.length) {
+    set.looksEl.replaceChildren();
+    return;
+  }
+  const chips = set.looks.map((look) => {
+    const isPressed = set.activeLook === look.name;
+    const btn = h("button", {
+      type: "button",
+      class: "ws-look-chip",
+      dataset: { key: `look-${look.name}` },
+      "aria-pressed": String(isPressed),
+    }, look.name);
+    btn.addEventListener("click", () => applyLook(state, look));
+    return btn;
+  });
+  set.looksEl.replaceChildren(...chips);
+}
+
+async function applyLook(state, look) {
+  const set = state.set;
+  if (set.applying || !set.model) return;
+  set.activeLook = look.name;
+  drawLooks(state);
+  const oldZoom = set.draft.zoom;
+  const values = look.values || {};
+  for (const [k, v] of Object.entries(values)) {
+    set.draft[k] = v;
+  }
+  set.message = "";
+  syncSettings(state);
+
+  const engine = state.room?.engine || "picamera2";
+  if (engine !== "picamera2" || (values.zoom !== undefined && values.zoom !== oldZoom)) {
+    // Zoom change or fallback engine restarts capture
+    set.message = SETTINGS_WORDS.restarting;
+    syncSettings(state);
+    await sendSettings(state, "apply");
+  } else {
+    // Try live controls for live-capable keys
+    for (const [k, v] of Object.entries(values)) {
+      if (CONTROLS_LIVE.has(k)) {
+        queueLiveControl(state, k, v);
+      }
+    }
+  }
+}
+
+const CONTROLS_LIVE = new Set([
+  "ev", "brightness", "contrast", "saturation", "sharpness", "awb",
+  "metering", "exposure", "manual", "shutter", "gain", "denoise"
+]);
+
+function queueLiveControl(state, key, value) {
+  const set = state.set;
+  set.nextLiveChange = { key, value };
+  if (!set.ratePending) {
+    set.ratePending = setTimeout(() => {
+      set.ratePending = null;
+      sendNextLive(state);
+    }, 200); // at most 5 per second (200ms)
+  }
+}
+
+async function sendNextLive(state) {
+  const set = state.set;
+  if (!set.nextLiveChange || set.inFlight || state.left) return;
+  const change = set.nextLiveChange;
+  set.nextLiveChange = null;
+  set.inFlight = true;
+  try {
+    const r = await fetch("/api/camera/room/live-controls", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(change),
+    });
+    if (r.status === 409) {
+      set.message = "Live adjust isn't running. Use Apply.";
+      syncSettings(state);
+    } else if (r.status === 429) {
+      set.message = "Slow down: the camera takes ten changes a second.";
+      syncSettings(state);
+    }
+  } catch {
+    // network error
+  } finally {
+    set.inFlight = false;
+    if (set.nextLiveChange) {
+      queueLiveControl(state, set.nextLiveChange.key, set.nextLiveChange.value);
+    }
+  }
 }
 
 async function loadSettings(state) {
@@ -330,13 +471,19 @@ function drawSettings(state) {
   const shown = settingsShown(state);
   set.el.hidden = !shown;
   if (!shown) return;
-  redraw(state, "camset", set.body, JSON.stringify([set.model?.settings ? 1 : 0, set.failed, set.model?.controls?.length, set.version || 0]), () =>
+  const engine = state.room?.engine || "picamera2";
+  redraw(state, "camset", set.body, JSON.stringify([set.model?.settings ? 1 : 0, set.failed, set.model?.controls?.length, engine, set.version || 0]), () =>
     set.body.replaceChildren(...(set.model ? settingsFields(set.model.controls, set.draft, (key, v) => {
       set.draft[key] = v;
+      set.activeLook = null;
       set.message = "";
       if (set.refused?.field === key) set.refused = null;
       syncSettings(state);
-    }) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
+      drawLooks(state);
+      if (engine === "picamera2" && CONTROLS_LIVE.has(key)) {
+        queueLiveControl(state, key, v);
+      }
+    }, engine) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
   syncSettings(state);
 }
 
@@ -345,6 +492,7 @@ function syncSettings(state) {
   const set = state.set;
   const why = state.room?.state === "unavailable" ? state.room.reason : null;
   const dirty = !!set.model && JSON.stringify(set.draft) !== JSON.stringify(set.model.settings);
+  const engine = state.room?.engine || "picamera2";
   // Locked while applying too, so nothing is edited that the hub's answer would then overwrite.
   for (const g of set.body.querySelectorAll("fieldset")) g.disabled = !!why || set.applying;
   for (const c of set.model?.controls || []) {
@@ -361,16 +509,32 @@ function syncSettings(state) {
     err.textContent = refused ? set.refused.reason : "";
     if (refused) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
   }
-  // Apply and Reset stay focusable while applying (aria-disabled), so focus isn't lost; the handlers refuse meanwhile.
+
+  // Engine distinction:
+  // If rpicam fallback: show Apply, hide Save
+  // If picamera2: show Save, hide Apply
+  if (engine === "rpicam") {
+    set.apply.hidden = false;
+    set.save.hidden = true;
+  } else {
+    set.apply.hidden = true;
+    set.save.hidden = false;
+  }
+
   set.apply.disabled = !set.model || !!why;
+  set.save.disabled = !set.model || !!why;
   set.reset.disabled = !set.model || why === "not_detected";
-  for (const b of [set.apply, set.reset]) {
+  for (const b of [set.apply, set.save, set.reset]) {
     if (set.applying) b.setAttribute("aria-disabled", "true"); else b.removeAttribute("aria-disabled");
   }
-  // Why the camera is out wins over an older message ("Applied."), so the way back (Reset) is always said.
-  const note = set.applying ? SETTINGS_WORDS.applying
+
+  const defaultNote = engine === "rpicam"
+    ? (dirty ? SETTINGS_WORDS.edited : SETTINGS_WORDS.fallbackNotice)
+    : (dirty ? SETTINGS_WORDS.edited : "");
+
+  const note = set.applying ? (set.message || SETTINGS_WORDS.saving)
     : why === "not_detected" ? SETTINGS_WORDS.notDetected : why ? SETTINGS_WORDS.captureFailed
-      : set.message || (dirty ? SETTINGS_WORDS.edited : "");
+      : set.message || defaultNote;
   if (set.note.textContent !== note) set.note.textContent = note;
 }
 
@@ -379,7 +543,7 @@ async function sendSettings(state, kind) {
   if (set.applying || !set.model) return;
   set.applying = true;
   set.refused = null;
-  set.message = SETTINGS_WORDS.applying;
+  set.message = kind === "reset" ? SETTINGS_WORDS.applying : kind === "save" ? SETTINGS_WORDS.saving : SETTINGS_WORDS.applying;
   syncSettings(state);
   const path = kind === "reset" ? "/api/camera/room/settings/reset" : "/api/camera/room/settings";
   let status = 0;
@@ -397,7 +561,7 @@ async function sendSettings(state, kind) {
     set.model = { ...set.model, ...data };
     set.draft = { ...data.settings };
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
-    set.message = kind === "reset" ? SETTINGS_WORDS.reset : SETTINGS_WORDS.applied;
+    set.message = kind === "reset" ? SETTINGS_WORDS.reset : kind === "save" ? SETTINGS_WORDS.saved : SETTINGS_WORDS.applied;
     set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
     if (data.state) state.room = data.state;
     drawCam(state);

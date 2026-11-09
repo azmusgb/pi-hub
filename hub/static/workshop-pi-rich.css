@@ -128,8 +128,8 @@
 .ws-cam-live { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
 .ws-cam-note:empty { display: none; }
 .ws-cam-age, .ws-cam-note { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
-/* Camera settings (amendment A18): a closed disclosure under the Room view; groups stack on a phone and sit side by side
-   where there is room. Native controls only; no motion. */
+/* Camera settings (amendment A18): disclosure under the Room view; groups stack on a phone and sit side by side
+   where there is room. Native controls only; no motion. Pinned picture on mobile viewports while adjusting (A20). */
 .ws-set { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
 .ws-set[hidden] { display: none; }
 .ws-set > summary { display: flex; align-items: center; min-height: 44px; padding: .75rem 1.1rem; cursor: pointer;
@@ -151,10 +151,34 @@
 .ws-set-value { color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .ws-set-err { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-bad); }
 .ws-set-err[hidden] { display: none; }
+.ws-set-restart { margin: 0; font-size: var(--ui-fs-1); color: var(--ui-muted); }
+.ws-set-restart[hidden] { display: none; }
 .ws-set-actions { display: flex; flex-wrap: wrap; gap: .5rem .75rem; margin-top: 1.25rem; }
 .ws-set-actions [aria-disabled=true] { opacity: .55; cursor: progress; }
 .ws-set-note { margin: .6rem 0 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 .ws-set-note:empty { display: none; }
+
+/* Quick Looks (A20 D2) */
+.ws-looks { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.ws-look-chip { min-height: 36px; padding: 0.25rem 0.75rem; border-radius: var(--r-full, 9999px); border: 1px solid var(--line);
+  background: var(--surface-2); font-size: var(--ui-fs-2); font-weight: 550; cursor: pointer; color: var(--text); }
+.ws-look-chip:hover { border-color: var(--accent); }
+.ws-look-chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast, #fff); border-color: var(--accent); }
+
+/* Pinned picture on mobile viewports while adjusting (plan decision 10) */
+@media (max-width: 640px) {
+  .ws-cam-box--pinned .ws-cam-view {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .ws-cam-box--pinned .cam-img, .ws-cam-box--pinned .ws-cam-placeholder {
+    max-height: 40vh;
+  }
+}
 .ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
 .ws-skel-line { height: .9rem; }
 .ws-skel-head { height: 2.2rem; width: 60%; }
