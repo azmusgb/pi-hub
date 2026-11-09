@@ -15,6 +15,12 @@ def run(env=None, drift_exit=None, stub_git=True, quiet=False):
     bin_dir = os.path.join(tmp, "bin")
     os.mkdir(bin_dir)
     full = dict(os.environ, KIT_DRIFT_ENFORCE="")
+    # The script only checks that gh exists; the Pi has none, so a stub keeps these tests host-independent.
+    gh = os.path.join(bin_dir, "gh")
+    with open(gh, "w") as f:
+        f.write("#!/bin/bash\nexit 0\n")
+    os.chmod(gh, os.stat(gh).st_mode | stat.S_IEXEC)
+    full.update(PATH=bin_dir + os.pathsep + full["PATH"])
     if stub_git:
         fake = os.path.join(bin_dir, "git")
         with open(fake, "w") as f:
@@ -24,8 +30,7 @@ def run(env=None, drift_exit=None, stub_git=True, quiet=False):
                         'printf "console.log(%s);process.exit(%d)\\n" "\'$KIT_STUB_LINE\'" "$KIT_STUB_EXIT"')
                        + ' > "${@: -1}/scripts/drift.mjs"\n'))
         os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
-        full.update(PATH=bin_dir + os.pathsep + full["PATH"], KIT_STUB_LINE=LINE.replace("\t", "\\t"),
-                    KIT_STUB_EXIT=str(drift_exit or 0))
+        full.update(KIT_STUB_LINE=LINE.replace("\t", "\\t"), KIT_STUB_EXIT=str(drift_exit or 0))
     full.update(env or {})
     return subprocess.run(["bash", SCRIPT], capture_output=True, text=True, env=full)
 
