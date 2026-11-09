@@ -71,7 +71,8 @@ function days(byDay) {
     h("summary", {}, h("h2", {}, `Older alerts (${older.reduce((n, [, l]) => n + l.length, 0)})`)), ...older.map(daySection)), "alerts-older") : null];
 }
 
-// The faceplate (A7 P1): how many groups are still a problem, lit by the worst of them. A failed read is unknown.
+// The faceplate (A7 P1): how many causes are still a problem, lit by the worst of them. The rows group per day, so a cause
+// open for a week is a row on each day; it is still one thing open. A failed read is unknown.
 const RANK = { bad: 2, warn: 1 };
 export function alertsPlate(groups) {
   if (!groups) {
@@ -79,12 +80,14 @@ export function alertsPlate(groups) {
       caption: "Couldn't read the alert history just now. Alerts still reach your phone." });
   }
   const open = groups.filter((g) => g.problem);
+  const openCauses = new Set(open.map((g) => g.cause));
+  const fine = new Set(groups.filter((g) => !openCauses.has(g.cause)).map((g) => g.cause)).size;
   const worst = open.reduce((t, g) => ((RANK[g.tone] || 0) > (RANK[t] || 0) ? g.tone : t), open.length ? "warn" : "ok");
   return faceplate({
     name: "Alerts",
     lamp: open.length ? [worst, worst === "bad" ? "Problem" : "Warning"] : ["ok", "All clear"],
-    readout: String(open.length), unit: "still open", size: "md",
-    caption: groups.length ? `${groups.length - open.length} over or fine, in recent history.` : "No alerts yet. When something changes, it shows here and on your phone.",
+    readout: String(openCauses.size), unit: "still open", size: "md",
+    caption: groups.length ? `${fine} over or fine, in recent history.` : "No alerts yet. When something changes, it shows here and on your phone.",
   });
 }
 
