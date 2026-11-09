@@ -23,6 +23,7 @@ import collections
 import json
 import math
 import os
+import re
 import sys
 import threading
 import time
@@ -104,6 +105,22 @@ BY_KEY = {c["key"]: c for c in CONTROLS}
 DEFAULTS = {c["key"]: c["default"] for c in CONTROLS}
 DENOISE = {"auto": "auto", "off": "off", "fast": "cdn_fast", "hq": "cdn_hq"}
 SETTINGS_KEY = "room_camera"
+LOOKS_KEY = "room_camera_looks"
+SNAPSHOT_DIR = os.environ.get("HUB_SNAPSHOT_DIR", "/var/lib/pi-hub/room-snapshots")
+MAX_SNAPSHOTS = 200
+
+# The three built-in looks (amendment A20 D2, plan decision 7).
+BUILTIN_LOOKS = [
+    {"name": "Night", "builtin": True,
+     "values": {"ev": 1.5, "brightness": 0.1, "denoise": "hq", "metering": "average"}},
+    {"name": "Bright", "builtin": True,
+     "values": {"ev": -0.5, "contrast": 1.2}},
+    {"name": "Bed close-up", "builtin": True,
+     "values": {"zoom": 2.0, "centre_x": 50, "centre_y": 50, "ev": 0.5}},
+]
+BUILTIN_NAMES = frozenset(b["name"].lower() for b in BUILTIN_LOOKS)
+FORBIDDEN_LOOK_KEYS = frozenset(("turn", "mirror", "flip", "preset"))
+
 # The controls Picamera2 can change on a running camera (A20 D1, plan decision 3). The rest restart the capture.
 LIVE_KEYS = frozenset(("ev", "brightness", "contrast", "saturation", "sharpness", "awb", "metering", "exposure",
                        "manual", "shutter", "gain", "denoise"))
@@ -688,3 +705,177 @@ class RoomCamera:
 
 
 CAMERA = RoomCamera(helper=HELPER)
+
+
+# --- Quick Looks (amendment A20 D2, plan P2) ---
+
+def validate_look_name(name):
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 24:
+        raise Invalid("name", "Look name must be 1 to 24 characters.")
+    cleaned = name.strip()
+    if any(ord(c) < 32 or ord(c) == 127 for c in cleaned):
+        raise Invalid("name", "Look name cannot contain control characters.")
+    if cleaned.lower() in BUILTIN_NAMES:
+        raise Invalid("name", f"{cleaned!r} is a built-in look and cannot be modified.")
+    return cleaned
+
+
+def validate_look_values(values):
+    if not isinstance(values, dict) or not values:
+        raise Invalid(None, "Send at least one setting for a look.")
+    for k in sorted(values):
+        if k in FORBIDDEN_LOOK_KEYS:
+            raise Invalid(k, f"{k!r} cannot be saved in a look.")
+        if k not in BY_KEY:
+            raise Invalid(k, f"There is no camera setting called {k!r}.")
+        _check(BY_KEY[k], values[k])
+    return {k: _check(BY_KEY[k], values[k]) for k in values}
+
+
+def get_looks(store=None):
+    from hub import auth
+    custom = (store or auth).get(LOOKS_KEY, [])
+    # Always built-ins first, then custom
+    return [dict(b) for b in BUILTIN_LOOKS] + [dict(c) for c in custom]
+
+
+def save_look(name, values, store=None):
+    from hub import auth
+    s = store or auth
+    cleaned_name = validate_look_name(name)
+    cleaned_values = validate_look_values(values)
+    custom = s.get(LOOKS_KEY, [])
+    for existing in custom:
+        if existing["name"].lower() == cleaned_name.lower():
+            raise Invalid("name", f"A look called {cleaned_name!r} already exists.")
+    if len(custom) >= 8:
+        raise Invalid(None, "You can save at most 8 custom looks.")
+    look = {"name": cleaned_name, "values": cleaned_values}
+    custom.append(look)
+    s.put(LOOKS_KEY, custom)
+    return look
+
+
+def delete_look(name, store=None):
+    from hub import auth
+    s = store or auth
+    if not isinstance(name, str):
+        raise Invalid("name", "Look name required.")
+    if name.strip().lower() in BUILTIN_NAMES:
+        raise Invalid("name", "Built-in looks cannot be deleted.")
+    custom = s.get(LOOKS_KEY, [])
+    kept = [l for l in custom if l["name"].lower() != name.strip().lower()]
+    if len(kept) == len(custom):
+        raise Invalid("name", f"No look called {name!r} found.")
+    s.put(LOOKS_KEY, kept)
+
+
+# --- Snapshots (amendment A20 D3, plan P2) ---
+
+_SNAPSHOT_ID_RE = re.compile(r"^\d{13}$")
+
+
+def validate_snapshot_id(snapshot_id):
+    if not isinstance(snapshot_id, str) or not _SNAPSHOT_ID_RE.match(snapshot_id):
+        raise Invalid("id", "Invalid snapshot id.")
+    return snapshot_id
+
+
+def get_snapshot_path(snapshot_id, ext="jpg"):
+    s_id = validate_snapshot_id(snapshot_id)
+    return os.path.join(SNAPSHOT_DIR, f"{s_id}.{ext}")
+
+
+def list_snapshots():
+    if not os.path.isdir(SNAPSHOT_DIR):
+        return []
+    items = []
+    try:
+        filenames = os.listdir(SNAPSHOT_DIR)
+    except OSError:
+        return []
+    for fn in filenames:
+        if fn.endswith(".jpg") and len(fn) == 17 and fn[:13].isdigit():
+            s_id = fn[:13]
+            meta_path = os.path.join(SNAPSHOT_DIR, f"{s_id}.json")
+            meta = {}
+            if os.path.exists(meta_path):
+                try:
+                    with open(meta_path, "r") as f:
+                        meta = json.load(f)
+                except Exception:
+                    pass
+            items.append({
+                "id": s_id,
+                "created_at": meta.get("created_at", int(s_id) / 1000.0),
+                "preset": meta.get("preset"),
+                "settings": meta.get("settings", {}),
+            })
+    items.sort(key=lambda x: x["id"], reverse=True)
+    return items
+
+
+def delete_snapshot(snapshot_id):
+    s_id = validate_snapshot_id(snapshot_id)
+    jpg_path = get_snapshot_path(s_id, "jpg")
+    json_path = get_snapshot_path(s_id, "json")
+    removed = False
+    for p in (jpg_path, json_path):
+        try:
+            os.remove(p)
+            removed = True
+        except FileNotFoundError:
+            pass
+    if not removed:
+        raise Invalid("id", f"Snapshot {snapshot_id!r} not found.")
+
+
+def _enforce_snapshot_limit(limit=MAX_SNAPSHOTS):
+    snaps = list_snapshots()
+    if len(snaps) >= limit:
+        # list_snapshots is newest first; oldest are at the end
+        to_remove = snaps[limit - 1:]
+        for s in to_remove:
+            try:
+                delete_snapshot(s["id"])
+            except Exception:
+                pass
+
+
+async def save_snapshot(cam=None):
+    c = cam or CAMERA
+    # Check running stream frame or take one-shot still under lock
+    jpg, at = await c.still()
+    if len(jpg) > MAX_FRAME:
+        raise Invalid(None, f"Snapshot frame too large ({len(jpg)} bytes).")
+
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+    _enforce_snapshot_limit(MAX_SNAPSHOTS)
+
+    s_id = str(int(time.time() * 1000))
+    # Ensure uniqueness if called in the same millisecond
+    while os.path.exists(os.path.join(SNAPSHOT_DIR, f"{s_id}.jpg")):
+        time.sleep(0.001)
+        s_id = str(int(time.time() * 1000))
+
+    settings = c.settings()
+    meta = {
+        "id": s_id,
+        "created_at": at,
+        "preset": settings.get("preset"),
+        "settings": settings,
+    }
+
+    tmp_jpg = os.path.join(SNAPSHOT_DIR, f".tmp-{s_id}.jpg")
+    tmp_json = os.path.join(SNAPSHOT_DIR, f".tmp-{s_id}.json")
+
+    with open(tmp_jpg, "wb") as f:
+        f.write(jpg)
+    with open(tmp_json, "w") as f:
+        json.dump(meta, f)
+
+    os.replace(tmp_jpg, os.path.join(SNAPSHOT_DIR, f"{s_id}.jpg"))
+    os.replace(tmp_json, os.path.join(SNAPSHOT_DIR, f"{s_id}.json"))
+
+    return meta
+
