@@ -230,6 +230,19 @@ The hub's Documents section searches Paperless as the user `hub`. That user can 
 
 What the first attempts taught (6 November): the X2D needs a USB stick for Bambuddy to store a file (no stick: every upload fails `553 Could not create file`), and a Bambuddy restart cancels queued items. The test used the loaded green PLA though the file asks for beige, by the owner's choice; the sheet now warns about a colour difference (pi-hub #159) and names the model, plate size, filament and colour (#160).
 
+## Richer Room view controls (A20): accepted 8 November 2026
+
+**Accepted 2026-11-08**, per amendment A20 and plan `docs/superpowers/plans/2026-11-08-a20-room-camera-richer-controls.md`.
+
+- **Live adjust:** Controls for light, colour and detail (EV, brightness, contrast, saturation, sharpness, white balance, metering, manual exposure, shutter, gain, denoise) change on the running camera via in-process Picamera2 helper without restart gaps (sub-0.5s response). Restart-class controls (preset, zoom, turn) restart the capture cleanly.
+- **Quick looks:** Built-in looks (Night, Bright, Bed close-up) and owner looks apply in one tap and survive restarts.
+- **Snapshots:** Saved, listed, and deleted under `/var/lib/pi-hub/room-snapshots/` with sidecar `.json` metadata, enforcing the FIFO 200 retention cap.
+- **Viewing tools:** Fullscreen (native + iOS Safari fixed overlay fallback), client-side view zoom & pan (touch pinch/drag and keyboard `+`, `-`, `0`, arrows), 3x3 grid overlay, and 160×120 luminance histogram sampled at 2 Hz client-side.
+- **Fallback engine:** Graceful degradation to A18 `rpicam` when Picamera2 helper is unavailable or fails.
+
+Evidence: PRs #196 (Phase 1 backend helper), #198 (Phase 2 quick looks & snapshots), #200 (Phase 3 page sliders, looks, save, pinned view), #201 (dark exposure fix), and #203 (Phase 4 viewing tools & snapshot gallery). All 47 Node browser tests and 298 Python unit tests pass clean.
+
+
 ## Phone alerts (ntfy)
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
