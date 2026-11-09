@@ -293,15 +293,39 @@ export function mount(state) {
   state.settingsBox = h("div");
   state.sliceBox = h("div");
   state.layersBox = h("div", { class: "quick-layers-box" });
+  state.view3dBox = h("div", { class: "quick-3d-box" });
   state.printBox = h("div");
   state.historyBox = h("div");
   state.root.append(state.notice, state.plate, state.needs,
     section("Model", [state.modelBox], { id: "quick-model" }),
     section("Settings", [state.settingsBox], { id: "quick-settings", note: "Standard 0.20 mm PLA, X2D 0.4 mm nozzle. Only settings checked on the Mac are offered." }),
-    section("Slice", [state.sliceBox, state.layersBox], { id: "quick-slice" }),
+    section("Slice", [state.sliceBox, state.layersBox, state.view3dBox], { id: "quick-slice" }),
     section("Print", [state.printBox], { id: "quick-print-section" }),
     section("History", [state.historyBox], { id: "quick-history" }));
   drawUpload(state);
+}
+
+// The 3D view (A19 P7) is a separate module, fetched only when asked for. If it can't load, the 2D layers and every
+// other step on the page carry on, so the failure is one line here and nothing else changes.
+export function open3d(state, jobId) {
+  const msg = h("p", { class: "quick-3d-box__msg", role: "status" });
+  const btn = h("button", { type: "button", class: "ui-btn", onclick: async () => {
+    btn.disabled = true;
+    msg.className = "quick-3d-box__msg";
+    msg.textContent = "Loading the 3D view…";
+    try {
+      const { view3d } = await import("./quick-3d.js");
+      msg.textContent = "";
+      state.view3d?.destroy();
+      state.view3d = view3d(state.view3dBox, jobId);
+      btn.hidden = true;
+    } catch (e) {
+      btn.disabled = false;
+      msg.className = "quick-3d-box__msg ui-notice ui-notice--warn";
+      msg.textContent = "The 3D view couldn't load. The 2D layers above and every other step still work.";
+    }
+  } }, "Open 3D view");
+  return h("div", { class: "quick-3d-box__open" }, h("p", { class: "ui-muted" }, "An optional 3D look at the model and toolpaths. It isn't needed to slice, review or print."), btn, msg);
 }
 
 function select(state, id) {
@@ -417,9 +441,15 @@ function draw(state) {
   if (state.layersKey !== lkey) {
     state.layers?.destroy();
     state.layers = null;
+    state.view3d?.destroy();
+    state.view3d = null;
     state.layersKey = lkey;
     state.layersBox.replaceChildren();
-    if (lkey) state.layers = layerInspector(state.layersBox, job.id);
+    state.view3dBox.replaceChildren();
+    if (lkey) {
+      state.layers = layerInspector(state.layersBox, job.id);
+      state.view3dBox.append(open3d(state, job.id));
+    }
   }
   drawPrint(state, job);
   state.historyBox.replaceChildren((state.jobs || []).length ? historyRows(state.jobs, state.selected, (id) => select(state, id)) : h("p", { class: "ui-empty" }, "Nothing sliced yet. Choose a model above."));
@@ -471,4 +501,5 @@ export function failed(state) {
 export function leave(state) {
   state.upload?.abort?.abort();
   state.layers?.destroy();
+  state.view3d?.destroy();
 }

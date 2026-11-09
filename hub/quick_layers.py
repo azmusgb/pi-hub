@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from . import quick
 from .quick_check import MAX_GCODE, MAX_LINE, _lines
@@ -25,7 +25,7 @@ from .quick_check import MAX_GCODE, MAX_LINE, _lines
 MAX_LAYERS = 5000
 MAX_SIDECAR = 96 * 1024 * 1024
 BUDGET_SECONDS = 600
-VERSION = 1
+VERSION = 2
 _WORD = re.compile(rb"([XYEFZ])(-?\d*\.?\d+)")
 _lock = threading.Lock()  # one pass at a time on the Pi
 _builds: dict[str, dict] = {}  # job id -> {key, state, progress, layers, offsets, reason, ...}
@@ -59,7 +59,7 @@ def parse(path: Path, side: Path, status: dict, now=time.monotonic) -> None:
             part.replace(side)
             _summary_path(side).write_text(json.dumps({
                 "v": VERSION, "layers": status["layers"], "offsets": status["offsets"], "bounds": status["bounds"],
-                "truncated": status["truncated"], "e_filament": status["e_filament"]}, separators=(",", ":")))
+                "truncated": status["truncated"], "e_filament": status["e_filament"], "plate": status["plate"]}, separators=(",", ":")))
             status["state"] = "ready"
     except (zipfile.BadZipFile, KeyError, OSError, EOFError, ValueError) as e:
         status.update(state="failed", reason=f"The layers couldn't be read from the sliced file ({type(e).__name__}).")
@@ -137,6 +137,8 @@ def _parse(path: Path, part: Path, status: dict, now) -> None:
                         cur["z"] = _r(float(line.split(b":", 1)[1]))
                     except ValueError:
                         pass
+                elif line.startswith((b"; printable_area =", b"; printable_height =")):
+                    _plate(status, line)
                 elif line.startswith(b"; FEATURE:"):
                     feature = line.split(b":", 1)[1].strip().decode("utf-8", "replace")[:40]
                     run = None
@@ -190,9 +192,28 @@ def _parse(path: Path, part: Path, status: dict, now) -> None:
     status["e_filament"] = True
 
 
+def _plate(status: dict, line: bytes) -> None:
+    """The plate the slicer wrote into its own config lines: {area: [x0, y0, x1, y1], height}. Anything else isn't kept."""
+    key, _, val = line[2:].decode("ascii", "ignore").partition("=")
+    plate = status["plate"]
+    try:
+        if key.strip() == "printable_height":
+            h = float(val)
+            if 0 < h < 2000:
+                plate["height"] = h
+        else:
+            pts = [tuple(float(c) for c in p.split("x")) for p in val.strip().split(",")]
+            if len(pts) >= 3 and all(len(p) == 2 for p in pts):
+                xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                if 0 < max(xs) - min(xs) < 2000 and 0 < max(ys) - min(ys) < 2000:
+                    plate["area"] = [min(xs), min(ys), max(xs), max(ys)]
+    except ValueError:
+        pass
+
+
 def _new(key: str) -> dict:
     return {"key": key, "state": "building", "progress": 0.0, "layers": [], "offsets": [], "bounds": None, "truncated": None,
-            "reason": None, "e_filament": False, "started": time.time()}
+            "reason": None, "e_filament": False, "plate": {}, "started": time.time()}
 
 
 def _run(path: Path, side: Path, status: dict) -> None:
@@ -219,7 +240,8 @@ def request(job: dict) -> dict:
                 if saved.get("v") == VERSION:
                     b = _new(key)
                     b.update(state="ready", progress=1.0, layers=saved["layers"], offsets=saved["offsets"],
-                             bounds=saved["bounds"], truncated=saved["truncated"], e_filament=saved["e_filament"])
+                             bounds=saved["bounds"], truncated=saved["truncated"], e_filament=saved["e_filament"],
+                             plate=saved.get("plate") or {})
                     _builds[job["id"]] = b
             except (OSError, ValueError, KeyError):
                 b = None
@@ -232,7 +254,7 @@ def request(job: dict) -> dict:
 def _public(b: dict) -> dict:
     n = len(b["layers"])
     out = {"state": b["state"], "progress": round(b["progress"], 3) if b["state"] == "building" else None, "built": n,
-           "layers": list(b["layers"]), "bounds": b["bounds"], "truncated": b["truncated"], "reason": b["reason"]}
+           "layers": list(b["layers"]), "bounds": b["bounds"], "plate": b["plate"], "truncated": b["truncated"], "reason": b["reason"]}
     if b["state"] != "building":
         out["progress"] = 1.0 if b["state"] == "ready" else None
     return out
@@ -290,3 +312,14 @@ def layer_geometry(job_id: str, n: int, request: Request):
     if g is None:
         raise HTTPException(404, "That layer isn't read yet.")
     return JSONResponse(g, headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.get("/jobs/{job_id}/model")
+def model_file(job_id: str, request: Request):
+    """The job's own STL, for the 3D view to draw (A19 P7). The Pi never reads the mesh; the browser does. A 3MF model, a
+    removed file or a job without one is a plain 404 with the reason, and the 3D view then draws the toolpaths alone."""
+    job = _job(job_id, request)
+    p = quick.model_path(job)
+    if p is None or p.suffix.lower() != ".stl" or not p.is_file():
+        raise HTTPException(404, "The model isn't an STL file on the Pi, so only the toolpaths are drawn.")
+    return FileResponse(p, media_type="model/stl", headers={"Cache-Control": "no-store"})
