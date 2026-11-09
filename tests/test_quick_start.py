@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from hub import auth, db, lab_hold, lab_start, printer_control, quick, quick_start
+from hub import db, lab_hold, lab_start, printer_control, quick, quick_start
 from test_quick_worker import SAME, env, new_job  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[1]
