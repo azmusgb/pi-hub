@@ -24,6 +24,10 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
 - Every migration PR says: the baseline requirement it implements, full or partial coverage, and acceptance evidence.
 - Run both suites before opening the PR and paste the counts:
   `HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests` and `node --test tests/*.mjs`.
+- Also run the sprawl check: `python3 -I tools/sprawl.py . --out /tmp/pi-hub-sprawl --baseline .sprawl-baseline.json`.
+  It exits 1 and names the measure when dead code, duplication, oversized files or over-complex functions grow.
+  Fix the growth, or explain it in the PR. A PR that removes sprawl lowers the baseline with `--write-baseline
+  .sprawl-baseline.json` in the same PR.
 - If a change makes an existing test wrong, change that test in its own commit and say why in the PR. Never loosen or
   delete an assertion to get a pass.
 - A PR that changes anything under `hub/static` bumps `SHELL` in `hub/static/sw.js`, or phones keep the old files.
