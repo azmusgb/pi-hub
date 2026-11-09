@@ -131,6 +131,20 @@ def go(j, **kw):
     return quick_start.start(j, "owner", "Phone", printer_now=lambda: dict(GOOD), ticks=kw.pop("ticks", TICKS), **kw)
 
 
+REAL_LINE = ('<filament id="1" tray_info_idx="GFL99" type="PLA" color="#F95D73" used_m="5.64" used_g="16.83" group_id="0" '
+             'nozzle_diameter="0.40" volume_type="Standard" used_for_object="true" used_for_support="false" '
+             'total_load_time="29.00" total_unload_time="0.00"/>')
+
+
+def test_the_filament_type_is_read_from_a_line_studio_really_wrote(tmp_path):
+    """The line is copied from a real X2D slice (print-lab's E-011 build), not made up."""
+    p = tmp_path / "s.gcode.3mf"
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("Metadata/slice_info.config", f"<config><plate><metadata key='index' value='1'/>{REAL_LINE}{REAL_LINE.replace('PLA', 'PETG')}</plate></config>")
+    assert quick_start.filament_types(p) == ["PLA", "PETG"]
+    assert quick_start.filament_types(tmp_path / "missing.3mf") == []
+
+
 # --- Prepare --------------------------------------------------------------------------------------------------------
 
 def test_prepare_uploads_reads_back_compares_and_marks_prepared(env, bb):
