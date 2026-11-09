@@ -242,6 +242,12 @@ What the first attempts taught (6 November): the X2D needs a USB stick for Bambu
 
 Evidence: PRs #196 (Phase 1 backend helper), #198 (Phase 2 quick looks & snapshots), #200 (Phase 3 page sliders, looks, save, pinned view), #201 (dark exposure fix), and #203 (Phase 4 viewing tools & snapshot gallery). All 47 Node browser tests and 298 Python unit tests pass clean.
 
+## Quick Print (A19): merged and live, not yet accepted
+
+Upload an STL or 3MF, slice it on the Mac, review, Prepare, Start and monitor it on `/quick`. How it works, its keys and
+their rotation, every failure message with its next action, backup, rollback (`HUB_QUICK=0`) and versions are in
+[`docs/quick-print.md`](quick-print.md). It is accepted only when the owner-attended print (plan P10) is recorded here as
+"Accepted <date>" with its evidence.
 
 ## Phone alerts (ntfy)
 

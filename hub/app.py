@@ -21,14 +21,14 @@ STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
 
 app = FastAPI(title="Pi Hub", docs_url=None, redoc_url=None, openapi_url=None)
-app.include_router(quick_worker.worker_router)  # before lab: its /api/lab/quick/worker paths are the Mac's
+QUICK = os.environ.get("HUB_QUICK", "1") != "0"  # HUB_QUICK=0 is Quick Print's off switch: no route, loop or worker answer (docs/quick-print.md)
+if QUICK:
+    app.include_router(quick_worker.worker_router)  # before lab: its /api/lab/quick/worker paths are the Mac's
 app.include_router(lab.router)
 app.include_router(uploads.router)
-app.include_router(quick.router)
-app.include_router(quick_worker.owner_router)
-app.include_router(quick_layers.router)
-app.include_router(quick_start.router)
-app.include_router(quick_monitor.router)
+if QUICK:
+    for _router in (quick.router, quick_worker.owner_router, quick_layers.router, quick_start.router, quick_monitor.router):
+        app.include_router(_router)
 app.include_router(display_routes.router)
 app.include_router(notify_routes.router)
 sampler = sources.Sampler()
@@ -446,8 +446,9 @@ def _printer_now():
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
     threading.Thread(target=lab_hold.run, args=(_printer_now,), daemon=True).start()
-    quick_start.boot()  # a start that was in flight when the hub stopped is uncertain, never resumed (A19)
-    threading.Thread(target=quick_start.run, args=(_printer_now,), daemon=True).start()
+    if QUICK:
+        quick_start.boot()  # a start that was in flight when the hub stopped is uncertain, never resumed (A19)
+        threading.Thread(target=quick_start.run, args=(_printer_now,), daemon=True).start()
 
 
 @app.get("/api/printer/start/{project}/{experiment}")
@@ -746,7 +747,8 @@ async def api_room_camera_live_control(request: Request):
                             headers={"Cache-Control": "no-store"})
     except room_camera.Unavailable as e:
         return _room_unavailable(e)
-    return fresh({"key": body["key"], "value": value, "live_values": dict(room_camera.CAMERA.live_values)})
+    return fresh({"key": body["key"], "value": value, "live_values": dict(room_camera.CAMERA.live_values),
+                  "state": room_camera.CAMERA.state()})
 
 
 @app.post("/api/camera/room/settings/reset")

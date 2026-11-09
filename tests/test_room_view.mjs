@@ -718,14 +718,11 @@ test('page: picamera2 engine shows Save button', async () => {
   } finally { p.done(); }
 });
 
-test('page: restart-class control shows "Restarts the picture" hint in picamera2', async () => {
+test('page: every control changes live, so none says it restarts the picture', async () => {
   const { dom, ws } = await mod();
   try {
     const groups = ws.settingsFields(CONTROLS, SETTINGS, () => {}, 'picamera2');
-    const q = (sel) => groups.map((g) => g.querySelector(sel)).find(Boolean);
-    const turnHint = q('[data-field="turn"] .ws-set-restart');
-    assert.ok(turnHint, 'Turn is restart-class');
-    assert.equal(text(turnHint), 'Restarts the picture');
+    assert.ok(!groups.some((g) => g.querySelector('.ws-set-restart')), 'no restart hint');
   } finally { dom.uninstall(); }
 });
 
@@ -757,6 +754,31 @@ test('page: toggling grid adds has-grid class to frame', async () => {
     assert.ok(p.state.viewTools.grid);
     const updatedFrame = p.state.root.querySelector('.ws-cam-frame');
     assert.ok(updatedFrame.classList.contains('has-grid'));
+  } finally { p.done(); }
+});
+
+test('page: a viewing tool changes the picture where it stands: the frame and the image are the same elements', async () => {
+  const p = await ownerPage();
+  try {
+    const aside = p.state.root.querySelector('.ui-faceplate__aside');
+    const frame = aside.querySelector('.ws-cam-frame');
+    const img = frame.querySelector('img');
+    const srcAtStart = img.getAttribute('src');
+    aside.querySelector('[data-key="cam-grid"]').click();
+    aside.querySelector('[data-key="cam-view-zoom"]').click();
+    frame.dispatchEvent({ type: 'keydown', key: 'ArrowLeft', preventDefault() {} });
+    aside.querySelector('[data-key="cam-hist"]').click();
+    const now = p.state.root.querySelector('.ws-cam-frame');
+    assert.equal(now, frame, 'the frame was not rebuilt');
+    assert.equal(now.querySelector('img'), img, 'the picture was not rebuilt, so a live stream is not reopened');
+    assert.equal(img.getAttribute('src'), srcAtStart);
+    assert.ok(frame.classList.contains('has-grid'));
+    assert.equal(frame.style.getPropertyValue('--vz'), '2');
+    assert.equal(frame.style.getPropertyValue('--vx'), '20px');
+    assert.equal(aside.querySelector('[data-key="cam-view-zoom"]').textContent, 'View zoom: 2.0×');
+    assert.equal(aside.querySelector('[data-key="cam-grid"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(frame.querySelector('.ws-hist-canvas').hidden, false);
+    p.state.viewTools.histTimer && clearInterval(p.state.viewTools.histTimer);
   } finally { p.done(); }
 });
 

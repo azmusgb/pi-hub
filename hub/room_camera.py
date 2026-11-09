@@ -121,11 +121,11 @@ BUILTIN_LOOKS = [
 BUILTIN_NAMES = frozenset(b["name"].lower() for b in BUILTIN_LOOKS)
 FORBIDDEN_LOOK_KEYS = frozenset(("turn", "mirror", "flip", "preset"))
 
-# The controls Picamera2 can change on a running camera (A20 D1, plan decision 3). The rest restart the capture.
-LIVE_KEYS = frozenset(("ev", "brightness", "contrast", "saturation", "sharpness", "awb", "metering", "exposure",
-                       "manual", "shutter", "gain", "denoise"))
+# Every control changes on the running camera (A20 D1; the owner asked for all of them). The helper rebuilds its
+# stream itself for Turn, Mirror, Flip and the preset, so the capture process keeps running. Save only stores them.
+LIVE_KEYS = frozenset(c["key"] for c in CONTROLS)
 for _c in CONTROLS:
-    _c["live"] = _c["key"] in LIVE_KEYS
+    _c["live"] = True
 HELPER = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "room_camera_helper.py")]
 LIVE_RATE = (10, 1.0)  # changes allowed per device in this many seconds
 ENV_FILE = "/etc/pi-hub/room-camera.env"  # A17's rotation setting: read once, to seed "Turn" (plan decision 6)
@@ -380,6 +380,7 @@ class RoomCamera:
         self.helper_cmd = helper  # the Picamera2 helper's command, or None for rpicam-vid only (the tests' default)
         self.engine = "picamera2" if helper else "rpicam"
         self.proc_engine, self.proc_frames = None, 0
+        self.helper_values = {}  # what the running helper holds, by key: its start settings, then every change sent
         self.live_values = {}   # tried, unsaved changes to the live group; gone when the capture stops or an apply saves
         self.limiter = Limiter(*LIVE_RATE)
         self.store, self.env_file = store or DbStore(), env_file
@@ -430,8 +431,20 @@ class RoomCamera:
                 with self._seed_lock:
                     self.store.put(new)
                     self._settings = new
-                self.settings_at = time.time()
                 self.live_values = {}
+                p = self.proc
+                if p is not None and self.proc_engine == "picamera2" and p.stdin is not None and self.proc_frames:
+                    # A running Picamera2 helper already shows the tries: tell it only what differs from what it holds,
+                    # so Save stores the settings without restarting the picture.
+                    try:
+                        for key in [k for k in new if new[k] != self.helper_values.get(k)]:
+                            await self._tell_helper(p, key, new[key])
+                            self.settings_at = time.time()
+                        self._wake()
+                        return dict(new)
+                    except Unavailable:
+                        pass  # the helper is gone: restart it below with the saved settings
+                self.settings_at = time.time()
                 p, self.proc = self.proc, None
                 if p is not None:
                     await asyncio.shield(_kill(p))
@@ -453,7 +466,7 @@ class RoomCamera:
             state = "unavailable"
         else:
             state = "ready" if self.checked else "not_checked"
-        s = self.settings()
+        s = {**self.settings(), **self.live_values}
         p = PRESETS[s["preset"]]
         return {"state": state, "reason": self.reason if state == "unavailable" else None, "viewers": self.viewers,
                 "frame_at": self.frame_at or None, "rotate": s["turn"] if s["turn"] in (90, 270) else 0,
@@ -555,6 +568,7 @@ class RoomCamera:
         self.starts += 1
         self.started_at = time.time()
         self.live_values, self.proc_frames, self.proc_engine = {}, 0, self.engine
+        self.helper_values = dict(self.settings())
         try:
             if self.engine == "picamera2":
                 self.last_args = [*self.helper_cmd, json.dumps(helper_config(self.settings()))]
@@ -644,15 +658,25 @@ class RoomCamera:
         p = self.proc
         if p is None or self.proc_engine != "picamera2" or p.stdin is None or self.proc_frames == 0:
             raise NotLive()
-        try:
-            p.stdin.write(json.dumps({"key": key, "value": value}).encode() + b"\n")
-            await asyncio.wait_for(p.stdin.drain(), 1.0)
-        except (OSError, asyncio.TimeoutError):
-            raise Unavailable("capture_failed")
+        await self._tell_helper(p, key, value)
         if self.proc is p:
             self.live_values[key] = value
             self.settings_at = time.time()  # a frame from before this change shows the old picture
         return value
+
+    async def _tell_helper(self, p, key, value):
+        """One change to the helper's stdin. The preset goes as its numbers, so the helper holds no table of its own."""
+        sent = value
+        if key == "preset":
+            q = PRESETS[value]
+            sent = {"width": q["width"], "height": q["height"], "fps": q["fps"], "quality": q["quality"]}
+        try:
+            p.stdin.write(json.dumps({"key": key, "value": sent}).encode() + b"\n")
+            await asyncio.wait_for(p.stdin.drain(), 1.0)
+        except (OSError, asyncio.TimeoutError):
+            raise Unavailable("capture_failed")
+        if self.proc is p:
+            self.helper_values[key] = value
 
     async def _stop(self):
         async with self._lock:

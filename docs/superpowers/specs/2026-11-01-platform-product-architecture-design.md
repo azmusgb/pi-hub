@@ -1086,3 +1086,8 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   one printer-control path gains Start a staged quick print (owner only, sheet with two ticks, same lock as A12). A slice
   without the X2D start sequence is refused, and a pinned Three.js is allowed on the Quick Print page only. Proposed on 8 Nov
   2026; the owner chose the 3D library the same day.
+- **A21. Forwarded notices close and don't repeat** (`2026-11-09-amendment-a21-forwarded-notices.md`): a notice posted by
+  another system is keyed by its source and a topic the sender names, never by its words. A sender's recovery closes it,
+  a stated 7-day expiry backs that up, and plain information never opens a cause. "Commits merged, not deployed" for a
+  ship-gated target raises no alert, since System › Versions already shows it. Stored notices are read with the new rules,
+  not edited. Proposed on 9 Nov 2026.
