@@ -165,6 +165,113 @@
 .ws-look-chip:hover { border-color: var(--accent); }
 .ws-look-chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast, #fff); border-color: var(--accent); }
 
+/* Viewing tools (A20 D4) */
+.ws-view-tools { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; margin-top: .5rem; }
+.ws-tool-btn { min-height: 36px; padding: 0.25rem 0.65rem; border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--surface-2); font-size: var(--ui-fs-2); font-weight: 550; cursor: pointer; color: var(--text); }
+.ws-tool-btn:hover { border-color: var(--accent); }
+.ws-tool-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast, #fff); border-color: var(--accent); }
+
+/* Grid overlay */
+.ws-cam-frame.has-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+}
+
+/* Histogram canvas overlay */
+.ws-hist-canvas {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 120px;
+  height: 60px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  z-index: 5;
+}
+.ws-hist-canvas[hidden] { display: none; }
+
+/* Fullscreen overlay (iOS Safari fallback) */
+.ws-cam-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.ws-cam-fullscreen-overlay .ws-cam-frame {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ws-cam-fullscreen-overlay .ws-cam-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.ws-cam-fs-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100000;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Snapshot Gallery (A20 D3) */
+.ws-snapshots-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.ws-snapshots-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.ws-snapshots-title { font-weight: 600; font-size: var(--ui-fs-3); margin: 0; }
+.ws-snapshots-count { font-size: var(--ui-fs-2); color: var(--ui-muted); }
+.ws-snapshots-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.ws-snap-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ws-snap-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: #000;
+  cursor: pointer;
+}
+.ws-snap-meta { padding: 0.4rem 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: var(--ui-fs-1); }
+.ws-snap-time { color: var(--ui-muted); }
+.ws-snap-del { align-self: flex-start; padding: 2px 6px; font-size: var(--ui-fs-1); min-height: 28px; }
+
 /* Pinned picture on mobile viewports while adjusting (plan decision 10) */
 @media (max-width: 640px) {
   .ws-cam-box--pinned .ws-cam-view {
