@@ -233,3 +233,18 @@ def test_the_monitor_never_sends_a_printer_command():
     from pathlib import Path
     text = (Path(quick_monitor.__file__)).read_text()
     assert not re.search(r"printer_control|_post\(|/api/printer|\.start\(|requests\.|urlopen", text)
+
+
+# --- a restart (A19 P9) ----------------------------------------------------------------------------------------------
+
+def test_a_restart_leaves_a_printing_job_printing_and_restarts_the_idle_wait(env):
+    from hub import quick_start
+    jid = printing(env)
+    quick_monitor._idle[jid] = 1.0  # a wait that was running in the old process
+    quick_monitor._idle.clear()      # what a new process starts with
+    assert quick_start.boot() == 0 and job(jid)["state"] == "printing_confirmed"
+    idle = {"connected": True, "bambuddy_state": "IDLE", "job_name": None}
+    quick_monitor.step(idle, [], now=lambda: 10**9)  # first sight after the restart: the clock starts, it doesn't end the job
+    assert job(jid)["state"] == "printing_confirmed"
+    quick_monitor.step(runs(jid), [log(jid)])
+    assert job(jid)["state"] == "finished"

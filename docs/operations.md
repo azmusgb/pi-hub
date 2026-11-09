@@ -230,6 +230,13 @@ The hub's Documents section searches Paperless as the user `hub`. That user can 
 
 What the first attempts taught (6 November): the X2D needs a USB stick for Bambuddy to store a file (no stick: every upload fails `553 Could not create file`), and a Bambuddy restart cancels queued items. The test used the loaded green PLA though the file asks for beige, by the owner's choice; the sheet now warns about a colour difference (pi-hub #159) and names the model, plate size, filament and colour (#160).
 
+## Quick Print (A19): merged and live, not yet accepted
+
+Upload an STL or 3MF, slice it on the Mac, review, Prepare, Start and monitor it on `/quick`. How it works, its keys and
+their rotation, every failure message with its next action, backup, rollback (`HUB_QUICK=0`) and versions are in
+[`docs/quick-print.md`](quick-print.md). It is accepted only when the owner-attended print (plan P10) is recorded here as
+"Accepted <date>" with its evidence.
+
 ## Phone alerts (ntfy)
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
