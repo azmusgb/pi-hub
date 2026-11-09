@@ -18,7 +18,10 @@ def reader():
     for line in sys.stdin:
         try:
             m = json.loads(line)
-            seen.append(f"{m['key']}={m['value']}")
+            if "values" in m:  # several values in one message: one entry, so a test can see it came as one
+                seen.append("values:" + "+".join(f"{k}={v}" for k, v in m["values"].items()))
+            else:
+                seen.append(f"{m['key']}={m['value']}")
         except ValueError:
             seen.append("bad")
     os._exit(0)

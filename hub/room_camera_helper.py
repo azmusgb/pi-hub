@@ -3,8 +3,8 @@ hub/room_camera.py as a child process, never imported by the hub: a libcamera fa
 process, not the hub.
 
 Protocol. argv[1] is one JSON object: the live preset (width, height, fps, quality) and every camera setting, already
-validated by the hub. stdin carries one JSON object per line, {"key": ..., "value": ...}, a live change to one setting
-(only the keys the hub marks live). stdout carries JPEG frames, back to back. Nothing else is read or written; the
+validated by the hub. stdin carries one JSON object per line: {"key": ..., "value": ...}, a live change to one setting
+(only the keys the hub marks live), or {"values": {key: value, ...}}, several changes applied together. stdout carries JPEG frames, back to back. Nothing else is read or written; the
 process ends when stdin closes (the hub is gone), on SIGTERM, or when the camera fails (exit code 2)."""
 import io
 import json
@@ -68,19 +68,34 @@ def scaler_crop(s, full, size):
     return int(x), int(y), int(w), int(h)
 
 
+def _change(key, value):
+    """(key, value) when it is a live change this process accepts, else None."""
+    if key not in LIVE_KEYS:
+        return None
+    if key == "preset":  # the hub sends the preset's numbers: {"width", "height", "fps", "quality"}
+        if not isinstance(value, dict) or set(value) != {"width", "height", "fps", "quality"}:
+            return None
+    return key, value
+
+
 def parse_line(line):
-    """(key, value) from one stdin line, or None for anything that isn't a live change this process accepts."""
+    """The changes in one stdin line, as a list of (key, value), or None for anything that isn't a live change this
+    process accepts. Several values are all or nothing, so a look never lands half applied."""
     try:
         msg = json.loads(line)
     except ValueError:
         return None
-    if not isinstance(msg, dict) or msg.get("key") not in LIVE_KEYS or "value" not in msg:
+    if not isinstance(msg, dict):
         return None
-    if msg["key"] == "preset":  # the hub sends the preset's numbers: {"width", "height", "fps", "quality"}
-        v = msg["value"]
-        if not isinstance(v, dict) or set(v) != {"width", "height", "fps", "quality"}:
+    if set(msg) == {"values"}:
+        if not isinstance(msg["values"], dict) or not msg["values"]:
             return None
-    return msg["key"], msg["value"]
+        changes = [_change(k, v) for k, v in msg["values"].items()]
+        return None if None in changes else changes
+    if set(msg) != {"key", "value"} or not isinstance(msg["key"], str):
+        return None
+    one = _change(msg["key"], msg["value"])
+    return [one] if one else None
 
 
 def apply_changes(state, changes):
@@ -121,7 +136,7 @@ def main(argv, stdin, stdout):
             parsed = parse_line(line)
             if parsed:
                 with lock:
-                    pending.append(parsed)
+                    pending.extend(parsed)
         stop.set()  # the hub closed our stdin: it is gone, so the camera is released
 
     threading.Thread(target=read_stdin, daemon=True).start()
