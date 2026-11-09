@@ -39,7 +39,7 @@ class Element extends Node {
     this.tagName = String(tag).toUpperCase();
     this.attributes = new Map();
     this.dataset = {};
-    this.style = { cssText: "", setProperty() {} };
+    this.style = { cssText: "", props: {}, setProperty(k, v) { this.props[k] = String(v); }, getPropertyValue(k) { return this.props[k] ?? ""; } };
     this.listeners = {};
     this.classList = {
       add: (...c) => { const s = new Set(this.className.split(/\s+/).filter(Boolean)); c.forEach((x) => s.add(x)); this.className = [...s].join(" "); },
