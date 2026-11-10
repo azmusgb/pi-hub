@@ -400,9 +400,10 @@ test("page: the owner gets a closed Camera settings panel under the Room view, d
     assert.ok(d && !d.hidden && !d.open);
     assert.equal(text(d.querySelector('summary > span')), 'Adjust');
     assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
-    // Orientation's controls and Zoom are on the picture now (A23 D2); the centre stays until drag to frame (P3).
-    assert.equal(d.querySelectorAll('fieldset').length, 5);
+    // Orientation's controls, Zoom and the centre are on the picture now (A23 D2, D3).
+    assert.equal(d.querySelectorAll('fieldset').length, 4);
     assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
+    assert.ok(!d.querySelector('#set-centre_x'), 'no centre slider: drag and the arrow keys frame the camera');
     assert.equal(text(d.querySelector('.ws-set-note')), '');
     assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
   } finally { p.done(); }
@@ -428,14 +429,12 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
   const p = await ownerPage({ '/api/camera/room': () => room, '/api/camera/room/live-controls': (u, o) => JSON.parse(o.body) });
   try {
     const d = await adjusting(p);
-    assert.ok(d.querySelector('#set-centre_x').disabled, 'centre only means something when zoomed');
     assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
     const zoom = bar(p, 'bar-zoom-in');
     zoom.click();
     zoom.click();
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
-    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2×');
-    assert.ok(!d.querySelector('#set-centre_x').disabled);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag to frame');
     change(d.querySelector('#set-manual'), true);
     assert.ok(!d.querySelector('#set-shutter').disabled);
     room = { ...ready90, rotate: 270 };  // the aside redraws
@@ -643,13 +642,13 @@ test('page: a still that failed while an apply restarted the camera does not loc
 test('page: a refusal for a field that cannot take focus moves focus to the status line', async () => {
   const p = await ownerPage();
   try {
-    withStatus(p, 422, { field: 'centre_x', reason: 'Centre across is from 0 to 100.' });
+    withStatus(p, 422, { field: 'shutter', reason: 'Shutter needs manual exposure.' });
     const d = panel(p);
-    assert.ok(d.querySelector('#set-centre_x').disabled, 'zoom is 1×');
+    assert.ok(d.querySelector('#set-shutter').disabled, 'manual exposure is off');
     d.querySelector('[data-key="cam-apply"]').click();
     await tick(); await tick(); await tick();
     assert.equal(p.dom.document.activeElement, d.querySelector('.ws-set-note'));
-    assert.equal(text(d.querySelector('#set-centre_x-err')), 'Centre across is from 0 to 100.');
+    assert.equal(text(d.querySelector('#set-shutter-err')), 'Shutter needs manual exposure.');
   } finally { p.done(); }
 });
 
