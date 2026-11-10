@@ -401,7 +401,8 @@ test("page: the owner gets a closed Camera settings panel under the Room view, d
     assert.equal(text(d.querySelector('summary > span')), 'Adjust');
     assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
     // Orientation's controls and Zoom are on the picture now (A23 D2); the centre stays until drag to frame (P3).
-    assert.equal(d.querySelectorAll('fieldset').length, 5);
+    // One fieldset per tab (Light, Colour, Detail: A23 D6), and Framing below them until drag replaces the centre.
+    assert.equal(d.querySelectorAll('fieldset').length, 4);
     assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
     assert.equal(text(d.querySelector('.ws-set-note')), '');
     assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
@@ -683,10 +684,8 @@ test('page: opening settings starts live stream and loads quick looks', async ()
     d.dispatchEvent({ type: 'toggle', target: d });
     await tick(); await tick();
     assert.equal(p.state.live.on, true, 'live stream automatically started');
-    const chips = d.querySelectorAll('.ws-look-chip');
-    assert.equal(chips.length, 2);
-    assert.equal(text(chips[0]), 'Night');
-    assert.equal(text(chips[1]), 'Custom Look');
+    // Auto first and Save this look last (A23 D5).
+    assert.deepEqual(d.querySelectorAll('.ws-look-chip').map(text), ['Auto', 'Night', 'Custom Look', 'Save this look']);
   } finally { p.done(); }
 });
 
