@@ -337,6 +337,8 @@ function makeSettings(state) {
     inFlight: false,
     pending: new Map(),  // control → newest value not yet sent (A23 plan decision 4)
     confirmed: {},       // control → the value the camera last confirmed
+    shown: null,         // the crop the picture shows (A23 P3): the confirmed one, once the stream has caught up
+    liveOff: false,      // the hub said live adjust isn't running (409): nothing on the picture moves
   };
   state.set = set;
   set.looksEl = h("div", { class: "ws-looks" });
@@ -469,13 +471,23 @@ async function sendNextLive(state) {
   set.inFlight = false;
   if (state.left) return;
   if (status === 200) {
+    set.liveOff = false;
+    const crop = () => ({ zoom: set.confirmed.zoom, centre_x: set.confirmed.centre_x, centre_y: set.confirmed.centre_y });
+    if (!set.shown) set.shown = crop();
     Object.assign(set.confirmed, data?.values || (typeof data?.key === "string" ? { [data.key]: data.value } : sent));
+    if (keys.some((k) => CROP_KEYS.includes(k))) {
+      // The stream shows a new crop about seven frames later (room_camera_helper.py), so the frame keeps showing the
+      // picture where the finger put it until then.
+      const now = crop();
+      setTimeout(() => { if (state.left) return; set.shown = now; syncBars(state); }, CROP_LAG_MS);
+    }
     if (data?.state) {
       const was = JSON.stringify([state.room?.rotate, state.room?.size]);
       state.room = { ...state.room, ...data.state };
       if (JSON.stringify([state.room.rotate, state.room.size]) !== was) drawCam(state);
     }
   } else if (status === 409) {
+    set.liveOff = true;
     set.message = data?.reason || LIVE_WORDS[409];  // the edit stays for Apply
   } else {
     // Refused, too fast or no answer: each control goes back to what the camera last confirmed, unless a newer value
@@ -501,6 +513,7 @@ async function loadSettings(state) {
     set.model = got;
     // The camera may be running tries not saved (A23 D7): the panel shows what the picture shows.
     set.confirmed = { ...got.settings, ...(state.room?.live_values || {}) };
+    set.shown = null;
     set.draft = { ...set.confirmed };
     set.failed = false;
   } else {
@@ -617,6 +630,7 @@ async function sendSettings(state, kind) {
     set.model = { ...set.model, ...data };
     set.draft = { ...data.settings };
     set.confirmed = { ...data.settings };
+    set.shown = null;
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
     set.message = kind === "reset" ? SETTINGS_WORDS.reset : kind === "save" ? SETTINGS_WORDS.saved : SETTINGS_WORDS.applied;
     set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
@@ -1022,6 +1036,7 @@ function mountBars(state) {
     if (b.el.parentNode !== frame) {
       b.el.parentNode?.classList.remove("ws-cam-frame--framing");
       frame.append(b.el);
+      state.drag = null;  // a redrawn or moved frame: the old drag's pointer and sizes are gone
     }
   } else {
     b.el.parentNode?.classList.remove("ws-cam-frame--framing");
@@ -1049,13 +1064,36 @@ function liveArrived(state) {
 // Whether the camera's crop is placed on the sensor before its flips (libcamera's ScalerCrop is in sensor
 // coordinates). The plan has this measured on the Pi at all eight orientations before the page ships (decision 8).
 const CROP_BEFORE_FLIP = true;
+// The camera's crop keys, and how long a new crop takes to reach the stream (0.74 s at 10 fps, measured on the Pi,
+// room_camera_helper.py), with a little to spare.
+const CROP_KEYS = ["zoom", "centre_x", "centre_y"];
+const CROP_LAG_MS = 900;
+// The sensor's shape (ov5647, 2592 × 1944). The camera keeps the output's shape when it crops (scaler_crop), so a wide
+// preset crops less of the sensor down than across.
+const SENSOR = [4, 3];
+
+// The share of the sensor across and down that the crop covers at this zoom, for an output of `out` (w, h), as
+// scaler_crop computes it.
+export function cropShare(zoom, out = SENSOR, sensor = SENSOR) {
+  const z = Math.max(1, Number(zoom) || 1);
+  const ratio = (sensor[0] / sensor[1]) / (out[0] / out[1]);
+  let fx = 1 / z;
+  let fy = fx * ratio;
+  if (fy > 1) {
+    fy = 1 / z;
+    fx = fy / ratio;
+  }
+  return [fx, fy];
+}
 
 // The centre's move, in percent of the sensor, for a drag of (dx, dy) screen pixels over a picture shown `width` ×
-// `height` pixels in its own axes. The picture follows the finger, so the centre moves the other way.
-export function dragToCentre(dx, dy, { turn = 0, mirror = false, flip = false, zoom = 1, width, height }) {
+// `height` pixels in its own axes, which is the `share` of the sensor the crop covers. The picture follows the finger,
+// so the centre moves the other way.
+export function dragToCentre(dx, dy, { turn = 0, mirror = false, flip = false, zoom = 1, share, width, height }) {
+  const [fx, fy] = share || [1 / zoom, 1 / zoom];
   const [px, py] = turn === 90 ? [dy, -dx] : turn === 270 ? [-dy, dx] : [dx, dy];
-  let cx = (-px / (width * zoom)) * 100;
-  let cy = (-py / (height * zoom)) * 100;
+  let cx = (-px / width) * fx * 100;
+  let cy = (-py / height) * fy * 100;
   if (CROP_BEFORE_FLIP) {
     const half = turn === 180;
     if (!!mirror !== half) cx = -cx;
@@ -1065,47 +1103,71 @@ export function dragToCentre(dx, dy, { turn = 0, mirror = false, flip = false, z
 }
 
 // The inverse: the screen shift, in pixels, that a centre move of (cx, cy) percent shows as.
-export function centreToShift(cx, cy, { turn = 0, mirror = false, flip = false, zoom = 1, width, height }) {
+export function centreToShift(cx, cy, { turn = 0, mirror = false, flip = false, zoom = 1, share, width, height }) {
+  const [fx, fy] = share || [1 / zoom, 1 / zoom];
   if (CROP_BEFORE_FLIP) {
     const half = turn === 180;
     if (!!mirror !== half) cx = -cx;
     if (!!flip !== half) cy = -cy;
   }
-  const px = (-cx * width * zoom) / 100;
-  const py = (-cy * height * zoom) / 100;
+  const px = (-cx * width) / (fx * 100);
+  const py = (-cy * height) / (fy * 100);
   const [sx, sy] = turn === 90 ? [-py, px] : turn === 270 ? [py, -px] : [px, py];
   return [sx + 0, sy + 0];
 }
 
-// Where the centre can still move the crop at this zoom; past it a value changes nothing.
-export function centreRange(zoom) {
-  const room = 50 * (1 - 1 / Math.max(1, Number(zoom) || 1));
+// Where the centre can still move the crop along one axis, the crop covering `share` of it; past it a value changes
+// nothing.
+export function centreRange(zoom, share = 1 / Math.max(1, Number(zoom) || 1)) {
+  const room = 50 * (1 - share);
   return [50 - room, 50 + room];
 }
 
+// The live picture's shape: the preset's size from the hub, else the stream's own.
+function outSize(state) {
+  const s = state.room?.size;
+  if (Array.isArray(s) && s[0] > 0 && s[1] > 0) return s;
+  const img = camFrame(state)?.querySelector("img.room-img");
+  return img?.naturalWidth > 0 && img?.naturalHeight > 0 ? [img.naturalWidth, img.naturalHeight] : SENSOR;
+}
+
+// The centre held inside the crop's range at this zoom, on both axes.
+function clampTo(state, zoom, x, y) {
+  const [fx, fy] = cropShare(zoom, outSize(state));
+  const [lx, hx] = centreRange(zoom, fx);
+  const [ly, hy] = centreRange(zoom, fy);
+  return [Math.min(hx, Math.max(lx, Number(x ?? 50))), Math.min(hy, Math.max(ly, Number(y ?? 50)))];
+}
+
 // Drag frames only on the live engine (the fallback restarts the capture on every change) and past 1×.
+// Not while a new zoom is on its way: the drag's scale is the zoom the camera has.
 function canFrame(state) {
-  return state.bars?.el.isConnected === true && !barsWhy(state) && Number(state.set.draft?.zoom) > 1
+  const z = Number(state.set.draft?.zoom);
+  return state.bars?.el.isConnected === true && !barsWhy(state) && z > 1 && z === Number(state.set.confirmed?.zoom)
     && (state.room?.engine || "picamera2") === "picamera2";
 }
 
 // The picture as the camera runs it now (what the screen shows), and its size on the page in its own axes. The img's
 // layout box is in the picture's axes (a quarter turn is a transform); contain letterboxes, a turned picture covers.
+// The quarter turn is read from the figure the frame sits in: the phone's full-screen overlay doesn't turn it.
 function frameGeometry(state) {
   const c = state.set.confirmed || {};
-  const img = camFrame(state)?.querySelector("img.room-img");
+  const frame = camFrame(state);
+  const img = frame?.querySelector("img.room-img");
   const nw = img?.naturalWidth || 4;
   const nh = img?.naturalHeight || 3;
   const bw = img?.clientWidth || 0;
   const bh = img?.clientHeight || 0;
-  const turn = state.room?.rotate === 90 || state.room?.rotate === 270 ? state.room.rotate : Number(c.turn) === 180 ? 180 : 0;
-  const scale = turn === 90 || turn === 270 ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh);
-  return { turn, mirror: c.mirror === true, flip: c.flip === true, zoom: Number(c.zoom) || 1, width: nw * scale, height: nh * scale };
+  const quarter = frame?.closest?.(".ws-cam--turn90") ? 90 : frame?.closest?.(".ws-cam--turn270") ? 270 : 0;
+  const turn = quarter || (Number(c.turn) === 180 ? 180 : 0);
+  const scale = quarter ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh);
+  const zoom = Number(c.zoom) || 1;
+  return { turn, mirror: c.mirror === true, flip: c.flip === true, zoom, share: cropShare(zoom, outSize(state)),
+    width: nw * scale, height: nh * scale };
 }
 
 function clampCentre(state, x, y) {
-  const [lo, hi] = centreRange(state.set.draft?.zoom);
-  return [Math.min(hi, Math.max(lo, x)), Math.min(hi, Math.max(lo, y))];
+  return clampTo(state, state.set.draft?.zoom, x, y);
 }
 
 // Sends the centre when its whole-percent value changes (the hub's step), rounded inside the range so the camera shows
@@ -1113,9 +1175,12 @@ function clampCentre(state, x, y) {
 // always the last one sent.
 function setCentre(state, x, y) {
   const d = state.set.draft;
-  const [lo, hi] = centreRange(d.zoom);
-  const step = (v) => Math.min(Math.floor(hi), Math.max(Math.ceil(lo), Math.round(v)));
-  const next = { centre_x: step(x), centre_y: step(y) };
+  const [fx, fy] = cropShare(d.zoom, outSize(state));
+  const step = (v, share) => {
+    const [lo, hi] = centreRange(d.zoom, share);
+    return Math.min(Math.floor(hi), Math.max(Math.ceil(lo), Math.round(v)));
+  };
+  const next = { centre_x: step(x, fx), centre_y: step(y, fy) };
   if (next.centre_x !== Number(d.centre_x ?? 50) || next.centre_y !== Number(d.centre_y ?? 50)) setOnPicture(state, next);
 }
 
@@ -1149,18 +1214,23 @@ function frameDragEnd(state, id) {
 }
 
 // While the camera catches up, the frame shows the picture where the finger put it: the distance between the centre
-// asked for and the one the camera last confirmed, on the screen. It is gone once the hub confirms the centre.
+// asked for and the one the stream shows, on the screen, both held inside the crop's range (a centre past it changes
+// nothing on the camera). Nothing moves while the zooms differ or live adjust is off.
 function paintFrameShift(state) {
   const frame = state.bars?.el.parentNode;
   if (!frame?.style) return;
-  const c = state.set.confirmed || {};
-  const d = state.set.draft || {};
-  const [ax, ay] = state.drag ? state.drag.at : [Number(d.centre_x ?? 50), Number(d.centre_y ?? 50)];
-  const [lo, hi] = centreRange(c.zoom);
-  const shown = (v) => Math.min(hi, Math.max(lo, Number(v ?? 50)));
+  const set = state.set;
+  const d = set.draft || {};
+  const s = set.shown || set.confirmed || {};
   const geo = state.drag?.geo || frameGeometry(state);
-  const same = Number(d.zoom) === Number(c.zoom) && geo.width > 0;
-  const [sx, sy] = same ? centreToShift(ax - shown(c.centre_x), ay - shown(c.centre_y), geo) : [0, 0];
+  const live = (state.room?.engine || "picamera2") === "picamera2" && !set.liveOff;
+  const same = live && Number(d.zoom) > 1 && Number(d.zoom) === Number(s.zoom) && geo.width > 0;
+  let [sx, sy] = [0, 0];
+  if (same) {
+    const [ax, ay] = state.drag ? state.drag.at : clampTo(state, d.zoom, d.centre_x, d.centre_y);
+    const [bx, by] = clampTo(state, s.zoom, s.centre_x, s.centre_y);
+    [sx, sy] = centreToShift(ax - bx, ay - by, geo);
+  }
   frame.style.setProperty("--vx", `${Math.round(sx)}px`);
   frame.style.setProperty("--vy", `${Math.round(sy)}px`);
 }
@@ -1172,7 +1242,7 @@ function frameKey(state, key) {
   if (key in arrows) {
     if (Number(state.set.draft?.zoom) > 1) {
       // Seeing more to the right is the picture moving left: a drag the other way, one percent long.
-      const [cx, cy] = dragToCentre(-arrows[key][0], -arrows[key][1], { ...frameGeometry(state), zoom: 1, width: 100, height: 100 });
+      const [cx, cy] = dragToCentre(-arrows[key][0], -arrows[key][1], { ...frameGeometry(state), share: [1, 1], width: 100, height: 100 });
       const d = state.set.draft;
       setCentre(state, ...clampCentre(state, Number(d.centre_x ?? 50) + cx, Number(d.centre_y ?? 50) + cy));
     }

@@ -1321,3 +1321,98 @@ test('A23 drag: with the fallback engine a drag does nothing, and the line says 
     assert.equal(p.state.set.draft.centre_y ?? 50, 50);
   } finally { p.done(); }
 });
+
+// ---- A23 P3 review: the frame's shift is only ever the distance the camera has still to move ----
+
+const shiftOf = (p) => [frameOf(p).style.getPropertyValue('--vx'), frameOf(p).style.getPropertyValue('--vy')];
+
+test('A23 drag: zooming out from an edge, or a saved off-centre value at 1×, leaves no shift', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(4, { centre_x: 87 }), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    for (let i = 0; i < 6; i++) { bar(p, 'bar-zoom-out').click(); await wait(230); }
+    await wait(900);
+    assert.equal(p.state.set.confirmed.zoom, 1);
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+  const q = await ownerPage({ ...zoomed(1, { centre_x: 80 }) });
+  try {
+    await adjustingSized(q);
+    assert.deepEqual(shiftOf(q), ['0px', '0px']);
+  } finally { q.done(); }
+});
+
+test('A23 drag: the shift holds until the camera has had time to show the new centre, then goes', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 60, 0);
+    pointer(p, 'pointerup', 1, 60, 0);
+    assert.equal(shiftOf(p)[0], '60px', 'the picture is where the finger left it');
+    await wait(300);  // the hub has said yes; the stream still shows the old crop
+    assert.equal(p.state.set.confirmed.centre_y, 60);
+    assert.equal(shiftOf(p)[0], '60px');
+    await wait(900);
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+});
+
+test('A23 drag: when live adjust is off (409) the picture is not shown moved', async () => {
+  const p = await ownerPage(zoomed(2));
+  try {
+    await adjustingSized(p);
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (String(url).startsWith('/api/camera/room/live-controls')
+      ? new Response(JSON.stringify({ reason: "Live adjust isn't running. Use Apply." }), { status: 409, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 60, 0);
+    pointer(p, 'pointerup', 1, 60, 0);
+    await wait(300);
+    assert.equal(p.state.set.draft.centre_y, 60, 'kept for Apply');
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+});
+
+test('A23 drag: a wide preset crops less of the sensor down than across, and the scale follows', async () => {
+  const { dom, ws } = await mod();
+  try {
+    assert.deepEqual(ws.cropShare(2, [640, 480]), [0.5, 0.5]);
+    assert.deepEqual(ws.cropShare(2, [1920, 1080]).map((v) => +v.toFixed(4)), [0.5, 0.375]);
+    const [, cy] = ws.dragToCentre(0, 100, { turn: 0, share: [0.5, 0.375], width: 400, height: 225 });
+    assert.equal(+cy.toFixed(3), -16.667);
+    assert.deepEqual(ws.centreRange(2, 0.375), [18.75, 81.25]);
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: in the phone overlay the picture is not turned, so a drag is not mapped as turned', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    const fig = p.state.root.querySelector('.ws-cam--turn90');
+    fig.classList.remove('ws-cam--turn90');  // as when the frame sits in the overlay, outside its turned figure
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent.at(-1).values, { centre_x: 40, centre_y: 50 });
+  } finally { p.done(); }
+});
+
+test('A23 drag: no drag while the camera has not taken the new zoom yet', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(1), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    bar(p, 'bar-zoom-in').click();  // draft 1.5×, the camera still 1×
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent, [{ key: 'zoom', value: 1.5 }]);
+  } finally { p.done(); }
+});
