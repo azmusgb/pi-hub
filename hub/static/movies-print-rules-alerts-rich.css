@@ -98,12 +98,3 @@
 .rule-remove:hover { color: var(--danger); }
 
 /* Alerts — filter tabs */
-.alerts-tabs { margin-bottom: 1rem; }
-.alerts-tabs .tab .count {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: .75rem;
-  padding: 0 .4rem;
-  border-radius: 999px;
-  margin-left: .35rem;
-}

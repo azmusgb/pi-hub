@@ -83,6 +83,22 @@ test('Lists: the faceplate counts what is to buy and to do, with no lamp; the li
   } finally { down.dom.uninstall(); }
 });
 
+test('Lists: the tabs are the kit\'s ui-tabs; the arrow keys choose a list and focus follows', async () => {
+  const { dom, state } = await render('lists.js', { '/api/lists': LISTS });
+  try {
+    const strip = state.root.querySelector('[role="tablist"]');
+    assert.equal(strip.className, 'ui-tabs');
+    const tabs = () => strip.querySelectorAll('[role="tab"]');
+    assert.deepEqual(tabs().map((t) => t.getAttribute('aria-selected')), ['true', 'false', 'false']);
+    tabs()[0].dispatchEvent({ type: 'keydown', key: 'ArrowRight', target: tabs()[0], preventDefault() {} });
+    assert.deepEqual(tabs().map((t) => t.getAttribute('aria-selected')), ['false', 'true', 'false']);
+    assert.equal(dom.document.activeElement, tabs()[1]);
+    assert.equal(tabs()[1].getAttribute('aria-controls'), 'list-panel');
+    tabs()[1].dispatchEvent({ type: 'keydown', key: 'Home', target: tabs()[1], preventDefault() {} });
+    assert.equal(tabs()[0].getAttribute('aria-selected'), 'true');
+  } finally { dom.uninstall(); }
+});
+
 const DRIVES = { ok: true, drives: [
   { is_movies: true, model: 'WD Elements', size: 5e12, mounted: true, smart: { passed: true, reallocated: 0, pending: 0, hours: 100 } },
   { is_movies: false, model: 'Stick', size: 3.2e10, mounted: true, smart: null },
