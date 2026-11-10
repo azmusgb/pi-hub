@@ -1094,15 +1094,18 @@ test('A23: on the fallback engine a tap is kept for Apply, never sent live', asy
   } finally { p.done(); }
 });
 
-test('A23: a key or a tap on a bar is the bar\'s, never the view\'s zoom or pan', async () => {
+test('A23: a key or a tap on a bar is the bar\'s, never the picture\'s zoom', async () => {
   const p = await ownerPage();
   try {
     await adjusting(p);
     const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
     frame.dispatchEvent({ type: 'keydown', key: '+', target: bar(p, 'bar-grid'), preventDefault() {} });
+    assert.equal(p.state.set.draft.zoom, 1);
     assert.equal(p.state.viewTools.zoom, 1);
+    // On the picture itself, while adjusting, + is the camera's zoom (A23 plan decision 9), never the view's.
     frame.dispatchEvent({ type: 'keydown', key: '+', target: frame, preventDefault() {} });
-    assert.equal(p.state.viewTools.zoom, 1.5);
+    assert.equal(p.state.set.draft.zoom, 1.5);
+    assert.equal(p.state.viewTools.zoom, 1);
   } finally { p.done(); }
 });
 
