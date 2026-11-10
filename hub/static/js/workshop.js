@@ -3,7 +3,7 @@
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
 import { api, askFirst, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./now.js";
-import { faceplate, faceplateLoading } from "./page-parts.js";
+import { faceplate, faceplateLoading, fillTabs } from "./page-parts.js";
 import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
@@ -272,6 +272,9 @@ export const SETTINGS_WORDS = {
   notDetected: "The Pi's camera isn't detected. Check its ribbon cable. Settings can be changed once it's back.",
   resetAsk: "Every camera setting goes back to its default, including Turn. The picture restarts.",
   fallbackNotice: "Live adjust isn't available, so changes apply with Apply.",
+  liveHint: "Changes apply live. Save keeps them.",
+  lookFull: "8 saved looks, the most the hub keeps.",
+  lookNotSaved: "The hub didn't answer. Nothing was saved.",
 };
 
 function shownValue(c, v) {
@@ -280,7 +283,8 @@ function shownValue(c, v) {
 }
 
 // One control, as a native input with a visible label and a place for the hub's reason if it refuses the value.
-function settingField(c, value, onInput) {
+// `heading` is the heading it sits under: a label that only repeats it is kept for screen readers.
+function settingField(c, value, onInput, heading = c.group) {
   const id = `set-${c.key}`;
   const err = h("p", { class: "ws-set-err", id: `${id}-err`, hidden: true });
   const common = { id, dataset: { key: id, field: c.key }, "aria-describedby": `${id}-err` };
@@ -297,9 +301,9 @@ function settingField(c, value, onInput) {
       const o = (c.options || []).find((x) => String(x.value) === String(sel.value));
       if (o) onInput(c.key, o.value);
     });
-    // A label that only repeats its group's heading ("Live quality") is kept for screen readers, not shown twice.
+    // A label that only repeats its heading ("Live quality") is kept for screen readers, not shown twice.
     return h("div", { class: "ws-set-field", dataset: { field: c.key } },
-      h("label", { for: id, class: c.label === c.group ? "sr" : null }, c.label), sel, err);
+      h("label", { for: id, class: c.label === heading ? "sr" : null }, c.label), sel, err);
   }
   const out = h("output", { for: id, class: "ws-set-value" }, shownValue(c, value));
   const range = h("input", { ...common, type: "range", min: String(c.min), max: String(c.max), step: String(c.step), value: String(value) });
@@ -322,6 +326,86 @@ export function settingsFields(controls, draft, onInput = () => {}) {
   return [...groups].map(([name, fields]) => h("fieldset", { class: "ws-set-group" }, h("legend", {}, name), ...fields));
 }
 
+// Adjust shows one group at a time (A23 D6): the hub's groups, by tab. Live quality's one control sits in Detail. A
+// group not in a tab (Framing, until the picture takes it) shows below the tabs, so nothing becomes unreachable.
+const ADJUST_TABS = ["Light", "Colour", "Detail"];
+const TAB_OF_GROUP = { Light: "Light", Colour: "Colour", Detail: "Detail", "Live quality": "Detail" };
+// Light's everyday three; the rest of Light is folded under Manual exposure, closed by default.
+const LIGHT_MAIN = new Set(["ev", "brightness", "contrast"]);
+const TAB_KEY = "hub-room-adjust-tab";
+const AUTO = "Auto";
+
+function readTab() {
+  try {
+    const t = localStorage.getItem(TAB_KEY);
+    return ADJUST_TABS.includes(t) ? t : "Light";
+  } catch {
+    return "Light";  // no storage (private mode, blocked site data): Light, every time
+  }
+}
+
+// What Auto resets and Save this look keeps (plan decision 3): every control in Light, Colour or Detail, from the hub's
+// table, so Turn, Mirror, Flip, Zoom, the centre and the preset are never touched.
+function lookKeys(state) {
+  return (state.set.model?.controls || [])
+    .filter((c) => ["Light", "Colour", "Detail"].includes(c.group) && c.key !== "preset").map((c) => c.key);
+}
+
+function autoValues(state) {
+  const defaults = state.set.model?.defaults || {};
+  const byKey = new Map((state.set.model?.controls || []).map((c) => [c.key, c]));
+  return Object.fromEntries(lookKeys(state).map((k) => [k, k in defaults ? defaults[k] : byKey.get(k)?.default]));
+}
+
+// The panel's fields: the tab strip, one panel per tab (only the chosen one shown), then any group outside the tabs.
+function adjustFields(state, controls, onInput) {
+  const set = state.set;
+  const byTab = new Map(ADJUST_TABS.map((t) => [t, []]));
+  const rest = [];
+  for (const c of controls) (TAB_OF_GROUP[c.group] ? byTab.get(TAB_OF_GROUP[c.group]) : rest).push(c);
+  const tabs = ADJUST_TABS.filter((t) => byTab.get(t).length);
+  if (!tabs.length) return settingsFields(rest, set.draft, onInput);
+  set.tab = tabs.includes(set.tab) ? set.tab : tabs.includes(readTab()) ? readTab() : tabs[0];
+  const panelId = (t) => `adjust-${t.toLowerCase()}`;
+  const field = (t) => (c) => settingField(c, set.draft?.[c.key] ?? c.default, onInput, t);
+  const panels = tabs.map((t) => {
+    const cs = byTab.get(t);
+    const folded = t === "Light" ? cs.filter((c) => !LIGHT_MAIN.has(c.key)) : [];
+    const fold = folded.length
+      ? h("details", { class: "ws-set-fold", open: set.foldOpen === true }, h("summary", {}, "Manual exposure"), ...folded.map(field(t)))
+      : null;
+    fold?.addEventListener("toggle", () => { set.foldOpen = fold.open; });
+    return h("div", { role: "tabpanel", id: panelId(t), "aria-labelledby": `adjust-tab-${t}`, hidden: t !== set.tab },
+      h("fieldset", { class: "ws-set-group" }, h("legend", { class: "sr" }, t),
+        ...cs.filter((c) => !folded.includes(c)).map(field(t)), fold));
+  });
+  const strip = h("div", { class: "ui-tabs ws-set-tabs", role: "tablist", "aria-label": "Adjust" });
+  const choose = (t) => {
+    set.tab = t;
+    try { localStorage.setItem(TAB_KEY, t); } catch { /* remembered for this visit only */ }
+    draw();
+    for (const p of panels) p.hidden = p.id !== panelId(t);
+  };
+  const draw = () => fillTabs(strip, { items: tabs.map((t) => ({ key: t, label: t })), selected: set.tab,
+    idPrefix: "adjust-tab-", panel: panelId, onSelect: choose });
+  draw();
+  return [strip, ...panels, ...settingsFields(rest, set.draft, onInput)];
+}
+
+// A refused field may sit in a tab not shown or under the closed Manual exposure fold: show it (without remembering
+// the tab as the owner's choice) so it can take focus beside its reason.
+function revealField(state, key) {
+  const set = state.set;
+  const c = (set.model?.controls || []).find((x) => x.key === key);
+  const tab = TAB_OF_GROUP[c?.group];
+  if (!tab) return;
+  const folded = tab === "Light" && !LIGHT_MAIN.has(key);
+  if (set.tab === tab && (!folded || set.foldOpen)) return;
+  set.tab = tab;
+  if (folded) set.foldOpen = true;
+  set.version = (set.version || 0) + 1;  // the fields redraw with this tab chosen
+}
+
 function makeSettings(state) {
   const set = {
     model: null,
@@ -341,7 +425,11 @@ function makeSettings(state) {
     liveOff: false,      // the hub said live adjust isn't running (409): nothing on the picture moves
   };
   state.set = set;
-  set.looksEl = h("div", { class: "ws-looks" });
+  set.chipsEl = h("div", { class: "ui-chips ws-looks", role: "group", "aria-label": "Looks" });
+  set.looksNote = h("p", { class: "meta ws-looks-note", hidden: true });
+  set.lookForm = makeLookForm(state);
+  set.looksEl = h("div", { class: "ws-looks-row" }, set.chipsEl, set.looksNote, set.lookForm.el);
+  set.hint = h("p", { class: "meta ws-set-hint" }, SETTINGS_WORDS.liveHint);
   set.body = h("div", { class: "ws-set-body" });
   set.note = h("p", { class: "meta ws-set-note", role: "status", tabindex: "-1" });
   set.apply = h("button", { type: "button", class: "primary small", dataset: { key: "cam-apply" } }, "Apply");
@@ -358,7 +446,7 @@ function makeSettings(state) {
   set.unsaved = h("span", { class: "ws-set-unsaved", hidden: true }, "Unsaved changes");
   set.el = h("details", { class: "ws-set", hidden: true },
     h("summary", { dataset: { key: "cam-settings" } }, h("span", {}, "Adjust"), set.unsaved),
-    h("div", { class: "ws-set-inner" }, set.looksEl, set.body, set.actions, set.note));
+    h("div", { class: "ws-set-inner" }, set.looksEl, set.body, set.actions, set.note, set.hint));
 
   set.el.addEventListener("toggle", () => {
     state.camBox?.classList.toggle("ws-cam-box--pinned", set.el.open);
@@ -382,24 +470,108 @@ async function loadLooks(state) {
   drawLooks(state);
 }
 
+// Looks are one row of chips (A23 D5): Auto, the built-in looks, saved looks, then Save this look. The chip for the
+// look in force is pressed and any later change un-presses it; Auto is also pressed whenever every look-able setting is
+// at its default, since that is what Auto would give.
+// A chip by its key, compared as text: a look's name may hold quotes or backslashes, so it never goes into a selector.
+function lookChip(set, key) {
+  return [...set.chipsEl.querySelectorAll(".ws-look-chip")].find((b) => b.dataset?.key === key) || null;
+}
+
 function drawLooks(state) {
   const set = state.set;
-  if (!Array.isArray(set.looks) || !set.looks.length) {
-    set.looksEl.replaceChildren();
+  if (!set.model) {
+    set.chipsEl.replaceChildren();
     return;
   }
-  const chips = set.looks.map((look) => {
-    const isPressed = set.activeLook === look.name;
-    const btn = h("button", {
-      type: "button",
-      class: "ws-look-chip",
-      dataset: { key: `look-${look.name}` },
-      "aria-pressed": String(isPressed),
-    }, look.name);
-    btn.addEventListener("click", () => applyLook(state, look));
+  const looks = Array.isArray(set.looks) ? set.looks : [];
+  const auto = autoValues(state);
+  const atDefaults = Object.keys(auto).length > 0
+    && Object.entries(auto).every(([k, v]) => JSON.stringify(set.draft?.[k]) === JSON.stringify(v));
+  const chip = (name, pressed, onClick, attrs = {}) => {
+    const btn = h("button", { type: "button", class: "ws-look-chip", dataset: { key: `look-${name}` }, ...attrs,
+      ...(pressed === null ? {} : { "aria-pressed": String(pressed) }) }, name);
+    btn.addEventListener("click", onClick);
     return btn;
+  };
+  const full = looks.filter((l) => !l.builtin).length >= 8;
+  const had = set.chipsEl.contains(document.activeElement) ? document.activeElement.dataset?.key : null;
+  set.chipsEl.replaceChildren(
+    chip(AUTO, set.activeLook === AUTO || (set.activeLook == null && atDefaults), () => applyLook(state, { name: AUTO, values: autoValues(state) })),
+    ...looks.map((look) => chip(look.name, set.activeLook === look.name, () => applyLook(state, look))),
+    chip("Save this look", null, () => set.lookForm.toggle(), { class: "ws-look-chip ws-look-save", disabled: full,
+      "aria-expanded": String(!set.lookForm.el.hidden), "aria-controls": "look-form" }));
+  set.looksNote.hidden = !full;
+  set.looksNote.textContent = full ? SETTINGS_WORDS.lookFull : "";
+  if (had) lookChip(set, had)?.focus();  // a redraw never drops a keyboard user
+}
+
+// Save this look: a name, then the look-able settings in force now (the ones Auto resets), as a new chip. Built once,
+// so what the owner types survives the chips being redrawn; a refusal keeps it and says why beside the field.
+function makeLookForm(state) {
+  const input = h("input", { type: "text", id: "look-name", class: "ui-field", maxlength: 24, autocomplete: "off",
+    enterkeyhint: "done", "aria-describedby": "look-name-err" });
+  const err = h("p", { class: "ws-set-err", id: "look-name-err", hidden: true });
+  const save = h("button", { type: "button", class: "primary small", dataset: { key: "look-save-confirm" } }, "Save look");
+  const cancel = h("button", { type: "button", class: "ghost small", dataset: { key: "look-save-cancel" } }, "Cancel");
+  const el = h("div", { class: "ws-look-form", id: "look-form", hidden: true },
+    h("label", { for: "look-name" }, "Name this look"), input, h("div", { class: "ws-set-actions" }, save, cancel), err);
+  const say = (reason) => {
+    err.hidden = !reason;
+    err.textContent = reason || "";
+    if (reason) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+  };
+  const close = () => {
+    el.hidden = true;
+    say("");
+    drawLooks(state);
+  };
+  const toggle = () => {
+    if (!el.hidden) return close();
+    el.hidden = false;
+    say("");
+    drawLooks(state);
+    input.focus();
+  };
+  const submit = async () => {
+    const set = state.set;
+    if (save.disabled || !set.model) return;
+    const name = String(input.value || "").trim();
+    if (!name) {
+      say("Give the look a name.");
+      input.focus();
+      return;
+    }
+    const values = Object.fromEntries(lookKeys(state).filter((k) => set.draft?.[k] !== undefined).map((k) => [k, set.draft[k]]));
+    save.disabled = true;
+    let status = 0;
+    let data = null;
+    try {
+      const r = await fetch("/api/camera/room/looks", { method: "POST", cache: "no-store", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, values }) });
+      status = r.status;
+      data = await r.json().catch(() => null);
+    } catch { /* status 0: the hub didn't answer */ }
+    save.disabled = false;
+    if (state.left) return;
+    if (status === 200 && Array.isArray(data?.looks)) {
+      set.looks = data.looks;
+      set.activeLook = data.look?.name || name;
+      input.value = "";
+      close();
+      lookChip(set, `look-${set.activeLook}`)?.focus();
+      return;
+    }
+    say(data?.reason || SETTINGS_WORDS.lookNotSaved);
+    input.focus();
+  };
+  save.addEventListener("click", submit);
+  cancel.addEventListener("click", close);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); state.set.chipsEl.querySelector(".ws-look-save")?.focus(); }
   });
-  set.looksEl.replaceChildren(...chips);
+  return { el, toggle };
 }
 
 async function applyLook(state, look) {
@@ -493,6 +665,7 @@ async function sendNextLive(state) {
     // Refused, too fast or no answer: each control goes back to what the camera last confirmed, unless a newer value
     // for it is already waiting, and the status line says why.
     for (const k of keys) if (!set.pending.has(k) && k in set.confirmed) set.draft[k] = set.confirmed[k];
+    set.activeLook = null;  // part of the look went back, so the picture is no longer that look
     set.message = data?.reason || LIVE_WORDS[status] || SETTINGS_WORDS.failedSend;
     if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
   }
@@ -537,7 +710,7 @@ function drawSettings(state) {
   if (!shown) return;
   const engine = state.room?.engine || "picamera2";
   redraw(state, "camset", set.body, JSON.stringify([set.model?.settings ? 1 : 0, set.failed, set.model?.controls?.length, engine, set.version || 0]), () =>
-    set.body.replaceChildren(...(set.model ? settingsFields(set.model.controls.filter((c) => !ON_PICTURE.has(c.key)), set.draft, (key, v) => {
+    set.body.replaceChildren(...(set.model ? adjustFields(state, set.model.controls.filter((c) => !ON_PICTURE.has(c.key)), (key, v) => {
       set.draft[key] = v;
       set.activeLook = null;
       set.message = "";
@@ -548,6 +721,7 @@ function drawSettings(state) {
       syncBars(state);
     }) : [h("p", { class: "meta" }, set.failed ? SETTINGS_WORDS.noAnswer : SETTINGS_WORDS.loading)])));
   syncSettings(state);
+  drawLooks(state);
   drawSnapshots(state);
   mountBars(state);
 }
@@ -579,6 +753,7 @@ function syncSettings(state) {
   // Engine distinction:
   // If rpicam fallback: show Apply, hide Save
   // If picamera2: show Save, hide Apply
+  set.hint.hidden = engine === "rpicam";  // the fallback's note says Apply instead
   if (engine === "rpicam") {
     set.apply.hidden = false;
     set.save.hidden = true;
@@ -632,6 +807,7 @@ async function sendSettings(state, kind) {
     set.confirmed = { ...data.settings };
     set.shown = null;
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
+    if (kind === "reset") set.activeLook = null;
     set.message = kind === "reset" ? SETTINGS_WORDS.reset : kind === "save" ? SETTINGS_WORDS.saved : SETTINGS_WORDS.applied;
     set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
     if (data.state) state.room = data.state;
@@ -645,6 +821,7 @@ async function sendSettings(state, kind) {
     : status === 409 ? data?.reason || SETTINGS_WORDS.busy
       : status === 401 ? SETTINGS_WORDS.signIn : SETTINGS_WORDS.failedSend;
   if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
+  if (set.refused) revealField(state, set.refused.field);
   drawSettings(state);
   if (set.refused || status === 422) {
     const field = set.refused && set.body.querySelector(`[data-key="set-${set.refused.field}"]`);

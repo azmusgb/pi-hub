@@ -371,7 +371,7 @@ test("settings fields: the hub's groups in order, each control a native input wi
 });
 
 async function ownerPage(extra = {}, room = ready90) {
-  globalThis.localStorage?.removeItem?.('hub-workshop-camera');  // not every Node has localStorage (the Pi's 20 doesn't)
+  try { globalThis.localStorage?.removeItem?.('hub-workshop-camera'); } catch { /* a storage that throws (A23 P4 test) */ }  // not every Node has localStorage (the Pi's 20 doesn't)
   const p = await page({ '/api/me': { role: 'owner' }, '/api/camera': camOff, '/api/camera/room': room,
     '/api/camera/room/settings': model(), '/api/camera/room.jpg': {}, ...extra });
   await p.ws.load(p.state);
@@ -400,8 +400,9 @@ test("page: the owner gets a closed Camera settings panel under the Room view, d
     assert.ok(d && !d.hidden && !d.open);
     assert.equal(text(d.querySelector('summary > span')), 'Adjust');
     assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
-    // Orientation's controls, Zoom and the centre are on the picture now (A23 D2, D3).
-    assert.equal(d.querySelectorAll('fieldset').length, 4);
+    // Orientation's controls, Zoom and the centre are on the picture now (A23 D2, D3): one fieldset per tab (Light,
+    // Colour, Detail: A23 D6), and nothing left below them.
+    assert.equal(d.querySelectorAll('fieldset').length, 3);
     assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
     assert.ok(!d.querySelector('#set-centre_x'), 'no centre slider: drag and the arrow keys frame the camera');
     assert.equal(text(d.querySelector('.ws-set-note')), '');
@@ -564,7 +565,8 @@ test('CSS: the settings panel has no motion and wraps its groups', () => {
   const block = css.slice(css.indexOf('/* Camera settings (amendment A18)'), css.indexOf('.ws-skeleton {'));
   assert.ok(block.length > 100);
   assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
-  assert.match(block, /\.ws-set-body \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
+  // One tab's controls at a time (A23 D6): the chosen panel's group and the Manual exposure fold flow into columns.
+  assert.match(block, /\.ws-set-body > \[role=tabpanel\] > \.ws-set-group, \.ws-set-fold \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
 });
 
 // ---- P2 review fixes ----
@@ -682,10 +684,8 @@ test('page: opening settings starts live stream and loads quick looks', async ()
     d.dispatchEvent({ type: 'toggle', target: d });
     await tick(); await tick();
     assert.equal(p.state.live.on, true, 'live stream automatically started');
-    const chips = d.querySelectorAll('.ws-look-chip');
-    assert.equal(chips.length, 2);
-    assert.equal(text(chips[0]), 'Night');
-    assert.equal(text(chips[1]), 'Custom Look');
+    // Auto first and Save this look last (A23 D5).
+    assert.deepEqual(d.querySelectorAll('.ws-look-chip').map(text), ['Auto', 'Night', 'Custom Look', 'Save this look']);
   } finally { p.done(); }
 });
 
@@ -1415,4 +1415,248 @@ test('A23 drag: no drag while the camera has not taken the new zoom yet', async 
     await wait(260);
     assert.deepEqual(sent, [{ key: 'zoom', value: 1.5 }]);
   } finally { p.done(); }
+});
+
+// ---- A23 P4: looks as chips with Auto first, the panel's tabs, Manual exposure folded ----
+
+const liveModel = (settings = {}) => ({ '/api/camera/room/settings': { ...model(), settings: { ...SETTINGS, ...settings },
+  controls: CONTROLS.map((c) => ({ ...c, live: true })) } });
+const looksRoute = (looks = []) => ({ '/api/camera/room/looks': { looks: [
+  { name: 'Night', builtin: true, values: { ev: 1.5, awb: 'tungsten' } }, ...looks] } });
+const chip = (p, name) => panel(p).querySelectorAll('.ws-look-chip').find((b) => text(b) === name);
+// A storage that works, or one that throws on every call (private mode, blocked site data).
+function withStorage(kind) {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const data = new Map();
+  const store = kind === 'throws'
+    ? { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } }
+    : { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)), removeItem: (k) => data.delete(k) };
+  Object.defineProperty(globalThis, 'localStorage', { value: store, configurable: true, writable: true });
+  return { data, restore: () => (had ? Object.defineProperty(globalThis, 'localStorage', had) : delete globalThis.localStorage) };
+}
+
+test('A23 P4: Auto returns Light, Colour and Detail to the defaults in one request, never the framing or the preset', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...liveModel({ ev: 1, awb: 'tungsten', zoom: 2, preset: 'sharp' }), ...looksRoute(), ...liveRoute(sent) });
+  try {
+    await adjusting(p);
+    await tick();
+    chip(p, 'Auto').click();
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { ev: 0, manual: false, shutter: 33333, awb: 'auto', sharpness: 1 } }]);
+    assert.equal(p.state.set.draft.zoom, 2);
+    assert.equal(p.state.set.draft.preset, 'sharp');
+    assert.equal(chip(p, 'Auto').getAttribute('aria-pressed'), 'true');
+  } finally { p.done(); }
+});
+
+test('A23 P4: a look is one request; the chip in force is pressed and a later change un-presses it', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...liveModel({ ev: 1 }), ...looksRoute(), ...liveRoute(sent) });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    assert.equal(chip(p, 'Auto').getAttribute('aria-pressed'), 'false', 'Exposure is not the default');
+    chip(p, 'Night').click();
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { ev: 1.5, awb: 'tungsten' } }]);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'true');
+    change(d.querySelector('#set-ev'), 0.5);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'false');
+  } finally { p.done(); }
+});
+
+test('A23 P4: the panel shows one of Light, Colour and Detail; Manual exposure is folded inside Light', async () => {
+  const st = withStorage('works');
+  const p = await ownerPage(liveModel());
+  try {
+    const d = await adjusting(p);
+    const tabs = d.querySelector('.ui-tabs[role="tablist"]');
+    assert.deepEqual(tabs.querySelectorAll('[role="tab"]').map(text), ['Light', 'Colour', 'Detail']);
+    const shown = () => d.querySelectorAll('[role="tabpanel"]').filter((x) => !x.hidden);
+    assert.equal(shown().length, 1);
+    assert.ok(shown()[0].querySelector('#set-ev'));
+    const fold = shown()[0].querySelector('details.ws-set-fold');
+    assert.equal(text(fold.querySelector('summary')), 'Manual exposure');
+    assert.ok(!fold.open, 'closed by default');
+    assert.ok(fold.querySelector('#set-manual') && fold.querySelector('#set-shutter'));
+    assert.ok(fold.querySelector('#set-shutter').disabled, 'until Manual exposure is on');
+    tabs.querySelectorAll('[role="tab"]')[2].click();
+    assert.ok(shown()[0].querySelector('#set-sharpness') && shown()[0].querySelector('#set-preset'), 'Live quality is in Detail');
+    assert.equal(shown()[0].querySelector('label[for="set-preset"]').getAttribute('class'), null, 'its label shows: no heading of its own here');
+    assert.equal(st.data.get('hub-room-adjust-tab'), 'Detail');
+    assert.ok(!d.querySelector('#set-centre_x'), 'the centre is framed on the picture (P3), so nothing sits below the tabs');
+  } finally { p.done(); st.restore(); }
+});
+
+test('A23 P4: the arrow keys move between tabs, and the last tab survives a reload', async () => {
+  const st = withStorage('works');
+  try {
+    const p = await ownerPage(liveModel());
+    try {
+      const d = await adjusting(p);
+      const tab = (n) => d.querySelectorAll('[role="tab"]')[n];
+      tab(0).dispatchEvent({ type: 'keydown', key: 'ArrowRight', target: tab(0), preventDefault() {} });
+      assert.equal(tab(1).getAttribute('aria-selected'), 'true');
+      assert.equal(p.dom.document.activeElement, tab(1));
+      assert.equal(tab(1).getAttribute('tabindex'), '0', 'only the chosen tab is in the Tab order');
+      assert.equal(tab(0).getAttribute('tabindex'), '-1');
+      tab(1).dispatchEvent({ type: 'keydown', key: 'End', target: tab(1), preventDefault() {} });
+      assert.equal(tab(2).getAttribute('aria-selected'), 'true');
+      tab(2).dispatchEvent({ type: 'keydown', key: 'ArrowRight', target: tab(2), preventDefault() {} });
+      assert.equal(tab(0).getAttribute('aria-selected'), 'true', 'wraps');
+      tab(0).dispatchEvent({ type: 'keydown', key: 'ArrowLeft', target: tab(0), preventDefault() {} });
+    } finally { p.done(); }
+    const q = await ownerPage(liveModel());
+    try {
+      const d = await adjusting(q);
+      assert.equal(d.querySelector('[role="tab"][aria-selected="true"]') && text(d.querySelector('[role="tab"][aria-selected="true"]')), 'Detail');
+    } finally { q.done(); }
+  } finally { st.restore(); }
+});
+
+test('A23 P4: a storage that throws still gives Light, and choosing a tab still works', async () => {
+  const st = withStorage('throws');
+  try {
+    const p = await ownerPage(liveModel());
+    try {
+      const d = await adjusting(p);
+      assert.equal(text(d.querySelector('[role="tab"][aria-selected="true"]')), 'Light');
+      d.querySelectorAll('[role="tab"]')[1].click();
+      assert.equal(text(d.querySelector('[role="tab"][aria-selected="true"]')), 'Colour');
+    } finally { p.done(); }
+  } finally { st.restore(); }
+});
+
+test('A23 P4: Save this look names the look-able settings in force, and a refusal keeps the name and says why', async () => {
+  const posted = [];
+  let answer = (b) => ({ look: b, looks: [{ name: 'Night', builtin: true, values: {} }, b] });
+  const p = await ownerPage({ ...liveModel({ ev: 1, zoom: 2 }), ...looksRoute(),
+    '/api/camera/room/looks': (u, o) => {
+      if (o?.method === 'POST') { const b = JSON.parse(o.body); posted.push(b); return answer(b); }
+      return { looks: [{ name: 'Night', builtin: true, values: { ev: 1.5 } }] };
+    } });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    chip(p, 'Save this look').click();
+    const name = d.querySelector('#look-name');
+    assert.ok(name && !name.closest('[hidden]'));
+    assert.equal(p.dom.document.activeElement, name);
+    name.value = 'Bench';
+    d.querySelector('[data-key="look-save-confirm"]').click();
+    await tick(); await tick();
+    assert.deepEqual(posted, [{ name: 'Bench', values: { ev: 1, manual: false, shutter: 33333, awb: 'auto', sharpness: 1 } }]);
+    assert.equal(chip(p, 'Bench').getAttribute('aria-pressed'), 'true');
+    assert.ok(!d.querySelector('#look-name') || d.querySelector('#look-name').closest('[hidden]'), 'the form closes');
+    answer = () => ({ __status: 422 });
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (opts?.method === 'POST' && String(url) === '/api/camera/room/looks'
+      ? new Response(JSON.stringify({ field: 'name', reason: "A look called 'Bench' already exists." }), { status: 422, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    chip(p, 'Save this look').click();
+    d.querySelector('#look-name').value = 'Bench';
+    d.querySelector('[data-key="look-save-confirm"]').click();
+    await tick(); await tick();
+    assert.equal(d.querySelector('#look-name').value, 'Bench');
+    assert.equal(text(d.querySelector('#look-name-err')), "A look called 'Bench' already exists.");
+    assert.equal(d.querySelector('#look-name').getAttribute('aria-invalid'), 'true');
+  } finally { p.done(); }
+});
+
+test('A23 P4: a look named with a quote or a backslash still keeps the keyboard on its chip', async () => {
+  const odd = 'Desk "lamp" \\ on';
+  const p = await ownerPage({ ...liveModel(), ...looksRoute([{ name: odd, values: { ev: 0.5 } }]),
+    '/api/camera/room/looks': (u, o) => (o?.method === 'POST'
+      ? { look: JSON.parse(o.body), looks: [{ name: odd, values: { ev: 0.5 } }, JSON.parse(o.body)] }
+      : { looks: [{ name: odd, values: { ev: 0.5 } }] }) });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    chip(p, odd).focus();
+    change(d.querySelector('#set-ev'), 0.5);  // redraws the chips
+    assert.equal(p.dom.document.activeElement, chip(p, odd), 'focus stays on the same chip');
+    chip(p, 'Save this look').click();
+    d.querySelector('#look-name').value = 'Say "hi" \\';
+    d.querySelector('[data-key="look-save-confirm"]').click();
+    await tick(); await tick();
+    assert.equal(p.dom.document.activeElement, chip(p, 'Say "hi" \\'), 'the new chip takes focus');
+  } finally { p.done(); }
+});
+
+test('A23 P4: after Reset, or a change the camera refused, no look chip claims to be in force', async () => {
+  const p = await ownerPage({ ...liveModel({ ev: 1 }), ...looksRoute(), ...liveRoute([]),
+    '/api/camera/room/settings/reset': () => ({ ...model(), settings: { ...DEFAULTS, ev: 1 } }) });
+  try {
+    await adjusting(p);
+    await tick();
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (String(url).startsWith('/api/camera/room/live-controls')
+      ? new Response(JSON.stringify({ field: 'ev', reason: 'Not now.' }), { status: 422, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    chip(p, 'Night').click();
+    await wait(260);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'false', 'the camera never took Night');
+    globalThis.fetch = real;
+    chip(p, 'Night').click();
+    await wait(260);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'true');
+    globalThis.ApplianceConfirm = { ask: async () => true };
+    panel(p).querySelector('[data-key="cam-reset"]').click();
+    for (let i = 0; i < 6; i += 1) await tick();
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'false', 'Reset is not Night');
+  } finally { p.done(); }
+});
+
+test('A23 P4: a refused setting in another tab or the closed fold is shown before it takes focus', async () => {
+  const st = withStorage('works');
+  const p = await ownerPage();
+  try {
+    const d = panel(p);
+    const selected = () => text(d.querySelector('[role="tab"][aria-selected="true"]'));
+    assert.equal(selected(), 'Light');
+    withStatus(p, 422, { field: 'awb', reason: 'White balance is one of: auto.' });
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(selected(), 'Colour');
+    assert.ok(!d.querySelector('#set-awb').closest('[role="tabpanel"]').hidden);
+    assert.equal(p.dom.document.activeElement, d.querySelector('#set-awb'));
+    assert.equal(st.data.get('hub-room-adjust-tab') ?? null, null, 'a refusal is not a choice to remember');
+    withStatus(p, 422, { field: 'manual', reason: 'Manual exposure needs a shutter time.' });
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(selected(), 'Light');
+    assert.ok(d.querySelector('details.ws-set-fold').open, 'the fold opens');
+    assert.equal(p.dom.document.activeElement, d.querySelector('#set-manual'));
+  } finally { p.done(); st.restore(); }
+});
+
+test('A23 P4: with eight saved looks, Save this look is off and says why', async () => {
+  const eight = Array.from({ length: 8 }, (_, i) => ({ name: `Look ${i + 1} with a long name`, values: { ev: 0 } }));
+  const p = await ownerPage({ ...liveModel(), ...looksRoute(eight) });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    assert.ok(chip(p, 'Save this look').disabled);
+    assert.match(text(d.querySelector('.ws-looks-note')), /8 saved looks/);
+  } finally { p.done(); }
+});
+
+test('A23 P4: below the panel, a line says changes apply live and Save keeps them', async () => {
+  const p = await ownerPage(liveModel());
+  try {
+    const d = await adjusting(p);
+    assert.equal(text(d.querySelector('.ws-set-hint')), 'Changes apply live. Save keeps them.');
+    assert.ok(!d.querySelector('.ws-set-hint').hidden);
+  } finally { p.done(); }
+  const q = await ownerPage(liveModel(), { ...ready90, engine: 'rpicam' });
+  try {
+    assert.ok(panel(q).querySelector('.ws-set-hint').hidden, 'the fallback says Apply instead');
+  } finally { q.done(); }
+});
+
+test('A23 P4 CSS: the looks row wraps, and the fold and tabs come from the kit', () => {
+  const css = readFileSync(new URL('../hub/static/workshop-pi-rich.css', import.meta.url), 'utf8');
+  assert.match(css, /\.ws-looks\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.ok(!/\.ws-set .*\.ui-tabs/.test(css), 'no local copy of the tabs');
 });

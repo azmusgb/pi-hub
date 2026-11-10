@@ -33,7 +33,8 @@ test('on a phone the page strips, Search, Restart, the theme link and the Site m
   // A10 D2 (plan decision 4): a target's size follows the pointer, not the window's width, so a touch screen of any
   // width gets 44 px, and the rail's own links are in the list.
   assert.doesNotMatch(css('enhance.css'), /@media \(max-width: 860px\), \(pointer: coarse\)/);
-  for (const sel of ['.tabs > a', '.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a', '.rail a[data-page]', '#theme-btn']) {
+  // The tabs are the kit's ui-tabs (2.16), 48 px everywhere, so they need no touch rule here (A23 P4).
+  for (const sel of ['.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a', '.rail a[data-page]', '#theme-btn']) {
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
 });

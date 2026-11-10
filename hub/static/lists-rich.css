@@ -6,48 +6,16 @@
   max-width: 800px;
 }
 
-/* Refined Tabs */
-.page-lists > .tabs {
-  margin-bottom: 1.5rem;
-  display: inline-flex;
-  background: var(--surface-3);
-  padding: 4px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  width: 100%;
-  gap: 2px;
-}
-.page-lists > .tabs .tab {
-  flex: 1;
-  padding: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  border-radius: var(--r-sm);
-  color: var(--text-2);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-}
-.page-lists > .tabs .tab:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-.page-lists > .tabs .tab[aria-selected="true"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.page-lists > .tabs .tab .count {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 0.75rem;
+/* The tabs are the kit's ui-tabs; the open count beside a list's name, filled like a pressed chip so it reads on the
+   selected tab's wash too. */
+.page-lists > .ui-tabs .count {
+  min-width: 1.4rem;
   padding: 0 0.4rem;
   border-radius: 10px;
+  background: var(--ui-text);
+  color: var(--ui-bg);
+  font-size: var(--ui-fs-2);
+  text-align: center;
 }
 
 /* Add Bar */
@@ -167,6 +135,6 @@
   margin: 0 0 0.25rem;
 }
 
-.page-lists > .tabs { max-width: 800px; margin: 0 0 1.5rem; }
+.page-lists > .ui-tabs { max-width: 800px; margin: 0 0 1.5rem; }
 .add-bar .remind-toggle, .add-bar .remind-row { grid-column: 1 / -1; }
 .list-card .remove-btn, .list-card .note-remove { opacity: 1; min-width: 44px; min-height: 44px; }

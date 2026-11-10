@@ -733,10 +733,9 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Touch, after the compact sizes above and in the component sheets, so it wins: page strips, Search, Restart, the
    theme link, the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
 @media (pointer: coarse) {
-  .tabs > a, .tabs > button, .top-cmd-btn, .service-list .status-side .btn, .link-btn,
+  .top-cmd-btn, .service-list .status-side .btn, .link-btn,
   .more-group > h2 a { min-height: 44px; }
-  .tabs > a, .tabs > button, .more-group > h2 a { display: inline-flex; align-items: center; }
-  .tabs > a, .tabs > button { justify-content: center; }
+  .more-group > h2 a { display: inline-flex; align-items: center; }
 }
 .top-cmd-btn .command-label { text-decoration: none; }
 /* No keyboard shortcut to show on a touch screen. */

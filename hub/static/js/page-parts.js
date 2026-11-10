@@ -46,6 +46,30 @@ export function lampRows(rows) {
     r.action || null)));
 }
 
+// Tabs (the kit's ui-tabs, 2.16): the views of one area. Fills `strip` (a role="tablist" element with class ui-tabs)
+// with one button per item; only the selected one is in the Tab order, and the arrow keys, Home and End move to a tab
+// and select it (the ARIA tabs pattern). `onSelect(key)` redraws what it needs, then focus goes to the chosen tab.
+// `panel(key)` is the id of the panel each tab controls; `extra(key)` is a node after its label (a count).
+export function fillTabs(strip, { items, selected, idPrefix, panel, onSelect, extra = () => null }) {
+  const keys = items.map((i) => i.key);
+  const choose = (key) => {
+    onSelect(key);
+    strip.querySelector(`#${idPrefix}${key}`)?.focus();
+  };
+  strip.replaceChildren(...items.map(({ key, label }) => h("button", {
+    type: "button", role: "tab", id: `${idPrefix}${key}`, "aria-selected": String(key === selected),
+    "aria-controls": panel(key), tabindex: key === selected ? 0 : -1, dataset: { tab: key },
+    onclick: () => choose(key),
+    onkeydown: (e) => {
+      const i = keys.indexOf(key);
+      const next = e.key === "ArrowRight" ? keys[(i + 1) % keys.length]
+        : e.key === "ArrowLeft" ? keys[(i + keys.length - 1) % keys.length]
+        : e.key === "Home" ? keys[0] : e.key === "End" ? keys.at(-1) : null;
+      if (next) { e.preventDefault(); choose(next); }
+    },
+  }, label, extra(key))));
+}
+
 // "Needs you here": this page's own items from Needs you, through the kit's list; hidden while there are none or Needs
 // you doesn't answer (Home says that, not every page).
 export function needsHere() {
