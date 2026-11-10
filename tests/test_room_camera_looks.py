@@ -86,6 +86,14 @@ def test_refuse_builtin_name():
     assert exc.value.field == "name"
 
 
+def test_refuse_names_of_the_rows_own_chips():
+    """A look can't be called Auto or Save this look: the chips row already has those (A23 P4)."""
+    for name in ("Auto", "auto", " Save this look "):
+        with pytest.raises(room_camera.Invalid) as exc:
+            room_camera.save_look(name, {"ev": 1.0})
+        assert exc.value.field == "name"
+
+
 def test_refuse_invalid_name():
     """Names must be 1-24 characters without control characters."""
     with pytest.raises(room_camera.Invalid):

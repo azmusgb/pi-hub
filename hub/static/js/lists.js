@@ -1,7 +1,7 @@
 // Lists: shopping, to do and notes, shared by everyone in the house. A7 P1: the faceplate counts what is open on each
 // list; the tabs and the open list sit below it, with no card.
 import { api, ensure, h, post, toast, when } from "./core.js";
-import { faceplate, faceplateLoading } from "./page-parts.js";
+import { faceplate, faceplateLoading, fillTabs } from "./page-parts.js";
 
 export const every = 20;
 
@@ -12,7 +12,7 @@ export function mount(state) {
   state.active = "shopping";
   try { const saved = sessionStorage.getItem("hub-list"); if (ORDER.includes(saved)) state.active = saved; } catch {}
   state.plate = h("div", {}, faceplateLoading("Lists"));
-  state.tabs = h("div", { class: "tabs", role: "tablist", "aria-label": "Lists" });
+  state.tabs = h("div", { class: "ui-tabs", role: "tablist", "aria-label": "Lists" });
   state.panel = h("section", { class: "list-card", role: "tabpanel", id: "list-panel" });
   state.root.append(state.plate, state.tabs, state.panel);
 }
@@ -32,26 +32,18 @@ export function listsPlate(data) {
 
 function render(state) {
   const data = state.data;
-  const select = (key) => {
-    state.active = key;
-    try { sessionStorage.setItem("hub-list", key); } catch {}
-    render(state);
-    state.tabs.querySelector(`#tab-${key}`).focus();
-  };
-  state.tabs.replaceChildren(...ORDER.map((key) => {
-    const open = data[key].items.filter((i) => !i.done).length;
-    return h("button", {
-      role: "tab", class: "tab", "aria-selected": String(key === state.active), "aria-controls": "list-panel", tabindex: key === state.active ? 0 : -1, id: `tab-${key}`,
-      onclick: () => select(key),
-      onkeydown: (e) => {
-        const index = ORDER.indexOf(key);
-        const next = e.key === "ArrowRight" ? ORDER[(index + 1) % ORDER.length]
-          : e.key === "ArrowLeft" ? ORDER[(index + ORDER.length - 1) % ORDER.length]
-          : e.key === "Home" ? ORDER[0] : e.key === "End" ? ORDER.at(-1) : null;
-        if (next) { e.preventDefault(); select(next); }
-      },
-    }, data[key].name, open ? h("span", { class: "count" }, String(open)) : null);
-  }));
+  fillTabs(state.tabs, {
+    items: ORDER.map((key) => ({ key, label: data[key].name })), selected: state.active, idPrefix: "tab-", panel: () => "list-panel",
+    extra: (key) => {
+      const open = data[key].items.filter((i) => !i.done).length;
+      return open ? h("span", { class: "count" }, String(open)) : null;
+    },
+    onSelect: (key) => {
+      state.active = key;
+      try { sessionStorage.setItem("hub-list", key); } catch {}
+      render(state);
+    },
+  });
   const key = state.active;
   const list = data[key];
   const input = h("input", { type: "text", id: "list-new", maxlength: 200, placeholder: PLACEHOLDER[key], autocomplete: "off", enterkeyhint: "done" });

@@ -119,6 +119,7 @@ BUILTIN_LOOKS = [
      "values": {"zoom": 2.0, "centre_x": 50, "centre_y": 50, "ev": 0.5}},
 ]
 BUILTIN_NAMES = frozenset(b["name"].lower() for b in BUILTIN_LOOKS)
+CHIP_NAMES = frozenset(("auto", "save this look"))  # the looks row's own chips (A23 D5)
 FORBIDDEN_LOOK_KEYS = frozenset(("turn", "mirror", "flip", "preset"))
 
 # Every control changes on the running camera (A20 D1; the owner asked for all of them). The helper rebuilds its
@@ -759,6 +760,8 @@ def validate_look_name(name):
         raise Invalid("name", "Look name cannot contain control characters.")
     if cleaned.lower() in BUILTIN_NAMES:
         raise Invalid("name", f"{cleaned!r} is a built-in look and cannot be modified.")
+    if cleaned.lower() in CHIP_NAMES:
+        raise Invalid("name", f"{cleaned!r} is already a button beside the looks. Choose another name.")
     return cleaned
 
 
