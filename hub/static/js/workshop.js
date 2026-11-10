@@ -361,6 +361,7 @@ function makeSettings(state) {
   set.el.addEventListener("toggle", () => {
     state.camBox?.classList.toggle("ws-cam-box--pinned", set.el.open);
     if (set.el.open) {
+      resetViewZoom(state);  // two zooms never stack: the camera's is the one in use (A23 plan decision 9)
       if (!state.live.on && state.room?.state !== "unavailable") {
         startLive(state);
       }
@@ -550,8 +551,7 @@ function syncSettings(state) {
     const field = set.body.querySelector(`[data-field="${c.key}"].ws-set-field`);
     const input = field?.querySelector(`[data-key="set-${c.key}"]`);
     if (!input) continue;
-    input.disabled = (["centre_x", "centre_y"].includes(c.key) && !(set.draft.zoom > 1))
-      || (["shutter", "gain"].includes(c.key) && set.draft.manual !== true);
+    input.disabled = ["shutter", "gain"].includes(c.key) && set.draft.manual !== true;
     if (input.type === "checkbox") input.checked = set.draft[c.key] === true;
     else if (set.draft[c.key] !== undefined && input.value !== String(set.draft[c.key])) input.value = String(set.draft[c.key]);
     const out = field.querySelector("output");
@@ -888,8 +888,8 @@ function toggleHist(state) {
 // iPhone overlay), never rebuilt: a quarter turn redraws the figure, and the bars keep their focus and state across it.
 // They show only while adjusting. Each bar is a small dark-themed area on the kit's surface, so it reads over any picture.
 
-// What moved from the panel onto the picture. The centre stays in the panel until drag to frame (A23 plan decision 12).
-export const ON_PICTURE = new Set(["turn", "mirror", "flip", "zoom"]);
+// What moved from the panel onto the picture: the centre is set by dragging the picture and by the arrow keys (A23 D3).
+export const ON_PICTURE = new Set(["turn", "mirror", "flip", "zoom", "centre_x", "centre_y"]);
 const BAR_WHY = {
   not_detected: "No picture: camera not detected",
   capture_failed: "No picture: camera not giving pictures",
@@ -915,18 +915,12 @@ function makeBars(state) {
   b.fs = button("bar-fullscreen", "Full screen");
   b.camera = [b.turn, b.flip, b.mirror, b.zoomIn, b.zoomOut, b.fit, set.snapshot];
 
-  const zoomBy = (dir) => {
-    const c = control(state, "zoom");
-    const z = Number(set.draft?.zoom ?? 1);
-    const next = c ? Math.min(c.max, Math.max(c.min, Number((z + dir * c.step).toFixed(2)))) : z;
-    if (next !== z) setOnPicture(state, { zoom: next });
-  };
   b.turn.addEventListener("click", () => setOnPicture(state, { turn: ((Number(set.draft?.turn) || 0) + 90) % 360 }));
   b.flip.addEventListener("click", () => setOnPicture(state, { flip: set.draft?.flip !== true }));
   b.mirror.addEventListener("click", () => setOnPicture(state, { mirror: set.draft?.mirror !== true }));
-  b.zoomIn.addEventListener("click", () => zoomBy(1));
-  b.zoomOut.addEventListener("click", () => zoomBy(-1));
-  b.fit.addEventListener("click", () => setOnPicture(state, { zoom: 1, centre_x: 50, centre_y: 50 }));
+  b.zoomIn.addEventListener("click", () => zoomBy(state, 1));
+  b.zoomOut.addEventListener("click", () => zoomBy(state, -1));
+  b.fit.addEventListener("click", () => fit(state));
   b.grid.addEventListener("click", () => toggleGrid(state));
   b.hist.addEventListener("click", () => toggleHist(state));
   set.snapshot.addEventListener("click", () => takeSnapshot(state));
@@ -943,6 +937,18 @@ function makeBars(state) {
 
 function control(state, key) {
   return state.set?.model?.controls?.find((c) => c.key === key) || null;
+}
+
+// One step of the camera's zoom (the hub's step, 0.5×), from the side bar or the + and − keys.
+function zoomBy(state, dir) {
+  const c = control(state, "zoom");
+  const z = Number(state.set.draft?.zoom ?? 1);
+  const next = c ? Math.min(c.max, Math.max(c.min, Number((z + dir * c.step).toFixed(2)))) : z;
+  if (next !== z) setOnPicture(state, { zoom: next });
+}
+
+function fit(state) {
+  setOnPicture(state, { zoom: 1, centre_x: 50, centre_y: 50 });
 }
 
 // A change made on the picture: shown at once, sent live (or kept for Apply on the fallback engine). The picture's own
@@ -997,7 +1003,10 @@ function syncBars(state) {
     b.zoomIn.disabled = b.zoomIn.disabled || z >= c.max;
     b.zoomOut.disabled = b.zoomOut.disabled || z <= c.min;
   }
-  b.line.textContent = `Camera zoom ${Number(z.toFixed(2))}×`;
+  const live = (state.room?.engine || "picamera2") === "picamera2";
+  b.line.textContent = `Camera zoom ${Number(z.toFixed(2))}×${z > 1 ? (live ? " · drag to frame" : " · drag needs live adjust") : ""}`;
+  b.el.parentNode?.classList.toggle("ws-cam-frame--framing", canFrame(state));
+  paintFrameShift(state);
   b.grid.setAttribute("aria-pressed", String(state.viewTools.grid === true));
   b.hist.setAttribute("aria-pressed", String(state.viewTools.hist === true));
 }
@@ -1010,9 +1019,15 @@ function mountBars(state) {
   const frame = state.fsFrame || state.camBox?.querySelector(".ws-cam--room .ws-cam-frame");
   const adjusting = !!frame && state.set.el.open && !state.set.el.hidden;
   if (adjusting) {
-    if (b.el.parentNode !== frame) frame.append(b.el);
+    if (b.el.parentNode !== frame) {
+      b.el.parentNode?.classList.remove("ws-cam-frame--framing");
+      frame.append(b.el);
+    }
   } else {
+    b.el.parentNode?.classList.remove("ws-cam-frame--framing");
     b.el.remove();
+    state.drag = null;
+    paintViewTools(camFrame(state), state.viewTools);  // the frame's shift goes back to the view's own pan
   }
   const tools = state.camBox?.querySelector(".ws-view-tools");
   if (tools) tools.hidden = adjusting;
@@ -1025,6 +1040,149 @@ function liveArrived(state) {
   if (!state.live.on || state.liveFrame || !img || !(img.naturalWidth > 0)) return;
   state.liveFrame = true;  // kept off state.live, which is part of the picture's redraw signature
   syncBars(state);
+}
+
+// ---- Drag and keys to frame the camera (amendment A23 D3, D4; plan decisions 8 and 9) ----
+// The centre is a point on the sensor; the finger moves on the screen. The page undoes, in order, its own quarter turn
+// and then the camera's half turn, mirror and flip, so the picture follows the finger at every orientation.
+
+// Whether the camera's crop is placed on the sensor before its flips (libcamera's ScalerCrop is in sensor
+// coordinates). The plan has this measured on the Pi at all eight orientations before the page ships (decision 8).
+const CROP_BEFORE_FLIP = true;
+
+// The centre's move, in percent of the sensor, for a drag of (dx, dy) screen pixels over a picture shown `width` ×
+// `height` pixels in its own axes. The picture follows the finger, so the centre moves the other way.
+export function dragToCentre(dx, dy, { turn = 0, mirror = false, flip = false, zoom = 1, width, height }) {
+  const [px, py] = turn === 90 ? [dy, -dx] : turn === 270 ? [-dy, dx] : [dx, dy];
+  let cx = (-px / (width * zoom)) * 100;
+  let cy = (-py / (height * zoom)) * 100;
+  if (CROP_BEFORE_FLIP) {
+    const half = turn === 180;
+    if (!!mirror !== half) cx = -cx;
+    if (!!flip !== half) cy = -cy;
+  }
+  return [cx + 0, cy + 0];  // + 0: never -0
+}
+
+// The inverse: the screen shift, in pixels, that a centre move of (cx, cy) percent shows as.
+export function centreToShift(cx, cy, { turn = 0, mirror = false, flip = false, zoom = 1, width, height }) {
+  if (CROP_BEFORE_FLIP) {
+    const half = turn === 180;
+    if (!!mirror !== half) cx = -cx;
+    if (!!flip !== half) cy = -cy;
+  }
+  const px = (-cx * width * zoom) / 100;
+  const py = (-cy * height * zoom) / 100;
+  const [sx, sy] = turn === 90 ? [-py, px] : turn === 270 ? [py, -px] : [px, py];
+  return [sx + 0, sy + 0];
+}
+
+// Where the centre can still move the crop at this zoom; past it a value changes nothing.
+export function centreRange(zoom) {
+  const room = 50 * (1 - 1 / Math.max(1, Number(zoom) || 1));
+  return [50 - room, 50 + room];
+}
+
+// Drag frames only on the live engine (the fallback restarts the capture on every change) and past 1×.
+function canFrame(state) {
+  return state.bars?.el.isConnected === true && !barsWhy(state) && Number(state.set.draft?.zoom) > 1
+    && (state.room?.engine || "picamera2") === "picamera2";
+}
+
+// The picture as the camera runs it now (what the screen shows), and its size on the page in its own axes. The img's
+// layout box is in the picture's axes (a quarter turn is a transform); contain letterboxes, a turned picture covers.
+function frameGeometry(state) {
+  const c = state.set.confirmed || {};
+  const img = camFrame(state)?.querySelector("img.room-img");
+  const nw = img?.naturalWidth || 4;
+  const nh = img?.naturalHeight || 3;
+  const bw = img?.clientWidth || 0;
+  const bh = img?.clientHeight || 0;
+  const turn = state.room?.rotate === 90 || state.room?.rotate === 270 ? state.room.rotate : Number(c.turn) === 180 ? 180 : 0;
+  const scale = turn === 90 || turn === 270 ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh);
+  return { turn, mirror: c.mirror === true, flip: c.flip === true, zoom: Number(c.zoom) || 1, width: nw * scale, height: nh * scale };
+}
+
+function clampCentre(state, x, y) {
+  const [lo, hi] = centreRange(state.set.draft?.zoom);
+  return [Math.min(hi, Math.max(lo, x)), Math.min(hi, Math.max(lo, y))];
+}
+
+// Sends the centre when its whole-percent value changes (the hub's step), rounded inside the range so the camera shows
+// exactly what was sent; the live channel keeps the newest and sends at most five a second, so the release position is
+// always the last one sent.
+function setCentre(state, x, y) {
+  const d = state.set.draft;
+  const [lo, hi] = centreRange(d.zoom);
+  const step = (v) => Math.min(Math.floor(hi), Math.max(Math.ceil(lo), Math.round(v)));
+  const next = { centre_x: step(x), centre_y: step(y) };
+  if (next.centre_x !== Number(d.centre_x ?? 50) || next.centre_y !== Number(d.centre_y ?? 50)) setOnPicture(state, next);
+}
+
+function frameDragStart(state, e) {
+  if (state.drag) {  // a second finger: the drag ends where it is, and pinch does nothing while adjusting
+    frameDragEnd(state, state.drag.id);
+    return;
+  }
+  const geo = frameGeometry(state);
+  if (!canFrame(state) || !(geo.width > 0 && geo.height > 0)) return;
+  const d = state.set.draft;
+  const [cx, cy] = clampCentre(state, Number(d.centre_x ?? 50), Number(d.centre_y ?? 50));
+  state.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cx, cy, at: [cx, cy], geo };
+}
+
+function frameDragMove(state, e) {
+  const g = state.drag;
+  if (!g || e.pointerId !== g.id) return;
+  const [dx, dy] = dragToCentre(e.clientX - g.x, e.clientY - g.y, g.geo);
+  g.at = clampCentre(state, g.cx + dx, g.cy + dy);
+  setCentre(state, ...g.at);
+  paintFrameShift(state);
+}
+
+function frameDragEnd(state, id) {
+  const g = state.drag;
+  if (!g || id !== g.id) return;
+  state.drag = null;
+  setCentre(state, ...g.at);
+  paintFrameShift(state);
+}
+
+// While the camera catches up, the frame shows the picture where the finger put it: the distance between the centre
+// asked for and the one the camera last confirmed, on the screen. It is gone once the hub confirms the centre.
+function paintFrameShift(state) {
+  const frame = state.bars?.el.parentNode;
+  if (!frame?.style) return;
+  const c = state.set.confirmed || {};
+  const d = state.set.draft || {};
+  const [ax, ay] = state.drag ? state.drag.at : [Number(d.centre_x ?? 50), Number(d.centre_y ?? 50)];
+  const [lo, hi] = centreRange(c.zoom);
+  const shown = (v) => Math.min(hi, Math.max(lo, Number(v ?? 50)));
+  const geo = state.drag?.geo || frameGeometry(state);
+  const same = Number(d.zoom) === Number(c.zoom) && geo.width > 0;
+  const [sx, sy] = same ? centreToShift(ax - shown(c.centre_x), ay - shown(c.centre_y), geo) : [0, 0];
+  frame.style.setProperty("--vx", `${Math.round(sx)}px`);
+  frame.style.setProperty("--vy", `${Math.round(sy)}px`);
+}
+
+// Keys on the picture while adjusting: arrows move what is shown by 1% of the sensor, + and − are the camera's zoom,
+// 0 is Fit. True when the key was one of these.
+function frameKey(state, key) {
+  const arrows = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] };
+  if (key in arrows) {
+    if (Number(state.set.draft?.zoom) > 1) {
+      // Seeing more to the right is the picture moving left: a drag the other way, one percent long.
+      const [cx, cy] = dragToCentre(-arrows[key][0], -arrows[key][1], { ...frameGeometry(state), zoom: 1, width: 100, height: 100 });
+      const d = state.set.draft;
+      setCentre(state, ...clampCentre(state, Number(d.centre_x ?? 50) + cx, Number(d.centre_y ?? 50) + cy));
+    }
+    return true;
+  }
+  if (key === "+" || key === "=") zoomBy(state, 1);
+  else if (key === "-" || key === "_") zoomBy(state, -1);
+  else if (key === "0") fit(state);
+  else return false;
+  return true;
 }
 
 function resetViewZoom(state) {
@@ -1111,6 +1269,10 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
   frame.tabIndex = 0;
   frame.addEventListener("keydown", (e) => {
     if (e.target !== frame) return;  // a key on a bar's button is that button's
+    if (state.bars?.el.parentNode === frame) {
+      if (frameKey(state, e.key)) e.preventDefault();
+      return;
+    }
     let handled = false;
     if (e.key === "+" || e.key === "=") {
       setViewZoom(state, vt.zoom + 0.5, vt.panX, vt.panY);
@@ -1148,6 +1310,11 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
 
   frame.addEventListener("pointerdown", (e) => {
     if (e.target?.closest?.(".ws-bars")) return;  // a tap on a bar is a click, never captured as a pan
+    if (state.bars?.el.parentNode === frame) {  // adjusting: one finger frames the camera; pinch does nothing
+      frameDragStart(state, e);
+      frame.setPointerCapture?.(e.pointerId);
+      return;
+    }
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (activePointers.size === 1) {
       startX = e.clientX;
@@ -1163,6 +1330,7 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
   });
 
   frame.addEventListener("pointermove", (e) => {
+    if (state.drag) frameDragMove(state, e);
     if (!activePointers.has(e.pointerId)) return;
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -1181,6 +1349,7 @@ function attachViewingHandlers(state, frame, img, histCanvas) {
   });
 
   const onPointerEnd = (e) => {
+    frameDragEnd(state, e.pointerId);
     activePointers.delete(e.pointerId);
     if (activePointers.size < 2) initialDist = 0;
   };

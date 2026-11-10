@@ -1158,3 +1158,166 @@ test('A23: in the iPhone overlay, Grid draws on the picture and stopping live cl
     assert.ok(!p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay'));
   } finally { p.done(); }
 });
+
+// ---- A23 P3: drag and keys to frame the camera ----
+
+const zoomed = (zoom = 2, extra = {}) => ({ '/api/camera/room/settings': { ...model(), settings: { ...SETTINGS, zoom, ...extra } } });
+const frameOf = (p) => p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+// The live picture laid out 400 × 300 on the page (in the picture's own axes), from a 384 × 288 stream.
+async function adjustingSized(p) {
+  const d = await adjusting(p);
+  const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+  Object.assign(img, { naturalWidth: 384, naturalHeight: 288, clientWidth: 400, clientHeight: 300 });
+  return d;
+}
+const pointer = (p, type, id, x, y) => frameOf(p).dispatchEvent({ type, pointerId: id, clientX: x, clientY: y, target: frameOf(p) });
+const key = (p, k) => frameOf(p).dispatchEvent({ type: 'keydown', key: k, target: frameOf(p), preventDefault() {} });
+
+test('A23 drag: the picture follows the finger at every turn, mirror and flip, and back again', async () => {
+  const { dom, ws } = await mod();
+  try {
+    const size = { zoom: 2, width: 400, height: 300 };
+    // Turn 0, nothing flipped: dragging right shows more of the left, so the centre moves left by the crop's share.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 0, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [-12.5, 0]);
+    // A quarter turn is the page's: a drag to the right is a move up the picture.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 90, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [0, 16.67]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 270, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [0, -16.67]);
+    // The camera's half turn, mirror and flip are undone, so the crop moves on the sensor the way the picture shows.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 180, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 0, mirror: true, flip: false, ...size }).map((v) => +v.toFixed(2)), [12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 180, mirror: true, flip: false, ...size }).map((v) => +v.toFixed(2)), [-12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(0, 100, { turn: 0, mirror: false, flip: true, ...size }).map((v) => +v.toFixed(2)), [0, 16.67]);
+    for (const turn of [0, 90, 180, 270]) {
+      for (const mirror of [false, true]) {
+        for (const flip of [false, true]) {
+          const o = { turn, mirror, flip, ...size };
+          const [cx, cy] = ws.dragToCentre(37, -21, o);
+          assert.deepEqual(ws.centreToShift(cx, cy, o).map((v) => +v.toFixed(6)), [37, -21], JSON.stringify(o));
+        }
+      }
+    }
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: the centre stays where the crop can still move', async () => {
+  const { dom, ws } = await mod();
+  try {
+    assert.deepEqual(ws.centreRange(1), [50, 50]);
+    assert.deepEqual(ws.centreRange(2), [25, 75]);
+    assert.deepEqual(ws.centreRange(4), [12.5, 87.5]);
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: at 1× a drag sends nothing', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent));
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 100, 100);
+    pointer(p, 'pointermove', 1, 200, 100);
+    pointer(p, 'pointerup', 1, 200, 100);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 1×');
+  } finally { p.done(); }
+});
+
+test('A23 drag: a long drag sends at most five a second and always where it was let go', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag to frame');
+    pointer(p, 'pointerdown', 1, 0, 0);
+    const started = Date.now();
+    for (let i = 1; i <= 40; i++) {
+      pointer(p, 'pointermove', 1, i * 2, 0);
+      await wait(25);
+    }
+    pointer(p, 'pointerup', 1, 80, 0);
+    const seconds = (Date.now() - started) / 1000;
+    await wait(500);
+    assert.ok(sent.length >= 2 && sent.length <= Math.ceil(seconds * 5) + 1, `${sent.length} sends in ${seconds}s`);
+    // Turned 90° (ready90): 80 px right is 80 / (300 × 2) of the picture up, so the centre moves 13% down.
+    const last = sent.at(-1);
+    assert.deepEqual(last.values ?? { [last.key]: last.value }, { centre_x: 50, centre_y: 63 });
+    assert.equal(p.state.set.draft.centre_y, 63);
+  } finally { p.done(); }
+});
+
+test('A23 drag: the centre stops at the edge of the sensor', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 5000, 0);
+    pointer(p, 'pointerup', 1, 5000, 0);
+    await wait(260);
+    assert.deepEqual(sent.at(-1).values, { centre_x: 50, centre_y: 75 });
+  } finally { p.done(); }
+});
+
+test('A23 keys: adjusting, arrows move the centre 1% and + − 0 are the camera zoom', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    key(p, 'ArrowRight');  // more of the right of the screen: turned 90°, that is the top of the picture
+    await wait(260);
+    key(p, 'ArrowUp');
+    await wait(260);
+    key(p, '+');
+    await wait(260);
+    key(p, '0');
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { centre_x: 50, centre_y: 49 } }, { values: { centre_x: 49, centre_y: 49 } },
+      { key: 'zoom', value: 2.5 }, { values: { zoom: 1, centre_x: 50, centre_y: 50 } }]);
+    assert.equal(p.state.viewTools.zoom, 1, 'the view zoom is untouched');
+  } finally { p.done(); }
+});
+
+test('A23 keys: watching, + − 0 and arrows keep their view meanings, and entering Adjust resets the view zoom', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    key(p, '+');
+    assert.equal(p.state.viewTools.zoom, 1.5);
+    await adjustingSized(p);
+    assert.equal(p.state.viewTools.zoom, 1, 'two zooms never stack');
+    await wait(260);
+    assert.deepEqual(sent, []);
+  } finally { p.done(); }
+});
+
+test('A23 drag: pinch does nothing while adjusting', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 100, 100);
+    pointer(p, 'pointerdown', 2, 200, 100);
+    pointer(p, 'pointermove', 1, 50, 100);
+    pointer(p, 'pointermove', 2, 250, 100);
+    pointer(p, 'pointerup', 1, 50, 100);
+    pointer(p, 'pointerup', 2, 250, 100);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(p.state.viewTools.zoom, 1);
+  } finally { p.done(); }
+});
+
+test('A23 drag: with the fallback engine a drag does nothing, and the line says why', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) }, { ...ready90, engine: 'rpicam' });
+  try {
+    await adjustingSized(p);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag needs live adjust');
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(p.state.set.draft.centre_y ?? 50, 50);
+  } finally { p.done(); }
+});
