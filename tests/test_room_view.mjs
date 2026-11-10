@@ -400,10 +400,11 @@ test("page: the owner gets a closed Camera settings panel under the Room view, d
     assert.ok(d && !d.hidden && !d.open);
     assert.equal(text(d.querySelector('summary > span')), 'Adjust');
     assert.ok(d.querySelector('.ws-set-unsaved').hidden, 'nothing unsaved is running');
-    // Orientation's controls and Zoom are on the picture now (A23 D2); the centre stays until drag to frame (P3).
-    // One fieldset per tab (Light, Colour, Detail: A23 D6), and Framing below them until drag replaces the centre.
-    assert.equal(d.querySelectorAll('fieldset').length, 4);
+    // Orientation's controls, Zoom and the centre are on the picture now (A23 D2, D3): one fieldset per tab (Light,
+    // Colour, Detail: A23 D6), and nothing left below them.
+    assert.equal(d.querySelectorAll('fieldset').length, 3);
     assert.ok(!d.querySelector('#set-turn') && !d.querySelector('#set-mirror') && !d.querySelector('#set-zoom'));
+    assert.ok(!d.querySelector('#set-centre_x'), 'no centre slider: drag and the arrow keys frame the camera');
     assert.equal(text(d.querySelector('.ws-set-note')), '');
     assert.equal(d.querySelector('.ws-set-note').getAttribute('role'), 'status');
   } finally { p.done(); }
@@ -429,14 +430,12 @@ test('page: an edit says not applied yet, enables what depends on it, and surviv
   const p = await ownerPage({ '/api/camera/room': () => room, '/api/camera/room/live-controls': (u, o) => JSON.parse(o.body) });
   try {
     const d = await adjusting(p);
-    assert.ok(d.querySelector('#set-centre_x').disabled, 'centre only means something when zoomed');
     assert.ok(d.querySelector('#set-shutter').disabled, 'shutter only with manual exposure');
     const zoom = bar(p, 'bar-zoom-in');
     zoom.click();
     zoom.click();
     assert.equal(text(d.querySelector('.ws-set-note')), 'Not saved.');
-    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2×');
-    assert.ok(!d.querySelector('#set-centre_x').disabled);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag to frame');
     change(d.querySelector('#set-manual'), true);
     assert.ok(!d.querySelector('#set-shutter').disabled);
     room = { ...ready90, rotate: 270 };  // the aside redraws
@@ -645,13 +644,13 @@ test('page: a still that failed while an apply restarted the camera does not loc
 test('page: a refusal for a field that cannot take focus moves focus to the status line', async () => {
   const p = await ownerPage();
   try {
-    withStatus(p, 422, { field: 'centre_x', reason: 'Centre across is from 0 to 100.' });
+    withStatus(p, 422, { field: 'shutter', reason: 'Shutter needs manual exposure.' });
     const d = panel(p);
-    assert.ok(d.querySelector('#set-centre_x').disabled, 'zoom is 1×');
+    assert.ok(d.querySelector('#set-shutter').disabled, 'manual exposure is off');
     d.querySelector('[data-key="cam-apply"]').click();
     await tick(); await tick(); await tick();
     assert.equal(p.dom.document.activeElement, d.querySelector('.ws-set-note'));
-    assert.equal(text(d.querySelector('#set-centre_x-err')), 'Centre across is from 0 to 100.');
+    assert.equal(text(d.querySelector('#set-shutter-err')), 'Shutter needs manual exposure.');
   } finally { p.done(); }
 });
 
@@ -1095,15 +1094,18 @@ test('A23: on the fallback engine a tap is kept for Apply, never sent live', asy
   } finally { p.done(); }
 });
 
-test('A23: a key or a tap on a bar is the bar\'s, never the view\'s zoom or pan', async () => {
+test('A23: a key or a tap on a bar is the bar\'s, never the picture\'s zoom', async () => {
   const p = await ownerPage();
   try {
     await adjusting(p);
     const frame = p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
     frame.dispatchEvent({ type: 'keydown', key: '+', target: bar(p, 'bar-grid'), preventDefault() {} });
+    assert.equal(p.state.set.draft.zoom, 1);
     assert.equal(p.state.viewTools.zoom, 1);
+    // On the picture itself, while adjusting, + is the camera's zoom (A23 plan decision 9), never the view's.
     frame.dispatchEvent({ type: 'keydown', key: '+', target: frame, preventDefault() {} });
-    assert.equal(p.state.viewTools.zoom, 1.5);
+    assert.equal(p.state.set.draft.zoom, 1.5);
+    assert.equal(p.state.viewTools.zoom, 1);
   } finally { p.done(); }
 });
 
@@ -1154,6 +1156,264 @@ test('A23: in the iPhone overlay, Grid draws on the picture and stopping live cl
     p.state.root.querySelector('[data-key="room-live"]').click();  // Stop live
     assert.equal(img.getAttribute('src'), null, 'the picture let go of its stream');
     assert.ok(!p.dom.document.body.querySelector('.ws-cam-fullscreen-overlay'));
+  } finally { p.done(); }
+});
+
+// ---- A23 P3: drag and keys to frame the camera ----
+
+const zoomed = (zoom = 2, extra = {}) => ({ '/api/camera/room/settings': { ...model(), settings: { ...SETTINGS, zoom, ...extra } } });
+const frameOf = (p) => p.state.root.querySelector('.ws-cam--room .ws-cam-frame');
+// The live picture laid out 400 × 300 on the page (in the picture's own axes), from a 384 × 288 stream.
+async function adjustingSized(p) {
+  const d = await adjusting(p);
+  const img = p.state.root.querySelectorAll('img.room-img').find((i) => !i.dataset.refresh);
+  Object.assign(img, { naturalWidth: 384, naturalHeight: 288, clientWidth: 400, clientHeight: 300 });
+  return d;
+}
+const pointer = (p, type, id, x, y) => frameOf(p).dispatchEvent({ type, pointerId: id, clientX: x, clientY: y, target: frameOf(p) });
+const key = (p, k) => frameOf(p).dispatchEvent({ type: 'keydown', key: k, target: frameOf(p), preventDefault() {} });
+
+test('A23 drag: the picture follows the finger at every turn, mirror and flip, and back again', async () => {
+  const { dom, ws } = await mod();
+  try {
+    const size = { zoom: 2, width: 400, height: 300 };
+    // Turn 0, nothing flipped: dragging right shows more of the left, so the centre moves left by the crop's share.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 0, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [-12.5, 0]);
+    // A quarter turn is the page's: a drag to the right is a move up the picture.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 90, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [0, 16.67]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 270, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [0, -16.67]);
+    // The camera's half turn, mirror and flip are undone, so the crop moves on the sensor the way the picture shows.
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 180, mirror: false, flip: false, ...size }).map((v) => +v.toFixed(2)), [12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 0, mirror: true, flip: false, ...size }).map((v) => +v.toFixed(2)), [12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(100, 0, { turn: 180, mirror: true, flip: false, ...size }).map((v) => +v.toFixed(2)), [-12.5, 0]);
+    assert.deepEqual(ws.dragToCentre(0, 100, { turn: 0, mirror: false, flip: true, ...size }).map((v) => +v.toFixed(2)), [0, 16.67]);
+    for (const turn of [0, 90, 180, 270]) {
+      for (const mirror of [false, true]) {
+        for (const flip of [false, true]) {
+          const o = { turn, mirror, flip, ...size };
+          const [cx, cy] = ws.dragToCentre(37, -21, o);
+          assert.deepEqual(ws.centreToShift(cx, cy, o).map((v) => +v.toFixed(6)), [37, -21], JSON.stringify(o));
+        }
+      }
+    }
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: the centre stays where the crop can still move', async () => {
+  const { dom, ws } = await mod();
+  try {
+    assert.deepEqual(ws.centreRange(1), [50, 50]);
+    assert.deepEqual(ws.centreRange(2), [25, 75]);
+    assert.deepEqual(ws.centreRange(4), [12.5, 87.5]);
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: at 1× a drag sends nothing', async () => {
+  const sent = [];
+  const p = await ownerPage(liveRoute(sent));
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 100, 100);
+    pointer(p, 'pointermove', 1, 200, 100);
+    pointer(p, 'pointerup', 1, 200, 100);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 1×');
+  } finally { p.done(); }
+});
+
+test('A23 drag: a long drag sends at most five a second and always where it was let go', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag to frame');
+    pointer(p, 'pointerdown', 1, 0, 0);
+    const started = Date.now();
+    for (let i = 1; i <= 40; i++) {
+      pointer(p, 'pointermove', 1, i * 2, 0);
+      await wait(25);
+    }
+    pointer(p, 'pointerup', 1, 80, 0);
+    const seconds = (Date.now() - started) / 1000;
+    await wait(500);
+    assert.ok(sent.length >= 2 && sent.length <= Math.ceil(seconds * 5) + 1, `${sent.length} sends in ${seconds}s`);
+    // Turned 90° (ready90): 80 px right is 80 / (300 × 2) of the picture up, so the centre moves 13% down.
+    const last = sent.at(-1);
+    assert.deepEqual(last.values ?? { [last.key]: last.value }, { centre_x: 50, centre_y: 63 });
+    assert.equal(p.state.set.draft.centre_y, 63);
+  } finally { p.done(); }
+});
+
+test('A23 drag: the centre stops at the edge of the sensor', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 5000, 0);
+    pointer(p, 'pointerup', 1, 5000, 0);
+    await wait(260);
+    assert.deepEqual(sent.at(-1).values, { centre_x: 50, centre_y: 75 });
+  } finally { p.done(); }
+});
+
+test('A23 keys: adjusting, arrows move the centre 1% and + − 0 are the camera zoom', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    key(p, 'ArrowRight');  // more of the right of the screen: turned 90°, that is the top of the picture
+    await wait(260);
+    key(p, 'ArrowUp');
+    await wait(260);
+    key(p, '+');
+    await wait(260);
+    key(p, '0');
+    await wait(260);
+    assert.deepEqual(sent, [{ values: { centre_x: 50, centre_y: 49 } }, { values: { centre_x: 49, centre_y: 49 } },
+      { key: 'zoom', value: 2.5 }, { values: { zoom: 1, centre_x: 50, centre_y: 50 } }]);
+    assert.equal(p.state.viewTools.zoom, 1, 'the view zoom is untouched');
+  } finally { p.done(); }
+});
+
+test('A23 keys: watching, + − 0 and arrows keep their view meanings, and entering Adjust resets the view zoom', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    key(p, '+');
+    assert.equal(p.state.viewTools.zoom, 1.5);
+    await adjustingSized(p);
+    assert.equal(p.state.viewTools.zoom, 1, 'two zooms never stack');
+    await wait(260);
+    assert.deepEqual(sent, []);
+  } finally { p.done(); }
+});
+
+test('A23 drag: pinch does nothing while adjusting', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 100, 100);
+    pointer(p, 'pointerdown', 2, 200, 100);
+    pointer(p, 'pointermove', 1, 50, 100);
+    pointer(p, 'pointermove', 2, 250, 100);
+    pointer(p, 'pointerup', 1, 50, 100);
+    pointer(p, 'pointerup', 2, 250, 100);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(p.state.viewTools.zoom, 1);
+  } finally { p.done(); }
+});
+
+test('A23 drag: with the fallback engine a drag does nothing, and the line says why', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) }, { ...ready90, engine: 'rpicam' });
+  try {
+    await adjustingSized(p);
+    assert.equal(text(p.state.root.querySelector('.ws-bar-line')), 'Camera zoom 2× · drag needs live adjust');
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent, []);
+    assert.equal(p.state.set.draft.centre_y ?? 50, 50);
+  } finally { p.done(); }
+});
+
+// ---- A23 P3 review: the frame's shift is only ever the distance the camera has still to move ----
+
+const shiftOf = (p) => [frameOf(p).style.getPropertyValue('--vx'), frameOf(p).style.getPropertyValue('--vy')];
+
+test('A23 drag: zooming out from an edge, or a saved off-centre value at 1×, leaves no shift', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(4, { centre_x: 87 }), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    for (let i = 0; i < 6; i++) { bar(p, 'bar-zoom-out').click(); await wait(230); }
+    await wait(900);
+    assert.equal(p.state.set.confirmed.zoom, 1);
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+  const q = await ownerPage({ ...zoomed(1, { centre_x: 80 }) });
+  try {
+    await adjustingSized(q);
+    assert.deepEqual(shiftOf(q), ['0px', '0px']);
+  } finally { q.done(); }
+});
+
+test('A23 drag: the shift holds until the camera has had time to show the new centre, then goes', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 60, 0);
+    pointer(p, 'pointerup', 1, 60, 0);
+    assert.equal(shiftOf(p)[0], '60px', 'the picture is where the finger left it');
+    await wait(300);  // the hub has said yes; the stream still shows the old crop
+    assert.equal(p.state.set.confirmed.centre_y, 60);
+    assert.equal(shiftOf(p)[0], '60px');
+    await wait(900);
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+});
+
+test('A23 drag: when live adjust is off (409) the picture is not shown moved', async () => {
+  const p = await ownerPage(zoomed(2));
+  try {
+    await adjustingSized(p);
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (String(url).startsWith('/api/camera/room/live-controls')
+      ? new Response(JSON.stringify({ reason: "Live adjust isn't running. Use Apply." }), { status: 409, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 60, 0);
+    pointer(p, 'pointerup', 1, 60, 0);
+    await wait(300);
+    assert.equal(p.state.set.draft.centre_y, 60, 'kept for Apply');
+    assert.deepEqual(shiftOf(p), ['0px', '0px']);
+  } finally { p.done(); }
+});
+
+test('A23 drag: a wide preset crops less of the sensor down than across, and the scale follows', async () => {
+  const { dom, ws } = await mod();
+  try {
+    assert.deepEqual(ws.cropShare(2, [640, 480]), [0.5, 0.5]);
+    assert.deepEqual(ws.cropShare(2, [1920, 1080]).map((v) => +v.toFixed(4)), [0.5, 0.375]);
+    const [, cy] = ws.dragToCentre(0, 100, { turn: 0, share: [0.5, 0.375], width: 400, height: 225 });
+    assert.equal(+cy.toFixed(3), -16.667);
+    assert.deepEqual(ws.centreRange(2, 0.375), [18.75, 81.25]);
+  } finally { dom.uninstall(); }
+});
+
+test('A23 drag: in the phone overlay the picture is not turned, so a drag is not mapped as turned', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(2), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    const fig = p.state.root.querySelector('.ws-cam--turn90');
+    fig.classList.remove('ws-cam--turn90');  // as when the frame sits in the overlay, outside its turned figure
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent.at(-1).values, { centre_x: 40, centre_y: 50 });
+  } finally { p.done(); }
+});
+
+test('A23 drag: no drag while the camera has not taken the new zoom yet', async () => {
+  const sent = [];
+  const p = await ownerPage({ ...zoomed(1), ...liveRoute(sent) });
+  try {
+    await adjustingSized(p);
+    bar(p, 'bar-zoom-in').click();  // draft 1.5×, the camera still 1×
+    pointer(p, 'pointerdown', 1, 0, 0);
+    pointer(p, 'pointermove', 1, 80, 0);
+    pointer(p, 'pointerup', 1, 80, 0);
+    await wait(260);
+    assert.deepEqual(sent, [{ key: 'zoom', value: 1.5 }]);
   } finally { p.done(); }
 });
 
@@ -1225,7 +1485,7 @@ test('A23 P4: the panel shows one of Light, Colour and Detail; Manual exposure i
     assert.ok(shown()[0].querySelector('#set-sharpness') && shown()[0].querySelector('#set-preset'), 'Live quality is in Detail');
     assert.equal(shown()[0].querySelector('label[for="set-preset"]').getAttribute('class'), null, 'its label shows: no heading of its own here');
     assert.equal(st.data.get('hub-room-adjust-tab'), 'Detail');
-    assert.ok(d.querySelector('#set-centre_x'), 'framing not yet on the picture stays reachable below the tabs');
+    assert.ok(!d.querySelector('#set-centre_x'), 'the centre is framed on the picture (P3), so nothing sits below the tabs');
   } finally { p.done(); st.restore(); }
 });
 

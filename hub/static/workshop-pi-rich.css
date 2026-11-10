@@ -294,6 +294,9 @@
 .ws-bar-badge, .ws-bar-line { padding-inline: var(--ui-space); }
 .ws-bar-line { font-size: var(--ui-fs-2); color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .ws-cam-frame:has(> .ws-bars) .ws-hist-canvas { top: 50%; bottom: auto; left: calc(var(--ui-space) * 2); right: auto; transform: translateY(-50%); }
+/* Zoomed in on the live engine, the picture itself is the framing control (A23 D3): drag it, or arrow keys with focus. */
+.ws-cam-frame--framing { cursor: grab; }
+.ws-cam-frame--framing:active { cursor: grabbing; }
 .ws-set > summary .ws-set-unsaved { margin-left: auto; font-size: var(--ui-fs-2); font-weight: 600; color: var(--ui-warn); }
 /* end A23 */
 
