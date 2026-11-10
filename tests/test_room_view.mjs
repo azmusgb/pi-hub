@@ -1304,6 +1304,73 @@ test('A23 P4: Save this look names the look-able settings in force, and a refusa
   } finally { p.done(); }
 });
 
+test('A23 P4: a look named with a quote or a backslash still keeps the keyboard on its chip', async () => {
+  const odd = 'Desk "lamp" \\ on';
+  const p = await ownerPage({ ...liveModel(), ...looksRoute([{ name: odd, values: { ev: 0.5 } }]),
+    '/api/camera/room/looks': (u, o) => (o?.method === 'POST'
+      ? { look: JSON.parse(o.body), looks: [{ name: odd, values: { ev: 0.5 } }, JSON.parse(o.body)] }
+      : { looks: [{ name: odd, values: { ev: 0.5 } }] }) });
+  try {
+    const d = await adjusting(p);
+    await tick();
+    chip(p, odd).focus();
+    change(d.querySelector('#set-ev'), 0.5);  // redraws the chips
+    assert.equal(p.dom.document.activeElement, chip(p, odd), 'focus stays on the same chip');
+    chip(p, 'Save this look').click();
+    d.querySelector('#look-name').value = 'Say "hi" \\';
+    d.querySelector('[data-key="look-save-confirm"]').click();
+    await tick(); await tick();
+    assert.equal(p.dom.document.activeElement, chip(p, 'Say "hi" \\'), 'the new chip takes focus');
+  } finally { p.done(); }
+});
+
+test('A23 P4: after Reset, or a change the camera refused, no look chip claims to be in force', async () => {
+  const p = await ownerPage({ ...liveModel({ ev: 1 }), ...looksRoute(), ...liveRoute([]),
+    '/api/camera/room/settings/reset': () => ({ ...model(), settings: { ...DEFAULTS, ev: 1 } }) });
+  try {
+    await adjusting(p);
+    await tick();
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => (String(url).startsWith('/api/camera/room/live-controls')
+      ? new Response(JSON.stringify({ field: 'ev', reason: 'Not now.' }), { status: 422, headers: { 'content-type': 'application/json' } })
+      : real(url, opts));
+    chip(p, 'Night').click();
+    await wait(260);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'false', 'the camera never took Night');
+    globalThis.fetch = real;
+    chip(p, 'Night').click();
+    await wait(260);
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'true');
+    globalThis.ApplianceConfirm = { ask: async () => true };
+    panel(p).querySelector('[data-key="cam-reset"]').click();
+    for (let i = 0; i < 6; i += 1) await tick();
+    assert.equal(chip(p, 'Night').getAttribute('aria-pressed'), 'false', 'Reset is not Night');
+  } finally { p.done(); }
+});
+
+test('A23 P4: a refused setting in another tab or the closed fold is shown before it takes focus', async () => {
+  const st = withStorage('works');
+  const p = await ownerPage();
+  try {
+    const d = panel(p);
+    const selected = () => text(d.querySelector('[role="tab"][aria-selected="true"]'));
+    assert.equal(selected(), 'Light');
+    withStatus(p, 422, { field: 'awb', reason: 'White balance is one of: auto.' });
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(selected(), 'Colour');
+    assert.ok(!d.querySelector('#set-awb').closest('[role="tabpanel"]').hidden);
+    assert.equal(p.dom.document.activeElement, d.querySelector('#set-awb'));
+    assert.equal(st.data.get('hub-room-adjust-tab') ?? null, null, 'a refusal is not a choice to remember');
+    withStatus(p, 422, { field: 'manual', reason: 'Manual exposure needs a shutter time.' });
+    d.querySelector('[data-key="cam-apply"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(selected(), 'Light');
+    assert.ok(d.querySelector('details.ws-set-fold').open, 'the fold opens');
+    assert.equal(p.dom.document.activeElement, d.querySelector('#set-manual'));
+  } finally { p.done(); st.restore(); }
+});
+
 test('A23 P4: with eight saved looks, Save this look is off and says why', async () => {
   const eight = Array.from({ length: 8 }, (_, i) => ({ name: `Look ${i + 1} with a long name`, values: { ev: 0 } }));
   const p = await ownerPage({ ...liveModel(), ...looksRoute(eight) });

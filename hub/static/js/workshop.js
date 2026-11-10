@@ -392,6 +392,20 @@ function adjustFields(state, controls, onInput) {
   return [strip, ...panels, ...settingsFields(rest, set.draft, onInput)];
 }
 
+// A refused field may sit in a tab not shown or under the closed Manual exposure fold: show it (without remembering
+// the tab as the owner's choice) so it can take focus beside its reason.
+function revealField(state, key) {
+  const set = state.set;
+  const c = (set.model?.controls || []).find((x) => x.key === key);
+  const tab = TAB_OF_GROUP[c?.group];
+  if (!tab) return;
+  const folded = tab === "Light" && !LIGHT_MAIN.has(key);
+  if (set.tab === tab && (!folded || set.foldOpen)) return;
+  set.tab = tab;
+  if (folded) set.foldOpen = true;
+  set.version = (set.version || 0) + 1;  // the fields redraw with this tab chosen
+}
+
 function makeSettings(state) {
   const set = {
     model: null,
@@ -456,6 +470,11 @@ async function loadLooks(state) {
 // Looks are one row of chips (A23 D5): Auto, the built-in looks, saved looks, then Save this look. The chip for the
 // look in force is pressed and any later change un-presses it; Auto is also pressed whenever every look-able setting is
 // at its default, since that is what Auto would give.
+// A chip by its key, compared as text: a look's name may hold quotes or backslashes, so it never goes into a selector.
+function lookChip(set, key) {
+  return [...set.chipsEl.querySelectorAll(".ws-look-chip")].find((b) => b.dataset?.key === key) || null;
+}
+
 function drawLooks(state) {
   const set = state.set;
   if (!set.model) {
@@ -481,7 +500,7 @@ function drawLooks(state) {
       "aria-expanded": String(!set.lookForm.el.hidden), "aria-controls": "look-form" }));
   set.looksNote.hidden = !full;
   set.looksNote.textContent = full ? SETTINGS_WORDS.lookFull : "";
-  if (had) set.chipsEl.querySelector(`[data-key="${had}"]`)?.focus();  // a redraw never drops a keyboard user
+  if (had) lookChip(set, had)?.focus();  // a redraw never drops a keyboard user
 }
 
 // Save this look: a name, then the look-able settings in force now (the ones Auto resets), as a new chip. Built once,
@@ -537,7 +556,7 @@ function makeLookForm(state) {
       set.activeLook = data.look?.name || name;
       input.value = "";
       close();
-      set.chipsEl.querySelector(`[data-key="look-${set.activeLook}"]`)?.focus();
+      lookChip(set, `look-${set.activeLook}`)?.focus();
       return;
     }
     say(data?.reason || SETTINGS_WORDS.lookNotSaved);
@@ -633,6 +652,7 @@ async function sendNextLive(state) {
     // Refused, too fast or no answer: each control goes back to what the camera last confirmed, unless a newer value
     // for it is already waiting, and the status line says why.
     for (const k of keys) if (!set.pending.has(k) && k in set.confirmed) set.draft[k] = set.confirmed[k];
+    set.activeLook = null;  // part of the look went back, so the picture is no longer that look
     set.message = data?.reason || LIVE_WORDS[status] || SETTINGS_WORDS.failedSend;
     if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
   }
@@ -773,6 +793,7 @@ async function sendSettings(state, kind) {
     set.draft = { ...data.settings };
     set.confirmed = { ...data.settings };
     set.version = (set.version || 0) + 1;  // redraw the fields with what the hub stored
+    if (kind === "reset") set.activeLook = null;
     set.message = kind === "reset" ? SETTINGS_WORDS.reset : kind === "save" ? SETTINGS_WORDS.saved : SETTINGS_WORDS.applied;
     set.appliedAt = Date.now();  // reads that started before this are older than what the hub just said
     if (data.state) state.room = data.state;
@@ -786,6 +807,7 @@ async function sendSettings(state, kind) {
     : status === 409 ? data?.reason || SETTINGS_WORDS.busy
       : status === 401 ? SETTINGS_WORDS.signIn : SETTINGS_WORDS.failedSend;
   if (status === 422 && data?.field) set.refused = { field: data.field, reason: data.reason || "" };
+  if (set.refused) revealField(state, set.refused.field);
   drawSettings(state);
   if (set.refused || status === 422) {
     const field = set.refused && set.body.querySelector(`[data-key="set-${set.refused.field}"]`);
