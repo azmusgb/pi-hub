@@ -566,7 +566,8 @@ test('CSS: the settings panel has no motion and wraps its groups', () => {
   const block = css.slice(css.indexOf('/* Camera settings (amendment A18)'), css.indexOf('.ws-skeleton {'));
   assert.ok(block.length > 100);
   assert.doesNotMatch(block.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
-  assert.match(block, /\.ws-set-body \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
+  // One tab's controls at a time (A23 D6): the chosen panel's group and the Manual exposure fold flow into columns.
+  assert.match(block, /\.ws-set-body > \[role=tabpanel\] > \.ws-set-group, \.ws-set-fold \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 15rem\), 1fr\)\)/);
 });
 
 // ---- P2 review fixes ----
