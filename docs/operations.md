@@ -307,6 +307,15 @@ Homebox runs in Docker on the Pi (`/opt/homebox`, port 7745, data on the USB dri
 
 AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on port 53, web UI on port 3002; Grafana has 3000). Its work data is on the USB drive. Upstream DNS is Quad9 and Cloudflare over HTTPS. The default AdGuard DNS filter is on. The admin is `bill`; the password is in `/etc/pi-hub/secrets/adguard_admin` (root only). Devices use it only when DNS points at `10.0.0.30`: set it per device, or in the Orbi (Advanced › Setup › Internet Setup › Domain Name Server: primary `10.0.0.30`, secondary `9.9.9.9`, which keeps the internet working if the Pi is down). If a site breaks, allow it under Filters › Custom filtering rules or in the Query log.
 
+**Private Relay is switched off for the house network (11 Nov 2026).** With iCloud Private Relay on, a Mac or iPhone sends its lookups over HTTPS to Apple's resolvers, not to the router, so `*.rahe-home.duckdns.org` came back as the Pi's Tailscale address (`100.92.174.18`) and the pages hung without Tailscale. Two custom rules answer NXDOMAIN for Apple's relay names, which is Apple's documented way for a network to turn Private Relay off for its devices (they show a notice and resolve normally):
+
+```
+||mask.icloud.com^$dnsrewrite=NXDOMAIN
+||mask-h2.icloud.com^$dnsrewrite=NXDOMAIN
+```
+
+Check with `dig @10.0.0.30 mask.icloud.com` (status NXDOMAIN). Devices recheck when they join the WiFi, so rejoin once after a change. It works only for devices that use the Pi's DNS (the Orbi's primary, above); with the Pi down, Private Relay returns. Remove the two rules to turn it back on.
+
 ## Backrest (backups)
 
 - **The Pi:** Backrest (`/opt/backrest`, port 9898, a web UI for restic) backs it up every night at 03:30 into `/mnt/usb1/backups/restic/pi`: hub backups, `/etc`, `/opt`, and Bambuddy, Homebox, Paperless snapshots and NETMON data. Encrypted; it keeps 14 daily, 8 weekly and 12 monthly snapshots, and prunes on Sundays.
