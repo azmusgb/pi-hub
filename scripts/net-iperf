@@ -2,7 +2,7 @@
 # net-iperf: Manual LAN throughput test against iperf3 server
 set -euo pipefail
 
-TARGET="${1:-10.0.0.21}"
+TARGET="${1:-10.0.0.81}"
 PORT="${2:-5201}"
 
 echo "Testing throughput to $TARGET:$PORT..."

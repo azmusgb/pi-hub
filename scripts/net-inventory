@@ -70,7 +70,7 @@ def main():
         name = d.get("name", d.get("id", "Unknown"))
         role = d.get("role", "—")
 
-        if ip == "10.0.0.30":
+        if ip == "10.0.0.80":
             status_str = "\033[92m● LOCAL OBSERVER\033[0m"
         elif ip != "—":
             ok, ms = ping_host(ip)

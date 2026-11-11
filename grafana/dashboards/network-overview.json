@@ -52,7 +52,7 @@
       "title": "Pi Hub",
       "tooltip": "Open Pi Hub",
       "type": "link",
-      "url": "http://10.0.0.30"
+      "url": "http://10.0.0.80"
     },
     {
       "asDropdown": false,
@@ -341,7 +341,7 @@
       },
       "targets": [
         {
-          "expr": "probe_duration_seconds{instance=\"10.0.0.21\"} * 1000",
+          "expr": "probe_duration_seconds{instance=\"10.0.0.81\"} * 1000",
           "legendFormat": "Windows Latency"
         }
       ],
