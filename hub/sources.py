@@ -3,7 +3,7 @@
 - pi-status (localhost:8099): Pi health, movie drive, services, X2D / display / Local AI.
 - Plex (localhost:32400): what's playing, using the server's own token file.
 - /proc: processor and memory, sampled for the small charts.
-- Local AI (https://10.0.0.21): its house cards, for Needs you.
+- Local AI (https://10.0.0.81): its house cards, for Needs you.
 """
 import json
 import os
@@ -86,7 +86,7 @@ def _netmon():
     att_ms = durations.get("192.168.1.254")
     wan_ms = durations.get("8.8.8.8") or durations.get("1.1.1.1")
     dns_ms = durations.get("10.0.0.1:53") or durations.get("1.1.1.1:53")
-    win_ms = durations.get("10.0.0.21")
+    win_ms = durations.get("10.0.0.81")
     printer_ms = durations.get("10.0.0.136") or durations.get("10.0.0.124")
 
     # A probe that isn't reporting doesn't count as up; the Internet is up while any WAN probe answers.
@@ -114,7 +114,7 @@ def _netmon():
         "wan_ms": wan_ms,
         "dns_ms": dns_ms,
         "win_ms": win_ms,
-        "win_ok": success.get("10.0.0.21"),
+        "win_ok": success.get("10.0.0.81"),
         "printer_ms": printer_ms,
         "orbi_model": orbi_info.get("model", "RBR750"),
         "orbi_uptime": orbi_info.get("uptime_human"),

@@ -29,9 +29,9 @@ SOURCES = {
 TAGS = {"finished": "white_check_mark", "back": "white_check_mark", "failed": "warning", "service": "warning",
         "outage": "rotating_light"}
 SAFE_URL = re.compile(r"[A-Za-z0-9\-._~:/?#\[\]!$&'()*+,;=%]+")  # RFC 3986 characters, without "@"
-# Local AI's registry address is the current tap-link host (A6). localai.home.arpa and 10.0.0.21 stay accepted so notices
+# Local AI's registry address is the current tap-link host (A6). localai.home.arpa and 10.0.0.81 stay accepted so notices
 # already sent, and senders not yet updated, still validate.
-CLICK_HOSTS = {"hub.rahe-home.duckdns.org", "assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.21"}
+CLICK_HOSTS = {"hub.rahe-home.duckdns.org", "assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.81"}
 MAX_BODY = 2048
 DEDUPE_WINDOW = 600  # seconds a repeat of the same (source, dedupe) is a duplicate
 CAP, CAP_WINDOW = 10, 600  # at most CAP notices per source per CAP_WINDOW seconds, then one summary

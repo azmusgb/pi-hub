@@ -42,7 +42,7 @@ test('no page builds a host:port link in any form (template, concatenation, lite
 });
 
 test('the forms the guard looks for are the ones it catches', () => {
-  const samples = ['`http://x:${PORT}/`', 'location.hostname + ":8000"', 'https://pi.rahe-home.duckdns.org:9090/', '`http://${location.hostname}:8000${path}`', 'http://10.0.0.30/'];
+  const samples = ['`http://x:${PORT}/`', 'location.hostname + ":8000"', 'https://pi.rahe-home.duckdns.org:9090/', '`http://${location.hostname}:8000${path}`', 'http://10.0.0.80/'];
   for (const s of samples) assert.ok(PORT_FORMS.some(([re]) => re.test(s)), s);
 });
 

@@ -116,7 +116,7 @@ def test_title_is_one_line_and_click_passes_through(fresh):
 
 def test_the_assistant_registry_address_is_a_click_host_and_the_old_hosts_still_are(fresh):
     """A6: Local AI's tap link moves to assistant.rahe-home.duckdns.org; notices already sent keep their old hosts."""
-    for host in ("assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.21"):
+    for host in ("assistant.rahe-home.duckdns.org", "localai.home.arpa", "10.0.0.81"):
         r = post("localai", json={"kind": "failed", "title": host, "click": f"https://{host}/r/1"})
         assert r.status_code == 200, host
         assert fresh[-1]["click"] == f"https://{host}/r/1"

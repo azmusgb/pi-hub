@@ -171,9 +171,9 @@ def test_local_ai_refusing_the_hub_key_is_ai_unavailable(env, monkeypatch, statu
 @pytest.mark.parametrize("status", [301, 302, 307, 308])
 def test_local_ai_redirect_is_502_and_never_leaks_its_address(env, monkeypatch, status):
     c, disp = env
-    fake(monkeypatch, (status, b"Moved to https://10.0.0.21:8443/elsewhere", "text/plain"))
+    fake(monkeypatch, (status, b"Moved to https://10.0.0.81:8443/elsewhere", "text/plain"))
     r = c.get("/api/display/approvals", headers=disp)
-    assert r.status_code == 502 and "10.0.0.21" not in r.text and "location" not in r.headers
+    assert r.status_code == 502 and "10.0.0.81" not in r.text and "location" not in r.headers
 
 
 def test_unicode_digit_picture_index_is_404(env, monkeypatch):

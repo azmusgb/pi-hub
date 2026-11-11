@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT = 8099
 # One home, step 6: pi-lock.py sets 127.0.0.1 (a systemd drop-in); only the hub reads this.
 BIND = os.environ.get("PI_STATUS_BIND", "0.0.0.0")
-WORLD_URL = "https://10.0.0.21/api/world"
+WORLD_URL = "https://10.0.0.81/api/world"
 # Local AI's TLS handshake from the LAN sometimes takes 2-5 s while it answers on the PC in 0.2 s (1 Nov); at 1.5 s
 # the hub called a running Local AI down. 4 s stays inside the hub's 6 s wait for this service (sources._get_json).
 WORLD_TIMEOUT = 4

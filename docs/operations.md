@@ -142,7 +142,7 @@ when it finishes. Probes only check it. Targets: `pi-hub`, `localai`, `firmware`
 | Project model files | `/var/lib/pi-hub/project-files` |
 | Nightly backup archives | `/var/backups/pi-hub` |
 | Last full self-check | `/var/lib/pi-hub-selfcheck/last.json` |
-| Movies Plex plays | `/mnt/usb1/Movies` (copy of the PC's `//10.0.0.21/Movies`) |
+| Movies Plex plays | `/mnt/usb1/Movies` (copy of the PC's `//10.0.0.81/Movies`) |
 | Films removed on the PC, kept 30 days | `/mnt/usb1/.movies-removed` |
 | Last movie copy result | `/var/lib/pi-hub-mirror/state.json` |
 | Paperless backups (14 daily snapshots) | `/mnt/usb1/backups/paperless` |
@@ -172,7 +172,7 @@ sudo chmod -R go-rwx /var/lib/caddy/.local/share/caddy/pki
 # Certificates issued by any other CA in the meantime must go, or Caddy keeps serving them:
 sudo rm -rf /var/lib/caddy/.local/share/caddy/certificates/local
 sudo systemctl start caddy
-curl -s http://10.0.0.30/home-ca.crt | openssl x509 -noout -fingerprint -sha256   # must match the fingerprint above
+curl -s http://10.0.0.80/home-ca.crt | openssl x509 -noout -fingerprint -sha256   # must match the fingerprint above
 ```
 
 Then check the display still reaches Pi Hub (the Workshop display card on `/system`).
@@ -193,7 +193,7 @@ Do not unpack a backup over the running system as a verification step. Validate 
 
 ## Paperless and scanning
 
-Paperless-ngx runs on the Windows PC (`http://10.0.0.21:8010`, files in `C:\Paperless`), not on the Pi. The PC exports it every night at 03:15 to `C:\Paperless\export`, which is shared read-only as `PaperlessExport$` with the account the Pi already uses for the movie share. The Pi automounts that share at `/mnt/paperless-export` (fstab, `x-systemd.automount`). At 04:00, `pi-paperless-backup.timer` copies it into a dated snapshot under `/mnt/usb1/backups/paperless`. Unchanged files are hard-linked, so each snapshot costs only what changed, and the last 14 are kept. A failed run (PC off) leaves earlier snapshots alone. Results: `journalctl -u pi-paperless-backup`, the self-check ("Paperless backed up from the PC", under 50 hours) and the default two-days-stale phone alert. The snapshots hold tax and medical papers, so only root can read them.
+Paperless-ngx runs on the Windows PC (`http://10.0.0.81:8010`, files in `C:\Paperless`), not on the Pi. The PC exports it every night at 03:15 to `C:\Paperless\export`, which is shared read-only as `PaperlessExport$` with the account the Pi already uses for the movie share. The Pi automounts that share at `/mnt/paperless-export` (fstab, `x-systemd.automount`). At 04:00, `pi-paperless-backup.timer` copies it into a dated snapshot under `/mnt/usb1/backups/paperless`. Unchanged files are hard-linked, so each snapshot costs only what changed, and the last 14 are kept. A failed run (PC off) leaves earlier snapshots alone. Results: `journalctl -u pi-paperless-backup`, the self-check ("Paperless backed up from the PC", under 50 hours) and the default two-days-stale phone alert. The snapshots hold tax and medical papers, so only root can read them.
 
 Scanning runs on the Pi in Docker (scanservjs, listening on `127.0.0.1:8095` only). The hub serves it at `/scan/` (**App Suite → Scan**, linked from Print and More), and only for the owner (one of your devices, or the owner password). It reaches the HP DeskJet 4200 (glass and feeder) and the Epson ET-2760 (glass) through sane-airscan. The container needs `/var/run/dbus` mounted, or it finds no scanners. `config.local.js` sends every finished PDF to Paperless as the upload-only user `scanner`, tags it "Scanned", then deletes the Pi's copy. Image formats stay in `/mnt/usb1/scans`. The token is in `/opt/scanservjs/paperless.env` (root 600).
 
@@ -253,7 +253,7 @@ their rotation, every failure message with its next action, backup, rollback (`H
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
 
-A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.30:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
+A self-hosted ntfy is installed at `/opt/ntfy` (Docker, port 8093, cache on the USB drive) and runs behind Caddy at `https://ntfy.home.arpa` as well as direct LAN `http://10.0.0.80:8093`. It is configured with `upstream-base-url: "https://ntfy.sh"` so iOS lock-screen banners wake properly via APNs while keeping message bodies private. Household alerts in `/etc/pi-status/ntfy_servers` route 100% to the local instance (`http://127.0.0.1:8093`).
 
 **Notices from the other systems (platform step 5, D2; since 2 November 2026).** LocalAI, mac-watch and print-lab post
 their phone notices to `POST /api/notify/{source}` instead of sending their own, and Pi Hub sends them through the same
@@ -261,7 +261,7 @@ their phone notices to `POST /api/notify/{source}` instead of sending their own,
 - **Keys:** each source takes only its own host's key. `localai` takes LocalAI's deploy key, `mac-watch` the `mac`
   deploy key (both `X-Hub-Deploy-Key`, from `deploy/deploy-key.sh`), and `print-lab` the lab key (`X-Hub-Mac-Key`).
 - **Body:** `{"kind", "title", "body"?, "click"?, "dedupe"?}`. Each source has a fixed list of kinds
-  (`hub/notify_routes.py`, `SOURCES`). `click` must be https on the hub, `localai.home.arpa` or `10.0.0.21`.
+  (`hub/notify_routes.py`, `SOURCES`). `click` must be https on the hub, `localai.home.arpa` or `10.0.0.81`.
 - **Rules, all in Pi Hub:**
   - Quiet hours hold every kind except the urgent ones: LocalAI `failed`, `service`, `answer` and mac-watch `outage`.
     Urgent kinds are sent at high priority.
@@ -305,7 +305,7 @@ Homebox runs in Docker on the Pi (`/opt/homebox`, port 7745, data on the USB dri
 
 ## AdGuard Home (ad and tracker blocking)
 
-AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on port 53, web UI on port 3002; Grafana has 3000). Its work data is on the USB drive. Upstream DNS is Quad9 and Cloudflare over HTTPS. The default AdGuard DNS filter is on. The admin is `bill`; the password is in `/etc/pi-hub/secrets/adguard_admin` (root only). Devices use it only when DNS points at `10.0.0.30`: set it per device, or in the Orbi (Advanced › Setup › Internet Setup › Domain Name Server: primary `10.0.0.30`, secondary `9.9.9.9`, which keeps the internet working if the Pi is down). If a site breaks, allow it under Filters › Custom filtering rules or in the Query log.
+AdGuard Home runs in Docker on the Pi (`/opt/adguard`, host networking, DNS on port 53, web UI on port 3002; Grafana has 3000). Its work data is on the USB drive. Upstream DNS is Quad9 and Cloudflare over HTTPS. The default AdGuard DNS filter is on. The admin is `bill`; the password is in `/etc/pi-hub/secrets/adguard_admin` (root only). Devices use it only when DNS points at `10.0.0.80`: set it per device, or in the Orbi (Advanced › Setup › Internet Setup › Domain Name Server: primary `10.0.0.80`, secondary `9.9.9.9`, which keeps the internet working if the Pi is down). If a site breaks, allow it under Filters › Custom filtering rules or in the Query log.
 
 ## Backrest (backups)
 
@@ -390,7 +390,7 @@ One menu by task (design: one home, step 2). The phone shows Home, Workshop, Doc
 | Home & network | `/devices` | Devices (`/control` redirects here) \| Network (`/network`: Internet, Ad blocking via the root helper, Guest Wi-Fi) \| Weather (`/weather`) |
 | System | `/system` | Health (Local AI, the workshop display and the PC under Other systems) \| Backups \| Versions \| Alerts \| Automations \| Settings (workshop display pairing) \| Site map (`/map`, every page and tool) |
 
-Old App Suite addresses (`/apps/...`, `/bambuddy`, `/grafana`, `/status`) redirect to the section that now holds the tool. Links to tools use the `*.home.arpa` names when the hub is opened by one, and the old `IP:port` otherwise. Browser check from the Mac: `cd tests/browser && npm install && node structure.mjs http://10.0.0.30`.
+Old App Suite addresses (`/apps/...`, `/bambuddy`, `/grafana`, `/status`) redirect to the section that now holds the tool. Links to tools use the `*.home.arpa` names when the hub is opened by one, and the old `IP:port` otherwise. Browser check from the Mac: `cd tests/browser && npm install && node structure.mjs http://10.0.0.80`.
 
 ## The front gate (since 24 October 2026)
 
@@ -399,7 +399,7 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
 | Name | Goes to |
 |---|---|
 | `home.home.arpa` | Pi Hub (no gate; it is where you sign in) |
-| `assistant.home.arpa` | Local AI (PC, https://10.0.0.21) |
+| `assistant.home.arpa` | Local AI (PC, https://10.0.0.81) |
 | `bambuddy.home.arpa` | Bambuddy (Pi :8000) |
 | `paperless.home.arpa` | Paperless (PC :8010) |
 | `homebox.home.arpa` | Homebox (Pi :7745) |
@@ -418,17 +418,17 @@ Every house tool has a name under `home.arpa`, behind one sign-in (design: `docs
   ```
   Then open `https://localhost:9090` (Cockpit) or `http://localhost:9898` (Backrest) in your browser.
 
-- **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.30`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
-- **Real names (from 1 Nov 2026; the home.arpa names are retired):** every tool answers at `<tool>.rahe-home.duckdns.org`, the hub at `hub.rahe-home.duckdns.org` (`docs/superpowers/specs/2026-11-01-real-names-design.md`). Public DNS (DuckDNS) points the name at the Pi's Tailscale address `100.92.174.18`, so it works on any device with Tailscale on; AdGuard rewrites `*.rahe-home.duckdns.org` to `10.0.0.30` for the house. One Let's Encrypt wildcard certificate covers them, renewed by Caddy through DuckDNS with the token in `/etc/pi-hub/secrets/duckdns.env` (root 600): no device needs to trust anything. Old `https://<tool>.home.arpa` addresses redirect to the same page on the real name. `home.home.arpa` stays only for the Workshop display (`/api/display/*`, pinned to Caddy's CA in its firmware), the Mac's Print lab sync (`/api/lab/*`) and `/home-ca.crt`; `updates.home.arpa` stays for the display's updates. Moving those needs a firmware release and a print-lab change.
+- **Names:** AdGuard rewrites `*.home.arpa` and `home.arpa` to `10.0.0.80`. A device uses them when its DNS is the Pi (the Orbi setting above), or, away from home, through Tailscale's split DNS for `home.arpa` (admin console › DNS).
+- **Real names (from 1 Nov 2026; the home.arpa names are retired):** every tool answers at `<tool>.rahe-home.duckdns.org`, the hub at `hub.rahe-home.duckdns.org` (`docs/superpowers/specs/2026-11-01-real-names-design.md`). Public DNS (DuckDNS) points the name at the Pi's Tailscale address `100.92.174.18`, so it works on any device with Tailscale on; AdGuard rewrites `*.rahe-home.duckdns.org` to `10.0.0.80` for the house. One Let's Encrypt wildcard certificate covers them, renewed by Caddy through DuckDNS with the token in `/etc/pi-hub/secrets/duckdns.env` (root 600): no device needs to trust anything. Old `https://<tool>.home.arpa` addresses redirect to the same page on the real name. `home.home.arpa` stays only for the Workshop display (`/api/display/*`, pinned to Caddy's CA in its firmware), the Mac's Print lab sync (`/api/lab/*`) and `/home-ca.crt`; `updates.home.arpa` stays for the display's updates. Moving those needs a firmware release and a print-lab change.
 - **Plex (A6 decision plex, revised 4 Nov 2026):** Plex is not behind the gate and has no name here. Media's "Open in Plex" and each movie's link open Plex's own web app, `https://app.plex.tv/desktop` (a movie: `…/desktop/#!/server/<machine id>/details?key=…`, the id from `/api/movies`), where a household member signs in with their Plex account. Posters come through the hub's own `/api/plex/thumb`. The TVs' and phones' Plex apps keep talking to `:32400` on the LAN, untouched. Plex appears in the tool registry as an outside tool (`external`, kit 2.3.0), so the Site map and ⌘K list it too.
 - **The gate:** Caddy on the Pi (`/etc/caddy/Caddyfile`, installed by each release from `deploy/caddy/Caddyfile`) holds ports 80 and 443. Pi Hub now listens on `127.0.0.1:8100`. Each name except `home.` asks the hub's `GET /api/gate` first: the owner goes through, anyone else goes to the hub's sign-in and comes back after it.
 - **Sign-in:** signing in as the owner at `https://home.home.arpa` lets each tool get its own `hub_gate` cookie on first visit through a one-time code (30 s, single use, that tool only), because `home.arpa` is a public suffix and browsers refuse a cookie shared across it. The cookie is a gate-only token (it ends with the sign-in that made it; it never works as a hub session, and Caddy empties it before any tool sees it). Signing out removes the sign-in and every gate token it made. If a tool keeps sending you back, the hub renews the gate token once, then says the browser is refusing the cookie. Tools with their own login (Bambuddy, Homebox, Backrest, AdGuard, Homebridge, Cockpit, Paperless, Local AI) still ask once per browser.
 - **Grafana:** signs in whoever the gate names, but only from 127.0.0.1 and only under a secret header name shared by Caddy and Grafana (`/etc/pi-hub/secrets/grafana_gate.env`, made by `install.sh`; netmon reads it with `env_file`; Caddy refuses to start without it, and its admin API is a private socket, `/run/caddy/admin.sock`, so the name can't be read from it). Other services on the Pi, such as Uptime Kuma, can send any header from 127.0.0.1, so the name is what proves the gate sent it. The gate also removes any client-sent `X-Remote-User`, `X-Webauth-User` or secret-named header. User `bill` is an org Admin (not a server admin) with an unknown password; the `admin` login still works with `/etc/pi-hub/secrets/grafana_admin`. To change the secret, delete the file, run `deploy/install.sh`, then `cd /opt/netmon && sudo docker compose up -d grafana`.
 - **Certificates:** Caddy's own CA. Its root is at `https://home.home.arpa/home-ca.crt`; trust it once on each device (iPhone: download, then Settings › General › VPN & Device Management, then Settings › General › About › Certificate Trust Settings; Mac: open it in Keychain Access, set to Always Trust). The CA lives in `/var/lib/caddy`; **never delete it**, or every device must trust a new one.
 - **Check it:** `ssh pi 'sudo bash /opt/pi-hub/current/deploy/gate-check.sh'` prints one line per check. The nightly self-check includes "The front gate answers".
-- **Old addresses (locked 31 Oct 2026, step 6):** the Pi's tools listen on 127.0.0.1 only (`deploy/pi-lock.py`). Plain `http://10.0.0.30` answers only the machine paths (`/api/now*`, `/api/needs`, `/api/records` (Local AI's printer reading), `/api/systems` (Local AI's Systems strip), `/api/webhook/bambuddy`, `/api/shortcut/*`, `/healthz`) and `/home-ca.crt`; everything else is redirected to `https://home.home.arpa`. What stays open, and why:
-  - Bambuddy `:8000`, for an allow-list only (nftables table `inet pi_lock`, `/etc/pi-lock/firewall.nft`): the Pi and its containers, the PC (`10.0.0.21`, Tailscale `100.78.96.97`: Local AI), the Mac (`10.0.0.16`, Tailscale `100.109.178.34`: print-lab) and the Workshop display (`10.0.0.124`). The Mac and the PC reach the Pi through Tailscale even at home (the Pi advertises `10.0.0.30/32`), so their tailnet addresses are what arrive.
-  - Paperless `:8010` on the PC, for the Pi only (Windows firewall rule `PiLock-Paperless-8010`, `deploy/windows-lock-paperless.ps1`). Known gap: the PC advertises its own `10.0.0.21/32` on Tailscale, and tailnet traffic delivered that way is not filtered by the rule, so tailnet devices (all the owner's) still reach it.
+- **Old addresses (locked 31 Oct 2026, step 6):** the Pi's tools listen on 127.0.0.1 only (`deploy/pi-lock.py`). Plain `http://10.0.0.80` answers only the machine paths (`/api/now*`, `/api/needs`, `/api/records` (Local AI's printer reading), `/api/systems` (Local AI's Systems strip), `/api/webhook/bambuddy`, `/api/shortcut/*`, `/healthz`) and `/home-ca.crt`; everything else is redirected to `https://home.home.arpa`. What stays open, and why:
+  - Bambuddy `:8000`, for an allow-list only (nftables table `inet pi_lock`, `/etc/pi-lock/firewall.nft`): the Pi and its containers, the PC (`10.0.0.81`, Tailscale `100.78.96.97`: Local AI), the Mac (`10.0.0.92`, Tailscale `100.109.178.34`: print-lab) and the Workshop display (`10.0.0.124`). The Mac and the PC reach the Pi through Tailscale even at home (the Pi advertises `10.0.0.80/32`), so their tailnet addresses are what arrive.
+  - Paperless `:8010` on the PC, for the Pi only (Windows firewall rule `PiLock-Paperless-8010`, `deploy/windows-lock-paperless.ps1`). Known gap: the PC advertises its own `10.0.0.81/32` on Tailscale, and tailnet traffic delivered that way is not filtered by the rule, so tailnet devices (all the owner's) still reach it.
   - Uptime Kuma's Pi Hub, Grafana and Bambuddy monitors use `127.0.0.1` addresses.
   - **Undo:** `ssh -t pi sudo python3 /opt/pi-hub/current/deploy/pi-lock.py undo`; on the PC, as admin, `powershell -NoProfile -File windows-lock-paperless.ps1 -Undo`; then release a commit with the pre-step-6 Caddyfile. `pi-lock.py status` shows each item. A netmon deploy re-applies the lock.
 - **Rollback:** a release from before the gate runs its hub on :80, so a release (or rollback) without `deploy/caddy/Caddyfile` stops Caddy.
@@ -459,7 +459,7 @@ The family-room Skylight's page (`~/dev/family-room`, its own local repo; a hous
 - Everything else is a file from `/srv/family-room/current`.
 
 **Verified access assumptions (2 Nov 2026).**
-- `family.rahe-home.duckdns.org` resolves to `10.0.0.30` through AdGuard and to the Pi's Tailscale address publicly.
+- `family.rahe-home.duckdns.org` resolves to `10.0.0.80` through AdGuard and to the Pi's Tailscale address publicly.
 - AdGuard's query log shows the house's DNS reaching it through the router (`10.0.0.1`), and the Mac as `100.109.178.34`.
 
 **Still to verify on the device:**

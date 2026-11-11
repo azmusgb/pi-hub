@@ -157,6 +157,6 @@ def test_the_pi_page_links_grafana_and_kuma_through_the_gate():
     # One home, step 6 closes :3000 and :3001 on the LAN.
     for f in (os.path.join(ROOT, "hub", "sources.py"), os.path.join(STATIC, "js", "health.js")):
         text = open(f).read()
-        assert "10.0.0.30:3000" not in text and "10.0.0.30:3001" not in text, f
+        assert "10.0.0.80:3000" not in text and "10.0.0.80:3001" not in text, f
     src = open(os.path.join(ROOT, "hub", "sources.py")).read()
     assert '"https://network.rahe-home.duckdns.org/"' in src and '"https://status.rahe-home.duckdns.org/status/home"' in src

@@ -129,7 +129,7 @@ def _with_host(url, host, method="GET"):
 def test_another_host_name_is_refused_before_anything_is_read(hub):
     # DNS rebinding: a page on evil.example resolved to 127.0.0.1 must not read the hub's answers through the preview.
     port = hub.rsplit(":", 1)[1]
-    for host in ("evil.example", f"evil.example:{port}", "10.0.0.30", f"127.0.0.1:{int(port) + 1}"):
+    for host in ("evil.example", f"evil.example:{port}", "10.0.0.80", f"127.0.0.1:{int(port) + 1}"):
         assert _with_host(hub + "/api/now", host) == 421, host
         assert _with_host(hub + "/workshop", host) == 421, host
     assert _Upstream.seen == []

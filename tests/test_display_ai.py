@@ -128,7 +128,7 @@ def test_forward_sends_key_and_never_caches():
         r = display_ai.forward("GET", "/api/images/view", query="filename=a.png&type=output", fetch=fetch)
         assert r == (200, b"png", "image/png")
     assert len(calls) == 2
-    assert calls[0][1] == "https://10.0.0.21/api/images/view?filename=a.png&type=output"
+    assert calls[0][1] == "https://10.0.0.81/api/images/view?filename=a.png&type=output"
     assert calls[0][2]["X-LocalAI-Hub-Key"] == "secret"
 
 
@@ -221,18 +221,18 @@ class _Opener:
 def test_fetch_reads_at_most_the_cap_plus_one(monkeypatch):
     resp = _Resp(10 * display_ai.ANSWER_MAX)
     monkeypatch.setattr(display_ai, "_opener", lambda: _Opener(resp))
-    status, _ = display_ai._fetch("https://10.0.0.21/api/display/ai-cards", "k")
+    status, _ = display_ai._fetch("https://10.0.0.81/api/display/ai-cards", "k")
     assert resp.asked == [display_ai.ANSWER_MAX + 1] and status == 502
 
 
 def test_send_reads_at_most_the_cap_plus_one(monkeypatch):
     resp = _Resp(10 * display_ai.ANSWER_MAX)
     monkeypatch.setattr(display_ai, "_opener", lambda: _Opener(resp))
-    status, _, _ = display_ai._send("GET", "https://10.0.0.21/api/display/ask", {}, None, 1)
+    status, _, _ = display_ai._send("GET", "https://10.0.0.81/api/display/ask", {}, None, 1)
     assert resp.asked == [display_ai.ANSWER_MAX + 1] and status == 502
     resp = _Resp(1000)
     monkeypatch.setattr(display_ai, "_opener", lambda: _Opener(resp))
-    assert display_ai._send("GET", "https://10.0.0.21/api/images/view", {}, None, 1, cap=5000)[:2] == (200, b"x" * 1000)
+    assert display_ai._send("GET", "https://10.0.0.81/api/images/view", {}, None, 1, cap=5000)[:2] == (200, b"x" * 1000)
     assert resp.asked == [5001]
 
 
@@ -240,9 +240,9 @@ def test_send_http_error_body_is_capped(monkeypatch):
     import io
     import urllib.error
     big = _Tracked(b"y" * (10 * display_ai.ANSWER_MAX))
-    err = urllib.error.HTTPError("https://10.0.0.21/x", 409, "conflict", {"Content-Type": "application/json"}, big)
+    err = urllib.error.HTTPError("https://10.0.0.81/x", 409, "conflict", {"Content-Type": "application/json"}, big)
     monkeypatch.setattr(display_ai, "_opener", lambda: _Opener(error=err))
-    status, _, _ = display_ai._send("GET", "https://10.0.0.21/api/display/ask", {}, None, 1)
+    status, _, _ = display_ai._send("GET", "https://10.0.0.81/api/display/ask", {}, None, 1)
     assert status == 502 and big.asked == [display_ai.ANSWER_MAX + 1]
 
 
@@ -265,7 +265,7 @@ def test_forward_http_error_raised_by_fetch_is_capped():
     assert big.asked == [display_ai.ANSWER_MAX + 1]
 
 
-@pytest.mark.parametrize("url", ["http://10.0.0.21", "HTTP://10.0.0.21", "Http://pc.rahe-home.duckdns.org:8080"])
+@pytest.mark.parametrize("url", ["http://10.0.0.81", "HTTP://10.0.0.81", "Http://pc.rahe-home.duckdns.org:8080"])
 def test_plain_http_never_sends_the_key(monkeypatch, url):
     monkeypatch.setattr(display_ai, "URL", url)
     called = []
@@ -275,7 +275,7 @@ def test_plain_http_never_sends_the_key(monkeypatch, url):
 
 
 def test_uppercase_https_is_https(monkeypatch):
-    monkeypatch.setattr(display_ai, "URL", "HTTPS://10.0.0.21")
+    monkeypatch.setattr(display_ai, "URL", "HTTPS://10.0.0.81")
     assert display_ai._tls_ok() is True
 
 
@@ -326,7 +326,7 @@ def test_call_sends_the_key_and_returns_json(monkeypatch):
     monkeypatch.setattr(display_ai, "_opener", lambda: opener)
     assert display_ai.call("/api/world") == {"agents": []}
     req = opener.reqs[0]
-    assert req.full_url == "https://10.0.0.21/api/world" and req.get_method() == "GET"
+    assert req.full_url == "https://10.0.0.81/api/world" and req.get_method() == "GET"
     assert req.get_header("X-localai-hub-key") == "secret"
 
 
@@ -346,7 +346,7 @@ def test_call_never_sends_the_key_without_key_ca_and_https(monkeypatch, tmp_path
     elif setup == "no-ca":
         monkeypatch.setattr(display_ai, "CA_FILE", str(tmp_path / "gone.crt"))
     else:
-        monkeypatch.setattr(display_ai, "URL", "http://10.0.0.21")
+        monkeypatch.setattr(display_ai, "URL", "http://10.0.0.81")
     monkeypatch.setattr(display_ai, "_opener", lambda: pytest.fail("called Local AI"))
     with pytest.raises(RuntimeError):
         display_ai.call("/api/world")

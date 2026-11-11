@@ -562,7 +562,7 @@ def api_print_photo(pid: int):
 
 # Only Bambuddy may post here: with the shared webhook token (HUB_WEBHOOK_TOKEN, or the "webhook_token"
 # setting) as "Authorization: Bearer …", "X-Hub-Token" or "?token=", or from an address in HUB_WEBHOOK_HOSTS.
-# Bambuddy runs in Docker on the Pi, so its requests arrive from the container network, not 10.0.0.30.
+# Bambuddy runs in Docker on the Pi, so its requests arrive from the container network, not 10.0.0.80.
 WEBHOOK_HOSTS = {h.strip() for h in os.environ.get("HUB_WEBHOOK_HOSTS", "").split(",") if h.strip()}
 WEBHOOK_MAX_BYTES = 8 * 1024 * 1024
 

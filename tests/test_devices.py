@@ -101,7 +101,7 @@ def test_no_secret_file_means_no_devices(client, monkeypatch):
     assert role(client, via(MAC)) == "none"
 
 
-@pytest.mark.parametrize("addr", ["10.0.0.21", "127.0.0.1", "", "not-an-ip", "fd7a:115c:a1e0::1", "100.128.0.1"])
+@pytest.mark.parametrize("addr", ["10.0.0.81", "127.0.0.1", "", "not-an-ip", "fd7a:115c:a1e0::1", "100.128.0.1"])
 def test_only_tailnet_addresses_are_asked_about(client, addr):
     remember(client, MAC)
     asked.clear()
