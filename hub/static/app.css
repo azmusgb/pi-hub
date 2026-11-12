@@ -154,7 +154,6 @@ body::before {
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 .brand-name { font-weight: 800; letter-spacing: -.02em; font-size: 1.0625rem; }
-.brand-sub { font-size: .75rem; color: var(--text-3); font-weight: 500; }
 
 .rail-group { display: flex; flex-direction: column; gap: .4rem; }
 .rail-label {
@@ -288,7 +287,6 @@ body::before {
   .rail { padding: 1rem .65rem; gap: 1rem; }
   .rail a[data-page] { gap: .6rem; font-size: .875rem; min-height: 44px; }
   .rail-brand { gap: .6rem; }
-  .brand-sub { display: none; }
 }
 
 /* A10 D2: shell switch: rail or tab bar. */

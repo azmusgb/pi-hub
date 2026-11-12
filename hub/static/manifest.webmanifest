@@ -1,6 +1,6 @@
 {
-  "name": "Home",
-  "short_name": "Home",
+  "name": "Pi Hub",
+  "short_name": "Pi Hub",
   "description": "The Pi, the workshop and everything on the home network",
   "start_url": "/",
   "scope": "/",

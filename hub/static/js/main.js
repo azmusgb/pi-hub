@@ -46,7 +46,7 @@ async function checkAssistant() {
   const { label, disabled } = assistantButton(r?.state, r?.pc);
   for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
     a.querySelector("span").textContent = label;
-    a.setAttribute("aria-label", disabled ? label : "Assistant (Local AI)");
+    a.setAttribute("aria-label", disabled ? label : "Assistant");
     // Without an href a link drops out of the tab order and screen readers stop reading it: keep both while it's off.
     if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); a.setAttribute("role", "link"); a.tabIndex = 0; }
     else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = "/assistant"; }
@@ -116,7 +116,7 @@ const subtitles = {
   "/system": "How the hub and the Pi are doing, and what to try",
   "/backups": "What is backed up, and when",
   "/versions": "What is live where",
-  "/assistant": "Local AI on the PC",
+  "/assistant": "Runs on the PC, which may be asleep",
 };
 
 const updateSubtitle = () => {
