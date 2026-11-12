@@ -41,12 +41,13 @@ test("Settings' faceplate has no nameplate text (A22 2.3) and is still named for
     const { setupPlate } = await import('../hub/static/js/settings.js');
     const p = setupPlate([['Connect Homebridge', true, 'home', 'why a'], ['Set your town', false, 'outside', 'for the weather']]);
     assert.equal(p.getAttribute('aria-label'), 'Setup progress');
-    assert.equal(p.querySelectorAll('.ui-faceplate__nameplate span').length, 0, 'no name is drawn');
+    const plate = p.querySelector('.ui-faceplate__nameplate');
+    assert.deepEqual([...plate.children].map((c) => c.className.split(' ')[0]), ['ui-chip'], 'only the lamp is drawn, no name');
     assert.equal(text(p.querySelector('.ui-faceplate__nameplate')), '1 step left', 'the lamp stays');
     const { faceplate } = await import('../hub/static/js/page-parts.js');
     const named = faceplate({ name: 'Bambu X2D' });
     assert.equal(named.getAttribute('aria-label'), 'Bambu X2D');
-    assert.equal(text(named.querySelector('.ui-faceplate__nameplate span')), 'Bambu X2D');
+    assert.equal(text(named.querySelector('.ui-faceplate__nameplate').children[0]), 'Bambu X2D');
   } finally { dom.uninstall(); }
 });
 
