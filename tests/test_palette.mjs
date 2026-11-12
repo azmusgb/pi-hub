@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { TOOLS, toolsFor } from "../hub/static/ui/tools.js";
-import { resolveLink, toolUrl, PHRASES } from "../hub/static/js/sections.js";
+import { PHRASES } from "./helpers/kit.mjs";
+import { resolveLink, toolUrl } from "../hub/static/js/sections.js";
 import { askResult, doResults, findResults, goResults, hubProviders, searchResults } from "../hub/static/js/command-palette.js";
 
 const JS = new URL("../hub/static/js/", import.meta.url);
@@ -134,7 +135,7 @@ test("⌘K has one Assistant row that opens /assistant and says what the rail's 
   assert.deepEqual(row(null), [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant" }]);
   assert.deepEqual(row({ state: "Ready", pc: "on" }), [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant" }]);
   assert.equal(row({ state: "Down", pc: "on" })[0].hint, "The Assistant isn't answering");
-  assert.equal(row({ state: "Down", pc: "off" })[0].hint, "The PC is off or asleep");
+  assert.equal(row({ state: "Down", pc: "off" })[0].hint, "The PC is asleep");
   assert.equal(goResults("").filter((r) => r.href === "/assistant").length, 1);
 });
 

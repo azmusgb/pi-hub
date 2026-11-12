@@ -28,6 +28,7 @@ test('the chip for no answer is neutral, not the error colour', () => {
 });
 
 test('a source that isn\'t answering is named once, in the kit\'s source_down words', async () => {
+  await import('./helpers/kit.mjs');
   const { sourceDown } = await import('../hub/static/js/sections.js');
   assert.equal(sourceDown('Bambuddy'), "Bambuddy isn't answering");
   const { bambuddyDown } = await import('../hub/static/js/workshop.js');

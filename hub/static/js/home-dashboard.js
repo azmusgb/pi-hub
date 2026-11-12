@@ -4,18 +4,13 @@
 // 24 px with names beside, the day is a dial and the rack compact rows.
 import { clockTime, h } from "./core.js";
 import { printerButtons } from "./printer-actions.js";
-import { printLabUrl, resolveLink } from "./sections.js";
+import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, recordTone, renderProblems,
   splitNowRecords } from "./control-room.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const RACK_IDS = new Set(["printer", "pi", "internet", "adguard", "pc", "local_ai", "backups", "movies_drive", "movie_copy"]);
 
-// The kit's phrase for a source that didn't answer (phrase key source_down), the same words on every surface.
-export function sourceDown(name) {
-  const phrase = globalThis.ApplianceNeeds?.PHRASES?.source_down || "{name} isn't answering";
-  return phrase.replace("{name}", name);
-}
 
 // ---- Today ----
 

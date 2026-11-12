@@ -1537,10 +1537,14 @@ PRIVACY_PAGE = """<!doctype html>
 <title>Privacy note · Pi Hub</title>
 <script src="/static/js/saved-theme.js"></script>
 <link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
-<style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
-main{max-width:36rem;margin:10vh auto 0}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}
-p{margin:0 0 16px;color:var(--ui-muted)}</style>
-</head><body><main>
+<style>body{margin:0;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
+main{max-width:36rem;margin:10vh auto 0;padding:var(--ui-s-5) var(--ui-s-4)}
+h1{margin:0 0 var(--ui-s-2);font-size:var(--ui-fs-5);line-height:1.25}
+p{margin:0 0 var(--ui-s-4);color:var(--ui-muted)}</style>
+<script src="/static/ui/backbar.js" defer></script>
+</head><body>
+<nav class="ui-backbar" aria-label="Pi Hub"><a href="/" aria-label="Back to Pi Hub"><span aria-hidden="true">←</span>Pi Hub</a></nav>
+<main>
 <h1>Privacy note</h1>
 <p>Pi Hub and its “pi-offsite” Google app are a personal system used by one household. They have no other users.</p>
 <p>The app asks Google only for <code>drive.file</code>: it can see and change only the files it created itself, never

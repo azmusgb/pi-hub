@@ -13,3 +13,13 @@ def test_privacy_is_a_standalone_page_that_says_what_the_app_stores():
     assert "drive.file" in body
     assert "encrypted" in body
     assert "<main" in body and '<script type="module"' not in body  # not the app shell
+
+
+def test_privacy_starts_with_the_way_back_to_pi_hub():
+    # A22 6.4 (kit 2.21.0): a page of ours outside the frame starts with the kit's back bar, one link, named.
+    body = TestClient(app).get("/privacy").text
+    bar = '<nav class="ui-backbar" aria-label="Pi Hub"><a href="/" aria-label="Back to Pi Hub">'
+    assert body.count('class="ui-backbar"') == 1 and bar in body
+    assert body.index("<body>") < body.index(bar) < body.index("<main")  # the first thing in the document
+    assert body.split(bar)[0].split("<body>")[1].strip() == ""
+    assert '<script src="/static/ui/backbar.js" defer></script>' in body  # back to the Pi Hub page they came from
