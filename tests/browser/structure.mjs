@@ -11,7 +11,7 @@ const OUT = new URL('./out/', import.meta.url).pathname;
 const WALL = '/wall';
 // Each page and the area its tab lights (A22 step 12: five areas; Scan and the Site map are pages of theirs).
 const PAGES = { '/wall': 'wall', '/': 'home', '/workshop': 'workshop', '/media': 'household', '/documents': 'household', '/scan': 'household',
-  '/devices': 'network', '/network': 'network', '/system': 'system', '/map': 'system' };
+  '/devices': 'network', '/network': 'network', '/system': 'system', '/settings': 'system', '/map': 'system' };
 const shot = (path) => path.replace(/\W/g, '') || 'home';
 mkdirSync(OUT, { recursive: true });
 
