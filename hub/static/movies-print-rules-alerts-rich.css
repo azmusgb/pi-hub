@@ -83,18 +83,3 @@
   text-align: right;
   font-size: var(--ui-fs-3);
 }
-
-/* Rules — quieter remove button */
-.rule-remove {
-  opacity: .35;
-  font-size: var(--ui-fs-4);
-  padding: .1rem .4rem;
-  min-width: auto;
-  transition: opacity var(--ui-dur-1) var(--ui-ease), color var(--ui-dur-1) var(--ui-ease);
-}
-.rule:hover .rule-remove,
-.rule-remove:hover,
-.rule-remove:focus-visible { opacity: 1; }
-.rule-remove:hover { color: var(--ui-bad); }
-
-/* Alerts — filter tabs */
