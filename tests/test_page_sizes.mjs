@@ -227,13 +227,16 @@ async function settings(hash = '') {
 }
 const visibleGroups = (root) => root.querySelectorAll('.settings-group').filter((g) => !g.hidden).map((g) => g.id);
 
-test('Settings is a strip of its six groups and shows one group per screen, General first', async () => {
+// A22 2.1 (step 12, H5): the row is a tablist of six tabs, so the chosen one is aria-selected, not a link with aria-current.
+const selectedTabs = (root) => root.querySelectorAll('.settings-tabs [role="tab"]').filter((t) => t.getAttribute('aria-selected') === 'true').map((t) => t.textContent);
+
+test('Settings is a row of its six groups and shows one group per screen, General first', async () => {
   const { dom, state } = await settings();
   try {
-    const tabs = state.root.querySelectorAll('.settings-tabs a');
+    const tabs = state.root.querySelectorAll('.settings-tabs [role="tab"]');
     assert.deepEqual(tabs.map((a) => a.textContent), ['General', 'Home', 'Weather and calendar', 'Phone messages', 'People and access', 'The Pi']);
     assert.deepEqual(visibleGroups(state.root), ['group-general']);
-    assert.deepEqual(state.root.querySelectorAll('.settings-tabs [aria-current="true"]').map((a) => a.textContent), ['General']);
+    assert.deepEqual(selectedTabs(state.root), ['General']);
     assert.equal(state.root.querySelectorAll('.settings-group').length, 6);
   } finally { dom.uninstall(); }
 });
@@ -246,7 +249,7 @@ test('a #group- address, and a tap on a tab, switch the screen; a refresh keeps 
     assert.deepEqual(visibleGroups(state.root), ['group-pi']);
     await m.load(state);    // the page refreshes itself every minute
     assert.deepEqual(visibleGroups(state.root), ['group-pi']);
-    assert.deepEqual(state.root.querySelectorAll('.settings-tabs [aria-current="true"]').map((a) => a.textContent), ['The Pi']);
+    assert.deepEqual(selectedTabs(state.root), ['The Pi']);
     go('#group-nope');
     assert.deepEqual(visibleGroups(state.root), ['group-pi'], 'junk is ignored');
     assert.equal(listeners.hashchange.length, 1);
