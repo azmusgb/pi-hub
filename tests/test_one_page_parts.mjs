@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { pageStrip, STRIPS } from "../hub/static/js/system-strip.js";
+import { pageStrip } from "../hub/static/js/system-strip.js";
+import { SITE } from "../hub/static/js/site.js";
 import { sourceEntries } from "../hub/static/js/sources.js";
 import { install } from "./helpers/fake_dom.mjs";
 
@@ -12,8 +13,10 @@ const read = (p) => fs.readFileSync(new URL(`../${p}`, import.meta.url), "utf8")
 test("every area strip is the kit's underlined ui-strip, not the old segmented pill", () => {
   const dom = install();
   try {
-    for (const { entries } of Object.values(STRIPS)) {
-      const nav = pageStrip(entries[0][0]);
+    const landings = SITE.areas.filter((a) => a.id !== "home").map((a) => SITE.page(a.landing).path);
+    assert.equal(landings.length, 4);
+    for (const path of landings) {
+      const nav = pageStrip(path);
       assert.match(nav.className, /\bui-strip\b/);
       assert.doesNotMatch(nav.className, /\btabs\b/);
     }
