@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import './helpers/kit.mjs';
 import { ASSISTANT_URL, toolUrl, resolveLink, assistantHref, assistantButton } from '../hub/static/js/sections.js';
 import { SITE, sectionFor } from '../hub/static/js/site.js';
 
@@ -80,8 +81,8 @@ test('assistantHref never sends "undefined" and collapses whitespace', () => {
 
 test('assistantButton: pc_off when the PC is off, assistant_down when only Local AI is down, unknown stays enabled', () => {
   const on = { label: 'Assistant', phrase: '', disabled: false };
-  assert.deepEqual(assistantButton('Down', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
-  assert.deepEqual(assistantButton('Unknown', 'off'), { label: 'The PC is off or asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Down', 'off'), { label: 'The PC is asleep', phrase: 'pc_off', disabled: true });
+  assert.deepEqual(assistantButton('Unknown', 'off'), { label: 'The PC is asleep', phrase: 'pc_off', disabled: true });
   assert.deepEqual(assistantButton('Down', 'on'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
   assert.deepEqual(assistantButton('Down', 'unknown'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });
   assert.deepEqual(assistantButton('Down'), { label: "The Assistant isn't answering", phrase: 'assistant_down', disabled: true });

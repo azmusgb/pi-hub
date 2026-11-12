@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { install, text } from './helpers/fake_dom.mjs';
+import './helpers/kit.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const ORIGIN = 'https://assistant.rahe-home.duckdns.org';
@@ -70,7 +71,7 @@ test('Down says the phrase-table words and loads no frame; Try again opens it on
   const off = await page({ state: 'Down', pc: 'off' });
   try {
     assert.equal(off.frame(), null);
-    assert.equal(text(off.root.querySelector('h2')), 'The PC is off or asleep');
+    assert.equal(text(off.root.querySelector('h2')), 'The PC is asleep');
   } finally { off.dom.uninstall(); }
   let status = { state: 'Down', pc: 'on' };
   const p = await page(() => status);
