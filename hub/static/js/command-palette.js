@@ -162,6 +162,7 @@ export function hubProviders({ get = api } = {}) {
   // The Assistant's last answer, kept for the Pages provider: it never waits on the PC to list a page.
   let lastAssistant = null;
   const assistant = cached(() => get("/api/assistant").catch(() => null).then((a) => (lastAssistant = a)), 30_000);
+  assistant().catch(() => {});  // asked once up front, so the first search already knows
   const ask = { name: "Assistant", down: "The Assistant isn't answering", timeout: 3000,
     async find(q) {
       try { return askResult(q, await assistant()); }

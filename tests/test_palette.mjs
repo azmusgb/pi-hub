@@ -135,3 +135,14 @@ test("⌘K has one Assistant row that opens /assistant and says what the rail's 
   assert.equal(row({ state: "Down", pc: "off" })[0].hint, "The PC is off or asleep");
   assert.equal(goResults("").filter((r) => r.href === "/assistant").length, 1);
 });
+
+test("the Pages provider knows the Assistant's state on the first search, without waiting on the PC", async () => {
+  const calls = [];
+  const get = async (path) => { calls.push(path); return path === "/api/assistant" ? { state: "Down", pc: "on" } : null; };
+  const pages = hubProviders({ get }).find((p) => p.name === "Pages");
+  assert.deepEqual(calls, ["/api/assistant"], "asked once, when the providers are made");
+  await new Promise((r) => setTimeout(r, 0));
+  const row = (await pages.find("assistant")).find((r) => r.href === "/assistant");
+  assert.equal(row.hint, "The Assistant isn't answering");
+  assert.equal(calls.filter((c) => c === "/api/assistant").length, 1, "the answer is reused for 30 s");
+});
