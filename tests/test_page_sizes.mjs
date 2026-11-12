@@ -211,9 +211,9 @@ const SETTINGS = {
   },
 };
 
-async function settings(hash = '') {
+async function settings(hash = '', fetch = SETTINGS) {
   const listeners = {};
-  const dom = install({ fetch: SETTINGS });
+  const dom = install({ fetch });
   globalThis.location.hash = hash;
   globalThis.window.addEventListener = (t, fn) => { (listeners[t] ||= []).push(fn); };
   globalThis.window.removeEventListener = (t, fn) => { listeners[t] = (listeners[t] || []).filter((f) => f !== fn); };
@@ -255,6 +255,94 @@ test('a #group- address, and a tap on a tab, switch the screen; a refresh keeps 
     assert.equal(listeners.hashchange.length, 1);
     m.leave(state);
     assert.equal(listeners.hashchange.length, 0, 'the listener goes when the page does');
+  } finally { dom.uninstall(); }
+});
+
+// A22 2.1 and 9.1 F2, step 12 plan H5: the row of groups is the kit's six tabs, a tablist named by the page.
+test('Settings\' row is a tablist named Settings: six tabs from the page list, each with its panel', async () => {
+  const { dom, state } = await settings();
+  try {
+    const list = state.root.querySelector('[role="tablist"]');
+    assert.equal(list.getAttribute('aria-label'), 'Settings');
+    assert.match(list.className, /\bui-tabs\b/);
+    assert.match(list.className, /\bui-tabs--rows\b/, 'six tabs take the kit\'s rows');
+    const tabs = list.querySelectorAll('[role="tab"]');
+    const rows = SITE.rows.filter((p) => p.parent === 'settings');
+    assert.equal(tabs.length, 6);
+    assert.deepEqual(tabs.map((t) => t.textContent), rows.map((p) => p.label), 'the names and the order are the page list\'s');
+    assert.deepEqual(tabs.map((t) => t.id), rows.map((p) => `settings-tab-${p.id.replace('settings-', '')}`));
+    assert.ok(tabs.every((t) => t.tagName === 'BUTTON' && t.getAttribute('type') === 'button'));
+    for (const t of tabs) {
+      const panel = state.root.querySelector(`#${t.getAttribute('aria-controls')}`);
+      assert.ok(panel, `${t.textContent} has its panel`);
+      assert.equal(panel.getAttribute('role'), 'tabpanel');
+      assert.equal(panel.getAttribute('aria-labelledby'), t.id);
+    }
+    // Each group keeps its address: the list's path for a group is the id its panel carries.
+    assert.deepEqual(rows.slice(1).map((p) => p.path), tabs.slice(1).map((t) => `/settings#${t.getAttribute('aria-controls')}`));
+    assert.equal(rows[0].path, '/settings', 'General is the page itself');
+    assert.deepEqual(tabs.map((t) => t.getAttribute('tabindex')), ['0', '-1', '-1', '-1', '-1', '-1'], 'one Tab stop: the selected tab');
+    assert.equal(state.root.querySelectorAll('nav').length, 0, 'the row is not a second navigation region');
+  } finally { dom.uninstall(); }
+});
+
+test('arrow keys, Home and End move between Settings\' tabs and choose them; the address follows without a new history entry', async () => {
+  const { dom, state } = await settings();
+  const replaced = [];
+  globalThis.history = { state: { kept: 1 }, replaceState: (st, _t, url) => { replaced.push([st, url]); globalThis.location.hash = url; }, pushState: () => assert.fail('a tab never adds a history entry') };
+  try {
+    const tab = (id) => state.root.querySelector(`#settings-tab-${id}`);
+    const press = (id, key) => { let stopped = false; tab(id).dispatchEvent({ type: 'keydown', key, preventDefault() { stopped = true; } }); return stopped; };
+    const now = () => [selectedTabs(state.root).join(), visibleGroups(state.root).join(), globalThis.document.activeElement?.id,
+      state.root.querySelectorAll('[role="tab"]').filter((t) => t.getAttribute('tabindex') === '0').map((t) => t.id).join()];
+    assert.ok(press('general', 'ArrowRight'), 'the key is taken, so the page does not scroll');
+    assert.deepEqual(now(), ['Home', 'group-home', 'settings-tab-home', 'settings-tab-home']);
+    press('home', 'End');
+    assert.deepEqual(now(), ['The Pi', 'group-pi', 'settings-tab-pi', 'settings-tab-pi']);
+    press('pi', 'ArrowRight');
+    assert.deepEqual(now(), ['General', 'group-general', 'settings-tab-general', 'settings-tab-general'], 'past the last is the first');
+    press('general', 'ArrowLeft');
+    assert.deepEqual(now(), ['The Pi', 'group-pi', 'settings-tab-pi', 'settings-tab-pi'], 'before the first is the last');
+    press('pi', 'Home');
+    assert.deepEqual(now(), ['General', 'group-general', 'settings-tab-general', 'settings-tab-general']);
+    assert.equal(press('general', 'a'), false, 'any other key is left alone');
+    assert.deepEqual(now()[0], 'General');
+    tab('people').click();
+    assert.deepEqual(now(), ['People and access', 'group-people', 'settings-tab-people', 'settings-tab-people'], 'a tap chooses too');
+    assert.deepEqual(replaced.map(([, url]) => url), ['#group-home', '#group-pi', '#group-general', '#group-pi', '#group-general', '#group-people']);
+    assert.ok(replaced.every(([st]) => st?.kept === 1), 'the entry\'s own state is kept');
+    replaced.length = 0;
+    tab('people').click();
+    assert.deepEqual(replaced, [], 'choosing the tab already shown changes nothing');
+  } finally { delete globalThis.history; dom.uninstall(); }
+});
+
+test('the address chooses the tab; a refresh keeps the same tabs, so focus stays on the one in use', async () => {
+  const { dom, state, m, go } = await settings('#group-phone');
+  try {
+    const list = state.root.querySelector('[role="tablist"]');
+    assert.deepEqual(selectedTabs(state.root), ['Phone messages']);
+    assert.deepEqual(visibleGroups(state.root), ['group-phone']);
+    const tab = state.root.querySelector('#settings-tab-phone');
+    tab.focus();
+    await m.load(state);    // the page refreshes itself every minute
+    assert.equal(state.root.querySelector('[role="tablist"]'), list, 'the tablist is not rebuilt');
+    assert.equal(state.root.querySelector('#settings-tab-phone'), tab);
+    assert.equal(globalThis.document.activeElement, tab);
+    assert.deepEqual(visibleGroups(state.root), ['group-phone']);
+    go('#group-home');     // a step's link in the faceplate
+    assert.deepEqual(selectedTabs(state.root), ['Home']);
+    assert.deepEqual(state.root.querySelectorAll('[role="tab"]').filter((t) => t.getAttribute('tabindex') === '0').map((t) => t.id), ['settings-tab-home']);
+  } finally { dom.uninstall(); }
+});
+
+test('signed out, Settings shows the sign-in and no tabs', async () => {
+  const { dom, state } = await settings('', { ...SETTINGS, '/api/me': { role: 'viewer' } });
+  try {
+    assert.ok(state.root.querySelector('.auth-box'), 'the sign-in is shown');
+    assert.equal(state.root.querySelector('[role="tablist"]').hidden, true);
+    assert.equal(state.root.querySelectorAll('.settings-group').length, 0);
+    assert.equal(state.root.querySelector('.ui-faceplate'), null);
   } finally { dom.uninstall(); }
 });
 
