@@ -4,7 +4,7 @@ import json
 import urllib.request
 from urllib.parse import urlencode
 
-API = "http://10.0.0.21:8010/api/documents/"
+API = "http://10.0.0.81:8010/api/documents/"
 TOKEN_FILE = "/etc/pi-hub/secrets/paperless_token"
 OPEN = "tool:paperless"  # the page resolves it to the address in use (sections.js resolveLink)
 MAX_QUERY = 100

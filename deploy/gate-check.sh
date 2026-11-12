@@ -78,7 +78,7 @@ done < <(printf '%s\n' "$h" | grep -i '^set-cookie: hub_gate=')
 if [ "$res" = "302 https://bambuddy.$R/" ] && [ "$ck" = ok ]; then say "bambuddy code hand-off" ok
 else say "bambuddy code hand-off" "got ${res//hub_gate_code=[^&]*/hub_gate_code=…}; cookie $ck"; fi
 # Grafana trusts X-WEBAUTH-USER, so it must only be reachable through the gate: from the LAN it's closed or ignores it.
-r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.30:3000/api/user)
+r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' http://10.0.0.80:3000/api/user)
 case "$r" in 000|401) say "grafana not open to a forged header" ok ;; *) say "grafana not open to a forged header" "got $r" ;; esac
 # A house name over plain http never reaches the hub's sign-in: it goes to https first.
 for host in "hub.$R" home.home.arpa home.arpa other.home.arpa; do

@@ -41,7 +41,7 @@ test('the menu markup matches the sections', () => {
 
 // One home, step 6: the old addresses are retired, so every tool link is its gate name, whatever address the page has.
 test('tool links are always the gate names', () => {
-  for (const host of ['hub.rahe-home.duckdns.org', '10.0.0.30', 'pi', 'pi.tailfa018e.ts.net', '']) {
+  for (const host of ['hub.rahe-home.duckdns.org', '10.0.0.80', 'pi', 'pi.tailfa018e.ts.net', '']) {
     assert.equal(toolUrl('paperless', host), 'https://paperless.rahe-home.duckdns.org/');
     assert.equal(toolUrl('bambuddy', host), 'https://bambuddy.rahe-home.duckdns.org/');
     assert.equal(toolUrl('scan', host), 'https://scan.rahe-home.duckdns.org/');
@@ -50,15 +50,15 @@ test('tool links are always the gate names', () => {
 });
 
 test('server links name a tool, and the page resolves it to the gate', () => {
-  assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.30'), 'https://paperless.rahe-home.duckdns.org/documents/42/details');
-  assert.equal(resolveLink('tool:assistant', '10.0.0.30'), '/assistant', 'the Assistant opens in the shell (A4)');
-  assert.equal(resolveLink('/workshop', '10.0.0.30'), '/workshop');
+  assert.equal(resolveLink('tool:paperless/documents/42/details', '10.0.0.80'), 'https://paperless.rahe-home.duckdns.org/documents/42/details');
+  assert.equal(resolveLink('tool:assistant', '10.0.0.80'), '/assistant', 'the Assistant opens in the shell (A4)');
+  assert.equal(resolveLink('/workshop', '10.0.0.80'), '/workshop');
 });
 
 test('assistantHref carries the page and its facts to /assistant in the shell (A4)', () => {
   assert.equal(assistantHref('hub.rahe-home.duckdns.org', 'Workshop', 'Printing, 40% · done 3:10 PM'),
     '/assistant?context=' + encodeURIComponent('Pi Hub › Workshop: Printing, 40% · done 3:10 PM'));
-  assert.equal(assistantHref('10.0.0.30', 'Home'), '/assistant?context=' + encodeURIComponent('Pi Hub › Home'));
+  assert.equal(assistantHref('10.0.0.80', 'Home'), '/assistant?context=' + encodeURIComponent('Pi Hub › Home'));
 });
 
 test('assistantHref keeps the context to 300 characters', () => {

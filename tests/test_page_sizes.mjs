@@ -326,7 +326,7 @@ test('Health opens and badges Outages when there are outages and Network when a 
     } finally { calm.dom.uninstall(); }
     const bad = await health({ ...ROUTES_OK, '/api/pi': { ...PI,
       outages: [{ start: 1000, end: 1600 }],
-      network: { name: 'pi', ip: '10.0.0.30', metrics: { orbi_ms: 3, att_ms: 4, wan_ms: null, dns_ms: 5 } } } });
+      network: { name: 'pi', ip: '10.0.0.80', metrics: { orbi_ms: 3, att_ms: 4, wan_ms: null, dns_ms: 5 } } } });
     try {
       const item = (k) => bad.state.root.querySelector(`.health-more .more-list-item[data-key="${k}"]`);
       assert.ok(item('outages').open && item('outages').querySelector('summary .more-badge'), 'Outages');

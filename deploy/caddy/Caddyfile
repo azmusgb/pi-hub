@@ -61,13 +61,13 @@
 (site_assistant) {
 	route {
 		import gated
-		# Local AI's own Caddy answers only its own names, so ask it as 10.0.0.21. Its same-origin check compares
-		# Origin with Host, so a request from this page carries 10.0.0.21 as its Origin too; any other Origin passes
+		# Local AI's own Caddy answers only its own names, so ask it as 10.0.0.81. Its same-origin check compares
+		# Origin with Host, so a request from this page carries 10.0.0.81 as its Origin too; any other Origin passes
 		# unchanged and is refused there as before.
 		@own header Origin {args[0]}
-		request_header @own Origin https://10.0.0.21
-		reverse_proxy https://10.0.0.21 {
-			header_up Host 10.0.0.21
+		request_header @own Origin https://10.0.0.81
+		reverse_proxy https://10.0.0.81 {
+			header_up Host 10.0.0.81
 			transport http {
 				tls_insecure_skip_verify
 			}
@@ -195,7 +195,7 @@ home.home.arpa {
 	}
 	@paperless host paperless.rahe-home.duckdns.org
 	handle @paperless {
-		import site_tool 10.0.0.21:8010
+		import site_tool 10.0.0.81:8010
 	}
 	@homebox host homebox.rahe-home.duckdns.org
 	handle @homebox {
@@ -249,7 +249,7 @@ updates.home.arpa {
 	header /releases/device-update.json Cache-Control no-store
 }
 
-# The old addresses (http://10.0.0.30, http://pi, http://pi.local, the Tailscale name) are retired (one home, step 6):
+# The old addresses (http://10.0.0.80, http://pi, http://pi.local, the Tailscale name) are retired (one home, step 6):
 # a browser goes to the same page on the hub. Only the machine callers' paths still reach the hub over plain http, on
 # any host name: Local AI's /api/now (and its poster images), /api/needs, /api/records (its printer reading) and /api/systems (its Architecture page's Systems strip), Bambuddy's webhook, Siri Shortcuts (each with its own key or token), the
 # health check, and the CA root. The PC's backup pull is ssh and never came through here.
@@ -258,7 +258,7 @@ http:// {
 	# clear.
 	@named host home.arpa *.home.arpa rahe-home.duckdns.org *.rahe-home.duckdns.org
 	redir @named https://hub.rahe-home.duckdns.org{uri}
-	# The CA root, so a new device can trust it before the names resolve (http://10.0.0.30/home-ca.crt).
+	# The CA root, so a new device can trust it before the names resolve (http://10.0.0.80/home-ca.crt).
 	handle /home-ca.crt {
 		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
 		rewrite * /root.crt

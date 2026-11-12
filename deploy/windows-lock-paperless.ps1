@@ -2,7 +2,7 @@
 # (https://paperless.rahe-home.duckdns.org) and the hub's Documents page reach it. Windows PowerShell 5.1, run as an admin:
 #   powershell -NoProfile -File windows-lock-paperless.ps1 -Status | -Apply | -Undo
 # Docker Desktop's own firewall rules allow its program on every port, so this adds one Block rule for TCP 8010 from
-# every address except 10.0.0.30 (a block wins over an allow) and leaves Docker's rules alone. Loopback isn't filtered.
+# every address except 10.0.0.80 (a block wins over an allow) and leaves Docker's rules alone. Loopback isn't filtered.
 param([switch]$Status, [switch]$Apply, [switch]$Undo)
 $ErrorActionPreference = 'Stop'
 $Name = 'PiLock-Paperless-8010'

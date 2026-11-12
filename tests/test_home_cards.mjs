@@ -80,7 +80,7 @@ test('the Home badge equals the Needs you count', () => {
 });
 
 test('links use the gate names even when the hub is opened by IP (step 6)', () => {
-  assert.equal(by(all({ host: '10.0.0.30' })).workshop.action.href, 'https://bambuddy.rahe-home.duckdns.org/');
+  assert.equal(by(all({ host: '10.0.0.80' })).workshop.action.href, 'https://bambuddy.rahe-home.duckdns.org/');
 });
 
 test('Needs you says when it could not check, even with nothing else to show', () => {
@@ -121,7 +121,7 @@ test('Workshop card stays red when the printer reports an error and the plate wa
 
 test('while a lab experiment prints, the printer card links the hub\'s /lab page; otherwise it does not', () => {
   const lab = { ...NOW, printer: { ...NOW.printer, lab: { experiment: 'E-020' } } };
-  assert.deepEqual(by(all({ now: lab, host: '10.0.0.30' })).workshop.lab, { label: 'Print lab: E-020', href: '/lab?e=E-020' });
+  assert.deepEqual(by(all({ now: lab, host: '10.0.0.80' })).workshop.lab, { label: 'Print lab: E-020', href: '/lab?e=E-020' });
   assert.deepEqual(by(all({ now: lab })).workshop.lab, { label: 'Print lab: E-020', href: '/lab?e=E-020' });
   assert.equal(by(all()).workshop.lab, null);
   const odd = { ...NOW, printer: { ...NOW.printer, lab: { experiment: '"><img src=x>' } } };
@@ -161,14 +161,14 @@ test("the blind failure-detection item's link opens Bambuddy's Failure detection
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const link = 'tool:bambuddy/settings?tab=failure-detection';
   assert.equal(resolveLink(link, 'hub.rahe-home.duckdns.org'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');
-  assert.equal(resolveLink(link, '10.0.0.30'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');  // step 6: links name the gate only
+  assert.equal(resolveLink(link, '10.0.0.80'), 'https://bambuddy.rahe-home.duckdns.org/settings?tab=failure-detection');  // step 6: links name the gate only
 });
 
 test("the Mac disk item's link opens the Assistant in the shell with the question (its #ask?context= hand-off, A4)", async () => {
   const { resolveLink } = await import('../hub/static/js/sections.js');
   const { frameSrc } = await import('../hub/static/js/assistant.js');
   const link = 'tool:assistant/#ask?context=Pi%20Hub%20%E2%80%BA%20Mac%20disk%20is%2095%25%20full.%20What\'s%20using%20the%20space%3F';
-  const href = resolveLink(link, '10.0.0.30');
+  const href = resolveLink(link, '10.0.0.80');
   assert.ok(href.startsWith('/assistant?to='), 'a page in the shell, not another origin');
   const src = new URL(frameSrc(new URL(href, 'https://hub.rahe-home.duckdns.org').search));
   assert.equal(src.origin, 'https://assistant.rahe-home.duckdns.org');

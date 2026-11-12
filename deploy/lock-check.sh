@@ -2,12 +2,12 @@
 # One home, step 6 (lock), checked from the Mac the way a device on the Wi-Fi sees the house: system DNS, system
 # certificate trust, never --insecure or --resolve.
 #   ready:  the names resolve and the gate is trusted, so the old addresses can close.
-#   locked: also, every old IP:port refuses, browsers on http://10.0.0.30 go to the gate, machine paths still work.
+#   locked: also, every old IP:port refuses, browsers on http://10.0.0.80 go to the gate, machine paths still work.
 # Usage: bash deploy/lock-check.sh ready|locked
 set -uo pipefail
 MODE=${1:-}
 case "$MODE" in ready|locked) ;; *) echo "usage: $0 ready|locked" >&2; exit 2 ;; esac
-PI=10.0.0.30
+PI=10.0.0.80
 fail=0
 say() { printf '%-44s %s\n' "$1" "$2"; [ "$2" = ok ] || fail=1; }
 code() { curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$@"; }
@@ -27,8 +27,8 @@ if [ "$MODE" = locked ]; then
     r=$(code "http://$PI:$p/")
     [ "$r" = 000 ] && say "$PI:$p closed" ok || say "$PI:$p closed" "answered $r"
   done
-  r=$(code http://10.0.0.21:8010/)
-  [ "$r" = 000 ] && say "Paperless 10.0.0.21:8010 closed" ok || say "Paperless 10.0.0.21:8010 closed" "answered $r"
+  r=$(code http://10.0.0.81:8010/)
+  [ "$r" = 000 ] && say "Paperless 10.0.0.81:8010 closed" ok || say "Paperless 10.0.0.81:8010 closed" "answered $r"
   r=$(curl -s --max-time 5 -o /dev/null -w '%{http_code} %{redirect_url}' "http://$PI/workshop")
   [ "$r" = "308 https://$HUB/workshop" ] && say "old address → same page on the gate" ok || say "old address → same page on the gate" "got $r"
   for path in /api/shortcut/x /api/webhook/bambuddy /api/now/poster/0.jpg; do

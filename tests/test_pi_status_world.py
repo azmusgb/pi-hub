@@ -37,7 +37,7 @@ def test_world_sends_the_key(files, monkeypatch):
     monkeypatch.setattr(pi_status.urllib.request, "build_opener", lambda *h: opener)
     assert pi_status.world() == {"printer": {"state": "idle"}}
     assert opener.reqs[0].get_header("X-localai-hub-key") == "secret"
-    assert opener.reqs[0].full_url == "https://10.0.0.21/api/world"
+    assert opener.reqs[0].full_url == "https://10.0.0.81/api/world"
     # a slow TLS handshake (2-5 s, 1 Nov) isn't "down"; and it stays inside the hub's 6 s wait for pi-status
     assert 1.5 < opener.timeouts[0] < 6
 
@@ -74,7 +74,7 @@ def test_localai_release_reads_healthz(files, monkeypatch):
     monkeypatch.setattr(pi_status.ssl, "create_default_context", lambda cafile=None: object())
     monkeypatch.setattr(pi_status.urllib.request, "build_opener", lambda *h: opener)
     assert pi_status.localai_release() == "a" * 40
-    assert opener.reqs[0].full_url == "https://10.0.0.21/healthz"
+    assert opener.reqs[0].full_url == "https://10.0.0.81/healthz"
     assert opener.reqs[0].get_header("X-localai-hub-key") is None  # /healthz is open; the key goes only to /api/world
 
 

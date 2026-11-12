@@ -206,8 +206,8 @@ def test_renewing_the_gate_needs_the_owner_on_home_arpa(client):
     headers = {"Host": "hub.rahe-home.duckdns.org", "Origin": "https://hub.rahe-home.duckdns.org"}
     body = {"next": "https://bambuddy.rahe-home.duckdns.org/"}
     assert client.post("/api/gate/renew", json=body, headers=headers).status_code == 401
-    signin(client, "10.0.0.30")
-    r = client.post("/api/gate/renew", json=body, headers={"Host": "10.0.0.30", "Origin": "https://10.0.0.30"})
+    signin(client, "10.0.0.80")
+    r = client.post("/api/gate/renew", json=body, headers={"Host": "10.0.0.80", "Origin": "https://10.0.0.80"})
     assert r.status_code == 400 and gate_cookie(r) is None
 
 

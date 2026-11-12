@@ -7,7 +7,7 @@ from hub import app as hub_app
 
 ROOT = Path(__file__).resolve().parents[1]
 CADDY = (ROOT / "deploy" / "caddy" / "Caddyfile").read_text()
-LOCAL_AI = re.compile(r"10\.0\.0\.21|assistant\.|localai|:3080", re.I)
+LOCAL_AI = re.compile(r"10\.0\.0\.81|assistant\.|localai|:3080", re.I)
 
 
 def block(name):

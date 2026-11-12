@@ -10,7 +10,7 @@ import threading
 import urllib.error
 import urllib.request
 
-URL = os.environ.get("HUB_LOCALAI_URL", "https://10.0.0.21").rstrip("/")
+URL = os.environ.get("HUB_LOCALAI_URL", "https://10.0.0.81").rstrip("/")
 KEY_FILE = os.environ.get("HUB_LOCALAI_KEY_FILE", "/etc/pi-hub/secrets/localai_hub_key")
 CA_FILE = os.environ.get("HUB_LOCALAI_CA_FILE", "/etc/pi-hub/secrets/localai-ca.crt")
 TTL = 15      # seconds a good or bad answer is reused

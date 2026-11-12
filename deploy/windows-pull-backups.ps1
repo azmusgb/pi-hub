@@ -1,6 +1,6 @@
 # Copies the Raspberry Pi's newest nightly backup to this PC and keeps the last 14. Run by the task "Pi Hub backup copy".
 $d = "C:\LocalAI\pi-backups"; $k = "$d\pi-backup-key"; $kh = "$d\known_hosts"; $log = "$d\last.txt"
-$base = "-i `"$k`" -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=`"$kh`" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 pi-backup@10.0.0.30"
+$base = "-i `"$k`" -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=`"$kh`" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 pi-backup@10.0.0.80"
 function Say($m) { "$(Get-Date -Format s) $m" | Set-Content $log; $m }
 $name = (cmd /c "ssh.exe $base name" 2>$null | Out-String).Trim()
 if ($name -notmatch '^pi-[0-9-]+\.tgz$') { Say "STOP: the Pi didn't answer with a backup name"; exit 1 }

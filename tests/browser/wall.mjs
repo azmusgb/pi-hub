@@ -4,13 +4,13 @@
 // room while it prints, or serious/critical axe findings.
 // Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium
 //   node wall.mjs http://127.0.0.1:8131 --stub [--shots=DIR]   (stubbed data: idle, printing and night)
-//   node wall.mjs http://10.0.0.30                              (the Pi's live data, read only)
+//   node wall.mjs http://10.0.0.80                              (the Pi's live data, read only)
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 
 const args = process.argv.slice(2);
-const BASE = args.find((a) => !a.startsWith('--')) || 'http://10.0.0.30';
+const BASE = args.find((a) => !a.startsWith('--')) || 'http://10.0.0.80';
 const STUB = args.includes('--stub');
 const SHOTS = (args.find((a) => a.startsWith('--shots=')) || '').slice(8) || new URL('./out/', import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });

@@ -1,11 +1,11 @@
 // One home step 2 browser check: each section at phone and desktop sizes, light and dark. Fails on serious or
 // critical axe findings, a wrong active tab, a bottom bar covering the last card, or a badged Assistant button.
-// Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium && node structure.mjs http://10.0.0.30
+// Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium && node structure.mjs http://10.0.0.80
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 
-const BASE = process.argv[2] || 'http://10.0.0.30';
+const BASE = process.argv[2] || 'http://10.0.0.80';
 const OUT = new URL('./out/', import.meta.url).pathname;
 // The wall (kiosk) has no menu or Assistant button: only its contrast and fit are checked (wall.mjs checks each screen size).
 const WALL = '/wall';
