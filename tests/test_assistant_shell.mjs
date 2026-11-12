@@ -54,7 +54,7 @@ test('Ready and Unknown open the frame; it has a title, sits in the page and not
     const { dom, frame, mod, state: s } = await page({ state, pc: 'unknown' });
     try {
       assert.ok(frame(), `${state}: a frame`);
-      assert.equal(frame().getAttribute('title'), 'Assistant (Local AI)');
+      assert.equal(frame().getAttribute('title'), 'Assistant');  // A22 8.1: one name, Assistant
       assert.equal(frame().getAttribute('src'), `${ORIGIN}/`);
       assert.equal(document.documentElement.dataset.assistant, '1');
       mod.leave(s);

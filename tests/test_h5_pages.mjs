@@ -31,3 +31,38 @@ test('Settings: the setup faceplate says how much is done, and each step left is
     assert.equal(text(setupPlate([['A', true, 'x', 'y']]).querySelector('.ui-chip')), 'All set');
   } finally { dom.uninstall(); }
 });
+
+// A22 step 11, H2: the leftover names. One name per thing (A22 8.1).
+const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+
+test("Settings' faceplate has no nameplate text (A22 2.3) and is still named for a screen reader", async () => {
+  const dom = install();
+  try {
+    const { setupPlate } = await import('../hub/static/js/settings.js');
+    const p = setupPlate([['Connect Homebridge', true, 'home', 'why a'], ['Set your town', false, 'outside', 'for the weather']]);
+    assert.equal(p.getAttribute('aria-label'), 'Setup progress');
+    assert.equal(p.querySelectorAll('.ui-faceplate__nameplate span').length, 0, 'no name is drawn');
+    assert.equal(text(p.querySelector('.ui-faceplate__nameplate')), '1 step left', 'the lamp stays');
+    const { faceplate } = await import('../hub/static/js/page-parts.js');
+    const named = faceplate({ name: 'Bambu X2D' });
+    assert.equal(named.getAttribute('aria-label'), 'Bambu X2D');
+    assert.equal(text(named.querySelector('.ui-faceplate__nameplate span')), 'Bambu X2D');
+  } finally { dom.uninstall(); }
+});
+
+test('the app is named Pi Hub, and the Assistant is only ever called Assistant', () => {
+  const manifest = JSON.parse(src('hub/static/manifest.webmanifest'));
+  assert.equal(manifest.name, 'Pi Hub');
+  assert.equal(manifest.short_name, 'Pi Hub');
+  for (const f of ['hub/static/index.html', 'hub/static/js/main.js', 'hub/static/js/assistant.js', 'hub/static/js/sections.js', 'hub/static/js/command-palette.js']) {
+    assert.doesNotMatch(src(f), /Assistant \(Local AI\)/, f);
+  }
+  assert.doesNotMatch(src('hub/static/js/main.js'), /"\/assistant": "Local AI/, "the Assistant's purpose line doesn't say Local AI");
+  assert.doesNotMatch(src('hub/static/index.html'), /Home network/, 'the brand carries no second name');
+});
+
+test("the kit copy names the hub Pi Hub (kit 2.16.1)", async () => {
+  const { TOOLS } = await import('../hub/static/ui/tools.js');
+  assert.equal(TOOLS.find((t) => t.id === 'hub').name, 'Pi Hub');
+  assert.ok(JSON.parse(src('hub/static/ui/VERSION')).version >= '2.16.1');
+});
