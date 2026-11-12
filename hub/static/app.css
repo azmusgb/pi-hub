@@ -745,15 +745,13 @@ html {
 }
 
 
-/* An area's page strip is the kit's underlined .ui-strip (A7 P4), the current page underlined in the accent. On a phone
-   it wraps instead of scrolling, so none of System's seven pages hides off the edge (A6: every page on a visible strip). */
-/* The strip wraps rather than scrolls where its links don't fit on one line (A10 D2: it needs no width rule). */
-.ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
-.ui-strip.page-strip a { min-width: 44px; justify-content: center; }
-/* A strip keeps one line and scrolls sideways where its pages don't fit (System's seven, A10 plan decision 16; Household's
-   six on a narrow phone, A22 2.2); an edge with pages past it fades, so the hidden ones are hinted, not lost. */
+/* An area's page strip is the kit's underlined .ui-strip (A7 P4), the current page underlined in the accent. It keeps
+   one line and scrolls sideways where its pages don't fit (System's seven, A10 plan decision 16; Household's six on a
+   narrow phone, A22 2.2: "Papers is second in the strip so it is on screen at 320 px without scrolling"); an edge with
+   pages past it fades, so the hidden ones are hinted, not lost. It needs no width rule (A10 D2). */
 /* The scroll padding matches the fade, so a link brought into view by Tab stops clear of it. */
-.ui-strip.page-strip { flex-wrap: nowrap; overflow-x: auto; scroll-padding-inline: 2.5rem; }
+.ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: nowrap; column-gap: 1.1rem; overflow-x: auto; scroll-padding-inline: 2.5rem; }
+.ui-strip.page-strip a { min-width: 44px; justify-content: center; }
 .ui-strip.page-strip[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
 .ui-strip.page-strip[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
 .ui-strip.page-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }

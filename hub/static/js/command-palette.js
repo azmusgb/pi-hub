@@ -61,13 +61,13 @@ function assistantRow(q, assistant) {
   return [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant", ...(disabled ? { hint: label } : {}) }];
 }
 
-// Go: every Pi Hub page, tab and standalone page in the list, each with its area; the Assistant; and each tool that is
-// still in use, on its real name (from the registry). `assistant` is the last /api/assistant answer, when there is one.
+// Go: every Pi Hub page, tab and standalone page in the list, each with its area ("Other" for a page in none, as on
+// the Site map); the Assistant; and each tool that is still in use, on its real name (from the registry). `assistant` is the last /api/assistant answer, when there is one.
 export function goResults(query, assistant = null, site = SITE) {
   const q = norm(query);
   const pages = [
     ...site.entries("palette").filter((p) => matches(q, p.label, p.areaLabel, KEYWORDS[p.id]))
-      .map(({ label, href, areaLabel }) => ({ kind: "go", label, href, area: areaLabel })),
+      .map(({ label, href, areaLabel }) => ({ kind: "go", label, href, area: areaLabel || "Other" })),
     ...assistantRow(q, assistant),
   ];
   const tools = TOOLS.filter((t) => !t.boundary && !t.retired && t.id !== "hub" && matches(q, t.name, t.purpose, t.id))
