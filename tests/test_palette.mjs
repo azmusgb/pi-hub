@@ -103,3 +103,30 @@ test("Documents is down, not empty, when Paperless doesn't answer", async () => 
   const signedOut = hubProviders({ get: async () => { throw Object.assign(new Error("Sign in"), { status: 401 }); } });
   assert.deepEqual(await signedOut.find((p) => p.name === "Documents").find("tax"), [], "signed out isn't Paperless down");
 });
+
+// A22 step 11, H3: no page is reachable only by knowing its address, and the Assistant is in ⌘K.
+test("Privacy, a page the server writes, is in ⌘K and the Site map, as a full page load", async () => {
+  const { SERVER_PAGES } = await import("../hub/static/js/sections.js");
+  assert.deepEqual(SERVER_PAGES.map((p) => [p.href, p.label, p.area]), [["/privacy", "Privacy", "system"]]);
+  const hit = goResults("privacy").filter((r) => r.href === "/privacy");
+  assert.equal(hit.length, 1);
+  assert.deepEqual([hit[0].label, hit[0].area], ["Privacy", "System"]);
+  const { paletteNavigate } = await import("../hub/static/js/command-palette.js");
+  const went = [];
+  paletteNavigate("/privacy", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
+  paletteNavigate("/backups", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
+  assert.deepEqual(went, [["load", "/privacy"], ["spa", "/backups"]], "the shell has no /privacy page to draw");
+  const { siteMap } = await import("../hub/static/js/map.js");
+  const system = siteMap().find((g) => g.key === "system");
+  assert.deepEqual(system.pages.filter((p) => p.href === "/privacy"), [{ href: "/privacy", label: "Privacy", plain: true }]);
+  assert.equal(siteMap().flatMap((g) => g.pages).filter((p) => p.href === "/privacy").length, 1, "listed once");
+});
+
+test("⌘K has one Assistant row that opens /assistant and says what the rail's button says", () => {
+  const row = (a) => goResults("assistant", a).filter((r) => r.href === "/assistant");
+  assert.deepEqual(row(null), [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant" }]);
+  assert.deepEqual(row({ state: "Ready", pc: "on" }), [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant" }]);
+  assert.equal(row({ state: "Down", pc: "on" })[0].hint, "The Assistant isn't answering");
+  assert.equal(row({ state: "Down", pc: "off" })[0].hint, "The PC is off or asleep");
+  assert.equal(goResults("").filter((r) => r.href === "/assistant").length, 1);
+});
