@@ -760,8 +760,10 @@ html {
 .ui-strip.page-strip[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
 .ui-strip.page-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
 @media (forced-colors: active) { .ui-strip.page-strip[data-more] { mask-image: none; } }
-/* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
-.ui-chips.settings-tabs { margin: 0 0 1.25rem; }
+/* Settings' six groups are the kit's six tabs (A22 2.1: ui-tabs--rows), two to a row on a phone, then three, then six. */
+.ui-tabs.settings-tabs { margin: 0 0 1.25rem; }
+/* The kit's tabs set `display`, which would show a hidden row: signed out, Settings has no tabs. */
+.ui-tabs.settings-tabs[hidden] { display: none; }
 
 /* A "More" list (A6): a heading, then one closed row per item. The card inside an item loses its box and its visible
    heading, because the row's summary already names it; the heading stays for screen readers, and so does the pill. */

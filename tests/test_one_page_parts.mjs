@@ -25,9 +25,11 @@ test("every area strip is the kit's underlined ui-strip, not the old segmented p
   assert.doesNotMatch(css, /\.tabs\.page-strip/, "the pill's phone grid is gone");
 });
 
-test("Settings' six groups are chips", () => {
+// A22 2.1 (step 12, H5): the six groups are the kit's six tabs, a tablist, not a nav of chips.
+test("Settings' six groups are the kit's six tabs", () => {
   const js = read("hub/static/js/settings.js");
-  assert.match(js, /h\("nav", \{ class: "ui-chips settings-tabs"/);
+  assert.match(js, /h\("div", \{ class: "ui-tabs ui-tabs--rows settings-tabs", role: "tablist", "aria-label": "Settings"/);
+  assert.doesNotMatch(js, /ui-chips/);
 });
 
 test("the sources line keeps only named sources, and an unknown tone is unknown, never ok", () => {
