@@ -3,7 +3,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { splitNowRecords, mergeProblems, problemsBadge, printerNow, actionNames } from "../hub/static/js/control-room.js";
 import { homeCards } from "../hub/static/js/home-cards.js";
-import { redirectFor } from "../hub/static/js/sections.js";
+import { SITE } from "../hub/static/js/site.js";
+
+const redirectFor = SITE.redirectFor;  // the old addresses are the page list's (A22 step 12)
 
 const printing = { id: "printer", state: "printing", severity: "ok", headline: "Printing, 40%" };
 const playing = { id: "plex", state: "playing", severity: "ok", headline: "Playing a movie" };
