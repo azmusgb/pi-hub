@@ -38,10 +38,10 @@ test('every Workshop strip entry is a page of the Workshop section the router kn
   }
 });
 
-test('Workshop pages are headed Workshop; the strip and the tab title say which page', () => {
-  assert.deepEqual(pageHeading('/workshop', 'Workshop'), { heading: 'Workshop', title: 'Printer · Workshop' });
-  assert.deepEqual(pageHeading('/lab', 'Print lab'), { heading: 'Workshop', title: 'Print lab · Workshop' });
-  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'System', title: 'Health · System' });
+test('Workshop pages are headed by their own names (A22 2.3); the tab title says the page and the area', () => {
+  assert.deepEqual(pageHeading('/workshop', 'Printer'), { heading: 'Printer', title: 'Printer · Workshop' });
+  assert.deepEqual(pageHeading('/lab', 'Print lab'), { heading: 'Print lab', title: 'Print lab · Workshop' });
+  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'Health', title: 'Health · System' });
   assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
 });
 
