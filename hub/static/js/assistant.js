@@ -11,7 +11,7 @@
 //  - A hand-off while the frame is open goes by postMessage to the Assistant's origin, never "*" (4).
 //  - The frame takes focus once Local AI answers, and is the page's one scroller (8; app.css, [data-assistant]).
 import { api, h } from "./core.js";
-import { ASSISTANT_URL, PHRASES, assistantButton } from "./sections.js";
+import { ASSISTANT_URL, assistantButton, phrase as words } from "./sections.js";
 
 export const every = 30;
 export const ORIGIN = new URL(ASSISTANT_URL).origin;
@@ -78,7 +78,7 @@ function down(state, phrase, timedOut) {
   state.phrase = phrase;
   const retry = h("button", { class: "ui-btn ui-btn--primary", type: "button", onclick: () => tryAgain(state, retry) }, "Try again");
   state.box.replaceChildren(h("section", { class: "ui-notice ui-notice--warn assistant-down", role: "status" },
-    h("h2", {}, PHRASES[phrase]), h("p", {}, WHY[phrase]), h("p", {}, retry)));
+    h("h2", {}, words(phrase)), h("p", {}, WHY[phrase]), h("p", {}, retry)));
 }
 
 async function tryAgain(state, button) {

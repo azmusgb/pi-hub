@@ -125,3 +125,13 @@ test("a PC record of off doesn't disable an Assistant that answers", () => {
   assert.equal(assistantButton("Busy", "off").disabled, false);
   assert.equal(assistantButton("Unknown", "off").phrase, "pc_off");
 });
+
+test('the PC and Assistant phrases are the kit\'s: Pi Hub keeps no copy of them (kit 2.21.0, A22 8.4)', async () => {
+  const { PHRASES } = await import('./helpers/kit.mjs');
+  assert.equal(assistantButton('Down', 'off').label, PHRASES.pc_off);
+  assert.equal(assistantButton('Down', 'on').label, PHRASES.assistant_down);
+  for (const f of ['sections.js', 'home-dashboard.js', 'command-palette.js', 'main.js', 'assistant.js']) {
+    const src = readFileSync(new URL(`../hub/static/js/${f}`, import.meta.url), 'utf8');
+    for (const key of ['pc_off', 'pc_waking', 'assistant_down', 'source_down']) assert.ok(!src.includes(PHRASES[key]), `${f} holds its own copy of ${key}`);
+  }
+});
