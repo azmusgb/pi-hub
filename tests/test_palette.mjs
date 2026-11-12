@@ -116,6 +116,11 @@ test("Privacy, a page the server writes, is in ⌘K and the Site map, as a full 
   paletteNavigate("/privacy", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
   paletteNavigate("/backups", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
   assert.deepEqual(went, [["load", "/privacy"], ["spa", "/backups"]], "the shell has no /privacy page to draw");
+  // The kit's palette hands navigate the absolute address, not the one the result was given.
+  went.length = 0;
+  paletteNavigate("https://hub.rahe-home.duckdns.org/privacy", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
+  paletteNavigate("https://hub.rahe-home.duckdns.org/backups?from=home", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
+  assert.deepEqual(went.map(([how]) => how), ["load", "spa"]);
   const { siteMap } = await import("../hub/static/js/map.js");
   const system = siteMap().find((g) => g.key === "system");
   assert.deepEqual(system.pages.filter((p) => p.href === "/privacy"), [{ href: "/privacy", label: "Privacy", plain: true }]);
