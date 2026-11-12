@@ -4,7 +4,7 @@ import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { install } from './helpers/fake_dom.mjs';
-import { SECTIONS } from '../hub/static/js/sections.js';
+import { SITE } from '../hub/static/js/site.js';
 import { TOOLS } from '../hub/static/ui/tools.js';
 
 const JS = new URL('../hub/static/js/', import.meta.url);
@@ -58,11 +58,12 @@ test('no static script, and not the shell page, links a .home.arpa name (the reg
     for (const line of src.split('\n')) if (/home\.arpa/.test(line) && !/"boundary":"D4"/.test(line)) bad.push(`${name}: ${line.trim().slice(0, 80)}`);
   }
   assert.deepEqual(bad, []);
-  for (const t of TOOLS.filter((x) => x.host.endsWith('home.arpa'))) assert.equal(t.boundary, 'D4', t.id);
+  for (const t of TOOLS.filter((x) => x.host?.endsWith('home.arpa'))) assert.equal(t.boundary, 'D4', t.id);
 });
 
 test("/movies and /control aren't listed as pages (they are redirects)", () => {
-  const pages = SECTIONS.flatMap((s) => s.pages);
+  const pages = SITE.shellPaths();
+  assert.ok(pages.length > 10);
   assert.ok(!pages.includes('/movies'));
   assert.ok(!pages.includes('/control'));
 });
@@ -111,24 +112,30 @@ async function page(mod, routes = {}) {
   } catch (e) { dom.uninstall(); throw e; }
 }
 
-test('Documents links Paperless and Scan once, in the Open in row', async () => {
-  const { dom, state } = await page('documents', { '/api/documents': { available: true, results: [] } });
+// Step 12: each page's Open in row is its `tools` in the page list. Scan has its own page, so Papers links Paperless only.
+test('Papers links Paperless once, in the Open in row; the Scan page links the Scan app', async () => {
+  const papers = await page('documents', { '/api/documents': { available: true, results: [] } });
   try {
-    assertOnce(state.root, 'documents');
-    assert.ok(toolLinks(state.root).some((u) => u.startsWith('https://paperless.')), 'Paperless is in the row');
-    assert.ok(toolLinks(state.root).some((u) => u.startsWith('https://scan.')), 'Scan is in the row');
-  } finally { dom.uninstall(); }
+    assertOnce(papers.state.root, 'documents');
+    assert.ok(toolLinks(papers.state.root).some((u) => u.startsWith('https://paperless.')), 'Paperless is in the row');
+    assert.ok(!toolLinks(papers.state.root).some((u) => u.startsWith('https://scan.')), 'Scan is on its own page');
+  } finally { papers.dom.uninstall(); }
+  const scan = await page('scan');
+  try {
+    assertOnce(scan.state.root, 'scan');
+    assert.deepEqual(toolLinks(scan.state.root), ['https://scan.rahe-home.duckdns.org/']);
+  } finally { scan.dom.uninstall(); }
 });
 
-test('Home & network links AdGuard, Grafana and Uptime Kuma once, in the Open in row', async () => {
+// Uptime Kuma is retired in the tool list (kit 2.17, step 12 plan decision 5): no Open in row links it.
+test('Internet links AdGuard and Grafana once, in the Open in row, and not Uptime Kuma', async () => {
   const net = { orbi_ms: 3, att_ms: 5, wan_ms: 9, dns_ms: 4, win_ms: 2, status: 'ok' };
   const { dom, state } = await page('network', { '/api/home': { connected: false, message: 'x' }, '/api/now': { network: net }, '/api/network/adguard': { available: true, blocked: 1, queries: 9, protection: true } });
   try {
     assertOnce(state.root, 'network');
-    for (const h of ['adguard.', 'network.', 'status.']) assert.ok(toolLinks(state.root).some((u) => u.startsWith(`https://${h}`)), h);
-    // Uptime Kuma's root is its login; the link keeps the public status page it always had.
+    for (const h of ['adguard.', 'network.']) assert.ok(toolLinks(state.root).some((u) => u.startsWith(`https://${h}`)), h);
     const row = state.root.querySelector('.open-in').querySelectorAll('a').map((a) => a.getAttribute('href'));
-    assert.ok(row.includes('https://status.rahe-home.duckdns.org/status/home'), `Kuma link keeps status/home: ${row}`);
+    assert.deepEqual(row.filter((u) => u.startsWith('https://status.')), [], `no Uptime Kuma link: ${row}`);
   } finally { dom.uninstall(); }
 });
 
