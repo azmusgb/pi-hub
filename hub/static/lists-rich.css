@@ -11,7 +11,7 @@
 .page-lists > .ui-tabs .count {
   min-width: 1.4rem;
   padding: 0 0.4rem;
-  border-radius: 10px;
+  border-radius: var(--ui-r-3);
   background: var(--ui-text);
   color: var(--ui-bg);
   font-size: var(--ui-fs-2);
@@ -22,19 +22,19 @@
 .add-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  gap: var(--ui-s-2);
+  margin-bottom: var(--ui-s-5);
 }
 .add-bar input[type="text"] {
   flex: 1;
-  padding: 0.75rem 1rem;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line-strong);
-  background: var(--surface-2);
+  padding: var(--ui-s-3) var(--ui-s-4);
+  border-radius: var(--ui-r-4);
+  border: 1px solid var(--ui-line-2);
+  background: var(--ui-surface);
 }
 .add-bar .primary {
-  padding: 0 1.5rem;
-  border-radius: var(--r-md);
+  padding: 0 var(--ui-s-5);
+  border-radius: var(--ui-r-4);
 }
 
 /* Checklist Items */
@@ -44,25 +44,25 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--ui-s-2);
 }
 .list-card .item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  transition: background 0.2s;
+  gap: var(--ui-s-3);
+  padding: var(--ui-s-3) var(--ui-s-4);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-4);
+  transition: background var(--ui-dur-1) var(--ui-ease);
 }
 .list-card .item:hover {
-  background: var(--surface-3);
+  background: var(--ui-surface-2);
 }
 .list-card .item input[type="checkbox"] {
   width: 1.25rem;
   height: 1.25rem;
-  accent-color: var(--accent);
+  accent-color: var(--ui-accent);
   cursor: pointer;
 }
 .list-card .item label {
@@ -75,20 +75,20 @@
 }
 .list-card .item.done label {
   text-decoration: line-through;
-  color: var(--text-3);
+  color: var(--ui-muted);
 }
 .list-card .item .due {
-  font-size: 0.75rem;
-  color: var(--text-3);
+  font-size: var(--ui-fs-1);
+  color: var(--ui-muted);
 }
 
 /* Remove Buttons (Subtle) */
 .list-card .remove-btn,
 .list-card .note-remove {
   opacity: 0.4;
-  transition: opacity 0.2s;
-  padding: 0.25rem 0.5rem;
-  font-size: 1rem;
+  transition: opacity var(--ui-dur-1) var(--ui-ease);
+  padding: var(--ui-s-1) var(--ui-s-2);
+  font-size: var(--ui-fs-4);
   line-height: 1;
 }
 .list-card .item:hover .remove-btn,
@@ -97,44 +97,44 @@
 }
 .list-card .remove-btn:hover,
 .list-card .note-remove:hover {
-  color: var(--danger);
+  color: var(--ui-bad);
 }
 
 /* Note Cards */
 .list-card .note-card {
   position: relative;
   padding: 1.25rem;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  margin-bottom: 0.75rem;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-4);
+  margin-bottom: var(--ui-s-3);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
+  gap: var(--ui-s-4);
 }
 .list-card .note-text {
   margin: 0;
   white-space: pre-wrap;
   font-size: 0.9375rem;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--ui-text);
 }
 
 /* Empty State */
 .empty-state {
   text-align: center;
-  padding: 3rem 1rem;
-  background: var(--surface-2);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--r-md);
+  padding: var(--ui-s-7) var(--ui-s-4);
+  background: var(--ui-surface);
+  border: 1px dashed var(--ui-line-2);
+  border-radius: var(--ui-r-4);
 }
 .empty-state .empty-title {
   font-weight: 600;
-  color: var(--text-2);
-  margin: 0 0 0.25rem;
+  color: var(--ui-muted);
+  margin: 0 0 var(--ui-s-1);
 }
 
-.page-lists > .ui-tabs { max-width: 800px; margin: 0 0 1.5rem; }
+.page-lists > .ui-tabs { max-width: 800px; margin: 0 0 var(--ui-s-5); }
 .add-bar .remind-toggle, .add-bar .remind-row { grid-column: 1 / -1; }
 .list-card .remove-btn, .list-card .note-remove { opacity: 1; min-width: 44px; min-height: 44px; }

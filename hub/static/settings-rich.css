@@ -3,7 +3,7 @@
 .auth-box {
   width: 100%;  /* inside .stack's grid it otherwise shrinks to its narrowest word (one word per line on a phone) */
   max-width: 440px;
-  margin: 4rem auto;
+  margin: var(--ui-s-8) auto;
 }
 
 .settings-group {
@@ -17,7 +17,7 @@
 .settings-group .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-  gap: 1.5rem;
+  gap: var(--ui-s-5);
   align-items: start;
 }
 .settings-group .cards > .card {
@@ -30,12 +30,12 @@
 /* Fix the jump nav chips */
 .jump {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--ui-s-2);
   flex-wrap: wrap;
-  margin-top: 1rem;
-  margin-bottom: 2rem;
+  margin-top: var(--ui-s-4);
+  margin-bottom: var(--ui-s-6);
 }
 .jump .chip {
-  background: var(--surface-3);
-  padding: 0.5rem 1rem;
+  background: var(--ui-surface-2);
+  padding: var(--ui-s-2) var(--ui-s-4);
 }

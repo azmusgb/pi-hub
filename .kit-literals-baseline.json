@@ -1,5 +1,5 @@
 {
-  "kit": "2.20.0",
+  "kit": "2.21.0",
   "files": {
     "hub/static/ambient.css": {
       "colour": 22,
@@ -87,16 +87,12 @@
       "layer": 1
     },
     "hub/static/lists-rich.css": {
-      "type": 4,
-      "space": 16,
-      "radius": 1,
-      "motion": 2
+      "type": 2,
+      "space": 3
     },
     "hub/static/movies-print-rules-alerts-rich.css": {
-      "type": 6,
-      "space": 10,
-      "radius": 1,
-      "motion": 2
+      "type": 2,
+      "space": 1
     },
     "hub/static/movies.css": {
       "colour": 22,
@@ -123,7 +119,7 @@
       "radius": 4
     },
     "hub/static/settings-rich.css": {
-      "space": 8
+      "space": 2
     },
     "hub/static/workshop-pi-rich.css": {
       "colour": 14,
