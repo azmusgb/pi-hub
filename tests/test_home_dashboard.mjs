@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { install, text } from "./helpers/fake_dom.mjs";
+import "./helpers/kit.mjs";
 import { clockTime } from "../hub/static/js/core.js";
 import { bandFits, bandLayout, countItems, dialHit, dialLayout, dialWords, markWhen, needMark, needsOrder, rackRows, otherFine }
   from "../hub/static/js/home-dashboard.js";
@@ -471,9 +472,6 @@ test("the closing list holds only fine records the rack doesn't show", () => {
 
 test("Home renders the band, Needs you and the rack, with no camera", async () => {
   const env = install();
-  const kit = { exports: {} };
-  new Function("module", readFileSync(new URL("../hub/static/ui/needs.js", import.meta.url), "utf8"))(kit);
-  globalThis.ApplianceNeeds = kit.exports;
   try {
     const { mountDashboard, renderDashboard, leaveDashboard } = await import("../hub/static/js/home-dashboard.js");
     const state = {};
@@ -491,15 +489,12 @@ test("Home renders the band, Needs you and the rack, with no camera", async () =
     leaveDashboard(state);
     assert.equal(state.hd, null);
     renderDashboard(state, { today: d }, () => {});  // a read that lands after leaving draws nothing
-  } finally { env.uninstall(); delete globalThis.ApplianceNeeds; }
+  } finally { env.uninstall(); }
 });
 
 const kitInstall = () => {
   const env = install();
-  const kit = { exports: {} };
-  new Function("module", readFileSync(new URL("../hub/static/ui/needs.js", import.meta.url), "utf8"))(kit);
-  globalThis.ApplianceNeeds = kit.exports;
-  return { env, done() { env.uninstall(); delete globalThis.ApplianceNeeds; } };
+  return { env, done() { env.uninstall(); } };
 };
 
 test("Needs you never says all clear when its sources didn't answer, and leaves the badge alone with no list", async () => {
