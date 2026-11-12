@@ -1,6 +1,6 @@
 # Amendment A22: One site
 
-Date: 2026-11-11 · Status: **draft for the owner's review**, open questions settled under O7 (not approved, not committed) · Amends: the platform
+Date: 2026-11-11 · Status: **approved by the owner on 11 Nov 2026** ("merge 230", pi-hub #230), with the open questions settled under O7 · Amends: the platform
 baseline (`2026-11-01-platform-product-architecture-design.md`) sections 5.1, 5.2, 5.3, 5.6 and 9; A4 (who draws the
 Assistant's navigation, and its requirements 5, 6, 7 and 8); A6 decisions 1, 2, 6 and 11 (areas, strips, Settings'
 groups, Site map); A7 P1 (what the page title says). Builds A15 as approved. Adds migration steps 11 to 16.
@@ -50,6 +50,7 @@ works today keeps working or redirects.
 | O4 | Uptime Kuma is retired. | "retire kuma" |
 | O5 | Homebox has no settled value. | "homebox was just something i looked at - not sure of value" |
 | O7 | The open questions are settled by this spec's recommendations, on the site's functions and roadmap. | "proceed as you recommend based on the functionalities, roadmap, etc" |
+| O8 | A22 is approved and is to be built. | "build it - make it a thing of beauty", "merge 230" |
 | O6 | The Assistant's navigation and names may be changed by this spec without the Assistant session's sign-off. | "im granting you creative freedom" |
 
 ### Coordination
@@ -1340,8 +1341,7 @@ The owner asked for these to be settled by recommendation (O7). Each can still b
 
 ## Acceptance (for this amendment)
 
-- The owner has read the summary, the page list (3.3), the names (8.1) and the questions settled under O7, and said
-  yes or changed them.
+- The owner approved it on 11 Nov 2026 ("build it", then "merge 230").
 - The `## Amendments` list in the baseline names A22, and sections 5.1, 5.2, 5.3, 5.6 and 9 point to it.
 - Migration steps 11 to 16 are in section 11 of the baseline.
 - The Assistant's session has seen "Coordination" and section 2.5, and its answer is recorded here.
