@@ -341,6 +341,8 @@ test('signed out, Settings shows the sign-in and no tabs', async () => {
   try {
     assert.ok(state.root.querySelector('.auth-box'), 'the sign-in is shown');
     assert.equal(state.root.querySelector('[role="tablist"]').hidden, true);
+    // The kit's tabs set `display`, so the attribute alone would not hide the row.
+    assert.match(readFileSync(new URL('../hub/static/app.css', import.meta.url), 'utf8'), /\.ui-tabs\.settings-tabs\[hidden\] \{ display: none; \}/);
     assert.equal(state.root.querySelectorAll('.settings-group').length, 0);
     assert.equal(state.root.querySelector('.ui-faceplate'), null);
   } finally { dom.uninstall(); }
