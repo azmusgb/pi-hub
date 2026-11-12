@@ -3,7 +3,7 @@
 // under the input), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
 import { api, askFirst, fix, FIX_WHAT } from "./core.js";
 import { runPrinterAction, PRINTER_ACTIONS, PRINTER_DEPS } from "./printer-actions.js";
-import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
+import { assistantButton, assistantHref, resolveLink, SECTIONS, SERVER_PAGES, TOOLS, toolUrl } from "./sections.js";
 import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
 const PAGES = [
@@ -41,11 +41,25 @@ const FIXES = [
 const matches = (q, ...texts) => !q || texts.some((t) => String(t || "").toLowerCase().includes(q));
 const norm = (query) => String(query || "").trim().toLowerCase();
 
-// Go: Pi Hub's pages, each gated tool on its real name (from the registry), and the Assistant's door.
-export function goResults(query) {
+// The Assistant's row: the rail button's word for it, and that button's phrase as the hint while the PC is off or the
+// Assistant is down (A22 step 11). It adds no state of its own.
+function assistantRow(q, assistant) {
+  if (!matches(q, "assistant", "ask ai chat local ai")) return [];
+  const { disabled, label } = assistantButton(assistant?.state, assistant?.pc);
+  return [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant", ...(disabled ? { hint: label } : {}) }];
+}
+
+const areaTitle = (key) => SECTIONS.find((s) => s.key === key)?.title || "";
+
+// Go: Pi Hub's pages, the pages the server writes (Privacy), the Assistant, and each gated tool on its real name (from
+// the registry). `assistant` is the last /api/assistant answer, when there is one.
+export function goResults(query, assistant = null) {
   const q = norm(query);
-  const pages = PAGES.filter((p) => matches(q, p.label, p.area, p.keywords))
-    .map(({ label, href, area }) => ({ kind: "go", label, href, area }));
+  const pages = [
+    ...PAGES.filter((p) => matches(q, p.label, p.area, p.keywords)).map(({ label, href, area }) => ({ kind: "go", label, href, area })),
+    ...SERVER_PAGES.filter((p) => matches(q, p.label, p.keywords)).map(({ label, href, area }) => ({ kind: "go", label, href, area: areaTitle(area) })),
+    ...assistantRow(q, assistant),
+  ];
   const tools = TOOLS.filter((t) => !t.boundary && t.id !== "hub" && matches(q, t.name, t.purpose, t.id))
     .map((t) => ({ kind: "go", label: `Open ${t.name}`, hint: t.purpose, href: toolUrl(t.id), area: "Tools" }));
   return [...pages, ...tools];
@@ -132,19 +146,30 @@ function cached(load, ttl = 15_000) {
   };
 }
 
+// A result's address: the shell draws its own pages; a page the server writes is loaded whole. The kit's palette hands
+// over the resolved, absolute address, so the path is what's compared.
+export function paletteNavigate(href, { spa = navigateSpa, load = (h) => globalThis.location.assign(h) } = {}) {
+  let path = href;
+  try { path = new URL(href, "https://hub.invalid").pathname; } catch { /* not an address: let the shell answer it */ }
+  if (SERVER_PAGES.some((p) => p.href === path)) load(href); else spa(href);
+}
+
 export function hubProviders({ get = api } = {}) {
   const state = cached(async () => {
     const [r, n] = await Promise.all([get("/api/records").catch(() => null), get("/api/needs").catch(() => null)]);
     return { records: Array.isArray(r?.records) ? r.records : [], needs: n };
   });
-  const assistant = cached(() => get("/api/assistant").catch(() => null), 30_000);
+  // The Assistant's last answer, kept for the Pages provider: it never waits on the PC to list a page.
+  let lastAssistant = null;
+  const assistant = cached(() => get("/api/assistant").catch(() => null).then((a) => (lastAssistant = a)), 30_000);
+  assistant().catch(() => {});  // asked once up front, so the first search already knows
   const ask = { name: "Assistant", down: "The Assistant isn't answering", timeout: 3000,
     async find(q) {
       try { return askResult(q, await assistant()); }
       catch (e) { if (e?.phrase) ask.down = e.phrase; throw e; }
     } };
   return [
-    { name: "Pages", find: (q) => goResults(q) },
+    { name: "Pages", find: (q) => { assistant().catch(() => {}); return goResults(q, lastAssistant); } },
     { name: "Pi Hub", down: "Pi Hub isn't answering", find: async (q) => {
       const { records, needs } = await state();
       return [...doResults(q, records), ...findResults(q, records, needs)];
@@ -163,7 +188,7 @@ export function initCommandPalette() {
   if (!Palette?.create) return;
   const palette = Palette.create({
     providers: hubProviders(),
-    navigate: navigateSpa,
+    navigate: paletteNavigate,
     recentKey: "pihub.palette.recent",
     label: "Search and go",
     placeholder: "Search, go to a page, run a fix, or ask the Assistant…",

@@ -87,6 +87,10 @@ export function assistantHref(host, title, facts) {  // eslint-disable-line no-u
   return `/assistant?context=${encodeURIComponent(text)}`;
 }
 
+// Pages the server writes whole, outside the shell (hub/app.py): they open without a sign-in and without the app. The
+// Site map and ⌘K list them so none is reachable only by knowing its address (A22); a link to one is a full page load.
+export const SERVER_PAGES = [{ href: "/privacy", label: "Privacy", area: "system", keywords: "privacy google drive backup consent data" }];
+
 // The phrase table's two unavailable states (section 9): `pc_off` when the `pc` record is off, `assistant_down` when
 // Local AI is down but the PC isn't known to be off. Either disables the button. "Unknown" isn't "off": it stays enabled.
 export const PHRASES = { pc_off: "The PC is off or asleep", assistant_down: "The Assistant isn't answering",
