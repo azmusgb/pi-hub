@@ -8,9 +8,9 @@ test('Open in: the label and one link per tool, with no separator text between t
   const dom = install();
   try {
     const { openInRow } = await import('../hub/static/js/section-links.js');
-    const row = openInRow('system');
+    const row = openInRow('health');  // a page's tools in the page list (A22 step 12): Cockpit and Healthchecks.io
     const links = row.querySelectorAll('a');
-    assert.ok(links.length >= 2, 'system has several tools');
+    assert.ok(links.length >= 2, 'Health has several tools');
     assert.doesNotMatch(row.textContent, /·/);
     assert.equal(row.childNodes.length, links.length + 1, 'the label, then only the links');
     assert.equal(row.childNodes[0].textContent, 'Open in');
