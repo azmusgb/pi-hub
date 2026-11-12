@@ -139,7 +139,7 @@ def test_bambuddy_allow_list():
     text = NFT.read_text()
     assert "table inet pi_lock {" in text and "table ip filter" not in text
     assert "hook forward priority filter - 1" in text and "hook input priority filter - 1" in text
-    want = sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.80", "10.0.0.81", "10.0.0.92", "10.0.0.124", "100.78.96.97", "100.109.178.34"])
+    want = sorted(["127.0.0.0/8", "172.16.0.0/12", "10.0.0.80", "10.0.0.81", "10.0.0.82", "10.0.0.124", "100.78.96.97", "100.109.178.34"])
     rules = [x for x in text.splitlines() if x.strip().endswith("drop")]
     # Docker's NAT path (forward, the port the caller dialled) and docker-proxy's own sockets (input), IPv4 and IPv6.
     fwd = next(x for x in rules if "ct original proto-dst 8000" in x and "ip saddr" in x)
