@@ -21,7 +21,7 @@ export function setupPlate(steps) {
   const done = steps.filter((x) => x[1]).length;
   const left = steps.filter((x) => !x[1]);
   return faceplate({
-    name: "Setup",
+    label: "Setup progress",
     lamp: left.length ? ["warn", `${left.length} step${left.length > 1 ? "s" : ""} left`] : ["ok", "All set"],
     readout: `${done} of ${steps.length}`, unit: "done",
     caption: left.length ? `Next: ${left[0][0].toLowerCase()}, ${left[0][3]}.` : "Everything the hub needs is connected.",

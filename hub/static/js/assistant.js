@@ -66,7 +66,7 @@ export function routeFrom(e, frameWindow) {
 
 const WHY = {
   pc_off: "The Assistant runs on the PC. Wake it, then try again.",
-  assistant_down: "Local AI on the PC didn't answer. Check the PC, then try again.",
+  assistant_down: "The Assistant on the PC didn't answer. Check the PC, then try again.",
 };
 
 function down(state, phrase, timedOut) {
@@ -91,7 +91,7 @@ async function tryAgain(state, button) {
 function open(state) {
   clearTimeout(state.timer);
   const frame = h("iframe", {
-    class: "assistant-frame", title: "Assistant (Local AI)", src: frameSrc(state.context),
+    class: "assistant-frame", title: "Assistant", src: frameSrc(state.context),
     allow: "clipboard-write", referrerpolicy: "origin",
   });
   state.frame = frame;

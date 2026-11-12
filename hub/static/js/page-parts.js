@@ -7,13 +7,14 @@ import { resolveLink } from "./sections.js";
 const lampChip = (lamp) => lamp ? h("span", { class: `ui-chip ui-chip--${lamp[0]}${lamp[2] ? " ui-chip--live" : ""}` }, lamp[1]) : null;
 const present = (v) => v !== null && v !== undefined && v !== "";
 
-// `lamp`: [tone, word, live?]; `readings`: [label, value] pairs, a missing value is left out; `actions`, `aside`: nodes.
-export function faceplate({ name, lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [] }) {
+// `name` is drawn on the nameplate and names the section; a faceplate with no name to draw (Settings, A22 2.3) passes
+// `label` for the section alone. `lamp`: [tone, word, live?]; `readings`: [label, value] pairs, a missing value is left out; `actions`, `aside`: nodes.
+export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [] }) {
   const rows = readings.filter(([, v]) => present(v));
   const acts = (actions || []).filter(Boolean);
-  return h("section", { class: aside ? "ui-faceplate ui-faceplate--aside" : "ui-faceplate", "aria-label": name },
+  return h("section", { class: aside ? "ui-faceplate ui-faceplate--aside" : "ui-faceplate", "aria-label": name || label },
     h("div", { class: "ui-faceplate__main" },
-      h("div", { class: "ui-faceplate__nameplate" }, h("span", {}, name), lampChip(lamp)),
+      h("div", { class: "ui-faceplate__nameplate" }, name ? h("span", {}, name) : null, lampChip(lamp)),
       present(readout) ? h("p", { class: size ? `ui-readout ui-readout--${size}` : "ui-readout" }, String(readout),
         unit ? h("span", { class: "ui-readout__unit" }, ` ${unit}`) : null) : null,
       present(caption) ? h("p", { class: "ui-faceplate__caption" }, caption) : null,
