@@ -1,31 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SECTIONS, sectionFor, redirectFor, phoneTabs, railItems, ASSISTANT_URL, toolUrl, resolveLink, assistantHref, assistantButton } from '../hub/static/js/sections.js';
+import { ASSISTANT_URL, toolUrl, resolveLink, assistantHref, assistantButton } from '../hub/static/js/sections.js';
+import { SITE, sectionFor } from '../hub/static/js/site.js';
 
+const redirectFor = SITE.redirectFor;
+
+// A22 2.2 (step 12): five areas, read from the kit's page list. Documents and Media are Household; Home & network is
+// Network; the phone's tab bar shows the same five, so there is no More.
 test('one menu by task, in the design order', () => {
-  assert.deepEqual(SECTIONS.map((s) => s.title), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
-  assert.deepEqual(railItems(), ['home', 'workshop', 'documents', 'media', 'network', 'system']);
-  assert.deepEqual(phoneTabs(), ['home', 'workshop', 'documents', 'media', 'more']);
+  assert.deepEqual(SITE.areas.map((a) => a.label), ['Home', 'Workshop', 'Household', 'Network', 'System']);
+  assert.deepEqual(SITE.areas.map((a) => a.id), ['home', 'workshop', 'household', 'network', 'system']);
+  assert.deepEqual(SITE.areas.map((a) => SITE.page(a.landing).path), ['/', '/workshop', '/media', '/devices', '/system'], 'Household opens on Movies');
   assert.equal(ASSISTANT_URL, 'https://assistant.rahe-home.duckdns.org/');
 });
 
 test('every page belongs to a section', () => {
   const want = {
     '/': 'home', '/wall': 'home', '/weather': 'network', '/devices': 'network', '/map': 'system', '/workshop': 'workshop',
-    '/documents': 'documents', '/print': 'documents', '/lists': 'documents',
-    '/media': 'media', '/network': 'network',
-    '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'media', '/versions': 'system',
-    '/more': 'more', '/nowhere': 'home',
+    '/documents': 'household', '/print': 'household', '/lists': 'household', '/scan': 'household',
+    '/media': 'household', '/network': 'network',
+    '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'household', '/versions': 'system',
+    '/more': 'home', '/nowhere': 'home', '/assistant': 'assistant',
   };
   for (const [path, key] of Object.entries(want)) assert.equal(sectionFor(path), key, path);
 });
 
+// A22 section 10: /apps/status and /status go to Health (Uptime Kuma is retired), /apps/scan to the Scan page, /more to the Site map.
 test('old bookmarks land in the section where the tool now lives', () => {
   const want = {
-    '/movies': '/media', '/control': '/devices', '/pi': '/system', '/apps': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
-    '/apps/grafana': '/network', '/grafana': '/network', '/apps/status': '/network', '/status': '/network',
-    '/apps/scan': '/documents', '/workshop': null, '/': null, '/print': null,
+    '/movies': '/media', '/control': '/devices', '/pi': '/system', '/apps': '/', '/next': '/', '/apps/bambuddy': '/workshop', '/bambuddy': '/workshop',
+    '/apps/grafana': '/network', '/grafana': '/network', '/apps/status': '/system', '/status': '/system',
+    '/apps/scan': '/scan', '/more': '/map', '/workshop': null, '/': null, '/print': null, '/scan': null,
   };
   for (const [path, to] of Object.entries(want)) assert.equal(redirectFor(path), to, path);
 });
@@ -34,7 +40,7 @@ test('the menu markup matches the sections', () => {
   const html = readFileSync(new URL('../hub/static/index.html', import.meta.url), 'utf8');
   const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
   const pages = [...nav.matchAll(/data-page="(\w+)"/g)].map((m) => m[1]);
-  assert.deepEqual(pages, [...railItems(), 'more']);
+  assert.deepEqual(pages, SITE.areas.map((a) => a.id), 'the five areas and nothing else: no More');
   assert.ok(nav.includes('class="rail-assistant" href="/assistant" data-link'), 'Assistant at the rail foot, in the shell (A4)');
   assert.ok(!/data-page="[^"]*"[^>]*>[^<]*<span class="nav-badge"/.test(nav));
 });
