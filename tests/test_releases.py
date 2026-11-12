@@ -331,6 +331,33 @@ def test_newer_display_is_ahead():
     assert (r["state"], r["headline"]) == ("ahead", "The display runs bbbbbbb, newer than the published aaaaaaa")
 
 
+def test_a_later_build_of_the_same_version_is_ahead_not_behind():
+    # 12 Nov 2026: 12.9.0 was published from 076c460 and the display ran 4d52dc3, a later commit on main with the same
+    # version number. The record said "behind". The publish hook now lists the commits after the published one.
+    r = releases.valid("firmware", {**report(commit=A, mechanism="ota-hook", version="12.9.0"), "newer": [C[:12], B[:12]]}, T + 10)
+    assert r is not None and r["newer"] == [C[:12], B[:12]]
+    releases.put("firmware", r, T + 10)
+    ahead = releases.verify_firmware(T + 20, {"sourceSha": B, "version": "12.9.0"})
+    assert (ahead["state"], ahead["severity"]) == ("ahead", "info")
+    assert ahead["headline"] == "The display runs bbbbbbb, newer than the published aaaaaaa"
+    # A commit the hook did not list is still behind: the hub never guesses an order.
+    other = releases.verify_firmware(T + 30, {"sourceSha": "d" * 40, "version": "12.9.0"})
+    assert (other["state"], other["headline"]) == ("behind", "Published aaaaaaa; the display runs ddddddd")
+    # The next publish replaces the list: what was newer than the old release says nothing about the new one.
+    publish(commit=C, version="12.9.1", now=T + 40)
+    assert records.get("release:firmware")["detail"]["newer"] == []
+    assert releases.verify_firmware(T + 50, {"sourceSha": B, "version": "12.9.0"})["state"] == "behind"
+
+
+@pytest.mark.parametrize("newer", ["abc1234", ["not a sha"], [A, 7], ["a" * 12] * 201])
+def test_a_bad_newer_list_is_refused(newer):
+    assert releases.valid("firmware", {**report(mechanism="ota-hook", version="12.9.0"), "newer": newer}, T + 10) is None
+
+
+def test_only_the_firmware_may_list_newer_commits():
+    assert releases.valid("pi-hub", {**report(), "newer": [B[:12]]}, T + 10) is None
+
+
 def test_no_heartbeat_keeps_state():
     publish()
     live = releases.verify_firmware(T + 20, {"sourceSha": A, "version": "12.7.1"})

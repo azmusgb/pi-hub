@@ -12,7 +12,7 @@ INBOX=/var/lib/pi-hub-releases/inbox
 report() {  # dir new: the publish's report for release:firmware; it never fails the push
   tmp=$(mktemp) || return 0
   if python3 - "$1/releases/device-update.json" "$2" > "$tmp" <<'PY'
-import json, re, sys
+import json, re, subprocess, sys
 from datetime import datetime, timezone
 manifest, pushed = sys.argv[1:]
 try:
@@ -27,6 +27,19 @@ body = {"target": "firmware", "commit": commit, "result": "deployed", "at": date
         "mechanism": "ota-hook", "message": f"Published Workshop OS {version} (publish {pushed[:7]})"[:200]}
 if re.fullmatch(r"[0-9A-Za-z.+-]{1,32}", version):
     body["version"] = version
+# newer: the commits on main after the source commit, so the hub can tell a display that runs a later build of the
+# same version (ahead) from one that runs something older (behind). Left out when git can't say.
+def git(*args):
+    try:
+        return subprocess.run(["git", *args], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+known = git("merge-base", "--is-ancestor", commit, pushed)
+if known is not None and known.returncode == 0:
+    listed = git("rev-list", "--max-count=200", f"{commit}..{pushed}")
+    newer = [c[:12] for c in listed.stdout.split()] if listed is not None and listed.returncode == 0 else []
+    if newer and all(re.fullmatch(r"[0-9a-f]{12}", c) for c in newer):
+        body["newer"] = newer
 json.dump(body, sys.stdout)
 PY
   then
