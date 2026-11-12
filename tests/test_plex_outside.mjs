@@ -12,19 +12,19 @@ import { siteMap } from '../hub/static/js/map.js';
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const FRONT = 'https://app.plex.tv/desktop';
 
-test('Plex is in the registry as an outside tool of Media, at app.plex.tv/desktop', () => {
+test('Plex is in the registry as an outside tool of Household (Media until step 12), at app.plex.tv/desktop', () => {
   const plex = TOOLS.find((t) => t.id === 'plex');
   assert.ok(plex);
   assert.equal(plex.host, 'app.plex.tv');
   assert.equal(plex.external, true);
-  assert.equal(plex.area, 'media');
-  assert.deepEqual(toolsFor('media').map((t) => t.id), ['plex']);
+  assert.equal(plex.area, 'household');
+  assert.ok(toolsFor('household').some((t) => t.id === 'plex'));
   assert.equal(toolUrl('plex'), FRONT);
 });
 
 test('Plex has a palette entry and a place on the Site map', () => {
   assert.equal(goResults('plex').find((r) => r.label === 'Open Plex')?.href, FRONT);
-  assert.deepEqual(siteMap().find((g) => g.key === 'media').tools.map((t) => t.id), ['plex']);
+  assert.ok(siteMap().find((g) => g.key === 'household').tools.some((t) => t.id === 'plex'));
 });
 
 test('a movie links to its page in Plex by the server id and the rating key; with no server id it is the front door', async () => {
