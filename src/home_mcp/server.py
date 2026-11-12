@@ -11,7 +11,7 @@ from . import deploy, hub, logs, shell
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
 INSTRUCTIONS = (
-    "Read-only views of the home systems. The Pi Hub (Raspberry Pi, 10.0.0.30) runs the household dashboard, "
+    "Read-only views of the home systems. The Pi Hub (Raspberry Pi, 10.0.0.80) runs the household dashboard, "
     "printer telemetry for the Bambu X2D, and the Pi's services. Start with hub_now for what needs attention, then "
     "printer_status, pi_health, source_freshness or recent_alerts for detail. Before any Pi Hub or Local AI deploy, "
     "call deploy_state and stop if it lists blockers. logs reads bounded, redacted logs from a fixed list of "
