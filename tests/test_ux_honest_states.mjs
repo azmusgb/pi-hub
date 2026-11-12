@@ -49,16 +49,22 @@ test('Health says the checks failed once: the status line is for screen readers,
 });
 
 test("System's strip pages are headed by their own names (A22 2.3); the tab title says the page and the area", async () => {
-  const { pageHeading } = await import('../hub/static/js/system-strip.js');
-  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'Health', title: 'Health · System' });
-  assert.deepEqual(pageHeading('/backups', 'Backups'), { heading: 'Backups', title: 'Backups · System' });
-  assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
-  assert.match(read('hub/static/js/main.js'), /pageHeading\(path, page\.title\)/);
+  // Step 12: the heading and the tab title are read from the page list (site.js); /more is no longer a page.
+  const { SITE } = await import('../hub/static/js/site.js');
+  const heading = (path) => { const { heading: h, title } = SITE.headingFor(path); return { heading: h, title }; };
+  assert.deepEqual(heading('/system'), { heading: 'Health', title: 'Health · System' });
+  assert.deepEqual(heading('/backups'), { heading: 'Backups', title: 'Backups · System' });
+  assert.equal(SITE.headingFor('/more'), null);
+  assert.match(read('hub/static/js/main.js'), /SITE\.headingFor\(path\)/);
 });
 
-test('every strip shows all its entries, wrapping, none hidden off the edge (A7: the underlined strip; A10: at any width)', () => {
+// Step 12: Household has six pages, and A22 2.2 puts Papers second "so it is on screen at 320 px without scrolling":
+// every strip is one line that scrolls, as System's has been since A10 decision 16, and a faded edge says more is past it.
+test('every strip keeps one line and scrolls; a faded edge hints the entries past it (A22 2.2)', () => {
   const css = read('hub/static/app.css');
-  assert.match(css, /^\.ui-strip\.page-strip \{[^}]*flex-wrap: wrap;[^}]*overflow: visible/m);
+  assert.match(css, /^\.ui-strip\.page-strip \{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto/m);
+  assert.doesNotMatch(css, /\.ui-strip\.page-strip[^{]*\{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.ui-strip\.page-strip\[data-more="end"\] \{ mask-image:/);
 });
 
 test('the Bambuddy notice: said once when it goes down, recovery said once, then cleared without a word', async () => {
