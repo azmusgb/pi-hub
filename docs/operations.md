@@ -249,6 +249,43 @@ their rotation, every failure message with its next action, backup, rollback (`H
 [`docs/quick-print.md`](quick-print.md). It is accepted only when the owner-attended print (plan P10) is recorded here as
 "Accepted <date>" with its evidence.
 
+## One site (A22)
+
+Amendment A22 (`docs/superpowers/specs/2026-11-11-amendment-a22-one-site.md`) is built as baseline steps 11 to 16.
+Each step is recorded here when the owner has looked at it live. Pi Hub has run `793c248` since 12 November 2026
+(release verified on the Pi; the shell cache is `pi-hub-shell-v203`).
+
+### Step 11 (quick wins): Pi Hub half accepted 12 November 2026, Assistant half not yet
+
+Plan: `docs/superpowers/plans/2026-11-11-step-11-one-site-quick-wins.md`. The step is accepted when both halves are
+recorded.
+
+- **Pi Hub half, Accepted 12 Nov 2026.** After the deploy of `793c248` the owner looked at the live pages and
+  answered "Looks right, record it" (plan O4; criteria 1, 5 and 6). What the look covers: each page headed by its own
+  name, Assistant and Privacy in ⌘K, "Wall display" on the wall's tab. Evidence: pi-hub #232, #233 and #234, the
+  route-title test, and the owner's look.
+- **Assistant half: merged, not shipped, not accepted.** The Assistant's labels (LocalAI #529) are on its `main` and
+  passed local CI; they are live only after `npm run ship`. Criteria 2, 3 and 4 (the seven labels, a hidden view
+  through ⌘K, `/api/lab/projects` answering 404) are recorded here after that ship and the owner's look.
+
+### Step 12 (page list and frame): accepted 12 November 2026
+
+Plan: `docs/superpowers/plans/2026-11-12-step-12-page-list-and-frame.md`.
+
+**Step 12 accepted 12 Nov 2026.** With H4 (#237) and H5 (#238) live in `793c248`, the owner looked at the live pages
+on their own phone and answered "Looks right, record it" (plan O3; criteria 5 and 6). The plan's look: five tabs and
+no More; Movies in one tap, Papers in two, Health in one; Scan from Household's strip; the same five areas in the
+desktop rail; ⌘K and the Site map listing every page under its area; an old address landing where A22 section 10 says.
+The owner's answer was given for the look as a whole, not item by item.
+
+Evidence beside the look:
+
+- **Criterion 1 (five tabs, no More):** the live page serves five `data-page` areas; `tests/browser/tabbar.mjs`
+  checks the labels fit at 320 px at three text sizes.
+- **Criteria 2 to 4 (every page from its strip, ⌘K and the Site map; aliases redirect; one label, four places):**
+  `tests/test_pages_list.mjs`, which reads the kit's `pages.json` (appliance-ui #33 and #34, kit 2.18.0).
+- **The release:** the Pi's own run before it went live, 1931 passed and 1 skipped, plus the JS suite.
+
 ## Phone alerts (ntfy)
 
 Alerts go to the household topic in `/etc/pi-status/ntfy_topic`, on every server listed in `/etc/pi-status/ntfy_servers` (one URL per line; ntfy.sh when the file is missing). Pi Hub, pi-status and Bambuddy all publish there.
