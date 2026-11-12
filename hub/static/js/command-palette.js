@@ -3,7 +3,7 @@
 // under the input), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
 import { api, askFirst, fix, FIX_WHAT } from "./core.js";
 import { runPrinterAction, PRINTER_ACTIONS, PRINTER_DEPS } from "./printer-actions.js";
-import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
+import { assistantButton, assistantHref, phrase, resolveLink, TOOLS, toolUrl } from "./sections.js";
 import { SITE } from "./site.js";
 import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
@@ -173,7 +173,7 @@ export function hubProviders({ get = api } = {}) {
   let lastAssistant = null;
   const assistant = cached(() => get("/api/assistant").catch(() => null).then((a) => (lastAssistant = a)), 30_000);
   assistant().catch(() => {});  // asked once up front, so the first search already knows
-  const ask = { name: "Assistant", down: "The Assistant isn't answering", timeout: 3000,
+  const ask = { name: "Assistant", down: phrase("assistant_down"), timeout: 3000,
     async find(q) {
       try { return askResult(q, await assistant()); }
       catch (e) { if (e?.phrase) ask.down = e.phrase; throw e; }
