@@ -3,7 +3,7 @@
 import { h } from "./core.js";
 import { faceplate } from "./page-parts.js";
 import ROUTES from "./routes.js";
-import { SECTIONS, toolUrl } from "./sections.js";
+import { SECTIONS, SERVER_PAGES, toolUrl } from "./sections.js";
 import { STRIPS } from "./system-strip.js";
 import { TOOLS } from "../ui/tools.js";
 import { ASSISTANT_PAGES, addressFor } from "./assistant.js";
@@ -30,7 +30,9 @@ export function siteMap(routes = ROUTES, tools = TOOLS) {
     const pages = s.pages.filter((p) => routes.pages.includes(p));
     pages.forEach((p) => placed.add(p));
     const mine = tools.filter((t) => t.area === s.key && !t.boundary);
-    return { key: s.key, title: s.title, path: s.path, pages: pages.map(named), tools: mine };
+    // A page the server writes (Privacy) follows its area's own pages; `plain` marks a full page load, not a shell page.
+    const served = SERVER_PAGES.filter((p) => p.area === s.key).map(({ href, label }) => ({ href, label, plain: true }));
+    return { key: s.key, title: s.title, path: s.path, pages: [...pages.map(named), ...served], tools: mine };
   });
   const loose = routes.pages.filter((p) => !placed.has(p));
   const used = new Set(groups.flatMap((g) => g.tools.map((t) => t.id)));
@@ -99,7 +101,7 @@ function areaSection(g) {
     h("p", { class: "meta" }, g.machine ? "Used by the workshop display" : [plural(g.pages.length, "page"), plural(g.tools.length, "tool")].filter(Boolean).join(", ")));
   const run = h("ol", { class: "map-run", "aria-labelledby": id }, g.pages.map((p) =>
     h("li", { dataset: { find: findText(p.label, p.href) } },
-      h("a", { class: "map-stop", href: p.href, "data-link": true, "aria-current": p.href === here ? "page" : null },
+      h("a", { class: "map-stop", href: p.href, "data-link": p.plain ? null : true, "aria-current": p.href === here ? "page" : null },
         h("strong", {}, p.label), " ", h("span", { class: "meta" }, p.href)))));
   const out = h("ul", { class: "map-out", "aria-label": `${g.title}: tools that open in a new tab` },
     g.tools.length ? g.tools.map((t) => {
