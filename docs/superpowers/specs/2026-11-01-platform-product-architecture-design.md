@@ -858,6 +858,17 @@ it depends on are done. Steps on different lines can run in parallel.
 9. **`real-names` PR 5 with D4's scope**, after 8, so the display does not depend on a retired path. The D4 exit
    condition is a later firmware release of its own.
 10. **Atlas on release records (6.4)**, after 3.
+11. **One site: quick wins (amendment A22, brief 1).** Titles name the page, the label fixes, and the Assistant's
+    leftover lab code. Independent of 2-10.
+12. **One site: the page list and the shared frame (A22, brief 2).** `pages.json` in the kit, five areas, the
+    generated rail, tab bar, strips, ⌘K and Site map. After 11.
+13. **One site: the shared values and the check (A22, brief 3).** The kit's added values, both apps on one
+    `tokens.css`, the ratchet check. Its first PR per repo can follow the kit release; the rest runs beside 14-16.
+14. **One site: the Assistant as content (A22, brief 4).** One section at a time, LocalAI then Pi Hub. After 12 and
+    after LocalAI takes the current kit (13's first PR there).
+15. **One site: absorb (A22, brief 5).** One linked app per PR, Uptime Kuma retired, Print lab's three tabs. After 12.
+16. **One site: sign-in and the nightly check (A22, brief 6).** A15 built, second passwords removed by the owner,
+    the nightly screenshot check on the Mac. After 15.
 
 D9 (forge) and C1 (off-site backup, section 12) are not in this sequence. Neither blocks it. Step 2's
 `home-platform-alive` check exists before C1; C1 adds `offsite-backup`.
@@ -1100,3 +1111,10 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   screen in three bars on the picture, a drag frames the zoomed camera, looks are chips with Auto first, and the panel
   shows one of Light, Colour or Detail at a time. Leaving Adjust keeps unsaved changes running. Amends A20 D5.
   Approved by the owner on 9 Nov 2026 (pi-hub #218).
+- **A22. One site** (`2026-11-11-amendment-a22-one-site.md`): Pi Hub alone draws the menu, page title, search and
+  phone tabs, and the Assistant's pages show inside it as content. Five areas, all on the phone bar (Home, Workshop,
+  Household, Network, System), one page list (`pages.json` in the kit) with tests that keep labels, headings and
+  addresses matching, kit values only with a ratchet check, linked apps kept as they are with their everyday jobs on
+  Pi Hub pages (Uptime Kuma retired), Pi Hub's own sign-in, and one home for print-lab. Amends sections 5.1, 5.2, 5.3,
+  5.6 and 9, A4 (requirements 5 to 8), A6 decisions 1, 2, 6 and 11, and A7 P1; adds migration steps 11 to 16.
+  Approved by the owner on 11 Nov 2026 ("merge 230", pi-hub #230).
