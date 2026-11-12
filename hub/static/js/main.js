@@ -59,8 +59,8 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 // Every page the shell draws; routes.js lists the same paths for the server, and a test keeps the two equal.
 const PAGES = {
   "/": { key: "now", title: "Home", mod: nowPage },
-  "/wall": { key: "now", title: "Wall", mod: nowPage },
-  "/workshop": { key: "workshop", title: "Workshop", mod: workshopPage },
+  "/wall": { key: "now", title: "Wall display", mod: nowPage },
+  "/workshop": { key: "workshop", title: "Printer", mod: workshopPage },
   "/lab": { key: "workshop", title: "Print lab", mod: labPage },
   "/quick": { key: "workshop", title: "Quick Print", mod: quickPage },
   "/print": { key: "print", title: "Print", mod: printPage },
@@ -278,7 +278,7 @@ async function show(path, { focus = false } = {}) {
   const shown = current;
   tick();
   const { heading, title } = pageHeading(path, page.title);
-  document.title = `${wallMode ? "Wall" : title} · Pi Hub`;
+  document.title = `${wallMode ? "Wall display" : title} · Pi Hub`;
   document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {

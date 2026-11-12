@@ -48,10 +48,10 @@ test('Health says the checks failed once: the status line is for screen readers,
   assert.match(src, /The help guides below still work\./);
 });
 
-test("System's strip pages are headed System; the strip and the tab title say which page", async () => {
+test("System's strip pages are headed by their own names (A22 2.3); the tab title says the page and the area", async () => {
   const { pageHeading } = await import('../hub/static/js/system-strip.js');
-  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'System', title: 'Health · System' });
-  assert.deepEqual(pageHeading('/backups', 'Backups'), { heading: 'System', title: 'Backups · System' });
+  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'Health', title: 'Health · System' });
+  assert.deepEqual(pageHeading('/backups', 'Backups'), { heading: 'Backups', title: 'Backups · System' });
   assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
   assert.match(read('hub/static/js/main.js'), /pageHeading\(path, page\.title\)/);
 });

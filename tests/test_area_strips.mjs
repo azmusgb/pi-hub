@@ -53,11 +53,36 @@ test('the strip marks the current page and nothing else, on every strip page', (
   for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripItems(path), null, path);
 });
 
-test('a strip page is headed by its area; the tab names the page', () => {
-  assert.deepEqual(pageHeading('/documents', 'Papers'), { heading: 'Documents', title: 'Papers · Documents' });
-  assert.deepEqual(pageHeading('/drives', 'Drives'), { heading: 'Media', title: 'Drives · Media' });
-  assert.deepEqual(pageHeading('/weather', 'Weather'), { heading: 'Home & network', title: 'Weather · Home & network' });
-  assert.deepEqual(pageHeading('/map', 'Site map'), { heading: 'System', title: 'Site map · System' });
+// A22 2.3 (amending A7 P1): the heading is the page's own name, the same word as its strip entry. The area is shown by
+// position (the rail and the strip) and in the browser tab.
+test('a strip page is headed by its own name; the tab names the page and its area', () => {
+  assert.deepEqual(pageHeading('/documents', 'Papers'), { heading: 'Papers', title: 'Papers · Documents' });
+  assert.deepEqual(pageHeading('/drives', 'Drives'), { heading: 'Drives', title: 'Drives · Media' });
+  assert.deepEqual(pageHeading('/weather', 'Weather'), { heading: 'Weather', title: 'Weather · Home & network' });
+  assert.deepEqual(pageHeading('/map', 'Site map'), { heading: 'Site map', title: 'Site map · System' });
+});
+
+// The pages main.js draws, read from its source (importing it would start the app): path -> title.
+const pageTitles = () => new Map([...read('hub/static/js/main.js')
+  .matchAll(/^  "(\/[a-z]*)": \{ key: "[a-z-]+", title: "([^"]+)"/gm)].map((m) => [m[1], m[2]]));
+
+test("every page's title is its strip word, and no page is headed by its area (A22 brief 1)", () => {
+  const titles = pageTitles();
+  assert.deepEqual([...titles.keys()].sort(), [...ROUTES.pages].sort(), 'main.js draws exactly the pages routes.js lists');
+  for (const path of ROUTES.pages) {
+    const strip = stripFor(path), title = titles.get(path);
+    const { heading } = pageHeading(path, title);
+    if (!strip) { assert.equal(heading, title, path); continue; }
+    const own = strip.items.find((i) => i.current).label;
+    assert.equal(title, own, `${path}: main.js titles it "${title}", its strip says "${own}"`);
+    assert.equal(heading, own, path);
+    assert.notEqual(heading, strip.label, `${path} is headed by its area`);
+  }
+});
+
+test('the wall is the Wall display, in its title and its tab', () => {
+  assert.equal(pageTitles().get('/wall'), 'Wall display');
+  assert.match(read('hub/static/js/main.js'), /wallMode \? "Wall display" : title/);
 });
 
 test('Home & network is /devices and /network; Weather moved into it; the old addresses still land', () => {
