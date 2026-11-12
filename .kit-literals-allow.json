@@ -1,0 +1,4 @@
+{
+  "files": ["hub/static/vendor/**"],
+  "names": ["--pct", "--x", "--y", "--size", "--vx", "--vy", "--vz", "--box", "--wall-*", "--cam-*", "--band-accent"]
+}
