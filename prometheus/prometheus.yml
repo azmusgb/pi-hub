@@ -19,7 +19,7 @@ scrape_configs:
   - job_name: "windows"
     scrape_interval: 30s
     static_configs:
-      - targets: ["10.0.0.21:9182"]
+      - targets: ["10.0.0.81:9182"]
         labels:
           role: "workstation"
           name: "Windows 11 Workstation"
@@ -127,7 +127,7 @@ scrape_configs:
       module: [icmp]
     scrape_interval: 30s
     static_configs:
-      - targets: ["10.0.0.21"]
+      - targets: ["10.0.0.81"]
         labels:
           role: "workstation"
           name: "Windows 11 Workstation"
@@ -154,15 +154,15 @@ scrape_configs:
       module: [tcp_connect]
     scrape_interval: 60s
     static_configs:
-      - targets: ["10.0.0.21:22"]
+      - targets: ["10.0.0.81:22"]
         labels:
           service: "ssh"
           name: "Windows SSH (22)"
-      - targets: ["10.0.0.21:445"]
+      - targets: ["10.0.0.81:445"]
         labels:
           service: "smb"
           name: "Windows SMB Share (445)"
-      - targets: ["10.0.0.21:80"]
+      - targets: ["10.0.0.81:80"]
         labels:
           service: "web"
           name: "Windows Local AI Web (80)"

@@ -7,7 +7,7 @@
 #   3. Netmon configs: Docker compose, Prometheus, Grafana, scripts, inventory
 #   4. System service definitions & fstab
 # Bundles into a dated tarball, retains 14 days locally on SSD, and
-# synchronizes off-Pi to Windows share: //10.0.0.21/Movies/netmon-backups.
+# synchronizes off-Pi to Windows share: //10.0.0.81/Movies/netmon-backups.
 # ==============================================================================
 set -euo pipefail
 

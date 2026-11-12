@@ -11,14 +11,14 @@ monitors = [
     {"name": "Internet (Google 8.8.8.8)", "type": "ping", "hostname": "8.8.8.8", "interval": 60},
     {"name": "DNS Resolution (Google)", "type": "dns", "hostname": "google.com", "dns_resolve_server": "8.8.8.8", "dns_resolve_type": "A", "interval": 60},
     {"name": "Web Connectivity (Google HTTPS)", "type": "http", "url": "https://www.google.com", "interval": 60},
-    {"name": "Windows Desktop (10.0.0.21)", "type": "ping", "hostname": "10.0.0.21", "interval": 60},
-    {"name": "Windows SMB Movie Share (445)", "type": "port", "hostname": "10.0.0.21", "port": 445, "interval": 60},
-    {"name": "Windows Web / Local AI (80)", "type": "http", "url": "http://10.0.0.21", "interval": 60, "accepted_statuscodes_json": '["200-299","308"]'},
+    {"name": "Windows Desktop (10.0.0.81)", "type": "ping", "hostname": "10.0.0.81", "interval": 60},
+    {"name": "Windows SMB Movie Share (445)", "type": "port", "hostname": "10.0.0.81", "port": 445, "interval": 60},
+    {"name": "Windows Web / Local AI (80)", "type": "http", "url": "http://10.0.0.81", "interval": 60, "accepted_statuscodes_json": '["200-299","308"]'},
     {"name": "Bambu P1S 3D Printer", "type": "ping", "hostname": "10.0.0.136", "interval": 60},
     {"name": "Workshop Smart Display", "type": "ping", "hostname": "10.0.0.124", "interval": 60},
-    {"name": "Pi Hub Web App", "type": "http", "url": "http://10.0.0.30", "interval": 60},
-    {"name": "Grafana Dashboards", "type": "http", "url": "http://10.0.0.30:3000", "interval": 60},
-    {"name": "Bambuddy Control Plane", "type": "http", "url": "http://10.0.0.30:8000", "interval": 60},
+    {"name": "Pi Hub Web App", "type": "http", "url": "http://10.0.0.80", "interval": 60},
+    {"name": "Grafana Dashboards", "type": "http", "url": "http://10.0.0.80:3000", "interval": 60},
+    {"name": "Bambuddy Control Plane", "type": "http", "url": "http://10.0.0.80:8000", "interval": 60},
 ]
 
 def main():

@@ -39,7 +39,7 @@ devices:
     name: "Raspberry Pi 4 NETMON Appliance"
     role: "Passive Observer Station"
     model: "Raspberry Pi 4 Model B (4GB ARM64)"
-    ip: "10.0.0.30"
+    ip: "10.0.0.80"
     storage: "SSK 256GB SATA SSD (ext4 /mnt/usb1)"
     monitored:
       node_exporter: 9100
@@ -57,7 +57,7 @@ devices:
     name: "Windows 11 Workstation"
     role: "Compute Node & Local AI"
     model: "Custom Windows 11 PC (32GB RAM, Dedicated GPU)"
-    ip: "10.0.0.21"
+    ip: "10.0.0.81"
     monitored:
       icmp: true
       icmp_interval: "30s"
