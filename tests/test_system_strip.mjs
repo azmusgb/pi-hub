@@ -2,8 +2,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { STRIP, stripItems } from '../hub/static/js/system-strip.js';
-import { redirectFor, sectionFor } from '../hub/static/js/sections.js';
+import { SITE, sectionFor } from '../hub/static/js/site.js';
+
+// The strip is drawn from the kit's page list (A22 step 12): System's entries as [address, name], as STRIP was.
+const stripItems = (path) => SITE.stripFor(path)?.items ?? null;
+const STRIP = stripItems('/system').map((i) => [i.href, i.label]);
+const redirectFor = SITE.redirectFor;
 import { mergeServices, serviceRows } from '../hub/static/js/health.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -18,7 +22,7 @@ test('the page you are on is the one marked current, and only on strip pages (Wo
     const items = stripItems(href);
     assert.deepEqual(items.filter((i) => i.current).map((i) => i.href), [href], href);
   }
-  for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripItems(path), null, path);  // A6: /drives is on Media's strip
+  for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripItems(path), null, path);  // /drives is on Household's strip
 });
 
 test('the strip renders aria-current only on the current entry', () => {
@@ -30,7 +34,7 @@ test('the strip renders aria-current only on the current entry', () => {
 test('every strip entry is a page of the System section the router knows', () => {
   const main = read('hub/static/js/main.js');
   for (const [href] of STRIP) {
-    assert.match(main, new RegExp(`^  "${href}": \\{`, 'm'), href);
+    assert.match(main, new RegExp(`^  "${href}": \\[`, 'm'), href);
     assert.equal(sectionFor(href), 'system', href);
   }
 });
@@ -49,7 +53,7 @@ test("Health holds every /pi card and System's services; the display's pairing m
   const src = read('hub/static/js/health.js');
   for (const fn of ['healthPlate(', 'outagesCard(', 'servicesCard(', 'fixCard(', 'storageCard(', 'updatesCard(',
     'networkCard(', 'healthCard(', 'otherSystemsCard(', 'helpGuidance()']) assert.ok(src.includes(fn), fn);
-  assert.match(src, /openInRow\("system"\)/);  // Open in Backrest ↗ · Cockpit ↗, from the registry (PR 7.6)
+  assert.match(src, /openInRow\("health"\)/);  // Open in Cockpit ↗ · Healthchecks.io ↗: Health's tools in the page list
   assert.match(read('hub/static/js/freshness.js'), /const SOURCES = \{ health: true \}/);  // Source responses
 });
 
@@ -70,14 +74,15 @@ test('one Services card: a unit and the app of the same name share a row', () =>
   assert.deepEqual(mergeServices([], []), []);
 });
 
-// A10 plan decision 16: System's strip is one line that scrolls sideways at every width, with the current page brought
-// into view and a faded edge where more pages sit past it.
+// A10 plan decision 16: a strip is one line that scrolls sideways at every width, with the current page brought into
+// view and a faded edge where more pages sit past it. Step 12 gives every area's strip that rule (Household has six
+// pages), so the selector no longer names System.
 test("System's strip keeps one line and scrolls; the edge fades only where more pages are hidden", async () => {
   const css = read('hub/static/app.css');
-  assert.match(css, /\.ui-strip\.page-strip\.system-strip\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow-x:\s*auto/);
+  assert.match(css, /\.ui-strip\.page-strip\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow-x:\s*auto/);
   // A link reached by Tab stops clear of the 2.5rem fade, and forced colours draw no fade at all.
-  assert.match(css, /\.ui-strip\.page-strip\.system-strip\s*\{[^}]*scroll-padding-inline:\s*2\.5rem/);
-  assert.match(css, /@media \(forced-colors: active\) \{ \.ui-strip\.page-strip\.system-strip\[data-more\] \{ mask-image: none; \} \}/);
+  assert.match(css, /\.ui-strip\.page-strip\s*\{[^}]*scroll-padding-inline:\s*2\.5rem/);
+  assert.match(css, /@media \(forced-colors: active\) \{ \.ui-strip\.page-strip\[data-more\] \{ mask-image: none; \} \}/);
   const { moreEdges } = await import('../hub/static/js/system-strip.js');
   assert.equal(moreEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 300 }), '');
   assert.equal(moreEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 520 }), 'end');
