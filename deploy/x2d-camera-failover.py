@@ -12,7 +12,7 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SOURCES = [("Pi", "http://127.0.0.1:8092"), ("MacBook", "http://10.0.0.92:8091")]
+SOURCES = [("Pi", "http://127.0.0.1:8092"), ("MacBook", "http://10.0.0.82:8091")]
 FRESH_MS = 5000
 _state = {"source": None, "since": None, "checked": None, "sources": {}}
 _lock = threading.Lock()
