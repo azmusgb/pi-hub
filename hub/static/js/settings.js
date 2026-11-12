@@ -2,7 +2,8 @@
 import { firstFew } from "./section-links.js";
 import { api, askFirst, card, empty, forgetMe, h, post, toast, when, whoami } from "./core.js";
 import { displayCard } from "./display-pair.js";
-import { faceplate } from "./page-parts.js";
+import { faceplate, fillTabs } from "./page-parts.js";
+import { SITE } from "./site.js";
 
 export const every = 60;
 
@@ -89,33 +90,49 @@ function shortcutsCard(state, keys, save) {
     steps(shown));
 }
 
-// The six groups, one per screen (A6, decision settings): a strip of their names, and the group the address (#group-…)
-// or the last tap chose. A refresh redraws the page every minute, so the choice lives on `state`, not in the DOM.
-export const GROUPS = [
-  ["general", "General", ["Appearance"]],
-  ["home", "Home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
-  ["outside", "Weather and calendar", ["Weather", "Calendar"]],
-  ["phone", "Phone messages", ["Morning digest", "Quiet hours"]],
-  ["people", "People and access", ["Your devices", "Siri and Shortcuts", "Owner password"]],
-  ["pi", "The Pi", ["Backups", "Activity"]],
+// The six groups, one per screen (A6, decision settings), drawn as the kit's six tabs (A22 2.1: ui-tabs--rows): the
+// group the address (#group-…) or the last tab chose. A refresh redraws the page every minute, so the choice lives on
+// `state` and the tabs are made once, not with each redraw. A group's name is its row in the page list (A22 3.3,
+// "settings-<id>"); here is only which cards it holds.
+const CARDS = [
+  ["general", ["Appearance"]],
+  ["home", ["Homebridge", "Guest Wi-Fi", "Workshop display"]],
+  ["outside", ["Weather", "Calendar"]],
+  ["phone", ["Morning digest", "Quiet hours"]],
+  ["people", ["Your devices", "Siri and Shortcuts", "Owner password"]],
+  ["pi", ["Backups", "Activity"]],
 ];
+export const GROUPS = CARDS.map(([id, cards]) => [id, SITE.page(`settings-${id}`)?.label || id, cards]);
+const TAB = "settings-tab-";
 
 const groupFromHash = () => {
   const id = String(globalThis.location?.hash || "").replace(/^#group-/, "");
   return GROUPS.some(([key]) => key === id) ? id : null;
 };
 
+// Show the chosen group and mark its tab: the selected tab is the only one in the Tab order (the ARIA tabs pattern).
 function showGroup(state) {
   for (const g of state.root.querySelectorAll(".settings-group")) g.hidden = g.id !== `group-${state.group}`;
-  for (const a of state.root.querySelectorAll(".settings-tabs a")) {
-    if (a.getAttribute("href") === `#group-${state.group}`) a.setAttribute("aria-current", "true");
-    else a.removeAttribute("aria-current");
+  for (const t of state.tabs.querySelectorAll('[role="tab"]')) {
+    const on = t.id === `${TAB}${state.group}`;
+    t.setAttribute("aria-selected", String(on));
+    t.setAttribute("tabindex", on ? "0" : "-1");
   }
+}
+
+// A tab chosen by tap or by arrow key: show its group, and put its address in place of the last one, so Back leaves
+// Settings in one step however many tabs were looked at.
+function chooseGroup(state, id) {
+  state.group = id;
+  showGroup(state);
+  const address = `#group-${id}`;
+  if (globalThis.location?.hash !== address) globalThis.history?.replaceState?.(globalThis.history.state, "", address);
 }
 
 export function mount(state) {
   state.group = groupFromHash() || GROUPS[0][0];
-  // A tap on a tab, or a step's link, changes the address: show the group it names. An unknown name changes nothing.
+  // A step's link, or a link from another page, changes the address: show the group it names. An unknown name changes
+  // nothing.
   state.onHash = () => {
     const id = groupFromHash();
     if (!id) return;
@@ -123,8 +140,13 @@ export function mount(state) {
     showGroup(state);
   };
   window.addEventListener("hashchange", state.onHash);
+  state.plate = h("div", {});
+  // The second row of the frame is a tablist named by the page (A22 9.1 F2). Hidden until the owner is signed in.
+  state.tabs = h("div", { class: "ui-tabs ui-tabs--rows settings-tabs", role: "tablist", "aria-label": "Settings", hidden: true });
+  fillTabs(state.tabs, { items: GROUPS.map(([key, label]) => ({ key, label })), selected: state.group, idPrefix: TAB,
+    panel: (key) => `group-${key}`, onSelect: (key) => chooseGroup(state, key) });
   state.body = h("div", { class: "stack" });
-  state.root.append(state.body);
+  state.root.append(state.plate, state.tabs, state.body);
 }
 
 export function leave(state) {
@@ -182,8 +204,9 @@ export async function load(state) {
   if (!state.force && state.root.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
   state.force = false;
   const m = await whoami(true);
-  if (m.setup_needed) { state.body.replaceChildren(setup(state)); return; }
-  if (m.role !== "owner") { state.body.replaceChildren(signIn(state, m)); return; }
+  const locked = (view) => { state.plate.replaceChildren(); state.tabs.hidden = true; state.body.replaceChildren(view); };
+  if (m.setup_needed) { locked(setup(state)); return; }
+  if (m.role !== "owner") { locked(signIn(state, m)); return; }
   const d = await api("/api/settings");
   const save = (what) => async (v) => {
     const r = await post(`/api/settings/${what}`, v);
@@ -272,11 +295,10 @@ const byTitle = Object.fromEntries(parts.map((c) => [c.querySelector("h2")?.text
     ["Connect a calendar", d.calendar_set, "outside", "for “Coming up” and the digest"],
     ["Add your devices", d.devices.listed.length > 0, "people", "so the hub opens as you, with no password"],
   ];
+  state.plate.replaceChildren(setupPlate(steps));
+  state.tabs.hidden = false;
   state.body.replaceChildren(
-    setupPlate(steps),
-    h("nav", { class: "ui-chips settings-tabs", "aria-label": "Settings sections" },
-      GROUPS.map(([id, title]) => h("a", { href: `#group-${id}` }, title))),
-    ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, "aria-labelledby": `group-${id}-title` },
+    ...GROUPS.map(([id, title, names]) => h("section", { class: "settings-group", id: `group-${id}`, role: "tabpanel", "aria-labelledby": `${TAB}${id}` },
       h("h2", { class: "group-title", id: `group-${id}-title` }, title),
       h("div", { class: "stack" }, names.map((n) => byTitle[n]).filter(Boolean)))),
     // Sign out is the danger button and asks first (A7 P7); the toast repeats its verb in the past tense.
