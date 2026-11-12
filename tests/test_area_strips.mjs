@@ -2,52 +2,48 @@
 // each page and tool everywhere (decisions strips, network-split, weather, lists, drives, names, sitemap).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import ROUTES from '../hub/static/js/routes.js';
-import { STRIPS, stripFor, stripItems, pageHeading } from '../hub/static/js/system-strip.js';
-import { SECTIONS, sectionFor, redirectFor, railItems } from '../hub/static/js/sections.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { SITE, sectionFor } from '../hub/static/js/site.js';
 import { goResults } from '../hub/static/js/command-palette.js';
 import { TOOLS } from '../hub/static/ui/tools.js';
 import { install, text } from './helpers/fake_dom.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-const names = (key) => STRIPS[key].entries.map(([, label]) => label);
-const hrefs = (key) => STRIPS[key].entries.map(([href]) => href);
+// The strips are read from the kit's page list (A22 step 12): one per area that has more than Home, by its landing.
+const AREAS = SITE.areas.filter((a) => a.id !== 'home');
+const strip = (key) => SITE.stripFor(SITE.page(SITE.area(key).landing).path);
+const names = (key) => strip(key).items.map((i) => i.label);
+const hrefs = (key) => strip(key).items.map((i) => i.href);
+const stripItems = (path) => SITE.stripFor(path)?.items ?? null;
+const heading = (path) => { const { heading: h, title } = SITE.headingFor(path); return { heading: h, title }; };
+// The pages main.js draws, read from its source (importing it would start the app).
+const drawn = () => [...read('hub/static/js/main.js').matchAll(/^  "(\/[a-z]*)": \["[a-z-]+", [A-Za-z]+\],$/gm)].map((m) => m[1]);
 
 test('each area has its strip, with the approved names in the approved order', () => {
-  assert.deepEqual(Object.keys(STRIPS), ['system', 'workshop', 'documents', 'media', 'network']);
-  assert.deepEqual(names('documents'), ['Papers', 'Print', 'Lists']);
-  assert.deepEqual(hrefs('documents'), ['/documents', '/print', '/lists']);
-  assert.deepEqual(names('media'), ['Movies', 'Drives']);
-  assert.deepEqual(hrefs('media'), ['/media', '/drives']);
-  assert.deepEqual(names('network'), ['Devices', 'Network', 'Weather']);
+  assert.deepEqual(AREAS.map((a) => a.id), ['workshop', 'household', 'network', 'system']);
+  assert.deepEqual(names('household'), ['Movies', 'Papers', 'Scan', 'Print', 'Lists', 'Drives']);
+  assert.deepEqual(hrefs('household'), ['/media', '/documents', '/scan', '/print', '/lists', '/drives']);
+  assert.deepEqual(names('network'), ['Lights', 'Internet', 'Weather']);
   assert.deepEqual(hrefs('network'), ['/devices', '/network', '/weather']);
   assert.deepEqual(names('system'), ['Health', 'Backups', 'Versions', 'Alerts', 'Automations', 'Settings', 'Site map']);
   assert.equal(hrefs('system').at(-1), '/map');
   assert.deepEqual(names('workshop'), ['Printer', 'Print lab', 'Quick Print']);
 });
 
-test('every strip page belongs to the section of its strip, and the section lists it', () => {
-  const area = { system: 'system', workshop: 'workshop', documents: 'documents', media: 'media', network: 'network' };
-  for (const [key, section] of Object.entries(area)) {
-    for (const href of hrefs(key)) {
-      assert.equal(sectionFor(href), section, href);
-      assert.ok(SECTIONS.find((s) => s.key === section).pages.includes(href), `${section} lists ${href}`);
-    }
-  }
+test('every strip page belongs to the area of its strip', () => {
+  for (const { id } of AREAS) for (const href of hrefs(id)) assert.equal(sectionFor(href), id, href);
 });
 
-test('no page is hidden: every page is on a strip, except Home, the wall, the phone-only More and the Assistant (level 0, A4)', () => {
-  const on = new Set(Object.values(STRIPS).flatMap((s) => s.entries.map(([href]) => href)));
-  const hidden = ROUTES.pages.filter((p) => !on.has(p));
-  assert.deepEqual(hidden.sort(), ['/', '/assistant', '/more', '/wall']);
+test('no page is hidden: every page is on a strip, except Home, the wall and the Assistant (level 0, A4)', () => {
+  const on = new Set(AREAS.flatMap((a) => hrefs(a.id)));
+  assert.deepEqual(drawn().filter((p) => !on.has(p)).sort(), ['/', '/assistant', '/wall']);
 });
 
 test('the strip marks the current page and nothing else, on every strip page', () => {
-  for (const key of Object.keys(STRIPS)) {
-    for (const href of hrefs(key)) {
+  for (const { id, label } of AREAS) {
+    for (const href of hrefs(id)) {
       assert.deepEqual(stripItems(href).filter((i) => i.current).map((i) => i.href), [href]);
-      assert.equal(stripFor(href).label, STRIPS[key].label);
+      assert.equal(SITE.stripFor(href).label, `${label} pages`);
     }
   }
   for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripItems(path), null, path);
@@ -56,80 +52,67 @@ test('the strip marks the current page and nothing else, on every strip page', (
 // A22 2.3 (amending A7 P1): the heading is the page's own name, the same word as its strip entry. The area is shown by
 // position (the rail and the strip) and in the browser tab.
 test('a strip page is headed by its own name; the tab names the page and its area', () => {
-  assert.deepEqual(pageHeading('/documents', 'Papers'), { heading: 'Papers', title: 'Papers · Documents' });
-  assert.deepEqual(pageHeading('/drives', 'Drives'), { heading: 'Drives', title: 'Drives · Media' });
-  assert.deepEqual(pageHeading('/weather', 'Weather'), { heading: 'Weather', title: 'Weather · Home & network' });
-  assert.deepEqual(pageHeading('/map', 'Site map'), { heading: 'Site map', title: 'Site map · System' });
+  assert.deepEqual(heading('/documents'), { heading: 'Papers', title: 'Papers · Household' });
+  assert.deepEqual(heading('/drives'), { heading: 'Drives', title: 'Drives · Household' });
+  assert.deepEqual(heading('/weather'), { heading: 'Weather', title: 'Weather · Network' });
+  assert.deepEqual(heading('/map'), { heading: 'Site map', title: 'Site map · System' });
 });
 
-// The pages main.js draws, read from its source (importing it would start the app): path -> title.
-const pageTitles = () => new Map([...read('hub/static/js/main.js')
-  .matchAll(/^  "(\/[a-z]*)": \{ key: "[a-z-]+", title: "([^"]+)"/gm)].map((m) => [m[1], m[2]]));
-
 test("every page's title is its strip word, and no page is headed by its area (A22 brief 1)", () => {
-  const titles = pageTitles();
-  assert.deepEqual([...titles.keys()].sort(), [...ROUTES.pages].sort(), 'main.js draws exactly the pages routes.js lists');
-  for (const path of ROUTES.pages) {
-    const strip = stripFor(path), title = titles.get(path);
-    const { heading } = pageHeading(path, title);
-    if (!strip) { assert.equal(heading, title, path); continue; }
-    const own = strip.items.find((i) => i.current).label;
-    assert.equal(title, own, `${path}: main.js titles it "${title}", its strip says "${own}"`);
-    assert.equal(heading, own, path);
-    assert.notEqual(heading, strip.label, `${path} is headed by its area`);
+  const main = read('hub/static/js/main.js');
+  assert.deepEqual(drawn().filter((p) => p !== '/assistant').sort(), SITE.shellPaths().sort(), 'main.js draws exactly the pages the list has');
+  assert.match(main, /title: path === "\/assistant" \? ASSISTANT\.name : SITE\.pageAt\(path\)\.label/, 'a title is the name in the list');
+  for (const path of SITE.shellPaths()) {
+    const s = SITE.stripFor(path), title = SITE.pageAt(path).label;
+    if (!s) { assert.equal(heading(path).heading, title, path); continue; }
+    const own = s.items.find((i) => i.current).label;
+    assert.equal(heading(path).heading, own, path);
+    assert.notEqual(own, SITE.area(s.key).label, `${path} is headed by its area`);
   }
 });
 
 test('the wall is the Wall display, in its title and its tab', () => {
-  assert.equal(pageTitles().get('/wall'), 'Wall display');
+  assert.equal(SITE.pageAt('/wall').label, 'Wall display');
   assert.match(read('hub/static/js/main.js'), /wallMode \? "Wall display" : title/);
 });
 
-test('Home & network is /devices and /network; Weather moved into it; the old addresses still land', () => {
-  assert.ok(ROUTES.pages.includes('/devices') && ROUTES.pages.includes('/network'));
+test('Network is /devices and /network; Weather is in it; the old addresses still land', () => {
+  assert.ok(drawn().includes('/devices') && drawn().includes('/network'));
   assert.equal(sectionFor('/weather'), 'network');
-  assert.equal(SECTIONS.find((s) => s.key === 'network').path, '/devices');
-  assert.ok(!SECTIONS.find((s) => s.key === 'home').pages.includes('/weather'));
-  assert.equal(redirectFor('/control'), '/devices');   // /control was the devices page
-  assert.equal(redirectFor('/movies'), '/media');
+  assert.equal(SITE.page(SITE.area('network').landing).path, '/devices');
+  assert.notEqual(sectionFor('/weather'), 'home');
+  assert.equal(SITE.redirectFor('/control'), '/devices');   // /control was the devices page
+  assert.equal(SITE.redirectFor('/movies'), '/media');
   const html = read('hub/static/index.html');
   assert.match(html, /<a href="\/devices" data-link data-page="network"/);
-  assert.deepEqual(railItems(), ['home', 'workshop', 'documents', 'media', 'network', 'system']);
+  assert.deepEqual([...html.matchAll(/data-link data-page="([a-z]+)"/g)].map((m) => m[1]), SITE.areas.map((a) => a.id));
 });
 
 test("the router draws /devices and /map, each under the name its strip gives it", () => {
-  const main = read('hub/static/js/main.js');
-  const title = (path) => new RegExp(`"${path}": \\{ key: "[a-z-]+", title: "([^"]+)"`).exec(main)?.[1];
-  assert.equal(title('/devices'), 'Devices');
+  const title = (path) => (drawn().includes(path) ? SITE.pageAt(path).label : undefined);
+  assert.equal(title('/devices'), 'Lights');
   assert.equal(title('/map'), 'Site map');
   for (const [path, label] of [['/documents', 'Papers'], ['/print', 'Print'], ['/lists', 'Lists'], ['/media', 'Movies'],
-    ['/drives', 'Drives'], ['/network', 'Network'], ['/weather', 'Weather']]) assert.equal(title(path), label, path);
-  assert.ok(!/title: "Storage"/.test(main), 'nothing is called Storage');
+    ['/drives', 'Drives'], ['/network', 'Internet'], ['/weather', 'Weather']]) assert.equal(title(path), label, path);
+  assert.ok(!SITE.rows.some((p) => p.label === 'Storage'), 'nothing is called Storage');
 });
 
 test('⌘K lists every strip page once, under the strip names; Storage is Drives', () => {
   const go = goResults('').filter((r) => r.area !== 'Tools');
-  for (const [key, { entries }] of Object.entries(STRIPS)) {
-    for (const [href, label] of entries) {
-      const hits = go.filter((r) => r.href === href);
-      assert.equal(hits.length, 1, `${key} ${href}`);
-      assert.equal(hits[0].label, label, href);
+  for (const { id } of AREAS) {
+    for (const { href, label } of strip(id).items) {
+      const hits = go.filter((r) => r.href === href && r.label === label);
+      assert.equal(hits.length, 1, `${id} ${href}`);
     }
   }
   assert.ok(!go.some((r) => r.label === 'Storage'));
   assert.deepEqual(goResults('storage').map((r) => r.label).filter((l) => l === 'Drives'), ['Drives']);  // old word still finds it
-  assert.ok(goResults('documents').some((r) => r.href === '/documents'));  // the area name still finds its first page
+  assert.ok(goResults('documents').some((r) => r.href === '/documents'));  // the old area name still finds its page
 });
 
-test("More lists the two areas the bottom bar leaves out, by their first page; Weather is in a strip now", async () => {
-  const dom = install();
-  try {
-    const { mount } = await import('../hub/static/js/more.js');
-    const root = dom.root();
-    mount({ root });
-    const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
-    assert.deepEqual(links, ['/devices', '/system', '/map']);
-  } finally { dom.uninstall(); }
+test('the phone More page is gone: /more is an old address of the Site map (step 12)', () => {
+  assert.equal(SITE.redirectFor('/more'), '/map');
+  assert.equal(existsSync(new URL('../hub/static/js/more.js', import.meta.url)), false);
 });
 
 test('Uptime Kuma is called Uptime Kuma, and the Open in rows name tools by their registry names', () => {
@@ -177,7 +160,7 @@ test('/devices is the controls and Homebridge only; /network is internet, ad blo
     assert.match(t, /Internet/);
     assert.match(t, /Ad blocking/);
     assert.doesNotMatch(t, /Lights|Plugs|Favourites/);
-    assert.deepEqual(openIn(net.state.root), ['AdGuard ↗', 'Grafana ↗', 'Uptime Kuma ↗']);
+    assert.deepEqual(openIn(net.state.root), ['AdGuard ↗', 'Grafana ↗']);  // Uptime Kuma is no longer used (kit 2.17)
   } finally { net.dom.uninstall(); }
 });
 
@@ -195,22 +178,22 @@ test('records and cards that mean the devices open /devices; internet and ad blo
 });
 
 test('the Site map is a page of System, drawn by map.js', () => {
-  assert.ok(ROUTES.pages.includes('/map'));
+  assert.ok(drawn().includes('/map'));
   assert.equal(sectionFor('/map'), 'system');
   assert.match(read('hub/static/js/main.js'), /import \* as mapPage from "\.\/map\.js"/);
   const sw = read('hub/static/sw.js');
   for (const f of ['map.js', 'devices.js']) assert.ok(sw.includes(`/static/js/${f}"`), `${f} is in the shell`);
 });
 
-test('the Site map lists every page and every registry tool, built from routes.js and the registry', async () => {
+test('the Site map lists every page and every registry tool, built from the page list and the registry', async () => {
   const { siteMap } = await import('../hub/static/js/map.js');
   const map = siteMap();
   const links = map.flatMap((g) => g.pages.map((p) => p.href));
-  for (const p of ROUTES.pages) assert.ok(links.includes(p), `page ${p}`);
+  for (const p of drawn()) assert.ok(links.includes(p), `page ${p}`);
   const listed = map.flatMap((g) => g.tools.map((t) => t.id));
   for (const t of TOOLS) assert.ok(listed.includes(t.id), `tool ${t.id}`);
   for (const g of map) for (const p of g.pages) assert.ok(p.label && !p.label.startsWith('/'), `${p.href} has a name`);
-  assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Documents', 'Media', 'Home & network', 'System']);
+  assert.deepEqual(map.map((g) => g.title).slice(0, 6), ['Home', 'Workshop', 'Household', 'Network', 'System', 'Assistant']);
 });
 
 test('the Site map reads at a glance: one band per area, its pages in strip order with their addresses, then its tools past the line', async () => {
@@ -223,7 +206,7 @@ test('the Site map reads at a glance: one band per area, its pages in strip orde
     assert.ok(grid, 'the areas sit in one grid');
     assert.equal(grid.querySelectorAll('.more-group').length, root.querySelectorAll('.more-group').length);
     const workshop = root.querySelector('[data-area="workshop"]');
-    assert.deepEqual(workshop.querySelectorAll('.map-run a').map((a) => a.getAttribute('href')), ['/workshop', '/lab', '/quick'], 'the strip\'s order');
+    assert.deepEqual(workshop.querySelectorAll('.map-run a').map((a) => a.getAttribute('href')), ['/workshop', '/lab', '/lab', '/quick'], 'the strip\'s order, a page\'s views after it (Print lab › Experiments)');
     assert.ok(workshop.querySelector('.map-out a[target="_blank"]'), 'tools sit on the far side of the line');
     const printer = [...root.querySelectorAll('.map-run a[data-link]')].find((a) => a.getAttribute('href') === '/workshop');
     assert.equal(text(printer).replace(/\s+/g, ' ').trim(), 'Printer /workshop');
@@ -255,22 +238,14 @@ test('Media\'s drive card is not named like the Drives page card', async () => {
   assert.match(read('hub/static/js/drives.js'), /x\.is_movies \? "Movies drive"/);
 });
 
-test('the Site map is easy to find: a footer link on every page, and a row on the phone More page', async () => {
+test('the Site map is easy to find: a footer link on every page, and the old More address', async () => {
   const shell = read('hub/static/index.html');
   const footer = shell.match(/<footer[\s\S]*?<\/footer>/)?.[0] || '';
   assert.match(footer, /href="\/map"[\s\S]{0,80}data-link="true"|data-link="true"[\s\S]{0,80}href="\/map"/, 'a /map link in the footer');
   assert.match(footer, /Site map/);
   assert.ok(footer.indexOf('href="/wall"') > -1 && footer.indexOf('/map') > -1, 'beside the Wall display link');
   assert.ok(shell.match(/<footer/g).length === 1, 'one shell, so one footer for every page');
-  const { mount } = await import('../hub/static/js/more.js');
-  const dom = install();
-  try {
-    const root = dom.root();
-    mount({ root });
-    const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
-    assert.ok(links.includes('/map'), 'More lists /map');
-    assert.ok(links.includes('/devices') && links.includes('/system'));
-  } finally { dom.uninstall(); }
+  assert.equal(SITE.redirectFor('/more'), '/map', 'the old More address lands on it');
 });
 
 test('the Site map filters as you type: every word must match, an area name keeps its area, nothing left says so', async () => {
@@ -283,7 +258,7 @@ test('the Site map filters as you type: every word must match, an area name keep
     const shownAreas = () => areas.filter((a) => !a.hidden).map((a) => a.dataset.area);
     const shownRows = () => areas.filter((a) => !a.hidden).flatMap((a) => a.querySelectorAll('li').filter((li) => !li.hidden));
 
-    assert.equal(applyFilter(areas, '/lab'), 1);
+    assert.equal(applyFilter(areas, '/lab'), 2);  // the page and its first view, Print lab › Experiments
     assert.deepEqual(shownAreas(), ['workshop']);
     assert.match(text(shownRows()[0]), /Print lab/);
     const workshop = areas.find((a) => a.dataset.area === 'workshop');
@@ -298,8 +273,8 @@ test('the Site map filters as you type: every word must match, an area name keep
     applyFilter(areas, 'backups restoring');
     assert.deepEqual(shownRows().map((li) => text(li).trim().split(/\s/)[0]), ['Backrest'], 'every word must match');
 
-    const all = areas.find((a) => a.dataset.area === 'media').querySelectorAll('li').length;
-    assert.equal(applyFilter(areas, 'MEDIA'), all, 'an area named by the query shows all of it, any case');
+    const all = areas.find((a) => a.dataset.area === 'household').querySelectorAll('li').length;
+    assert.equal(applyFilter(areas, 'HOUSEHOLD'), all, 'an area named by the query shows all of it, any case');
 
     assert.equal(applyFilter(areas, 'zzz'), 0);
     assert.deepEqual(shownAreas(), []);
