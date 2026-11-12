@@ -30,6 +30,11 @@ These hold for every agent (Claude Code, Antigravity, others). They are short on
   It exits 1 and names the measure when dead code, duplication, oversized files or over-complex functions grow.
   Fix the growth, or explain it in the PR. A PR that removes sprawl lowers the baseline with `--write-baseline
   .sprawl-baseline.json` in the same PR.
+- The kit's literals check runs in the JS suite (`tests/test_kit_literals.mjs`): a colour, size, spacing, radius,
+  shadow, duration, layer or private custom-property name written by hand under `hub/static` may not be added. Use
+  the kit's `--ui-*` value. A PR that removes one lowers the baseline in the same PR:
+  `node hub/static/ui/literals.mjs hub/static --write-baseline` (it refuses to raise a count; `--list` shows each
+  finding). Adding to `.kit-literals-allow.json` needs a sentence in the PR saying why.
 - If a change makes an existing test wrong, change that test in its own commit and say why in the PR. Never loosen or
   delete an assertion to get a pass.
 - A PR that changes anything under `hub/static` bumps `SHELL` in `hub/static/sw.js`, or phones keep the old files.

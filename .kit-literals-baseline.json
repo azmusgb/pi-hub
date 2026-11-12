@@ -1,0 +1,136 @@
+{
+  "kit": "2.20.0",
+  "files": {
+    "hub/static/ambient.css": {
+      "colour": 22,
+      "space": 2,
+      "motion": 6
+    },
+    "hub/static/app.css": {
+      "colour": 38,
+      "type": 24,
+      "space": 69,
+      "radius": 4,
+      "shadow": 1,
+      "motion": 3,
+      "layer": 3,
+      "name": 139
+    },
+    "hub/static/components.css": {
+      "colour": 12,
+      "type": 18,
+      "space": 37,
+      "radius": 3,
+      "shadow": 3,
+      "motion": 3
+    },
+    "hub/static/enhance.css": {
+      "colour": 49,
+      "type": 42,
+      "space": 95,
+      "radius": 8,
+      "shadow": 1,
+      "motion": 12,
+      "layer": 1,
+      "name": 32
+    },
+    "hub/static/home-dashboard.css": {
+      "type": 5,
+      "space": 34,
+      "radius": 5,
+      "shadow": 2,
+      "motion": 1
+    },
+    "hub/static/home.css": {
+      "colour": 62,
+      "type": 84,
+      "space": 179,
+      "radius": 19,
+      "shadow": 11,
+      "motion": 12,
+      "layer": 3
+    },
+    "hub/static/household-features.css": {
+      "type": 29,
+      "space": 63,
+      "radius": 3
+    },
+    "hub/static/index.html": {
+      "colour": 2
+    },
+    "hub/static/js/lab-photos.js": {
+      "name": 2
+    },
+    "hub/static/js/lab-v2.js": {
+      "colour": 22
+    },
+    "hub/static/js/lab.js": {
+      "colour": 3,
+      "name": 1
+    },
+    "hub/static/js/main.js": {
+      "colour": 2
+    },
+    "hub/static/js/quick-layers.js": {
+      "colour": 5
+    },
+    "hub/static/js/workshop.js": {
+      "colour": 3
+    },
+    "hub/static/lab.css": {
+      "colour": 76,
+      "type": 41,
+      "space": 136,
+      "radius": 13,
+      "shadow": 3,
+      "motion": 1,
+      "layer": 1
+    },
+    "hub/static/lists-rich.css": {
+      "type": 4,
+      "space": 16,
+      "radius": 1,
+      "motion": 2
+    },
+    "hub/static/movies-print-rules-alerts-rich.css": {
+      "type": 6,
+      "space": 10,
+      "radius": 1,
+      "motion": 2
+    },
+    "hub/static/movies.css": {
+      "colour": 22,
+      "type": 25,
+      "space": 62,
+      "radius": 6,
+      "motion": 2,
+      "layer": 4
+    },
+    "hub/static/pages.css": {
+      "colour": 35,
+      "type": 19,
+      "space": 126,
+      "radius": 26,
+      "shadow": 3,
+      "motion": 4,
+      "layer": 1,
+      "name": 3
+    },
+    "hub/static/quick.css": {
+      "colour": 1,
+      "type": 4,
+      "space": 26,
+      "radius": 4
+    },
+    "hub/static/settings-rich.css": {
+      "space": 8
+    },
+    "hub/static/workshop-pi-rich.css": {
+      "colour": 14,
+      "space": 60,
+      "radius": 2,
+      "motion": 1,
+      "layer": 5
+    }
+  }
+}
