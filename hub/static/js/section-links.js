@@ -1,13 +1,7 @@
-// A section's list of places: [href, name, what]. Other machines' tools open in their own tab.
+// What an area page ends with and lists with: its "Open in" row, lists that keep their newest few, and "More" lists.
 import { h } from "./core.js";
-import { toolsFor, toolPath } from "./sections.js";
-
-export function linkGroup(title, links) {
-  return h("section", { class: "more-group" }, title ? h("h2", {}, title) : null,
-    h("ul", { class: "more" }, links.map(([href, name, what]) => h("li", {},
-      h("a", /^https?:/.test(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true },
-        h("strong", {}, name), h("span", { class: "meta" }, what))))));
-}
+import { toolPath } from "./sections.js";
+import { SITE } from "./site.js";
 
 // Which "Show all" lists are open, by key, so a page's auto-refresh (which rebuilds the list) doesn't close them.
 export const openLists = new Set();
@@ -27,17 +21,14 @@ export function firstFew(items, { n = 6, cls = "log", noun = "entries", key = ""
       h("ul", { class: cls }, items.slice(n))), key || `${noun}:${cls}`)];
 }
 
-// A tool whose front door isn't its root: Uptime Kuma's root is a login, its public status page is the one people want.
-const FRONT_DOOR = { status: "status/home" };
-
-// Every area page ends with its tools (§5.3): one "Open in …↗" row of the area's gated tools, from the registry.
-// `only` narrows it to some of the area's tools, for an area whose pages split them (Home & network: Devices | Network).
-export function openInRow(area, only = null) {
-  const tools = toolsFor(area).filter((t) => !only || only.includes(t.id));
+// A page ends with its tools (§5.3): one "Open in …↗" row of the tools the page list gives it (A22 3.3), in its order.
+// A page with none, or one the list doesn't have, has no row.
+export function openInRow(pageId, site = SITE) {
+  const tools = site.toolsOf(pageId);
   if (!tools.length) return null;
   // A wrapping row with gaps, not joined with " · ", so no wrapped line starts with a dot (A10 plan decision 17).
   return h("p", { class: "open-in" }, h("span", {}, "Open in"), ...tools.map((t) =>
-    h("a", { class: "tool-link", href: toolPath(t.id, FRONT_DOOR[t.id] || ""), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)));
+    h("a", { class: "tool-link", href: toolPath(t.id), target: "_blank", rel: "noopener", title: t.purpose }, `${t.name} ↗`)));
 }
 
 // A "More" list (A6): a heading and one native <details> per item, closed until this viewer opens one. Which are open is

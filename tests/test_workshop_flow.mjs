@@ -130,7 +130,7 @@ test('More in the workshop: five native <details>, closed by default, open state
 
 test('one "Open in Bambuddy ↗" row, and no other Bambuddy link names the tool', () => {
   const src = read('hub/static/js/workshop.js');
-  assert.equal(src.match(/openInRow\("workshop"\)/g).length, 1);
+  assert.equal(src.match(/openInRow\("printer"\)/g).length, 1);  // the Printer page's tools in the page list (step 12)
   assert.doesNotMatch(src, /"Open Bambuddy ↗"/);
 });
 

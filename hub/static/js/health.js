@@ -178,7 +178,7 @@ export function mount(state) {
     state.others,
     state.fix,
     state.more.root,
-    openInRow("system"),
+    openInRow("health"),
   ].filter(Boolean));
 }
 

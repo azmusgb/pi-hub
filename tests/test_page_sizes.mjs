@@ -4,7 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { install, text } from './helpers/fake_dom.mjs';
-import ROUTES from '../hub/static/js/routes.js';
+import { SITE } from '../hub/static/js/site.js';
+
+// Every page the shell draws: the page list's Pi Hub pages and the Assistant's door (routes.js is gone, A22 step 12).
+const ROUTES = { pages: [...SITE.shellPaths(), '/assistant'] };
 import { TOOLS, toolUrl } from '../hub/static/ui/tools.js';
 
 function fakeStorage(initial = {}) {
@@ -355,7 +358,7 @@ test('Media opens and badges the drive item when the drive is bad, and not when 
 });
 
 test('every in-app link to /settings names the group it means', () => {
-  const NAV = new Set(['routes.js', 'sections.js', 'system-strip.js', 'main.js', 'command-palette.js']);   // the page lists themselves
+  const NAV = new Set(['site.js', 'sections.js', 'system-strip.js', 'main.js', 'command-palette.js']);   // the page lists themselves
   const bad = [];
   let seen = 0;
   for (const f of readdirSync(new URL('../hub/static/js/', import.meta.url)).filter((n) => n.endsWith('.js') && !NAV.has(n))) {

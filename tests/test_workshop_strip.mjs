@@ -3,18 +3,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STRIP, STRIPS, pageHeading, stripFor, stripItems } from '../hub/static/js/system-strip.js';
-import { sectionFor } from '../hub/static/js/sections.js';
+import { SITE, sectionFor } from '../hub/static/js/site.js';
 import { RECORD_PATHS } from '../hub/static/js/control-room.js';
 import { otherSystemRows } from '../hub/static/js/health.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+// The strip is read from the kit's page list (A22 step 12).
+const stripFor = (path) => SITE.stripFor(path);
+const stripItems = (path) => stripFor(path)?.items ?? null;
+const entries = (path) => stripItems(path).map((i) => [i.href, i.label]);
 
-test("Workshop's strip is Printer | Print lab | Quick Print (A19 P4), and System's is unchanged", () => {
-  assert.deepEqual(STRIPS.workshop.entries, [['/workshop', 'Printer'], ['/lab', 'Print lab'], ['/quick', 'Quick Print']]);
-  assert.equal(STRIPS.workshop.label, 'Workshop');
-  assert.equal(STRIPS.system.entries, STRIP);
-  assert.equal(STRIPS.system.label, 'System');
+test("Workshop's strip is Printer | Print lab | Quick Print (A19 P4), and it is labelled by its area", () => {
+  assert.deepEqual(entries('/workshop'), [['/workshop', 'Printer'], ['/lab', 'Print lab'], ['/quick', 'Quick Print']]);
+  assert.equal(stripFor('/workshop').label, 'Workshop pages');
+  assert.equal(stripFor('/system').label, 'System pages');
 });
 
 test('on each Workshop page the strip marks that page current, and only that one', () => {
@@ -25,27 +27,28 @@ test('on each Workshop page the strip marks that page current, and only that one
   ]);
   assert.deepEqual(stripItems('/lab').filter((i) => i.current).map((i) => i.href), ['/lab']);
   assert.equal(stripFor('/lab').key, 'workshop');
-  assert.equal(stripFor('/lab').label, 'Workshop');
   assert.equal(stripFor('/settings').key, 'system');
   for (const path of ['/', '/wall', '/more', '/pi']) assert.equal(stripFor(path), null, path);  // A6: every other page is on a strip
 });
 
 test('every Workshop strip entry is a page of the Workshop section the router knows', () => {
   const main = read('hub/static/js/main.js');
-  for (const [href] of STRIPS.workshop.entries) {
-    assert.match(main, new RegExp(`^  "${href}": \\{`, 'm'), href);
+  for (const [href] of entries('/workshop')) {
+    assert.match(main, new RegExp(`^  "${href}": \\[`, 'm'), href);
     assert.equal(sectionFor(href), 'workshop', href);
   }
 });
 
 test('Workshop pages are headed by their own names (A22 2.3); the tab title says the page and the area', () => {
-  assert.deepEqual(pageHeading('/workshop', 'Printer'), { heading: 'Printer', title: 'Printer · Workshop' });
-  assert.deepEqual(pageHeading('/lab', 'Print lab'), { heading: 'Print lab', title: 'Print lab · Workshop' });
-  assert.deepEqual(pageHeading('/system', 'Health'), { heading: 'Health', title: 'Health · System' });
-  assert.deepEqual(pageHeading('/more', 'More'), { heading: 'More', title: 'More' });  // A6: Media has a strip now
+  const heading = (path) => { const { heading, title } = SITE.headingFor(path); return { heading, title }; };
+  assert.deepEqual(heading('/workshop'), { heading: 'Printer', title: 'Printer · Workshop' });
+  assert.deepEqual(heading('/lab'), { heading: 'Print lab', title: 'Print lab · Workshop' });
+  assert.deepEqual(heading('/system'), { heading: 'Health', title: 'Health · System' });
+  assert.deepEqual(heading('/'), { heading: 'Home', title: 'Home' });  // the page and its area are one word
+  assert.equal(SITE.headingFor('/more'), null);  // step 12: More is an old address of the Site map, not a page
 });
 
-test('the shell draws one strip component for both areas, labelled by its area, with aria-current on the page', () => {
+test('the shell draws one strip component for every area, labelled by its area, with aria-current on the page', () => {
   const src = read('hub/static/js/system-strip.js');
   assert.match(src, /"aria-label": strip\.label/);
   assert.match(src, /"aria-current": current \? "page" : null/);

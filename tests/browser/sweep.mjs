@@ -3,15 +3,20 @@
 // marked labels overlapping, on any page not still PENDING its A10 PR. Writes out/sweep.json and screenshots at the named sizes for a person to look at.
 // Usage (from the Mac): cd tests/browser && npm install
 //   python3 preview.py &            (this checkout's pages, the live hub's data, read-only)
-//   node sweep.mjs [base-url] [--pages /,/workshop] [--no-shots]
+//   node sweep.mjs [base-url] [--pages /,/workshop] [--no-shots] [--text 1.15]
+// --text multiplies the root font size as A14's Large (1.15) and Larger (1.3) will, so the sweep runs at three text sizes.
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
-const BASE = (args.find((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--pages') || 'http://127.0.0.1:8799').replace(/\/$/, '');
+const BASE = (args.find((a) => !a.startsWith('--') && !['--pages', '--text'].includes(args[args.indexOf(a) - 1])) || 'http://127.0.0.1:8799').replace(/\/$/, '');
 const OUT = new URL('./out/', import.meta.url).pathname;
-const ALL = { '/': 'home', '/workshop': 'workshop', '/lab': 'lab', '/quick': 'quick', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
+const ALL = { '/': 'home', '/workshop': 'printer', '/lab': 'lab', '/quick': 'quick', '/media': 'movies', '/documents': 'papers', '/scan': 'scan',
+  '/devices': 'lights', '/network': 'internet', '/system': 'health', '/settings': 'settings', '/map': 'map' };
+const TEXT = Number(opt('--text') || 1);
+if (!(TEXT >= 1 && TEXT <= 2)) { console.error('--text takes a scale from 1 to 2'); process.exit(2); }
+const SIZE = TEXT === 1 ? '' : `-text${Math.round(TEXT * 100)}`;
 const PAGES = opt('--pages') ? Object.fromEntries(opt('--pages').split(',').map((p) => [p, ALL[p] || p.replace(/\W/g, '') || 'home'])) : ALL;
 // Pages whose A10 PR hasn't merged: reported, not gated. Each area PR deletes its page; the last asserts it is empty.
 // 'shell' (the rail, tab bar and page head on every page) is gated from P3.
@@ -115,6 +120,12 @@ let loaded = 0;
 for (const colorScheme of ['dark', 'light']) {
   // A touch context: pointer: coarse and the 44 px floor apply at every width, since any width can be a tablet.
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme, hasTouch: true, reducedMotion: 'reduce' });
+  // A14's rule for a larger text size: the kit's root curve times the scale, so type and spacing grow together.
+  if (TEXT !== 1) await ctx.addInitScript((scale) => {
+    const add = () => document.head.append(Object.assign(document.createElement('style'),
+      { textContent: `html{font-size:calc(clamp(100%, 0.9423rem + 0.2564vw, 125%) * ${scale}) !important}` }));
+    if (document.head) add(); else document.addEventListener('DOMContentLoaded', add);
+  }, TEXT);
   const page = await ctx.newPage();
   // A page whose own scripts failed to load draws part of itself and would read as clean: that is a failed load.
   let broken = [];
@@ -147,7 +158,7 @@ for (const colorScheme of ['dark', 'light']) {
         await page.setViewportSize({ width, height: width >= 1920 ? 1080 : 900 });
         await page.reload({ waitUntil: 'load' });
         await page.waitForTimeout(1500);
-        await page.screenshot({ path: `${OUT}sweep-${key}-${width}-${colorScheme}.png`, fullPage: true });
+        await page.screenshot({ path: `${OUT}sweep-${key}-${width}-${colorScheme}${SIZE}.png`, fullPage: true });
       }
     }
   }
@@ -159,10 +170,10 @@ const problems = [...found.values()].map((p) => ({ ...p, widths: ranges(p.widths
 const gated = problems.filter((p) => !PENDING.has(p.page));
 const byPage = {};
 for (const p of problems) (byPage[p.page] ||= {})[p.kind] = ((byPage[p.page] ||= {})[p.kind] || 0) + 1;
-writeFileSync(`${OUT}sweep.json`, JSON.stringify({ base: BASE, at: new Date().toISOString(), widths: '320-2560 step 20',
+writeFileSync(`${OUT}sweep${SIZE}.json`, JSON.stringify({ base: BASE, at: new Date().toISOString(), widths: '320-2560 step 20',
   pending: [...PENDING], summary: byPage, problems }, null, 2));
 
-console.log(`swept ${loaded} page loads × ${WIDTHS.length} widths; ${problems.length} problems (${gated.length} gated). Report: ${OUT}sweep.json`);
+console.log(`swept ${loaded} page loads × ${WIDTHS.length} widths at text ×${TEXT}; ${problems.length} problems (${gated.length} gated). Report: ${OUT}sweep${SIZE}.json`);
 for (const [pg, kinds] of Object.entries(byPage)) console.log(`  ${PENDING.has(pg) ? 'pending' : 'GATED  '} ${pg}: ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ')}`);
 for (const pg of PENDING) if (!byPage[pg] && (pg === 'shell' || PAGES[pg])) console.log(`  ${pg} is clean: delete it from PENDING`);
 for (const p of gated) console.log(`FAIL ${p.page} ${p.scheme} ${p.kind} ${p.where} (${p.detail}) at ${p.widths}`);

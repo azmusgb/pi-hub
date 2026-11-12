@@ -3,8 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import ROUTES from "../hub/static/js/routes.js";
-import { redirectFor, sectionFor } from "../hub/static/js/sections.js";
+import { SITE, sectionFor } from "../hub/static/js/site.js";
+
+// The pages and the old addresses are the kit's page list (A22 step 12); routes.js is gone.
+const ROUTES = { pages: SITE.shellPaths(), redirects: SITE.aliases() };
+const redirectFor = SITE.redirectFor;
 
 const JS = new URL("../hub/static/js/", import.meta.url);
 
@@ -35,8 +38,8 @@ test("the retired paths are redirects, not pages", () => {
   }
 });
 
-test("Storage (/drives) is under Media", () => {
-  assert.equal(sectionFor("/drives"), "media");
+test("Drives (/drives) is under Household, which Media became", () => {
+  assert.equal(sectionFor("/drives"), "household");
 });
 
 test("one palette: only command-palette.js upgrades #palette's input", () => {

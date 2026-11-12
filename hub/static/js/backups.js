@@ -16,7 +16,7 @@ export function mount(state) {
   state.plate = h("div", {}, faceplateLoading("Backups"));
   state.needs = needsHere();
   state.extras = h("div", { class: "stack" });
-  state.root.append(state.plate, state.needs, state.extras, openInRow("system", ["backups"]));
+  state.root.append(state.plate, state.needs, state.extras, openInRow("backups"));
 }
 
 // The faceplate from /api/system/backups, pure so it is tested without a page. A failed read is unknown, never fine.

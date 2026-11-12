@@ -5,6 +5,7 @@ import { api, h, post, toast } from "./core.js";
 import { layerInspector } from "./quick-layers.js";
 import { PRINTER_ACTIONS, runPrinterAction } from "./printer-actions.js";
 import { faceplate, faceplateLoading, fillNeedsHere, lampRows, needsHere, section } from "./page-parts.js";
+import { openInRow } from "./section-links.js";
 
 export const every = 10;
 
@@ -371,7 +372,7 @@ export function mount(state) {
     section("Settings", [state.settingsBox], { id: "quick-settings", note: "Standard 0.20 mm PLA, X2D 0.4 mm nozzle. Only settings checked on the Mac are offered." }),
     section("Slice", [state.sliceBox, state.layersBox, state.view3dBox], { id: "quick-slice" }),
     section("Print", [state.printBox], { id: "quick-print-section" }),
-    section("History", [state.historyBox], { id: "quick-history" }));
+    section("History", [state.historyBox], { id: "quick-history" }), openInRow("quick"));
   drawUpload(state);
 }
 

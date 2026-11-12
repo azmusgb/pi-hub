@@ -1,38 +1,9 @@
-// The hub's menu, by task (docs/superpowers/specs/2026-10-24-one-home-design.md, D2). The rail in index.html lists
-// these in this order; the router, the active tab and old bookmarks all read from here.
+// Links to the house's tools, the Assistant and Print lab, and the Assistant button's words. The menu itself (areas,
+// pages, old addresses) is the kit's page list, read through site.js (A22 step 12).
 
-import ROUTES from "./routes.js";
 import { toolUrl as registryUrl } from "../ui/tools.js";
 
 export const ASSISTANT_URL = registryUrl("assistant");
-
-export const SECTIONS = [
-  { key: "home", title: "Home", path: "/", pages: ["/", "/wall"] },
-  { key: "workshop", title: "Workshop", path: "/workshop", pages: ["/workshop", "/lab", "/quick"] },
-  { key: "documents", title: "Documents", path: "/documents", pages: ["/documents", "/print", "/lists"] },
-  { key: "media", title: "Media", path: "/media", pages: ["/media", "/drives"] },
-  { key: "network", title: "Home & network", path: "/devices", pages: ["/devices", "/network", "/weather"] },
-  { key: "system", title: "System", path: "/system", pages: ["/system", "/backups", "/versions", "/alerts", "/rules", "/settings", "/map"] },
-];
-
-// On the phone, Home & network and System sit under More.
-const PHONE = ["home", "workshop", "documents", "media", "more"];
-
-// Old paths, kept so bookmarks still land (the list is in routes.js; /next: the control room is on Home since 31 Oct).
-const REDIRECTS = ROUTES.redirects;
-
-export function sectionFor(path) {
-  if (path === "/more") return "more";
-  if (path === "/assistant") return "assistant";  // level 0 (A4): no rail area of its own, the button marks it
-  return SECTIONS.find((s) => s.pages.includes(path))?.key || "home";
-}
-
-export function redirectFor(path) {
-  return REDIRECTS[path] || null;
-}
-
-export const railItems = () => SECTIONS.map((s) => s.key);
-export const phoneTabs = () => [...PHONE];
 
 // The house's tools come from the kit's one registry (appliance-ui tools.json, platform step 7 Decision 6).
 export { REAL, TOOLS, toolsFor } from "../ui/tools.js";
@@ -86,10 +57,6 @@ export function assistantHref(host, title, facts) {  // eslint-disable-line no-u
   }
   return `/assistant?context=${encodeURIComponent(text)}`;
 }
-
-// Pages the server writes whole, outside the shell (hub/app.py): they open without a sign-in and without the app. The
-// Site map and ⌘K list them so none is reachable only by knowing its address (A22); a link to one is a full page load.
-export const SERVER_PAGES = [{ href: "/privacy", label: "Privacy", area: "system", keywords: "privacy google drive backup consent data" }];
 
 // The phrase table's two unavailable states (section 9): `pc_off` when the `pc` record is off, `assistant_down` when
 // Local AI is down but the PC isn't known to be off. Either disables the button. "Unknown" isn't "off": it stays enabled.

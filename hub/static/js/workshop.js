@@ -67,7 +67,7 @@ export function mount(state) {
       state.more[key] = { el, pill, body };
       return el;
     }));
-  state.root.append(state.sourceNotice, now, state.needs, state.materials, state.week, more, openInRow("workshop"));
+  state.root.append(state.sourceNotice, now, state.needs, state.materials, state.week, more, openInRow("printer"));
   // The camera aside lives across redraws of the band, so a live Room view isn't restarted by every new reading.
   // The view part is redrawn; the settings panel (A18) beside it is kept, so an edit and its open state survive.
   state.camView = h("div", { class: "ws-cam-view" });

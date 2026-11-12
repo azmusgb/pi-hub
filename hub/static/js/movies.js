@@ -2013,7 +2013,7 @@ export async function load(
 
         state.more.root,
 
-        openInRow("media"),
+        openInRow("movies"),
       ].filter(Boolean),
     ));
     refreshMovieNight(state);

@@ -144,14 +144,16 @@ test('a hand-off to an open frame goes by message to the Assistant\'s origin, ne
 });
 
 test('the shell: /assistant is a page, the button opens it with the page\'s facts, links to the Assistant stay in the shell', async () => {
-  const { assistantHref, resolveLink, sectionFor } = await import('../hub/static/js/sections.js');
+  const { assistantHref, resolveLink } = await import('../hub/static/js/sections.js');
+  const { sectionFor } = await import('../hub/static/js/site.js');
   assert.equal(assistantHref('hub.test', 'Workshop', 'printing 40%'), `/assistant?context=${encodeURIComponent('Pi Hub › Workshop: printing 40%')}`);
   assert.equal(resolveLink('tool:assistant/#run/r-1'), '/assistant?to=run%2Fr-1');
   assert.equal(resolveLink('tool:assistant'), '/assistant');
   assert.equal(resolveLink('tool:bambuddy/'), 'https://bambuddy.rahe-home.duckdns.org/', 'other tools are unchanged');
   assert.equal(sectionFor('/assistant'), 'assistant', 'no rail area is marked: the button is');
   const main = read('hub/static/js/main.js');
-  assert.match(main, /"\/assistant": \{ key: "assistant", title: "Assistant", mod: assistantPage \}/);
+  assert.match(main, /^  "\/assistant": \["assistant", assistantPage\],$/m);
+  assert.match(main, /title: path === "\/assistant" \? ASSISTANT\.name :/, "titled by its name in the tool list, Assistant");
   assert.match(main, /current\?\.mod\.retarget\?\.\(current\.state, url\)/);
   assert.match(main, /history\.replaceState\(\{\}, "", destination\)/, 'on /assistant, another Assistant link replaces: Back leaves in one step');
   const html = read('hub/static/index.html');

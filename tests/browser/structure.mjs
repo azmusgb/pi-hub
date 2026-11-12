@@ -9,7 +9,10 @@ const BASE = process.argv[2] || 'http://10.0.0.80';
 const OUT = new URL('./out/', import.meta.url).pathname;
 // The wall (kiosk) has no menu or Assistant button: only its contrast and fit are checked (wall.mjs checks each screen size).
 const WALL = '/wall';
-const PAGES = { '/wall': 'wall', '/': 'home', '/workshop': 'workshop', '/documents': 'documents', '/media': 'media', '/network': 'network', '/system': 'system' };
+// Each page and the area its tab lights (A22 step 12: five areas; Scan and the Site map are pages of theirs).
+const PAGES = { '/wall': 'wall', '/': 'home', '/workshop': 'workshop', '/media': 'household', '/documents': 'household', '/scan': 'household',
+  '/devices': 'network', '/network': 'network', '/system': 'system', '/map': 'system' };
+const shot = (path) => path.replace(/\W/g, '') || 'home';
 mkdirSync(OUT, { recursive: true });
 
 const problems = [];
@@ -39,7 +42,7 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
           });
           if (used < 0.9) problems.push(`${where}: the wall's cards use ${Math.round(used * 100)}% of its width`);
         }
-        await page.screenshot({ path: `${OUT}${key}-${width}-${colorScheme}.png` }); continue;
+        await page.screenshot({ path: `${OUT}${shot(path)}-${width}-${colorScheme}.png` }); continue;
       }
       // The header (with the clock) and the footer line up with the content's right edge.
       if (width >= 861) {
@@ -59,7 +62,7 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
         });
         if (covered) problems.push(`${where}: the bottom bar covers the last section`);
       }
-      await page.screenshot({ path: `${OUT}${key}-${width}-${colorScheme}.png`, fullPage: true });
+      await page.screenshot({ path: `${OUT}${shot(path)}-${width}-${colorScheme}.png`, fullPage: true });
     }
     await ctx.close();
   }

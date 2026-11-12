@@ -82,10 +82,10 @@ function badgeText(key) {
 
 function detailForPage(key, count) {
   if (key === "home" && needs?.count > 0) {
-    return `${needs.count} thing${needs.count === 1 ? " needs" : "s need"} you`;
+    return `${needs.count} need${needs.count === 1 ? "s" : ""} you`;
   }
 
-  if (key === "system" || key === "more") {
+  if (key === "system") {
     return count > 0
       ? `${count} new alert${count === 1 ? "" : "s"}`
       : "";

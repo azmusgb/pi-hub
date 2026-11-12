@@ -28,20 +28,21 @@ test("every toolUrl in the hub's pages names a tool in the registry", () => {
 });
 
 test("a tool link is the registry's host, and an unknown tool gives no link", () => {
-  for (const t of TOOLS) assert.equal(toolUrl(t.id), t.external ? `https://${t.host}${t.base || "/"}` : `https://${t.host}/`);
+  // A tool with `via` (n8n, ComfyUI: kit 2.17) has no host of its own; it opens at an address on the Assistant's origin.
+  for (const t of TOOLS.filter((x) => !x.via)) assert.equal(toolUrl(t.id), t.external ? `https://${t.host}${t.base || "/"}` : `https://${t.host}/`);
+  for (const t of TOOLS.filter((x) => x.via)) assert.equal(toolUrl(t.id), `https://assistant.rahe-home.duckdns.org${t.via}`);
+  assert.deepEqual(TOOLS.filter((x) => x.via).map((x) => x.id), ["n8n", "comfy"]);
   assert.equal(toolUrl("nope"), null);  // an id that is not in the registry (Plex was the example until A6 N4 added it)
   assert.equal(resolveLink("tool:bambuddy/archive"), "https://bambuddy.rahe-home.duckdns.org/archive");
   assert.equal(resolveLink("tool:nope/x"), "");
   assert.equal(resolveLink("/lab?p=hex-tile"), "/lab?p=hex-tile");
 });
 
-test("each area page ends with its registry tools (§5.3)", () => {
-  for (const area of ["workshop", "documents", "network", "system"]) assert.ok(toolsFor(area).length, area);
-  assert.match(read("workshop.js"), /openInRow\("workshop"\)/);
-  assert.match(read("documents.js"), /openInRow\("documents"\)/);
-  assert.match(read("network.js"), /openInRow\("network", \["adguard", "network", "status"\]\)/);  // A6: Devices and Network split the area's tools
-  assert.match(read("devices.js"), /openInRow\("network", \["devices"\]\)/);
-  assert.match(read("health.js"), /openInRow\("system"\)/);
+// Step 12: a page's row is its `tools` in the page list, named by the page's id (test_pages_tools checks every page).
+test("each page ends with its tools in the page list (§5.3)", () => {
+  for (const area of ["workshop", "household", "network", "system"]) assert.ok(toolsFor(area).length, area);
+  for (const [file, id] of [["workshop.js", "printer"], ["documents.js", "papers"], ["network.js", "internet"],
+    ["devices.js", "lights"], ["health.js", "health"]]) assert.ok(read(file).includes(`openInRow("${id}")`), file);
   assert.ok(!toolsFor("workshop").some((t) => t.boundary), "the display's D4 hosts are not for people");
 });
 
@@ -91,26 +92,27 @@ test("the Ask provider's one line is the phrase, so the palette shows it", async
   assert.equal(ask.down, PHRASES.pc_off);
 });
 
-test("Documents is down, not empty, when Paperless doesn't answer", async () => {
+test("Papers is down, not empty, when Paperless doesn't answer", async () => {
   const get = async () => ({ available: false, results: [] });
-  const docs = hubProviders({ get }).find((p) => p.name === "Documents");
+  const docs = hubProviders({ get }).find((p) => p.name === "Papers");  // the page is Papers (A22 3.3)
   await assert.rejects(() => docs.find("tax"));
   assert.deepEqual(await docs.find("t"), []);
   const ok = hubProviders({ get: async () => ({ available: true, results: [{ title: "2025 tax return", created: "Mar 2026" }] }) });
-  const found = await ok.find((p) => p.name === "Documents").find("tax");
+  const found = await ok.find((p) => p.name === "Papers").find("tax");
   found.forEach(assertShape);
   assert.equal(found[0].label, "2025 tax return");
   const signedOut = hubProviders({ get: async () => { throw Object.assign(new Error("Sign in"), { status: 401 }); } });
-  assert.deepEqual(await signedOut.find((p) => p.name === "Documents").find("tax"), [], "signed out isn't Paperless down");
+  assert.deepEqual(await signedOut.find((p) => p.name === "Papers").find("tax"), [], "signed out isn't Paperless down");
 });
 
 // A22 step 11, H3: no page is reachable only by knowing its address, and the Assistant is in ⌘K.
 test("Privacy, a page the server writes, is in ⌘K and the Site map, as a full page load", async () => {
-  const { SERVER_PAGES } = await import("../hub/static/js/sections.js");
-  assert.deepEqual(SERVER_PAGES.map((p) => [p.href, p.label, p.area]), [["/privacy", "Privacy", "system"]]);
+  // Step 12: it is a row of the page list (role standalone, in no area), named Privacy note.
+  const { SITE } = await import("../hub/static/js/site.js");
+  assert.deepEqual(SITE.rows.filter((p) => SITE.served(p)).map((p) => [p.path, p.label, p.area ?? null]), [["/privacy", "Privacy note", null]]);
   const hit = goResults("privacy").filter((r) => r.href === "/privacy");
   assert.equal(hit.length, 1);
-  assert.deepEqual([hit[0].label, hit[0].area], ["Privacy", "System"]);
+  assert.deepEqual([hit[0].label, hit[0].area], ["Privacy note", "Other"]);
   const { paletteNavigate } = await import("../hub/static/js/command-palette.js");
   const went = [];
   paletteNavigate("/privacy", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
@@ -122,8 +124,8 @@ test("Privacy, a page the server writes, is in ⌘K and the Site map, as a full 
   paletteNavigate("https://hub.rahe-home.duckdns.org/backups?from=home", { spa: (h) => went.push(["spa", h]), load: (h) => went.push(["load", h]) });
   assert.deepEqual(went.map(([how]) => how), ["load", "spa"]);
   const { siteMap } = await import("../hub/static/js/map.js");
-  const system = siteMap().find((g) => g.key === "system");
-  assert.deepEqual(system.pages.filter((p) => p.href === "/privacy"), [{ href: "/privacy", label: "Privacy", plain: true }]);
+  const other = siteMap().find((g) => g.key === "other");
+  assert.deepEqual(other.pages, [{ href: "/privacy", label: "Privacy note", plain: true }]);
   assert.equal(siteMap().flatMap((g) => g.pages).filter((p) => p.href === "/privacy").length, 1, "listed once");
 });
 

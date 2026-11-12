@@ -11,8 +11,11 @@ NOW = 1793500000
 
 
 def _routes():
-    text = (ROOT / "hub/static/js/routes.js").read_text()
-    return json.loads(text[re.search(r"^export default", text, re.M).end():].strip().rstrip(";"))
+    """The shell's pages and old addresses, from the kit's page list (A22 step 12; routes.js is gone)."""
+    pages = json.loads((ROOT / "hub/static/ui/pages.json").read_text())["pages"]
+    mine = [p for p in pages if p["system"] == "hub" and p.get("built") is not False and "#" not in p["path"]]
+    return {"pages": [p["path"] for p in mine] + ["/assistant"],
+            "redirects": {a: p["path"] for p in mine for a in p.get("aliases", [])}}
 
 
 ROUTES = _routes()
