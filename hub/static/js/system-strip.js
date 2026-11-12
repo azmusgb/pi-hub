@@ -14,7 +14,7 @@ export const STRIP = [
   ["/map", "Site map"],
 ];
 
-// Each strip names its area: the pages' heading and the strip's accessible name.
+// Each strip names its area: the strip's accessible name, and the area in the browser tab.
 export const STRIPS = {
   system: { label: "System", entries: STRIP },
   workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"], ["/quick", "Quick Print"]] },
@@ -37,13 +37,13 @@ export function stripItems(path) {
   return stripFor(path)?.items ?? null;
 }
 
-// A strip page is headed by its area, the rail's word for it; the strip marks the page and the browser tab names it by
-// its strip entry. Any other page is headed by its own title.
+// Every page is headed by its own name (A22 2.3, amending A7 P1): a strip page by its strip entry, any other by its
+// title. The area is shown by position, in the rail and the strip, and the browser tab reads "Page · Area".
 export function pageHeading(path, title) {
   const strip = stripFor(path);
   if (!strip) return { heading: title, title };
   const here = strip.items.find((i) => i.current);
-  return { heading: strip.label, title: `${here.label} · ${strip.label}` };
+  return { heading: here.label, title: `${here.label} · ${strip.label}` };
 }
 
 export function pageStrip(path) {
