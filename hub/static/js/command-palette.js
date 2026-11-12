@@ -146,9 +146,12 @@ function cached(load, ttl = 15_000) {
   };
 }
 
-// A result's address: the shell draws its own pages; a page the server writes is loaded whole.
+// A result's address: the shell draws its own pages; a page the server writes is loaded whole. The kit's palette hands
+// over the resolved, absolute address, so the path is what's compared.
 export function paletteNavigate(href, { spa = navigateSpa, load = (h) => globalThis.location.assign(h) } = {}) {
-  if (SERVER_PAGES.some((p) => p.href === href)) load(href); else spa(href);
+  let path = href;
+  try { path = new URL(href, "https://hub.invalid").pathname; } catch { /* not an address: let the shell answer it */ }
+  if (SERVER_PAGES.some((p) => p.href === path)) load(href); else spa(href);
 }
 
 export function hubProviders({ get = api } = {}) {
