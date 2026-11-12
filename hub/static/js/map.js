@@ -1,52 +1,38 @@
-// System › Site map: every area, page and tool on one page. It is drawn from routes.js (the pages the server knows), the
-// area strips and the tool registry, so a page or tool added there appears here with no edit (A6 decision sitemap).
+// System › Site map: every area, page and tool on one page. Every page row is generated from the kit's page list
+// (site.js) and every tool row from the tool registry, so a page or tool added there appears here with no edit (A6
+// decision sitemap; A22 3.5: no row here is written by hand).
 import { h } from "./core.js";
 import { faceplate } from "./page-parts.js";
-import ROUTES from "./routes.js";
-import { SECTIONS, SERVER_PAGES, toolUrl } from "./sections.js";
-import { STRIPS } from "./system-strip.js";
+import { toolUrl } from "./sections.js";
+import { SITE, areaTools, retiredTools } from "./site.js";
 import { TOOLS } from "../ui/tools.js";
 import { ASSISTANT_PAGES, addressFor } from "./assistant.js";
 
 export const every = 600;
 
-// Pages that aren't on a strip have no strip name: these are theirs. A page with neither gets its address as its name,
-// which the Site map test refuses, so a new page can't ship unnamed.
-const OTHER_NAMES = { "/": "Home", "/wall": "Wall display", "/more": "More (the phone's menu)" };
-
-const pageNames = () => new Map([
-  ...Object.entries(OTHER_NAMES),
-  ...Object.values(STRIPS).flatMap(({ entries }) => entries),
-]);
-
-// The map as data: one group per area (the rail's six, in its order), the Assistant, pages in no area, and the tools that
-// are machine-facing. Pure, so it is tested without a page. The Assistant's areas are pages in the shell (/assistant,
-// A4); its registry entry stays as the tool, Local AI opened on its own.
-export function siteMap(routes = ROUTES, tools = TOOLS) {
-  const names = pageNames();
-  const named = (href) => ({ href, label: names.get(href) || href });
-  const placed = new Set(["/assistant"]);
-  const groups = SECTIONS.map((s) => {
-    const pages = s.pages.filter((p) => routes.pages.includes(p));
-    pages.forEach((p) => placed.add(p));
-    const mine = tools.filter((t) => t.area === s.key && !t.boundary);
-    // A page the server writes (Privacy) follows its area's own pages; `plain` marks a full page load, not a shell page.
-    const served = SERVER_PAGES.filter((p) => p.area === s.key).map(({ href, label }) => ({ href, label, plain: true }));
-    return { key: s.key, title: s.title, path: s.path, pages: [...pages.map(named), ...served], tools: mine };
-  });
-  const loose = routes.pages.filter((p) => !placed.has(p));
-  const used = new Set(groups.flatMap((g) => g.tools.map((t) => t.id)));
-  const assistant = tools.filter((t) => t.area === "assistant" && !t.boundary);
-  assistant.forEach((t) => used.add(t.id));
+// The map as data: one group per area (the rail's five, in its order), the Assistant, pages in no area (the Privacy
+// note), the tools no longer used, and the machine-facing ones. Pure, so it is tested without a page. The Assistant's
+// sections are pages in the shell (/assistant, A4) and stay as step 11 named them until step 14 frames each one; its
+// registry entry stays as the tool, Local AI opened on its own.
+export function siteMap(site = SITE, tools = TOOLS) {
+  const entries = site.entries("map");
+  // `plain` marks a page the server writes whole: a full page load, not a shell page.
+  const stop = ({ href, label, plain }) => ({ href, label, plain });
+  const groups = site.areas.map((a) => ({ key: a.id, title: a.label, path: site.page(a.landing).path,
+    pages: entries.filter((e) => e.area === a.id).map(stop), tools: areaTools(a.id, tools) }));
+  const loose = entries.filter((e) => !site.area(e.area)).map(stop);
+  const assistant = areaTools("assistant", tools);
   const machine = tools.filter((t) => t.boundary);
-  machine.forEach((t) => used.add(t.id));
+  const retired = retiredTools(tools).filter((t) => !t.boundary);
+  const used = new Set([...groups.flatMap((g) => g.tools), ...assistant, ...machine, ...retired].map((t) => t.id));
   const rest = tools.filter((t) => !used.has(t.id));
   return [
     ...groups,
     { key: "assistant", title: "Assistant", path: "/assistant",
       pages: ASSISTANT_PAGES.map(([to, label]) => ({ href: addressFor(to), label })), tools: assistant },
-    ...(loose.length || rest.length ? [{ key: "other", title: "Other", path: "", pages: loose.map(named), tools: rest }] : []),
-    { key: "machine", title: "Machine-facing, not for browsing", path: "", pages: [], tools: machine, machine: true },
+    ...(loose.length || rest.length ? [{ key: "other", title: "Other", path: "", pages: loose, tools: rest, quiet: true }] : []),
+    ...(retired.length ? [{ key: "retired", title: "No longer used", path: "", pages: [], tools: retired, quiet: true }] : []),
+    { key: "machine", title: "Machine-facing, not for browsing", path: "", pages: [], tools: machine, machine: true, quiet: true },
   ];
 }
 
@@ -63,8 +49,8 @@ export function mapPlate(groups) {
   const pages = groups.reduce((n, g) => n + g.pages.length, 0);
   const tools = groups.filter((g) => !g.machine).reduce((n, g) => n + g.tools.length, 0);
   return faceplate({ name: "Site map", readout: String(pages), unit: "pages", size: "md",
-    caption: "Every page and tool, drawn from the menu and the tool list, so it is always current.",
-    readings: [["Areas", String(SECTIONS.length)], ["Tools", String(tools)]] });
+    caption: "Every page and tool, drawn from the page list and the tool list, so it is always current.",
+    readings: [["Areas", String(SITE.areas.length)], ["Tools", String(tools)]] });
 }
 
 // What a filter matches against: a page's name and address, a tool's name, purpose and host. Lower case, one string.
@@ -109,7 +95,7 @@ function areaSection(g) {
       li.dataset.find = findText(t.name, t.purpose, t.host);
       return li;
     }) : h("li", { class: "map-none meta" }, "No tools"));
-  return h("section", { class: `more-group map-band${g.machine || g.key === "other" ? " map-band--quiet" : ""}`,
+  return h("section", { class: `more-group map-band${g.quiet ? " map-band--quiet" : ""}`,
     dataset: { area: g.key, find: findText(g.title) } }, name, run, out);
 }
 

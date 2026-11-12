@@ -14,7 +14,7 @@ import * as healthPage from "./health.js";
 import * as backupsPage from "./backups.js";
 import * as alertsPage from "./alerts.js";
 import * as settingsPage from "./settings.js";
-import * as morePage from "./more.js";
+import * as scanPage from "./scan.js";
 import * as rulesPage from "./rules.js";
 import * as drivesPage from "./drives.js";
 import * as weatherPage from "./weather.js";
@@ -24,9 +24,10 @@ import * as devicesPage from "./devices.js";
 import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
 import * as assistantPage from "./assistant.js";
-import { pageHeading, pageStrip, revealCurrent } from "./system-strip.js";
+import { pageStrip, revealCurrent } from "./system-strip.js";
 import { renderSources } from "./sources.js";
-import { SECTIONS, sectionFor, redirectFor, assistantHref, assistantButton } from "./sections.js";
+import { assistantHref, assistantButton, TOOLS } from "./sections.js";
+import { SITE, sectionFor } from "./site.js";
 
 // The Assistant button opens /assistant in the shell (A4) with the open page and its key facts (set as the person
 // reaches for it, so they are the ones on screen). On /assistant itself it carries none: it returns to the frame.
@@ -56,31 +57,36 @@ checkAssistant();
 setInterval(checkAssistant, 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkAssistant(); });
 
-// Every page the shell draws; routes.js lists the same paths for the server, and a test keeps the two equal.
-const PAGES = {
-  "/": { key: "now", title: "Home", mod: nowPage },
-  "/wall": { key: "now", title: "Wall display", mod: nowPage },
-  "/workshop": { key: "workshop", title: "Printer", mod: workshopPage },
-  "/lab": { key: "workshop", title: "Print lab", mod: labPage },
-  "/quick": { key: "workshop", title: "Quick Print", mod: quickPage },
-  "/print": { key: "print", title: "Print", mod: printPage },
-  "/lists": { key: "lists", title: "Lists", mod: listsPage },
-  "/alerts": { key: "alerts", title: "Alerts", mod: alertsPage },
-  "/settings": { key: "settings", title: "Settings", mod: settingsPage },
-  "/more": { key: "more", title: "More", mod: morePage },
-  "/rules": { key: "rules", title: "Automations", mod: rulesPage },
-  "/drives": { key: "drives", title: "Drives", mod: drivesPage },
-  "/weather": { key: "weather", title: "Weather", mod: weatherPage },
-  "/media": { key: "movies", title: "Movies", mod: moviesPage },
-  "/documents": { key: "documents", title: "Papers", mod: documentsPage },
-  "/devices": { key: "devices", title: "Devices", mod: devicesPage },
-  "/network": { key: "network", title: "Network", mod: networkPage },
-  "/system": { key: "health", title: "Health", mod: healthPage },
-  "/backups": { key: "backups", title: "Backups", mod: backupsPage },
-  "/versions": { key: "versions", title: "Versions", mod: versionsPage },
-  "/map": { key: "map", title: "Site map", mod: mapPage },
-  "/assistant": { key: "assistant", title: "Assistant", mod: assistantPage },
+// Every page the shell draws: its address, the key its styles and freshness line go by, and its module. The address
+// and the name are the page list's (site.js); a test keeps this table and the list's Pi Hub pages equal. /assistant is
+// the Assistant's door: its row in the list is drawn with the Assistant's frame (step 14), so it is named here.
+const ROUTES = {
+  "/": ["now", nowPage],
+  "/wall": ["now", nowPage],
+  "/workshop": ["workshop", workshopPage],
+  "/lab": ["workshop", labPage],
+  "/quick": ["workshop", quickPage],
+  "/media": ["movies", moviesPage],
+  "/documents": ["documents", documentsPage],
+  "/scan": ["scan", scanPage],
+  "/print": ["print", printPage],
+  "/lists": ["lists", listsPage],
+  "/drives": ["drives", drivesPage],
+  "/devices": ["devices", devicesPage],
+  "/network": ["network", networkPage],
+  "/weather": ["weather", weatherPage],
+  "/system": ["health", healthPage],
+  "/backups": ["backups", backupsPage],
+  "/versions": ["versions", versionsPage],
+  "/alerts": ["alerts", alertsPage],
+  "/rules": ["rules", rulesPage],
+  "/settings": ["settings", settingsPage],
+  "/map": ["map", mapPage],
+  "/assistant": ["assistant", assistantPage],
 };
+const ASSISTANT = TOOLS.find((t) => t.id === "assistant");
+const PAGES = Object.fromEntries(Object.entries(ROUTES).map(([path, [key, mod]]) =>
+  [path, { key, mod, title: path === "/assistant" ? ASSISTANT.name : SITE.pageAt(path).label }]));
 
 // In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
 const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {
@@ -94,36 +100,14 @@ const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {
   async load() {},
 } };
 
-// Page-specific subtitles
-const subtitles = {
-  "/": "Your home at a glance",
-  "/wall": "Glanceable ambient display",
-  "/weather": "Current conditions and forecast",
-  "/workshop": "The X2D, filament and projects",
-  "/lab": "Experiments, test coupons and operator verdicts",
-  "/quick": "Slice an STL or 3MF on the Mac and look at the result",
-  "/print": "Send jobs to the HP DeskJet",
-  "/lists": "Shopping, to-dos, and notes",
-  "/rules": "Set up things the house can do for you",
-  "/alerts": "Recent system and device events",
-  "/settings": "Configure your Pi Hub",
-  "/media": "What's playing and what to watch",
-  "/drives": "The movies drive and the copy from the PC",
-  "/documents": "Find, scan and print papers",
-  "/devices": "Lights, plugs and the other things in the house",
-  "/network": "The internet, ad blocking and guest Wi-Fi",
-  "/map": "Every page and tool, and where it lives",
-  "/system": "How the hub and the Pi are doing, and what to try",
-  "/backups": "What is backed up, and when",
-  "/versions": "What is live where",
-  "/assistant": "Runs on the PC, which may be asleep",
-};
+// The one line under the title: the page's purpose in the list; the Assistant's is its line in the tool list.
+const purposeOf = (path) => (path === "/assistant" ? ASSISTANT.purpose : SITE.headingFor(path)?.purpose || "");
 
 const updateSubtitle = () => {
   const el = document.getElementById("page-subtitle");
   if (el) {
     const path = location.pathname;
-    el.textContent = subtitles[path] || "";
+    el.textContent = purposeOf(path);
   }
 };
 document.addEventListener("DOMContentLoaded", updateSubtitle);
@@ -240,7 +224,7 @@ async function refresh() {
 }
 
 async function show(path, { focus = false } = {}) {
-  const moved = redirectFor(path);
+  const moved = SITE.redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
   const page = PAGES[path] || NOT_FOUND;  // the server answers unknown paths itself; this is in-app navigation
   const section = sectionFor(path);
@@ -264,25 +248,24 @@ async function show(path, { focus = false } = {}) {
   view.append(notice, root);
   const context = new URLSearchParams(location.search);
   const state = { root, context };
-  const home = SECTIONS.find((x) => x.key === section);
-  // Every area's pages carry their strip instead of a breadcrumb: the strip already says where you are.
+  // Every area's pages carry their strip instead of a breadcrumb: the strip already says where you are. Only a page
+  // with no strip that was opened from Home (the Assistant) gets the way back.
   const strip = pageStrip(path);
   if (strip) { view.prepend(strip); revealCurrent(strip); }
-  const parents = strip ? []
-    : home && home.path !== path && home.key !== "home" ? [[home.path, home.title]]
-    : context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
+  const parents = !strip && context.get("from") === "home" && page.key !== "now" ? [["/", "Home"]] : [];
   if (parents.length) view.prepend(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" },
     ...parents.map(([href, label]) => h("a", { href, "data-link": true }, label)),
     h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, page.title)));
   current = { ...page, state, notice, lastOk: 0 };
   const shown = current;
   tick();
-  const { heading, title } = pageHeading(path, page.title);
+  // Every page is headed by its own name (A22 2.3); the area is shown by position, and the browser tab reads "Page · Area".
+  const { heading, title } = SITE.headingFor(path) || { heading: page.title, title: page.title };
   document.title = `${wallMode ? "Wall display" : title} · Pi Hub`;
   document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
   for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === section || (a.dataset.page === "more" && ["network", "system", "more"].includes(section));
+    const here = a.dataset.page === section;
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {

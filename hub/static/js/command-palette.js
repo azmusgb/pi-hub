@@ -3,31 +3,43 @@
 // under the input), Find (records, Needs you, documents), Ask (the hand-off) and Search (the area pages' own searches).
 import { api, askFirst, fix, FIX_WHAT } from "./core.js";
 import { runPrinterAction, PRINTER_ACTIONS, PRINTER_DEPS } from "./printer-actions.js";
-import { assistantButton, assistantHref, resolveLink, SECTIONS, SERVER_PAGES, TOOLS, toolUrl } from "./sections.js";
+import { assistantButton, assistantHref, resolveLink, TOOLS, toolUrl } from "./sections.js";
+import { SITE } from "./site.js";
 import { navigateSpa, RECORD_LABELS, recordPath } from "./control-room.js";
 
-const PAGES = [
-  { label: "Home", href: "/", area: "Home", keywords: "home overview now needs you" },
-  { label: "Wall display", href: "/wall", area: "Home", keywords: "wall display kiosk ambient" },
-  { label: "Printer", href: "/workshop", area: "Workshop", keywords: "workshop printer bambu x2d camera spools ams" },
-  { label: "Quick Print", href: "/quick", area: "Workshop", keywords: "quick print stl 3mf slice model upload x2d" },
-  { label: "Print lab", href: "/lab", area: "Workshop", keywords: "print lab experiments coupons verdicts judge" },
-  { label: "Papers", href: "/documents", area: "Documents", keywords: "documents papers paperless scan pdf tax" },
-  { label: "Print", href: "/print", area: "Documents", keywords: "print a document paper hp deskjet cups ink" },
-  { label: "Lists", href: "/lists", area: "Documents", keywords: "lists shopping todo notes groceries" },
-  { label: "Movies", href: "/media", area: "Media", keywords: "media movies plex watch movie night" },
-  { label: "Drives", href: "/drives", area: "Media", keywords: "drives storage usb disk movies copy" },
-  { label: "Devices", href: "/devices", area: "Home & network", keywords: "home network devices lights plugs switches fans homebridge" },
-  { label: "Network", href: "/network", area: "Home & network", keywords: "home network internet wifi adguard dns" },
-  { label: "Weather", href: "/weather", area: "Home & network", keywords: "weather forecast rain sun temperature" },
-  { label: "Health", href: "/system", area: "System", keywords: "health system services diagnostics pi help fix" },
-  { label: "Backups", href: "/backups", area: "System", keywords: "backups backrest restore" },
-  { label: "Versions", href: "/versions", area: "System", keywords: "versions releases deploys live commit" },
-  { label: "Alerts", href: "/alerts", area: "System", keywords: "alerts events history log" },
-  { label: "Automations", href: "/rules", area: "System", keywords: "automations rules triggers" },
-  { label: "Settings", href: "/settings", area: "System", keywords: "settings password devices access" },
-  { label: "Site map", href: "/map", area: "System", keywords: "site map every page tool menu where" },
-];
+// Words that also find a page, by its id in the page list (step 12 plan, decision 8). They are hints, not names, and
+// keep the retired words: typing "devices" still finds Lights. A key that isn't a page fails a test.
+export const KEYWORDS = {
+  home: "overview now needs you",
+  wall: "wall kiosk ambient",
+  printer: "workshop bambu x2d camera spools ams",
+  quick: "stl 3mf slice model upload x2d",
+  lab: "experiments coupons verdicts judge",
+  "lab-experiments": "coupons verdicts judge",
+  movies: "media plex watch movie night",
+  papers: "documents paperless pdf tax",
+  scan: "scanner scanned",
+  print: "a document paper hp deskjet cups ink",
+  lists: "shopping todo notes groceries",
+  drives: "storage usb disk movies copy",
+  lights: "devices home network plugs switches fans homebridge",
+  internet: "network home wifi adguard dns",
+  weather: "forecast rain sun temperature",
+  health: "system services diagnostics pi help fix",
+  backups: "backrest restore",
+  versions: "releases deploys live commit",
+  alerts: "events history log",
+  automations: "rules triggers",
+  settings: "setup password devices access",
+  "settings-general": "appearance theme text size",
+  "settings-home": "homebridge guest wifi workshop display",
+  "settings-outside": "forecast location events",
+  "settings-phone": "morning digest quiet hours notifications",
+  "settings-people": "your devices siri shortcuts owner password",
+  "settings-pi": "backups activity",
+  map: "every page tool menu where more",
+  privacy: "google drive backup consent data",
+};
 
 const FIXES = [
   { name: "selfcheck:run", label: "Run a hub self-check", keywords: "selfcheck check diagnostic test health" },
@@ -49,18 +61,16 @@ function assistantRow(q, assistant) {
   return [{ kind: "go", label: "Assistant", href: "/assistant", area: "Assistant", ...(disabled ? { hint: label } : {}) }];
 }
 
-const areaTitle = (key) => SECTIONS.find((s) => s.key === key)?.title || "";
-
-// Go: Pi Hub's pages, the pages the server writes (Privacy), the Assistant, and each gated tool on its real name (from
-// the registry). `assistant` is the last /api/assistant answer, when there is one.
-export function goResults(query, assistant = null) {
+// Go: every Pi Hub page, tab and standalone page in the list, each with its area; the Assistant; and each tool that is
+// still in use, on its real name (from the registry). `assistant` is the last /api/assistant answer, when there is one.
+export function goResults(query, assistant = null, site = SITE) {
   const q = norm(query);
   const pages = [
-    ...PAGES.filter((p) => matches(q, p.label, p.area, p.keywords)).map(({ label, href, area }) => ({ kind: "go", label, href, area })),
-    ...SERVER_PAGES.filter((p) => matches(q, p.label, p.keywords)).map(({ label, href, area }) => ({ kind: "go", label, href, area: areaTitle(area) })),
+    ...site.entries("palette").filter((p) => matches(q, p.label, p.areaLabel, KEYWORDS[p.id]))
+      .map(({ label, href, areaLabel }) => ({ kind: "go", label, href, area: areaLabel })),
     ...assistantRow(q, assistant),
   ];
-  const tools = TOOLS.filter((t) => !t.boundary && t.id !== "hub" && matches(q, t.name, t.purpose, t.id))
+  const tools = TOOLS.filter((t) => !t.boundary && !t.retired && t.id !== "hub" && matches(q, t.name, t.purpose, t.id))
     .map((t) => ({ kind: "go", label: `Open ${t.name}`, hint: t.purpose, href: toolUrl(t.id), area: "Tools" }));
   return [...pages, ...tools];
 }
@@ -95,7 +105,7 @@ export function findResults(query, records = [], needs = null) {
   return [...items, ...recs].filter((r) => matches(q, r.text)).map(({ text, ...r }) => r);  // eslint-disable-line no-unused-vars
 }
 
-// Find: documents, through the Documents page's own search. They are the owner's: signed out gives none; Paperless
+// Find: papers, through the Papers page's own search. They are the owner's: signed out gives none; Paperless
 // off is "down".
 export async function documentResults(query, { signal, get = api } = {}) {
   const q = String(query || "").trim();
@@ -109,7 +119,7 @@ export async function documentResults(query, { signal, get = api } = {}) {
   }
   if (!r?.available) throw new Error("Paperless isn't answering");
   return (r.results || []).slice(0, 5).map((d) => ({ kind: "find", label: d.title, hint: d.created || "",
-    href: `/documents?q=${encodeURIComponent(q)}`, area: "Documents" }));
+    href: `/documents?q=${encodeURIComponent(q)}`, area: SITE.page("papers").label }));
 }
 
 // Ask: the hand-off to the Assistant. With the PC off (or Local AI down) the provider says so, in the phrase table's
@@ -131,8 +141,8 @@ export function searchResults(query) {
   const raw = String(query || "").trim();
   if (raw.length < 2) return [];
   return [
-    { kind: "search", label: `Search Documents for “${raw}”`, href: `/documents?q=${encodeURIComponent(raw)}`, area: "Documents" },
-    { kind: "search", label: `Search Movies for “${raw}”`, href: `/media?q=${encodeURIComponent(raw)}`, area: "Media" },
+    ...["papers", "movies"].map((id) => SITE.page(id)).map((p) => ({ kind: "search", label: `Search ${p.label} for “${raw}”`,
+      href: `${p.path}?q=${encodeURIComponent(raw)}`, area: SITE.area(p.area).label })),
   ];
 }
 
@@ -151,7 +161,7 @@ function cached(load, ttl = 15_000) {
 export function paletteNavigate(href, { spa = navigateSpa, load = (h) => globalThis.location.assign(h) } = {}) {
   let path = href;
   try { path = new URL(href, "https://hub.invalid").pathname; } catch { /* not an address: let the shell answer it */ }
-  if (SERVER_PAGES.some((p) => p.href === path)) load(href); else spa(href);
+  if (SITE.pageAt(path) && SITE.served(SITE.pageAt(path))) load(href); else spa(href);
 }
 
 export function hubProviders({ get = api } = {}) {
@@ -174,7 +184,7 @@ export function hubProviders({ get = api } = {}) {
       const { records, needs } = await state();
       return [...doResults(q, records), ...findResults(q, records, needs)];
     } },
-    { name: "Documents", down: "Paperless isn't answering", timeout: 5000,
+    { name: "Papers", down: "Paperless isn't answering", timeout: 5000,
       find: (q, { signal } = {}) => documentResults(q, { signal, get }) },
     ask,
     { name: "Search", find: (q) => searchResults(q) },

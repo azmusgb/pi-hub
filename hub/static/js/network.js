@@ -11,7 +11,7 @@ export function mount(state) {
   state.plate = h("div", {}, faceplateLoading("Internet"));
   state.needs = needsHere();
   state.extras = h("div", { class: "stack" });
-  state.root.append(state.plate, state.needs, state.extras, openInRow("network", ["adguard", "network", "status"]));
+  state.root.append(state.plate, state.needs, state.extras, openInRow("internet"));
 }
 
 const ms = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10} ms` : null);

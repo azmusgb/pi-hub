@@ -10,7 +10,7 @@ export function mount(state) {
   state.needs = needsHere();
   state.devices = { root: h("div"), context: state.context, needs: state.needs };
   controls.mount(state.devices);
-  state.root.append(state.devices.root, openInRow("network", ["devices"]));
+  state.root.append(state.devices.root, openInRow("lights"));
 }
 
 export async function load(state) {

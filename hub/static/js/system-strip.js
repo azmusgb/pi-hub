@@ -1,53 +1,11 @@
-// An area's page strip: one row of the area's pages, shown on each of them. System's (§5.6 `/system`, platform step 7,
-// PR 7.3) came first; Workshop's Printer | Print lab (§5.1, workshop flow W.1) is the same component, and A6 gives
-// Documents, Media and Home & network theirs, so no page is hidden. A7 (P4) draws it as the kit's underlined strip, the
-// same in Pi Hub and the Assistant.
+// An area's page strip: one row of the area's pages, shown on each of them (A6: no page is hidden; A7 P4: the kit's
+// underlined strip). Which pages, in which order and by which names is the kit's page list (A22 step 12).
 import { h } from "./core.js";
+import { SITE } from "./site.js";
 
-export const STRIP = [
-  ["/system", "Health"],
-  ["/backups", "Backups"],
-  ["/versions", "Versions"],
-  ["/alerts", "Alerts"],
-  ["/rules", "Automations"],
-  ["/settings", "Settings"],
-  ["/map", "Site map"],
-];
-
-// Each strip names its area: the strip's accessible name, and the area in the browser tab.
-export const STRIPS = {
-  system: { label: "System", entries: STRIP },
-  workshop: { label: "Workshop", entries: [["/workshop", "Printer"], ["/lab", "Print lab"], ["/quick", "Quick Print"]] },
-  documents: { label: "Documents", entries: [["/documents", "Papers"], ["/print", "Print"], ["/lists", "Lists"]] },
-  media: { label: "Media", entries: [["/media", "Movies"], ["/drives", "Drives"]] },
-  network: { label: "Home & network", entries: [["/devices", "Devices"], ["/network", "Network"], ["/weather", "Weather"]] },
-};
-
-// The strip a page belongs to, with its entries, or null when the page isn't on one.
-export function stripFor(path) {
-  for (const [key, { label, entries }] of Object.entries(STRIPS)) {
-    if (entries.some(([href]) => href === path)) {
-      return { key, label, items: entries.map(([href, name]) => ({ href, label: name, current: href === path })) };
-    }
-  }
-  return null;
-}
-
-export function stripItems(path) {
-  return stripFor(path)?.items ?? null;
-}
-
-// Every page is headed by its own name (A22 2.3, amending A7 P1): a strip page by its strip entry, any other by its
-// title. The area is shown by position, in the rail and the strip, and the browser tab reads "Page · Area".
-export function pageHeading(path, title) {
-  const strip = stripFor(path);
-  if (!strip) return { heading: title, title };
-  const here = strip.items.find((i) => i.current);
-  return { heading: here.label, title: `${here.label} · ${strip.label}` };
-}
-
-export function pageStrip(path) {
-  const strip = stripFor(path);
+// The strip's `nav` is named "{Area} pages" (A22 9.1), so it is told apart from the rail, which names the areas.
+export function pageStrip(path, site = SITE) {
+  const strip = site.stripFor(path);
   if (!strip) return null;
   return h("nav", { class: `ui-strip page-strip ${strip.key}-strip`, "aria-label": strip.label },
     ...strip.items.map(({ href, label, current }) =>

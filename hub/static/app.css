@@ -190,10 +190,6 @@ body::before {
   background: var(--accent); transform: translateY(-50%);
 }
 
-.phone-only { display: none; }
-/* A10 D2: shell switch: rail or tab bar. */
-@media (min-width: 861px) { .rail li.extra { display: block; } }
-
 .stage { display: flex; flex-direction: column; min-width: 0; min-height: 100dvh; }
 
 .top {
@@ -295,6 +291,8 @@ body::before {
     grid-template-columns: minmax(0, 1fr);
     padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
+  /* Focus brought into view by Tab stops above the tab bar, never under it (A22 9.2). */
+  html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
   .rail {
     position: fixed; inset: auto 0 0 0; height: auto; width: 100%;
     flex-direction: row; align-items: stretch; gap: 0;
@@ -310,8 +308,6 @@ body::before {
   .rail ul { display: contents; }
   .rail li { min-width: 0; }
   .rail li { flex: 1; display: flex; }
-  .rail li.extra { display: none; }
-  .rail li.phone-only { display: flex; }
   .rail a[data-page] {
     flex: 1; min-width: 0; min-height: 56px; flex-direction: column; gap: .2rem;
     padding: .45rem .25rem; font-size: .75rem; font-weight: 600;
@@ -754,14 +750,14 @@ html {
 /* The strip wraps rather than scrolls where its links don't fit on one line (A10 D2: it needs no width rule). */
 .ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: wrap; column-gap: 1.1rem; overflow: visible; }
 .ui-strip.page-strip a { min-width: 44px; justify-content: center; }
-/* System's seven pages keep one line and scroll sideways at every width (A10 plan decision 16); an edge with pages past it
-   fades, so the hidden ones are hinted, not lost. */
+/* A strip keeps one line and scrolls sideways where its pages don't fit (System's seven, A10 plan decision 16; Household's
+   six on a narrow phone, A22 2.2); an edge with pages past it fades, so the hidden ones are hinted, not lost. */
 /* The scroll padding matches the fade, so a link brought into view by Tab stops clear of it. */
-.ui-strip.page-strip.system-strip { flex-wrap: nowrap; overflow-x: auto; scroll-padding-inline: 2.5rem; }
-.ui-strip.page-strip.system-strip[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
-.ui-strip.page-strip.system-strip[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
-.ui-strip.page-strip.system-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
-@media (forced-colors: active) { .ui-strip.page-strip.system-strip[data-more] { mask-image: none; } }
+.ui-strip.page-strip { flex-wrap: nowrap; overflow-x: auto; scroll-padding-inline: 2.5rem; }
+.ui-strip.page-strip[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+.ui-strip.page-strip[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
+.ui-strip.page-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+@media (forced-colors: active) { .ui-strip.page-strip[data-more] { mask-image: none; } }
 /* Settings' six groups are the kit's chips (A7 P4), wrapping onto a second line on a phone. */
 .ui-chips.settings-tabs { margin: 0 0 1.25rem; }
 

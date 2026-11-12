@@ -78,7 +78,7 @@ export function mount(state) {
   const form = h("form", { class: "doc-search", role: "search",
     onsubmit: (e) => { e.preventDefault(); search(state, state.query.value.trim()); } },
     state.query, h("button", { type: "submit", class: "ui-btn ui-btn--primary" }, "Find"));
-  state.root.append(state.plate, section("Find a document", [form, state.results]), openInRow("documents"));
+  state.root.append(state.plate, section("Find a document", [form, state.results]), openInRow("papers"));
 }
 
 export async function load(state) {

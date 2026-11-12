@@ -1486,12 +1486,13 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
 
-# ---- Scanning: retired here (platform step 7, PR 7.4). Scan is its own tool at scan.<house> behind the gate; an old
-# /scan or /scan/... bookmark moves there with its path and query kept (308 keeps the method too).
+# ---- Scanning (platform step 7, PR 7.4; amendment A22 section 10). Scan is its own tool at scan.<house> behind the
+# gate. GET /scan is Pi Hub's Scan page, in the shell (step 12). Everything else that used to be the old scanner keeps
+# moving to the tool with its path and query (308 keeps the method too): /scan/..., and any POST, PUT or DELETE.
 SCAN_HOST = "https://scan.rahe-home.duckdns.org"
 
 
-@app.api_route("/scan", methods=["GET", "POST", "PUT", "DELETE"])
+@app.api_route("/scan", methods=["POST", "PUT", "DELETE"])
 @app.api_route("/scan/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 def scan_moved(request: Request, path: str = ""):
     query = f"?{request.url.query}" if request.url.query else ""
@@ -1501,15 +1502,17 @@ def scan_moved(request: Request, path: str = ""):
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
-def _routes() -> dict:
-    """The shell's pages and redirects, from the one list the router imports (hub/static/js/routes.js)."""
-    text = (STATIC / "js" / "routes.js").read_text()
-    body = text[re.search(r"^export default", text, re.M).end():]
-    return json.loads(body.strip().rstrip(";"))
+def _shell_paths() -> frozenset:
+    """Every address the shell answers, from the kit's one page list (hub/static/ui/pages.json; A22 section 3): Pi
+    Hub's own built pages, their old addresses, and the Assistant's door. A page the server writes itself (the Privacy
+    note, role standalone) has its own route, and a view at a #fragment has no address of its own here."""
+    pages = json.loads((STATIC / "ui" / "pages.json").read_text())["pages"]
+    mine = [p for p in pages if p["system"] == "hub" and p.get("built") is not False and "#" not in p["path"]]
+    drawn = {p["path"] for p in mine if p["role"] != "standalone"}
+    return frozenset(drawn | {a for p in mine for a in p.get("aliases", [])} | {"/assistant"})
 
 
-_ROUTES = _routes()
-SHELL_PATHS = frozenset(_ROUTES["pages"]) | frozenset(_ROUTES["redirects"])
+SHELL_PATHS = _shell_paths()
 
 # Any other address: a real 404, not the shell (§5.6 "Any other path"). Standalone, in the kit's look.
 NOT_FOUND_PAGE = """<!doctype html>
@@ -1531,14 +1534,14 @@ p{margin:0 0 16px;color:var(--ui-muted)}nav{display:flex;flex-wrap:wrap;gap:12px
 # backup to Google Drive (amendment A5). Standalone, like the 404 page.
 PRIVACY_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy · Pi Hub</title>
+<title>Privacy note · Pi Hub</title>
 <script src="/static/js/saved-theme.js"></script>
 <link rel="stylesheet" href="/static/ui/tokens.css"><link rel="stylesheet" href="/static/ui/components.css">
 <style>body{margin:0;padding:24px 16px;background:var(--ui-bg);color:var(--ui-text);font:400 var(--ui-fs-4)/1.5 var(--ui-font)}
 main{max-width:36rem;margin:10vh auto 0}h1{margin:0 0 8px;font-size:var(--ui-fs-5);line-height:1.25}
 p{margin:0 0 16px;color:var(--ui-muted)}</style>
 </head><body><main>
-<h1>Privacy</h1>
+<h1>Privacy note</h1>
 <p>Pi Hub and its “pi-offsite” Google app are a personal system used by one household. They have no other users.</p>
 <p>The app asks Google only for <code>drive.file</code>: it can see and change only the files it created itself, never
 anything else in the Drive. It stores the household’s own backups there, encrypted on the household’s computer before
