@@ -7,36 +7,24 @@
   height: auto;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: var(--r-md);
+  border-radius: var(--ui-r-4);
   display: block;
   background: #000;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
 }
-.now-col-left .band { margin-bottom: 0; }
-.workshop-display-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  font-weight: 600;
-  color: var(--accent-strong);
-  text-decoration: none;
-}
-.workshop-display-link:hover { text-decoration: underline; }
-
 .print-photo-link {
   display: inline-block;
-  margin-right: 0.5rem;
+  margin-right: var(--ui-s-2);
   vertical-align: middle;
-  border-radius: 4px;
+  border-radius: var(--ui-r-1);
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   line-height: 0;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform var(--ui-dur-1) var(--ui-ease), border-color var(--ui-dur-1) var(--ui-ease);
 }
 .print-photo-link:hover {
   transform: scale(1.1);
-  border-color: var(--accent);
+  border-color: var(--ui-accent);
 }
 .print-photo-thumb {
   width: 48px;
@@ -50,8 +38,8 @@
 .pi-bottom-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
+  gap: var(--ui-s-5);
+  margin-top: var(--ui-s-5);
 }
 .pi-bottom-grid .card {
   margin: 0;
@@ -62,93 +50,81 @@
 }
 
 /* Fix it Buttons */
-.fix-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-.fix-grid .btn {
-  flex: 1;
-  min-width: 140px;
-  justify-content: center;
-  padding: 0.75rem 1rem;
-}
 .btn--danger {
-  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--ui-bad) 10%, var(--ui-surface));
+  color: var(--ui-bad);
+  border-color: color-mix(in srgb, var(--ui-bad) 30%, var(--ui-line));
 }
 .btn--danger:hover {
-  background: color-mix(in srgb, var(--danger) 20%, var(--surface-2));
-  border-color: var(--danger);
+  background: color-mix(in srgb, var(--ui-bad) 20%, var(--ui-surface));
+  border-color: var(--ui-bad);
 }
 
 /* Stat Cluster overrides for Pi */
-.stat-numbered .stat-value[data-tone="ok"] { color: var(--ok); }
-.stat-numbered .stat-value[data-tone="bad"] { color: var(--danger); }
+.stat-numbered .stat-value[data-tone="ok"] { color: var(--ui-ok); }
+.stat-numbered .stat-value[data-tone="bad"] { color: var(--ui-bad); }
 
 /* Long lab checklists: two lines, then an ellipsis; the whole text is in the title and on the Print lab page. */
 .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .lab-need { align-items: start; }
 .lab-need .dot { margin-top: .45em; }
-.lab-need-act { justify-self: start; margin-top: .5rem; }
-.band .printer-actions { margin-top: .75rem; }
+.lab-need-act { justify-self: start; margin-top: var(--ui-s-2); }
+.band .printer-actions { margin-top: var(--ui-s-3); }
 
 /* Workshop › Printer (workshop flow W.2): Now, Needs you here, Filament loaded, This week, More in the workshop. */
 /* The printer's faceplate with the camera as its aside (A7 P1): the kit puts them side by side where each gets about
    20 rem, stacked otherwise; the status always leads (A10 plan decision 17). */
 .ws-now .ui-faceplate { margin: 0; }
-.ws-cam { margin: 0; display: grid; gap: .5rem; align-content: start; }
+.ws-cam { margin: 0; display: grid; gap: var(--ui-s-2); align-content: start; }
 .ws-cam-word { margin: 0; font-weight: 650; color: var(--ui-unknown); }
 .ws-now .line-bead { background: var(--ui-accent); }
 .ws-now .ui-faceplate .meta, .ws-cam figcaption { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 /* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
-.ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-md); background: var(--surface-3); }
+.ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--ui-r-4); background: var(--ui-surface-2); }
 .ws-now .cam-img, .ws-cam-placeholder { max-height: 40vh; }
-/* Room view (amendment A17): the picture's shape is its live preset's, --w by --h, set on the figure (A18; 4:3 unless
+/* Room view (amendment A17): the picture's shape is its live preset's, --cam-w by --cam-h, set on the figure (A18; 4:3 unless
    told otherwise). A quarter turn ("Turn" 90 or 270) is turned here, in a frame that already has the turned shape, so
    nothing moves when the picture arrives. No motion: frames just replace. */
-.ws-cam-wrap { display: grid; gap: .5rem; align-content: start; }
+.ws-cam-wrap { display: grid; gap: var(--ui-s-2); align-content: start; }
 .ws-cam-switch { margin: 0; }
-.ws-now .room-img { aspect-ratio: var(--w, 4) / var(--h, 3); object-fit: contain; }  /* never cropped: the height cap letterboxes */
-.room-img { aspect-ratio: var(--w, 4) / var(--h, 3); object-fit: contain; }  /* never cropped: the height cap letterboxes */
-.ws-cam-frame { position: relative; overflow: hidden; border-radius: var(--r-md); --vz: 1; --vx: 0px; --vy: 0px; }
+.ws-now .room-img { aspect-ratio: var(--cam-w, 4) / var(--cam-h, 3); object-fit: contain; }  /* never cropped: the height cap letterboxes */
+.room-img { aspect-ratio: var(--cam-w, 4) / var(--cam-h, 3); object-fit: contain; }  /* never cropped: the height cap letterboxes */
+.ws-cam-frame { position: relative; overflow: hidden; border-radius: var(--ui-r-4); --vz: 1; --vx: 0px; --vy: 0px; }
 /* The viewing tools' zoom and pan: in screen pixels, applied here so a turned picture keeps its own turn. */
 .ws-cam-frame > img { transform: translate(var(--vx), var(--vy)) scale(var(--vz)); transform-origin: center; touch-action: none; }
 .ws-cam--turn90 .ws-cam-frame, .ws-cam--turn270 .ws-cam-frame {
-  width: min(100%, calc(40vh * var(--h, 3) / var(--w, 4))); aspect-ratio: var(--h, 3) / var(--w, 4); margin-inline: auto; overflow: hidden; border-radius: 14px; background: #000;
+  width: min(100%, calc(40vh * var(--cam-h, 3) / var(--cam-w, 4))); aspect-ratio: var(--cam-h, 3) / var(--cam-w, 4); margin-inline: auto; overflow: hidden; border-radius: var(--ui-r-4); background: #000;
 }
 /* #view: the page's own `#view img { max-width: 100% }` would otherwise hold the turned picture to the frame's width. */
 #view .ws-cam--turn90 .ws-cam-frame img, #view .ws-cam--turn270 .ws-cam-frame img {
   position: absolute; top: 50%; left: 50%; max-width: none;
-  width: calc(100% * var(--w, 4) / var(--h, 3)); height: calc(100% * var(--h, 3) / var(--w, 4)); max-height: none; aspect-ratio: auto;
+  width: calc(100% * var(--cam-w, 4) / var(--cam-h, 3)); height: calc(100% * var(--cam-h, 3) / var(--cam-w, 4)); max-height: none; aspect-ratio: auto;
   border: 0; border-radius: 0; object-fit: cover;
 }
 #view .ws-cam--turn90 .ws-cam-frame img { transform: translate(var(--vx), var(--vy)) translate(-50%, -50%) rotate(90deg) scale(var(--vz)); }
 #view .ws-cam--turn270 .ws-cam-frame img { transform: translate(var(--vx), var(--vy)) translate(-50%, -50%) rotate(270deg) scale(var(--vz)); }
-.ws-cam-live { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.ws-cam-live { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-s-2) var(--ui-s-3); }
 .ws-cam-note:empty { display: none; }
 .ws-cam-age, .ws-cam-note { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 /* Camera settings (amendment A18): disclosure under the Room view; groups stack on a phone and sit side by side
    where there is room. Native controls only; no motion. Pinned picture on mobile viewports while adjusting (A20). */
-.ws-set { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.ws-set { margin-top: var(--ui-s-3); border: 1px solid var(--ui-line); border-radius: var(--ui-r-4); background: var(--ui-surface); }
 .ws-set[hidden] { display: none; }
-.ws-set > summary { display: flex; align-items: center; min-height: 44px; padding: .75rem 1.1rem; cursor: pointer;
+.ws-set > summary { display: flex; align-items: center; min-height: 44px; padding: var(--ui-s-3) 1.1rem; cursor: pointer;
   font-weight: 600; border-radius: inherit; }
-.ws-set > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ws-set[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.ws-set-inner { padding: 1rem 1.1rem; }
+.ws-set > summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ws-set[open] > summary { border-bottom: 1px solid var(--ui-line); border-radius: var(--ui-r-4) var(--ui-r-4) 0 0; }
+.ws-set-inner { padding: var(--ui-s-4) 1.1rem; }
 /* One tab's controls at a time (A23 D6): the strip, then the chosen panel, whose fields flow into columns where they fit;
    a group outside the tabs (Framing, until the picture takes it) follows. */
 .ws-set-body { display: grid; gap: 1.25rem; }
-.ws-set-body > [role=tabpanel] > .ws-set-group, .ws-set-fold { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); column-gap: 1.5rem; }
+.ws-set-body > [role=tabpanel] > .ws-set-group, .ws-set-fold { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); column-gap: var(--ui-s-5); }
 .ws-set-body > [role=tabpanel][hidden] { display: none; }
-.ws-set-fold { display: grid; gap: .75rem; grid-column: 1 / -1; padding-top: .25rem; border-top: 1px solid var(--ui-line); }
+.ws-set-fold { display: grid; gap: var(--ui-s-3); grid-column: 1 / -1; padding-top: var(--ui-s-1); border-top: 1px solid var(--ui-line); }
 .ws-set-fold:not([open]) { display: block; }
 .ws-set-fold > summary { grid-column: 1 / -1; display: flex; align-items: center; gap: .4rem; min-height: 44px; font-weight: 600; cursor: pointer; list-style: none; }
-.ws-set-group { display: grid; gap: .75rem; align-content: start; min-width: 0; margin: 0; padding: 0; border: 0; }
-.ws-set-group > legend { padding: 0; margin-bottom: .25rem; font-weight: 600; }
+.ws-set-group { display: grid; gap: var(--ui-s-3); align-content: start; min-width: 0; margin: 0; padding: 0; border: 0; }
+.ws-set-group > legend { padding: 0; margin-bottom: var(--ui-s-1); font-weight: 600; }
 .ws-set-group[disabled], .ws-set-field :disabled { opacity: .55; }
 .ws-set-field { display: grid; gap: .3rem; min-width: 0; }
 .ws-set-field > label { font-size: var(--ui-fs-2); }
@@ -160,14 +136,14 @@
 .ws-set-value { color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .ws-set-err { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-bad); }
 .ws-set-err[hidden] { display: none; }
-.ws-set-actions { display: flex; flex-wrap: wrap; gap: .5rem .75rem; margin-top: 1.25rem; }
+.ws-set-actions { display: flex; flex-wrap: wrap; gap: var(--ui-s-2) var(--ui-s-3); margin-top: 1.25rem; }
 .ws-set-actions [aria-disabled=true] { opacity: .55; cursor: progress; }
 .ws-set-note { margin: .6rem 0 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 .ws-set-note:empty { display: none; }
 
 /* Looks (A20 D2, A23 D5): the kit's chips, Auto first and Save this look last; a long name or eight saved looks wrap.
    Save this look is not a look, so it is outlined in the field line rather than filled when its form is open. */
-.ws-looks-row { display: grid; gap: .6rem; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--ui-line); }
+.ws-looks-row { display: grid; gap: .6rem; margin-bottom: 1.25rem; padding-bottom: var(--ui-s-4); border-bottom: 1px solid var(--ui-line); }
 .ws-looks { flex-wrap: wrap; }
 .ws-looks .ws-look-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: start; line-height: 1.2; }
 .ws-looks .ws-look-save { border-style: dashed; border-color: var(--ui-field-line); }
@@ -176,15 +152,15 @@
 .ws-looks-note[hidden], .ws-look-form[hidden], .ws-set-hint[hidden] { display: none; }
 .ws-look-form { display: grid; gap: .4rem; max-width: 24rem; }
 .ws-look-form > label { font-size: var(--ui-fs-2); }
-.ws-look-form .ws-set-actions { margin-top: .25rem; }
+.ws-look-form .ws-set-actions { margin-top: var(--ui-s-1); }
 .ws-set-hint { margin: .4rem 0 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 
 /* Viewing tools (A20 D4) */
-.ws-view-tools { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; margin-top: .5rem; }
-.ws-tool-btn { min-height: 36px; padding: 0.25rem 0.65rem; border-radius: var(--r-md); border: 1px solid var(--line);
-  background: var(--surface-2); font-size: var(--ui-fs-2); font-weight: 550; cursor: pointer; color: var(--text); }
-.ws-tool-btn:hover { border-color: var(--accent); }
-.ws-tool-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast, #fff); border-color: var(--accent); }
+.ws-view-tools { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; margin-top: var(--ui-s-2); }
+.ws-tool-btn { min-height: 36px; padding: var(--ui-s-1) 0.65rem; border-radius: var(--ui-r-4); border: 1px solid var(--ui-line);
+  background: var(--ui-surface); font-size: var(--ui-fs-2); font-weight: 550; cursor: pointer; color: var(--ui-text); }
+.ws-tool-btn:hover { border-color: var(--ui-accent); }
+.ws-tool-btn[aria-pressed="true"] { background: var(--ui-accent); color: var(--ui-on-accent); border-color: var(--ui-accent); }
 
 /* Grid overlay */
 .ws-cam-frame.has-grid::after {
@@ -207,7 +183,7 @@
   height: 60px;
   background: rgba(0, 0, 0, 0.65);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--r-sm);
+  border-radius: var(--ui-r-3);
   pointer-events: none;
   z-index: 5;
 }
@@ -220,8 +196,8 @@
   border: 0; border-radius: 0; }
 .ws-cam--turn90 .ws-cam-frame:fullscreen, .ws-cam--turn270 .ws-cam-frame:fullscreen { display: block; container-type: size; }
 #view .ws-cam--turn90 .ws-cam-frame:fullscreen > img, #view .ws-cam--turn270 .ws-cam-frame:fullscreen > img {
-  --box: min(100cqw, calc(100cqh * var(--h, 3) / var(--w, 4)));
-  width: calc(var(--box) * var(--w, 4) / var(--h, 3)); height: var(--box); max-width: none; max-height: none; object-fit: contain;
+  --box: min(100cqw, calc(100cqh * var(--cam-h, 3) / var(--cam-w, 4)));
+  width: calc(var(--box) * var(--cam-w, 4) / var(--cam-h, 3)); height: var(--box); max-width: none; max-height: none; object-fit: contain;
 }
 
 /* Fullscreen overlay (iOS Safari fallback) */
@@ -255,11 +231,11 @@
   right: 1rem;
   z-index: 100000;
   min-height: 44px;
-  padding: 0.5rem 1rem;
+  padding: var(--ui-s-2) var(--ui-s-4);
   background: rgba(0, 0, 0, 0.7);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--r-md);
+  border-radius: var(--ui-r-4);
   cursor: pointer;
   font-weight: 600;
 }
@@ -301,22 +277,22 @@
 /* end A23 */
 
 /* Snapshot Gallery (A20 D3) */
-.ws-snapshots-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
-.ws-snapshots-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.ws-snapshots-section { margin-top: var(--ui-s-5); padding-top: 1.25rem; border-top: 1px solid var(--ui-line); }
+.ws-snapshots-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--ui-s-2); margin-bottom: var(--ui-s-3); }
 .ws-snapshots-title { font-weight: 600; font-size: var(--ui-fs-3); margin: 0; }
 .ws-snapshots-count { font-size: var(--ui-fs-2); color: var(--ui-muted); }
 .ws-snapshots-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
+  gap: var(--ui-s-3);
   max-height: 380px;
   overflow-y: auto;
-  padding-right: 0.25rem;
+  padding-right: var(--ui-s-1);
 }
 .ws-snap-card {
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -329,7 +305,7 @@
   background: #000;
   cursor: pointer;
 }
-.ws-snap-meta { padding: 0.4rem 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: var(--ui-fs-1); }
+.ws-snap-meta { padding: 0.4rem var(--ui-s-2); display: flex; flex-direction: column; gap: var(--ui-s-1); font-size: var(--ui-fs-1); }
 .ws-snap-time { color: var(--ui-muted); }
 .ws-snap-del { align-self: flex-start; padding: 2px 6px; font-size: var(--ui-fs-1); min-height: 28px; }
 
@@ -342,33 +318,32 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: var(--surface);
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--line);
+    background: var(--ui-surface);
+    padding-bottom: var(--ui-s-2);
+    border-bottom: 1px solid var(--ui-line);
   }
   .ws-cam-box--pinned .cam-img, .ws-cam-box--pinned .ws-cam-placeholder {
     max-height: 40vh;
   }
 }
-.ws-skeleton { display: grid; align-content: start; gap: .75rem; min-height: 23rem; }
+.ws-skeleton { display: grid; align-content: start; gap: var(--ui-s-3); min-height: 23rem; }
 .ws-skel-line { height: .9rem; }
-.ws-skel-head { height: 2.2rem; width: 60%; }
 @media (prefers-reduced-motion: reduce) {
   .ws-skeleton .skeleton, .ws-section .skeleton { animation: none; }
 }
 .ws-section { margin-top: 1.75rem; }
 .ws-section > .section-title { margin: 0 0 .6rem; }
 .ws-section[hidden] { display: none; }
-.ws-line { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0; }
+.ws-line { display: flex; flex-wrap: wrap; gap: var(--ui-s-2); align-items: center; margin: 0; }
 .ws-tray { display: inline-flex; align-items: center; gap: .35rem; }
 .ws-tray .swatch { width: 10px; height: 10px; border-radius: 50%; }
-.ws-last-print { margin: .5rem 0 0; overflow-wrap: anywhere; }
-.ws-needs .lab-need-act { margin-top: .5rem; align-self: flex-start; }
-.ws-more-item { margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
-.ws-more-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: .75rem 1.1rem;
+.ws-last-print { margin: var(--ui-s-2) 0 0; overflow-wrap: anywhere; }
+.ws-needs .lab-need-act { margin-top: var(--ui-s-2); align-self: flex-start; }
+.ws-more-item { margin-top: var(--ui-s-3); border: 1px solid var(--ui-line); border-radius: var(--ui-r-4); background: var(--ui-surface); }
+.ws-more-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: var(--ui-s-3) 1.1rem;
   cursor: pointer; font-weight: 600; border-radius: inherit; }
 .ws-more-item .pill[hidden] { display: none; }
-.ws-more-item > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ws-more-item[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.ws-more-body { padding: 1rem 1.1rem; }
+.ws-more-item > summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ws-more-item[open] > summary { border-bottom: 1px solid var(--ui-line); border-radius: var(--ui-r-4) var(--ui-r-4) 0 0; }
+.ws-more-body { padding: var(--ui-s-4) 1.1rem; }
 .ws-more-body > :first-child { margin-top: 0; }

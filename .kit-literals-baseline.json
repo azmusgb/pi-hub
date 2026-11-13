@@ -119,10 +119,8 @@
       "space": 2
     },
     "hub/static/workshop-pi-rich.css": {
-      "colour": 14,
-      "space": 60,
-      "radius": 2,
-      "motion": 1,
+      "colour": 13,
+      "space": 24,
       "layer": 5
     }
   }
