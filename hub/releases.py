@@ -36,6 +36,7 @@ INVALID = "That release report isn't valid."
 KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac", "print-lab": "mac"}
 KEY_DIR = os.environ.get("HUB_DEPLOY_KEY_DIR", "/etc/pi-hub/secrets/deploy_keys")
 MAX_BODY = 4096
+NEWER_MAX = 200  # commits after the published one that a firmware report may list
 PROBE_LAG = 180  # seconds the same probe mismatch must last before it is drift (a deploy and its probe lag each other)
 
 for _t, _label in TARGETS.items():
@@ -92,6 +93,12 @@ def _hex(value):
     return value if isinstance(value, str) and HEX.fullmatch(value) else None
 
 
+def _newer_ok(target, newer):
+    """`newer` is the firmware publish hook's: the commits on main after the published source commit. None is fine."""
+    return newer is None or (target == "firmware" and isinstance(newer, list) and len(newer) <= NEWER_MAX
+                             and all(_hex(c) for c in newer))
+
+
 def valid(target, body, now):
     """A normalised report, or None. `commit` is the commit the deploy was about; `running` is what runs after it
     (required for rolled-back; for failed, None means unchanged)."""
@@ -128,6 +135,9 @@ def valid(target, body, now):
     if not isinstance(message, str) or len(message) > 200:
         return None
     out["message"] = message
+    if not _newer_ok(target, body.get("newer")):
+        return None
+    out["newer"] = body.get("newer") or []
     return out
 
 
@@ -147,14 +157,18 @@ def _numbers(version):
 
 def _firmware_state(published, detail):
     """The firmware is `live` only when the display runs what is published (spec §4): until its heartbeat reports the
-    published source commit it is `behind`, or `ahead` when the display runs a newer version than the published one."""
+    published source commit it is `behind`, or `ahead` when the display runs something newer than the published one:
+    a commit the publish hook listed as coming after it (`newer`), or a higher version number."""
     if not published:
         return "unknown"
     display = detail.get("display") or {}
-    if _same(display.get("commit"), published):
+    shown = display.get("commit")
+    if _same(shown, published):
         return "live"
+    if shown and any(_same(shown, c) for c in detail.get("newer") or ()):
+        return "ahead"
     mine, theirs = _numbers(detail.get("version")), _numbers(display.get("version"))
-    return "ahead" if display.get("commit") and mine and theirs and theirs > mine else "behind"
+    return "ahead" if shown and mine and theirs and theirs > mine else "behind"
 
 
 def _build(target, detail, prev, now, source):
@@ -214,6 +228,7 @@ def put(target, report, now):
         if report["result"] == "deployed":
             # dirty: deployed from a working tree with uncommitted changes (netmon), so the commit is only its base
             detail["version"], detail["dirty"] = report.get("version"), report.get("dirty", False)
+            detail["newer"] = report.get("newer") or []
         detail.update(target=target, label=TARGETS[target], commit=running, mechanism=report["mechanism"],
                       head=report.get("head"),
                       last={k: report[k] for k in ("commit", "result", "at", "message")})

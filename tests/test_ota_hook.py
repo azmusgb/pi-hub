@@ -109,3 +109,16 @@ def test_other_branches_are_ignored(hook):
     _, done = hook["push"]({"version": "12.7.1", "sourceCommit": SOURCE}, ref="refs/heads/wip")
     assert done.returncode == 0 and done.stdout == ""
     assert not (hook["out"] / "current").exists() and reports(hook["inbox"]) == []
+
+
+def test_report_lists_the_commits_after_the_source_commit(hook):
+    # The display can run a later build of the published version; the hub needs the order to call it ahead.
+    first, _ = hook["push"]({"version": "12.7.1", "sourceCommit": SOURCE})
+    assert "newer" not in reports(hook["inbox"])[-1]  # a source commit this repository doesn't have: no order to give
+    second, done = hook["push"]({"version": "12.9.0", "sourceCommit": first})
+    assert done.returncode == 0, done.stderr
+    body = reports(hook["inbox"])[-1]
+    assert body["commit"] == first and body["newer"] == [second[:12]]
+    assert releases.valid("firmware", body, time.time())["newer"] == [second[:12]]
+    third, _ = hook["push"]({"version": "12.9.0", "sourceCommit": first, "label": "a later push of the same release"})
+    assert reports(hook["inbox"])[-1]["newer"] == [third[:12], second[:12]]
