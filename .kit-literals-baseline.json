@@ -102,12 +102,12 @@
       "layer": 4
     },
     "hub/static/pages.css": {
-      "colour": 35,
-      "type": 19,
-      "space": 126,
-      "radius": 26,
+      "colour": 11,
+      "type": 15,
+      "space": 88,
+      "radius": 12,
       "shadow": 3,
-      "motion": 4,
+      "motion": 1,
       "layer": 1,
       "name": 3
     },
