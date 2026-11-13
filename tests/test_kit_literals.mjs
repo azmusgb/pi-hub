@@ -48,3 +48,17 @@ test('the allow list is the per-instance names A22 1.4 lists and the vendored th
   assert.deepEqual(allow.files, ['hub/static/vendor/**']);
   assert.deepEqual(allow.names, ['--pct', '--x', '--y', '--size', '--vx', '--vy', '--vz', '--box', '--wall-*', '--cam-*', '--band-accent']);
 });
+
+// H7 onward (plan decision 7): a cleaned stylesheet reads only the kit's names. Each clean-up PR adds its files here;
+// H18 deletes the alias definitions and replaces this list with every stylesheet.
+const CLEANED = ['settings-rich.css', 'movies-print-rules-alerts-rich.css', 'lists-rich.css'];
+test('a cleaned stylesheet reads no private name: every var() is a kit value or on the allow list', () => {
+  const allow = JSON.parse(readFileSync(join(ROOT, '.kit-literals-allow.json'), 'utf8')).names
+    .map((n) => new RegExp(`^${n.replace(/\*/g, '.*')}$`));
+  for (const file of CLEANED) {
+    const css = readFileSync(join(ROOT, 'hub/static', file), 'utf8');
+    const used = [...css.matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]);
+    const priv = [...new Set(used.filter((n) => !n.startsWith('--ui-') && !allow.some((re) => re.test(n))))];
+    assert.deepEqual(priv, [], `${file} still reads ${priv.join(', ')}`);
+  }
+});
