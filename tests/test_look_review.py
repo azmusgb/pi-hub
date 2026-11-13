@@ -22,7 +22,8 @@ def rule(text, selector):
 def test_notes_on_a_warning_tint_use_body_text():
     # --warn-ink is for text on a solid warning fill; on a 10% tint it was white-on-beige / black-on-brown.
     assert "--warn-ink" not in rule(css("pages.css"), ".note")
-    assert "var(--text)" in rule(css("pages.css"), ".note")
+    note = rule(css("pages.css"), ".note")
+    assert "color: var(--text)" in note or "color: var(--ui-text)" in note  # the kit's name since step 13, H11
     home = css("home.css")
     assert "--warn-ink" not in rule(home, ".out-alert")
     # Weather's warnings are the kit's ui-notice since A7 H3: no local colour on them at all.
