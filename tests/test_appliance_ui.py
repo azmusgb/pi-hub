@@ -98,7 +98,8 @@ def test_warning_states_use_the_warning_colour():
     for f, sel in (("enhance.css", '.fix-result[data-tone="warn"]'), ("household-features.css", '.project-card[data-warning="true"]')):
         css = open(os.path.join(STATIC, f)).read()
         rule = css[css.index(sel):css.index("}", css.index(sel))]
-        assert "var(--warn)" in rule and "--accent" not in rule, (f, rule)
+        # A cleaned stylesheet (step 13) reads the kit's name; --warn is app.css's alias of the same value.
+        assert ("var(--warn)" in rule or "var(--ui-warn)" in rule) and "--accent" not in rule, (f, rule)
 
 
 def test_the_status_triples_follow_the_kit():
