@@ -510,6 +510,9 @@ Step 17 is the real proof, on real code. What it can't show is shown first on sa
 390 px and desktop, light and dark: History (Needs a look, one thing, nothing yet, a source down), and Home with the
 line under the Today band. The owner looks at those two before approving, since they reopen A8.
 
+The prototype (13 Nov 2026, private to the owner): https://claude.ai/artifact/XBZdfGrCJKJhQN5hUgp8HR. Its Today band
+is the simplified one from the A22 prototype, not the live band.
+
 ## Out of scope, with an owner
 
 | Left out | Why | Where it goes |
