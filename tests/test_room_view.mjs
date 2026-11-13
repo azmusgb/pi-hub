@@ -156,8 +156,8 @@ test('CSS: the turned frame, the 4:3 picture and no motion are defined', () => {
   // Held to the page's #view img rule, the turned picture would sit inside its frame instead of filling it.
   assert.match(css, /#view \.ws-cam--turn90 \.ws-cam-frame img, #view \.ws-cam--turn270 \.ws-cam-frame img \{[^}]*max-width: none/);
   // The picture's shape is its live preset's (A18): --w by --h on the figure, 4:3 when not given.
-  assert.match(css, /\.room-img \{[^}]*aspect-ratio: var\(--w, 4\) \/ var\(--h, 3\)/);
-  assert.match(css, /ws-cam--turn270 \.ws-cam-frame \{[^}]*aspect-ratio: var\(--h, 3\) \/ var\(--w, 4\)/);
+  assert.match(css, /\.room-img \{[^}]*aspect-ratio: var\(--cam-w, 4\) \/ var\(--cam-h, 3\)/);
+  assert.match(css, /ws-cam--turn270 \.ws-cam-frame \{[^}]*aspect-ratio: var\(--cam-h, 3\) \/ var\(--cam-w, 4\)/);
   const room = css.slice(css.indexOf('/* Room view'), css.indexOf('.ws-skeleton {'));
   assert.ok(room.length > 100);
   assert.doesNotMatch(room.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation/);
@@ -468,7 +468,7 @@ test('page: Apply sends every setting, says Applied, and the picture takes the n
     assert.equal(sent.preset, 'sharp');
     assert.equal(text(d.querySelector('.ws-set-note')), 'Applied.');
     assert.equal(d.querySelector('[data-key="cam-apply"]').getAttribute('aria-disabled'), null);
-    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--w: 1920; --h: 1080/);
+    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--cam-w: 1920; --cam-h: 1080/);
   } finally { p.done(); }
 });
 
@@ -606,7 +606,7 @@ test('page: a room read that began before an apply answered does not undo the ne
     await tick(); await tick(); await tick();
     resolve(ready90);  // the old shape
     await slowLoad;
-    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--w: 1920; --h: 1080/);
+    assert.match(p.state.root.querySelector('figure.ws-cam--room').style.cssText, /--cam-w: 1920; --cam-h: 1080/);
   } finally { p.done(); }
 });
 

@@ -224,7 +224,7 @@ function roomCam(room, { live = {}, standIn = false, cam = null, onLive = null, 
 
   const tools = state ? renderViewTools(state) : null;
 
-  return h("figure", { class: `ws-cam ws-cam--room${turn}`, style: `--w: ${Number(w)}; --h: ${Number(hgt)}` },
+  return h("figure", { class: `ws-cam ws-cam--room${turn}`, style: `--cam-w: ${Number(w)}; --cam-h: ${Number(hgt)}` },
     frame,
     tools,
     h("figcaption", { class: "meta" }, standIn ? `Room view. The printer's camera is unavailable: ${printerCamWhy(cam)}.`
