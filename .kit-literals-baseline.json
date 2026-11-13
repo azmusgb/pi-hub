@@ -35,9 +35,9 @@
       "name": 32
     },
     "hub/static/home-dashboard.css": {
-      "type": 5,
-      "space": 34,
-      "radius": 5,
+      "type": 4,
+      "space": 19,
+      "radius": 2,
       "shadow": 2,
       "motion": 1
     },
