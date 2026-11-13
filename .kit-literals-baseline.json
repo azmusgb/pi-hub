@@ -51,8 +51,8 @@
       "layer": 3
     },
     "hub/static/household-features.css": {
-      "type": 29,
-      "space": 63,
+      "type": 15,
+      "space": 18,
       "radius": 3
     },
     "hub/static/index.html": {
@@ -112,10 +112,8 @@
       "name": 3
     },
     "hub/static/quick.css": {
-      "colour": 1,
-      "type": 4,
-      "space": 26,
-      "radius": 4
+      "space": 5,
+      "radius": 1
     },
     "hub/static/settings-rich.css": {
       "space": 2
