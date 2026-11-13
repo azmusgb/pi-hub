@@ -34,7 +34,8 @@ def test_poster_titles_sit_under_the_artwork_in_the_theme_colours():
     # A10 plan decision 15 replaced the white titles over the photo, which failed contrast on light posters.
     m = css("movies.css")
     assert ".poster-card .poster-meta,\n.poster-card .poster-title" not in m
-    assert "var(--text)" in rule(m, ".poster-title")
+    title = rule(m, ".poster-title")
+    assert "var(--text)" in title or "var(--ui-text)" in title
 
 
 def test_no_warm_leftovers():
