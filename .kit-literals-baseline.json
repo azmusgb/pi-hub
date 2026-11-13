@@ -1,5 +1,5 @@
 {
-  "kit": "2.21.0",
+  "kit": "2.22.0",
   "files": {
     "hub/static/ambient.css": {
       "colour": 22,
@@ -94,10 +94,10 @@
       "type": 2
     },
     "hub/static/movies.css": {
-      "colour": 22,
-      "type": 25,
-      "space": 62,
-      "radius": 6,
+      "colour": 21,
+      "type": 8,
+      "space": 28,
+      "radius": 2,
       "motion": 2,
       "layer": 4
     },
