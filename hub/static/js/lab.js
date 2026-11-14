@@ -99,6 +99,10 @@ function makeRequestId() {
   crypto.getRandomValues(b);
   return "rq-" + Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
+// The verdict sheet's request id after the Mac's answer. Only a refusal frees it (as lab-observe's settle): the hub
+// answers an id it already holds with that request's status and drops the new payload, so the corrected verdict has to
+// be a new request.
+export const verdictIdAfter = (id, item) => (item && item.id === id && item.status === "refused" ? null : id);
 
 async function prepareJpeg(file) {
   let blob = file;
@@ -867,6 +871,7 @@ export function mount(state) {
       if (item.message && item.message.includes("already has a verdict") && replaceBtn) replaceBtn.hidden = false;
       const sendBtn = state.sheetsContainer.querySelector("#labVerdictSend");
       if (sendBtn) sendBtn.disabled = false;
+      state.currentReqId = verdictIdAfter(state.currentReqId, item);
     } else if (statusEl && Date.now() - (state.sentAt[item.id] || Date.now()) > STALE_MS) {
       statusEl.textContent = "The Mac hasn't picked this up yet. It runs when the Mac is awake.";
     }
