@@ -543,18 +543,20 @@ is the simplified one from the A22 prototype, not the live band.
 
 - **Q1: yes.** The owner merged pi-hub #247 on 14 Nov 2026. As asked, that covers the design and step 17; nothing in
   steps 18 to 21 starts before the walk in brief 17.
-- **Q2 to Q7: no answer in words.** Each stands at its recommendation as the working answer. Step 17's plan names
-  every one it relies on, so the owner confirms or changes it there. Q3, Q4 and Q5 belong to step 20 and Q6 to step
-  21, so they are settled when those steps are confirmed, not before.
-- **The prototype.** Whether the owner looked at History and the Home line before merging is not recorded. Q5's
-  recommendation depends on that look, so it stays open until the owner says.
+- **The prototype: looked at, and the owner is content** ("Yes, content", 14 Nov 2026, asked whether he had looked at
+  History and the Home line before merging).
+- **Q5: yes.** Its recommendation was "yes, after seeing it in the prototype", and he has. The line is built in step
+  20, which still waits for the walk.
+- **Q2, Q3, Q4, Q6, Q7: no answer in words.** Each stands at its recommendation as the working answer. Step 17's plan
+  names every one it relies on, so the owner confirms or changes it there. Q3 and Q4 belong to step 20 and Q6 to
+  step 21, so they are settled when those steps are confirmed, not before.
 
 ## Acceptance (for this amendment)
 
 Where this stands on 14 Nov 2026: the baseline's `## Amendments` list names A25 and section 11 has steps 17 to 21.
-Still open: the owner's answers beyond Q1 (above); the pointers from sections 4, 5.6, 8.2 and 9, which describe steps
-18 to 20 and are added when those steps are confirmed; section 5 and brief 21 have not been sent to the session that
-owns the Assistant's navigation; the kit proposals in 5.1 are not yet opened in appliance-ui.
+Still open: the owner's answers beyond Q1 and Q5 (above); the pointers from sections 4, 5.6, 8.2 and 9, which describe
+steps 18 to 20 and are added when those steps are confirmed; section 5 and brief 21 have not been sent to the session
+that owns the Assistant's navigation; the kit proposals in 5.1 are not yet opened in appliance-ui.
 
 
 - The owner has looked at the prototype's History and Home and answered the questions; the answers are recorded here.
