@@ -47,7 +47,7 @@ export function wipeHtml(x, ix = cur.ix) {
   const byId = Object.fromEntries(exps(ix).map((e) => [e.id, e]));
   const ref = (Array.isArray(x.reference_variants) ? x.reference_variants : []).map((r) => byId[String(r).replace(/-[^-]*$/, "")]).find((r) => r && photosOf(r)[0]);
   if (!ref) return "";
-  return `<figure class="lab-wipe" style="--cut:50%"><img src="${url(photosOf(ref)[0], ix)}" alt="${esc(ref.id)}, the reference">`
+  return `<figure class="lab-wipe" style="--x:50%"><img src="${url(photosOf(ref)[0], ix)}" alt="${esc(ref.id)}, the reference">`
     + `<img class="lab-wipe__after" src="${url(mine, ix)}" alt="${esc(x.id)}">`
     + `<input type="range" min="0" max="100" value="50" aria-label="Drag between ${esc(ref.id)} and ${esc(x.id)}">`
     + `<figcaption><span>${esc(ref.id)}</span><span>${esc(x.id)}</span></figcaption></figure>`;
@@ -172,7 +172,7 @@ function compareEl() {
       const m = e.target.closest("[data-cmp-mode]");
       if (m && cmp) { cmpMode = m.dataset.cmpMode; drawCompare(); }
     });
-    d.addEventListener("input", (e) => { const r = e.target.closest('.lab-wipe input[type="range"]'); if (r) r.parentNode.style.setProperty("--cut", `${r.value}%`); });
+    d.addEventListener("input", (e) => { const r = e.target.closest('.lab-wipe input[type="range"]'); if (r) r.parentNode.style.setProperty("--x", `${r.value}%`); });
     d.addEventListener("change", (e) => { const s = e.target.closest("select[data-side]"); if (s && cmp) { cmp.sides[Number(s.dataset.side)] = s.value; drawCompare(); } });
   });
   return d;
@@ -190,7 +190,7 @@ function drawCompare() {
   for (const { tab: t, l, r } of pairsOf(a, b)) {
     const head = `<p class="lab-compare__tab">${esc(t || "No tab")}</p>`;
     if (cmpMode === "wipe" && l && r) {
-      rows.push(`<div class="lab-compare__pair">${head}<figure class="lab-wipe" style="--cut:50%"><img src="${u(l)}" alt="${esc(label(l))}"><img class="lab-wipe__after" src="${u(r)}" alt="${esc(label(r))}"><input type="range" min="0" max="100" value="50" aria-label="Slide between ${esc(label(l))} and ${esc(label(r))}"><figcaption><span>${esc(l.run)}</span><span>${esc(r.run)}</span></figcaption></figure></div>`);
+      rows.push(`<div class="lab-compare__pair">${head}<figure class="lab-wipe" style="--x:50%"><img src="${u(l)}" alt="${esc(label(l))}"><img class="lab-wipe__after" src="${u(r)}" alt="${esc(label(r))}"><input type="range" min="0" max="100" value="50" aria-label="Slide between ${esc(label(l))} and ${esc(label(r))}"><figcaption><span>${esc(l.run)}</span><span>${esc(r.run)}</span></figcaption></figure></div>`);
     } else {
       rows.push(`<div class="lab-compare__pair">${head}<div class="lab-compare__cols">${cell(l)}${cell(r)}</div></div>`);
     }
@@ -229,6 +229,6 @@ export function mountPhotos(root, ix) {
     const c = e.target.closest(".lab-compare-open");
     if (c) { const x = find(c.dataset.exp); if (x) openCompare(x); }
   });
-  root.addEventListener("input", (e) => { const r = e.target.closest('.lab-wipe input[type="range"]'); if (r) r.parentNode.style.setProperty("--cut", `${r.value}%`); });
+  root.addEventListener("input", (e) => { const r = e.target.closest('.lab-wipe input[type="range"]'); if (r) r.parentNode.style.setProperty("--x", `${r.value}%`); });
   root.addEventListener("change", (e) => { const b = e.target.closest("input[data-tick]"); if (b) saveTick(b.dataset.tick, b.dataset.i, b.checked); });
 }

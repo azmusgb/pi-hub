@@ -470,7 +470,7 @@ export function experimentHtml(x, ix, requests = []) {
   }
 
   const spine = spoolColour(plain(x.filament), ix && ix.colours);
-  return `<article class="ui-section lab-exp" id="lab-${esc(x.id)}" style="--spine:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
+  return `<article class="ui-section lab-exp" id="lab-${esc(x.id)}" style="--band-accent:${spine}"><header class="lab-exp__head"><span class="lab-swatch" aria-hidden="true"></span><span class="lab-exp__id">${esc(x.id)}</span>${b.join("")}</header><h3>${esc(x.question_text)}</h3>` +
     (meta ? `<p class="meta">${esc(meta)}</p>` : "") +
     (vars ? `<ul class="lab-variants">${vars}</ul>` : "") +
     (cost ? `<p class="meta">${esc(cost)}</p>` : "") +

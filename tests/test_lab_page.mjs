@@ -99,7 +99,7 @@ test('spoolColour picks the longest colour name and only ever returns #rrggbb', 
   assert.equal(spoolColour(null, colours), '#8698b1');
   assert.equal(spoolColour('grey', undefined), '#8698b1');
   const ix = fresh();
-  assert.match(experimentHtml(exp(ix, 'E-101'), ix), /style="--spine:#D9825B"[^]*class="lab-swatch"/);
+  assert.match(experimentHtml(exp(ix, 'E-101'), ix), /style="--band-accent:#D9825B"[^]*class="lab-swatch"/);
 });
 
 test('hostile text from the Mac is shown as text everywhere', () => {
@@ -127,7 +127,7 @@ test('hostile text from the Mac is shown as text everywhere', () => {
   assert.doesNotMatch(html, /<img src=x/);
   assert.doesNotMatch(html, /onerror=alert\(1\)>"/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;&quot;/);
-  assert.match(experimentHtml(x, ix), /style="--spine:#8698b1"/);
+  assert.match(experimentHtml(x, ix), /style="--band-accent:#8698b1"/);
 });
 
 test('a photo URL is built only from a real sha256', () => {
@@ -213,7 +213,7 @@ test('an index from an older print-lab (no outside, colours, plans or run prints
   const html = page(ix);
   assert.doesNotMatch(html, /undefined|NaN/);
   assert.doesNotMatch(html, /lab-outside|lab-print/);
-  assert.match(html, /style="--spine:#8698b1"/);
+  assert.match(html, /style="--band-accent:#8698b1"/);
 });
 
 test('verdict payload: "–" is sent as null, lighting has no default', () => {
