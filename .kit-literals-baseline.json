@@ -17,12 +17,11 @@
       "name": 139
     },
     "hub/static/components.css": {
-      "colour": 12,
-      "type": 18,
-      "space": 37,
-      "radius": 3,
+      "colour": 6,
+      "type": 10,
+      "space": 22,
       "shadow": 3,
-      "motion": 3
+      "motion": 2
     },
     "hub/static/enhance.css": {
       "colour": 49,
