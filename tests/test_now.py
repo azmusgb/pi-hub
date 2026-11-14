@@ -139,7 +139,7 @@ def _prometheus(monkeypatch, success):
     def fake(url, headers=None, timeout=4):
         if "probe_duration_seconds" in url:
             return {"data": {"result": [{"metric": {"instance": "10.0.0.1"}, "value": [0, "0.0021"]},
-                                        {"metric": {"instance": "10.0.0.136"}, "value": [0, "0.004"]}]}}
+                                        {"metric": {"instance": "10.0.0.38"}, "value": [0, "0.004"]}]}}
         if "probe_success" in url:
             return {"data": {"result": [{"metric": {"instance": i}, "value": [0, v]} for i, v in success.items()]}}
         raise OSError("router status not running")
