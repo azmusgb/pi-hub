@@ -87,7 +87,7 @@ def _netmon():
     wan_ms = durations.get("8.8.8.8") or durations.get("1.1.1.1")
     dns_ms = durations.get("10.0.0.1:53") or durations.get("1.1.1.1:53")
     win_ms = durations.get("10.0.0.81")
-    printer_ms = durations.get(PRINTER_IP) or durations.get("10.0.0.124")
+    printer_ms = durations.get(PRINTER_IP)
 
     # A probe that isn't reporting doesn't count as up; the Internet is up while any WAN probe answers.
     orbi_ok = success.get("10.0.0.1")

@@ -157,6 +157,18 @@ def test_network_status_reads_wan_probes(monkeypatch):
     assert _prometheus(monkeypatch, {})["status"] == "unknown"
 
 
+def test_printer_ping_is_never_the_displays(monkeypatch):
+    """With no probe for the printer, the Workshop display's ping (10.0.0.124) is not shown as the printer's."""
+    def fake(url, headers=None, timeout=4):
+        if "probe_duration_seconds" in url:
+            return {"data": {"result": [{"metric": {"instance": "10.0.0.124"}, "value": [0, "0.009"]}]}}
+        if "probe_success" in url:
+            return {"data": {"result": []}}
+        raise OSError("router status not running")
+    monkeypatch.setattr(sources, "_get_json", fake)
+    assert sources._netmon()["printer_ms"] is None
+
+
 def test_network_metrics_absent_when_prometheus_is_down(monkeypatch):
     def down(*a, **k):
         raise OSError("connection refused")
