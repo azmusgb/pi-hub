@@ -396,7 +396,7 @@ export function open3d(state, jobId) {
       msg.textContent = "The 3D view couldn't load. The 2D layers above and every other step still work.";
     }
   } }, "Open 3D view");
-  return h("div", { class: "quick-3d-box__open" }, h("p", { class: "ui-muted" }, "An optional 3D look at the model and toolpaths. It isn't needed to slice, review or print."), btn, msg);
+  return h("div", { class: "quick-3d-box__open" }, h("p", { class: "ui-muted" }, "An optional 3D look at the model, and the toolpaths once it is sliced. It isn't needed to slice, review or print."), btn, msg);
 }
 
 function select(state, id) {
@@ -519,6 +519,8 @@ function draw(state) {
     state.view3dBox.replaceChildren();
     if (lkey) {
       state.layers = layerInspector(state.layersBox, job.id);
+      state.view3dBox.append(open3d(state, job.id));
+    } else if (job && !job.file_removed && job.state !== "canceled") {
       state.view3dBox.append(open3d(state, job.id));
     }
   }

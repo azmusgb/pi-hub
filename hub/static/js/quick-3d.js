@@ -1,4 +1,4 @@
-// Quick Print's 3D view (A19 P7): the stored model and the sliced file's toolpaths in Three.js. Loaded on demand from the
+// Quick Print's 3D view (A19 P7, A26): the stored model and the sliced file's toolpaths in Three.js; before any slice, the model alone. Loaded on demand from the
 // Quick Print page and nowhere else. It never takes part in authorising a print: Slice, Review, Prepare, Start and Monitor
 // don't import this file, and if it or WebGL fails the page says so in a line and the 2D layer inspector is untouched.
 import { h } from "./core.js";
@@ -56,6 +56,14 @@ export function view3d(into, jobId, opts = {}) {
     }
   }
 
+  async function fetchModel() {
+    try {
+      const r = await fetch(`/api/quick/jobs/${jobId}/model`, { credentials: "same-origin" });
+      if (!r.ok) return { absent: true };
+      return parseStl(await r.arrayBuffer(), cap.triangles);
+    } catch (e) { return { error: e }; }
+  }
+
   async function build(T, OrbitControls) {
     let summary = await getJson(`/api/quick/jobs/${jobId}/layers`);
     for (let i = 0; i < 40 && summary.state === "building" && !dead; i++) {
@@ -64,13 +72,26 @@ export function view3d(into, jobId, opts = {}) {
       summary = await getJson(`/api/quick/jobs/${jobId}/layers`);
     }
     if (dead) return;
-    if (!summary.layers?.length || (summary.state !== "ready" && summary.state !== "building")) {
+    // A job with no sliced file yet (A26) shows the stored STL alone, set on a plate of its own size; every other empty case fails as before.
+    const modelOnly = summary.state === "none";
+    if (!modelOnly && (!summary.layers?.length || (summary.state !== "ready" && summary.state !== "building"))) {
       return fail(`There are no layers to draw in 3D. ${summary.reason || ""}`.trim());
     }
-    const plate = summary.plate?.area ? summary.plate : null;
+    const layers = modelOnly ? [] : summary.layers;
+    const stlP = fetchModel();
+    let fit = null;
+    if (modelOnly) {
+      const early = await stlP;
+      if (dead) return;
+      if (!early.positions) return fail(early.error ? `The model couldn't be read (${early.error.message}).` : "This job has no STL to draw and no sliced file yet, so there is nothing to show in 3D.");
+      const { lo, hi } = early.bounds;
+      fit = { shift: [-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -lo[2]], w: hi[0] - lo[0], d: hi[1] - lo[1], h: hi[2] - lo[2] };
+    }
+    const plate = !modelOnly && summary.plate?.area ? summary.plate : null;
     const bounds = summary.bounds;
-    const area = plate?.area || (bounds ? [bounds[0] - 10, bounds[1] - 10, bounds[2] + 10, bounds[3] + 10] : [0, 0, 256, 256]);
-    const maxZ = Math.max(...summary.layers.map((l) => l.z || 0), 1);
+    const area = modelOnly ? [-fit.w / 2 - 10, -fit.d / 2 - 10, fit.w / 2 + 10, fit.d / 2 + 10]
+      : plate?.area || (bounds ? [bounds[0] - 10, bounds[1] - 10, bounds[2] + 10, bounds[3] + 10] : [0, 0, 256, 256]);
+    const maxZ = modelOnly ? Math.max(fit.h, 1) : Math.max(...layers.map((l) => l.z || 0), 1);
     const volumeH = plate?.height || maxZ * 1.2;
 
     renderer = new T.WebGLRenderer({ antialias: !reduced, powerPreference: reduced ? "low-power" : "default" });
@@ -157,21 +178,21 @@ export function view3d(into, jobId, opts = {}) {
       camBtn.setAttribute("aria-pressed", camera === ortho ? "true" : "false");
       controls.object = camera; controls.update(); request();
     }, { "aria-pressed": "false" });
-    const cut = h("input", { type: "range", id: `q3-cut-${jobId}`, min: 0, max: summary.layers.length - 1, step: 1,
-      value: summary.layers.length - 1, "aria-label": "Section plane: show layers up to" });
+    const cut = h("input", { type: "range", id: `q3-cut-${jobId}`, min: 0, max: Math.max(layers.length - 1, 0), step: 1,
+      value: Math.max(layers.length - 1, 0), "aria-label": "Section plane: show layers up to" });
     const cutOut = h("output", { for: cut.id }, "");
     const setCut = () => {
-      const l = summary.layers[Number(cut.value)] || summary.layers.at(-1);
-      clip.constant = Number(cut.value) >= summary.layers.length - 1 ? maxZ + 0.01 : (l.z || 0) + 0.001;
-      cutOut.textContent = Number(cut.value) >= summary.layers.length - 1 ? "Whole print" : `Up to layer ${Number(cut.value) + 1} (${l.z} mm)`;
+      const l = layers[Number(cut.value)] || layers.at(-1);
+      clip.constant = Number(cut.value) >= layers.length - 1 ? maxZ + 0.01 : (l.z || 0) + 0.001;
+      cutOut.textContent = Number(cut.value) >= layers.length - 1 ? "Whole print" : `Up to layer ${Number(cut.value) + 1} (${l.z} mm)`;
       request();
     };
     cut.addEventListener("input", setCut);
     const toggle = (label, grp, on = true) => h("label", { class: "quick-3d__tog" },
       h("input", { type: "checkbox", checked: on, onchange: (e) => { groups[grp].visible = e.target.checked; request(); } }), label);
     bar.append(...Object.entries(VIEWS).map(([k, v]) => btn(v.label, () => setView(k))), camBtn,
-      toggle("Model", "model"), toggle("Toolpaths", "paths"),
-      h("label", { class: "quick-3d__cut" }, h("span", {}, "Section"), cut, cutOut));
+      ...(modelOnly ? [] : [toggle("Model", "model"), toggle("Toolpaths", "paths"),
+        h("label", { class: "quick-3d__cut" }, h("span", {}, "Section"), cut, cutOut)]));
 
     // Keyboard: the canvas has focus, so these never fight the page.
     stage.addEventListener("keydown", (e) => {
@@ -204,11 +225,11 @@ export function view3d(into, jobId, opts = {}) {
 
     setView("iso"); resize();
     status.className = "quick-3d__status";
-    status.textContent = "Loading the model and toolpaths…";
+    status.textContent = modelOnly ? "Loading the model…" : "Loading the model and toolpaths…";
 
     // Data: the toolpaths from the file's own layers (every n-th when there are many) and the STL when there is one.
-    const { indices, step } = pickLayers(summary.layers.length, cap.layers);
-    const order = featureOrder(summary.layers);
+    const { indices, step } = pickLayers(layers.length, cap.layers);
+    const order = featureOrder(layers);
     const perLayer = Math.max(200, Math.floor(cap.segments / indices.length));
     let dropped = 0, next = 0;
     const mats = new Map();
@@ -231,28 +252,26 @@ export function view3d(into, jobId, opts = {}) {
         request();
       }
     };
-    const modelP = (async () => {
-      try {
-        const r = await fetch(`/api/quick/jobs/${jobId}/model`, { credentials: "same-origin" });
-        if (!r.ok) return { absent: true };
-        const stl = parseStl(await r.arrayBuffer(), cap.triangles);
-        const g = new T.BufferGeometry();
-        g.setAttribute("position", new T.BufferAttribute(stl.positions, 3));
-        g.computeVertexNormals();
-        const m = new T.Mesh(g, new T.MeshStandardMaterial({ color: dark ? 0x7aa2c4 : 0x5b8db8, transparent: true, opacity: 0.32,
-          side: T.DoubleSide, depthWrite: false, clippingPlanes: [clip] }));
-        groups.model.add(m);
-        return stl;
-      } catch (e) { return { error: e }; }
-    })();
+    const modelP = stlP.then((stl) => {
+      if (!stl.positions) return stl;
+      const g = new T.BufferGeometry();
+      g.setAttribute("position", new T.BufferAttribute(stl.positions, 3));
+      if (fit) g.translate(...fit.shift);
+      g.computeVertexNormals();
+      const m = new T.Mesh(g, new T.MeshStandardMaterial({ color: dark ? 0x7aa2c4 : 0x5b8db8, transparent: !modelOnly, opacity: modelOnly ? 1 : 0.32,
+        side: T.DoubleSide, depthWrite: modelOnly, clippingPlanes: [clip] }));
+      groups.model.add(m);
+      return stl;
+    });
     await Promise.all([modelP, ...Array.from({ length: PARALLEL }, worker)]);
     if (dead) return;
     const stl = await modelP;
-    const bits = [`${summary.layers.length} layers from the sliced file`];
-    bits.push(stl.absent ? "no STL model is stored, so the model isn't drawn" : stl.error ? `the model couldn't be read (${stl.error.message})` : "the stored model is the translucent shape");
-    if (Number.isFinite(maxZ)) bits.push(`${mm(maxZ)} tall`);
+    const bits = [modelOnly ? "Not sliced yet, so this is the stored model alone" : `${layers.length} layers from the sliced file`];
+    if (!modelOnly) bits.push(stl.absent ? "no STL model is stored, so the model isn't drawn" : stl.error ? `the model couldn't be read (${stl.error.message})` : "the stored model is the translucent shape");
+    else bits.push(`${mm(fit.w)} × ${mm(fit.d)} × ${mm(fit.h)}`);
+    if (!modelOnly && Number.isFinite(maxZ)) bits.push(`${mm(maxZ)} tall`);
     status.textContent = `${bits.join("; ")}.`;
-    note.textContent = reductionNote({ reduced, layers: summary.layers.length, step, dropped, modelShown: stl.shown || 0, modelTotal: stl.triangles || 0 });
+    note.textContent = reductionNote({ reduced, layers: layers.length, step, dropped, modelShown: stl.shown || 0, modelTotal: stl.triangles || 0 });
     request();
   }
 

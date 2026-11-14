@@ -52,11 +52,12 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`); };
 
-async function mock(page, { layers = 40, segs = 400, tris = 2000, model = true } = {}) {
+async function mock(page, { layers = 40, segs = 400, tris = 2000, model = true, sliced = true } = {}) {
   const l = Array.from({ length: layers }, (_, i) => ({ i, z: Math.round((i + 1) * 20) / 100, features: ['Outer wall', 'Sparse infill'], extrusion_mm: 10, travel_mm: 1, filament_mm: 1, speed: [60, 200] }));
   const stl = model ? stlBuffer(tris) : null;
   await page.route('**/api/quick/jobs/j1/**', (route) => {
     const p = new URL(route.request().url()).pathname;
+    if (p.endsWith('/layers') && !sliced) return route.fulfill({ json: { state: 'none', reason: 'This job has no sliced file yet.', layers: [] } });
     if (p.endsWith('/layers')) return route.fulfill({ json: { state: 'ready', progress: 1, built: layers, layers: l, bounds: [20, 20, 220, 220], plate: { area: [0, 0, 256, 256], height: 261 }, truncated: null, reason: null } });
     if (p.endsWith('/model')) return stl ? route.fulfill({ body: stl, contentType: 'model/stl' }) : route.fulfill({ status: 404, json: { detail: 'none' } });
     const m = p.match(/layers\/(\d+)$/);
@@ -76,7 +77,7 @@ const open = async (opts = {}, { width = 1280, height = 900, reducedMotion, quer
   await page.goto(`${BASE}/harness${query}`);
   return { page, ctx, errors };
 };
-const done = (page) => page.waitForFunction(() => /layers from the sliced file|couldn't start|can't draw|no layers/.test(document.querySelector('.quick-3d__status')?.textContent || ''), null, { timeout: 60000 });
+const done = (page) => page.waitForFunction(() => /layers from the sliced file|Not sliced yet|couldn't start|can't draw|no layers|nothing to show/.test(document.querySelector('.quick-3d__status')?.textContent || ''), null, { timeout: 60000 });
 
 // 1. it draws, and says what it drew
 {
@@ -185,5 +186,26 @@ const done = (page) => page.waitForFunction(() => /layers from the sliced file|c
   check('a large model and slice are ready inside 60 s', ms < 60000, `${ms} ms`);
   await ctx.close();
 }
+
+// 5. A26: a job with a stored STL and no slice yet shows the model alone, with only the controls that apply
+{
+  const { page, ctx, errors } = await open({ sliced: false, tris: 5000 }, { query: '?open=1' });
+  await page.getByRole('button', { name: 'Open 3D view' }).click();
+  await done(page);
+  const s = await page.textContent('.quick-3d__status');
+  check('unsliced job: says it is the model alone, with its size', /^Not sliced yet, so this is the stored model alone/.test(s) && /\d mm × [\d.]+ mm × [\d.]+ mm/.test(s), s);
+  check('unsliced job: no section slider or toolpath toggle', (await page.locator('.quick-3d__cut, .quick-3d__tog').count()) === 0);
+  const shot = await page.locator('.quick-3d__stage').screenshot();
+  check('unsliced job: the canvas is not blank', new Set(shot).size > 40);
+  check('unsliced job: no page errors', errors.length === 0, errors.join('|'));
+  await ctx.close();
+}
+{
+  const { page, ctx } = await open({ sliced: false, model: false });
+  await done(page);
+  check('unsliced job with no STL: plain message, nothing drawn', /nothing to show in 3D/.test(await page.textContent('.quick-3d__status')) && await page.evaluate(() => document.querySelector('.quick-3d__stage').hidden));
+  await ctx.close();
+}
+
 await browser.close(); server.close();
 process.exit(results.every((r) => r.ok) ? 0 : 1);
