@@ -14,7 +14,7 @@ monitors = [
     {"name": "Windows Desktop (10.0.0.81)", "type": "ping", "hostname": "10.0.0.81", "interval": 60},
     {"name": "Windows SMB Movie Share (445)", "type": "port", "hostname": "10.0.0.81", "port": 445, "interval": 60},
     {"name": "Windows Web / Local AI (80)", "type": "http", "url": "http://10.0.0.81", "interval": 60, "accepted_statuscodes_json": '["200-299","308"]'},
-    {"name": "Bambu P1S 3D Printer", "type": "ping", "hostname": "10.0.0.136", "interval": 60},
+    {"name": "Bambu P1S 3D Printer", "type": "ping", "hostname": "10.0.0.38", "interval": 60},
     {"name": "Workshop Smart Display", "type": "ping", "hostname": "10.0.0.124", "interval": 60},
     {"name": "Pi Hub Web App", "type": "http", "url": "http://10.0.0.80", "interval": 60},
     {"name": "Grafana Dashboards", "type": "http", "url": "http://10.0.0.80:3000", "interval": 60},
