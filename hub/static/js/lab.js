@@ -1477,14 +1477,16 @@ export async function fetchLab(state) {
   if (!pick) return null;
   if (pick.missing) return { missing: pick.missing, names: pick.names };
   const meta = pick.meta, pName = meta.name;
+  const moved = Boolean(state.currentProject) && state.currentProject !== pName; // another project's requests aren't this one's
   state.currentProject = pName;
   const unchanged = refreshPlan(meta, state.renderedFp, false) === "quiet";
   const [labData, reqData] = await Promise.all([
     unchanged ? null : labFetch(`/api/lab/${encodeURIComponent(pName)}`, {}, quiet),
-    labFetch(`/api/lab/${encodeURIComponent(pName)}/requests`, {}, { prompt: false }).catch(() => ({ items: [] })),
+    // A failed read is null, not "no requests": load keeps the ones it knows, so a sent request stays sent.
+    labFetch(`/api/lab/${encodeURIComponent(pName)}/requests`, {}, { prompt: false }).catch(() => null),
   ]);
-  if (unchanged) return { labData: null, reqData, meta, unchanged: true };
-  return labData ? { labData, reqData, meta } : null;
+  if (unchanged) return { labData: null, reqData, meta, moved, unchanged: true };
+  return labData ? { labData, reqData, meta, moved } : null;
 }
 
 // Re-draw the notebook in place: open <details>, scroll and focus come back, and the cards that changed flash.
@@ -1518,10 +1520,12 @@ export async function load(state) {
     state.cardSigs = null;
     state.currentData = null;
     state.currentProject = ""; // nothing to send requests to until a real project is open
+    state.currentRequests = []; // and no project's requests to carry into the next one
     return;
   }
   const { labData, reqData, meta } = got;
-  state.currentRequests = (reqData && reqData.items) || [];
+  if (reqData) state.currentRequests = reqData.items || [];
+  else if (got.moved) state.currentRequests = [];
   const plan = got.unchanged ? "quiet" : refreshPlan(meta, state.renderedFp, holdRender(state));
   if (plan !== "render") {
     // Nothing to redraw (or a dialog is open and must not be disturbed): keep the statuses and the sync age current.

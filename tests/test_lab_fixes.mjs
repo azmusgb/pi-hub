@@ -186,6 +186,60 @@ test('M5: a load that finishes after leave() draws nothing', async () => {
   assert.equal(state.currentData, null);
 });
 
+// ---- a failed read of the requests is not "no requests" ----
+// It used to be read as an empty list: "waiting for the Mac" vanished and Start, Approve and "It's printing now" came
+// back on, so a second tap sent a second request.
+test('a failed read of the requests keeps the ones already known', async () => {
+  const pending = { id: 'rq-1', kind: 'start', experiment: 'E-1', status: 'pending' };
+  const box = { querySelector: () => null, querySelectorAll: () => [], replaceChildren() {} };
+  const state = { box, context: new URLSearchParams(), renderedFp: 'fp1', currentRequests: [pending],
+    currentData: { meta: {}, index: { experiments: [] } }, triedOnce: true };
+  let requestsAnswer = () => res(500, { detail: 'down' });
+  setDeps({
+    fetch: async (p) => (p === '/api/lab/projects' ? res(200, { projects: [{ name: 'hex', fingerprint: 'fp1' }] })
+      : p.endsWith('/requests') ? requestsAnswer() : res(200, { meta: {}, index: { experiments: [] } })),
+    ensure: async () => true, hidden: () => false,
+  });
+  await load(state);
+  assert.deepEqual(state.currentRequests, [pending], 'the pending request is still known');
+  requestsAnswer = () => { throw new TypeError('Failed to fetch'); };
+  await load(state);
+  assert.deepEqual(state.currentRequests, [pending], 'and after a network error');
+  requestsAnswer = () => res(200, { items: [] });
+  await load(state);
+  assert.deepEqual(state.currentRequests, [], 'a read that answers with none is believed');
+});
+
+test("a failed read of the requests never carries another project's over", async () => {
+  const box = { querySelector: () => null, querySelectorAll: () => [], replaceChildren() {} };
+  const state = { box, context: new URLSearchParams('p=bracket'), renderedFp: 'fp2', currentProject: 'hex',
+    currentRequests: [{ id: 'rq-1', kind: 'start', experiment: 'E-1', status: 'pending' }],
+    currentData: { meta: {}, index: { experiments: [] } }, triedOnce: true };
+  setDeps({
+    fetch: async (p) => (p === '/api/lab/projects' ? res(200, { projects: [{ name: 'hex', fingerprint: 'fp1' }, { name: 'bracket', fingerprint: 'fp2' }] })
+      : p.endsWith('/requests') ? res(500, { detail: 'down' }) : res(200, { meta: {}, index: { experiments: [] } })),
+    ensure: async () => true, hidden: () => false,
+  });
+  await load(state);
+  assert.equal(state.currentProject, 'bracket');
+  assert.deepEqual(state.currentRequests, []);
+});
+
+test('a project that is not there leaves no requests behind for the next one', async () => {
+  globalThis.document ||= {};
+  const el = () => ({ append() {}, appendChild() {}, setAttribute() {}, classList: { add() {} }, style: {}, dataset: {} });
+  const had = globalThis.document.createElement;
+  globalThis.document.createElement = el;
+  globalThis.document.createTextNode ||= () => ({});
+  const box = { querySelector: () => null, querySelectorAll: () => [], replaceChildren() {} };
+  const state = { box, context: new URLSearchParams('p=nope'), currentProject: 'hex', triedOnce: true,
+    currentRequests: [{ id: 'rq-1', kind: 'start', experiment: 'E-1', status: 'pending' }] };
+  setDeps({ fetch: async () => res(200, { projects: [{ name: 'hex', fingerprint: 'fp1' }] }), ensure: async () => true, hidden: () => false });
+  try { await load(state); } finally { globalThis.document.createElement = had; }
+  assert.equal(state.currentProject, '');
+  assert.deepEqual(state.currentRequests, []);
+});
+
 test('M5: mountPhotos ignores a detached tree', () => {
   const { root } = fakePage();
   const ix = IX();
