@@ -40,13 +40,10 @@
       "motion": 1
     },
     "hub/static/home.css": {
-      "colour": 62,
-      "type": 84,
-      "space": 179,
-      "radius": 19,
-      "shadow": 11,
-      "motion": 12,
-      "layer": 3
+      "colour": 47,
+      "type": 49,
+      "space": 68,
+      "radius": 1
     },
     "hub/static/household-features.css": {
       "type": 15,

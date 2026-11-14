@@ -45,8 +45,9 @@ def test_no_warm_leftovers():
 
 
 def test_a_lit_light_uses_the_accent_not_amber():
-    assert "var(--accent)" in rule(css("home.css"), ".kiosk-light-toggle-btn.is-on")
-    assert "--warn" not in rule(css("home.css"), ".kiosk-light-toggle-btn.is-on")
+    lit = rule(css("home.css"), ".kiosk-light-toggle-btn.is-on")
+    assert "var(--ui-accent)" in lit  # the kit's name since step 13, H16
+    assert "warn" not in lit  # neither the old --warn nor the kit's --ui-warn
     now = open(os.path.join(STATIC, "js", "now.js")).read()
     assert "light.on ? 'var(--warn)'" not in now and "isOn ? 'var(--warn)'" not in now
 
@@ -81,4 +82,5 @@ def test_the_printer_shows_once_in_needs_you():
 
 
 def test_side_by_side_tool_links_have_room():
-    assert re.search(r"\.tool-link \+ \.tool-link \{[^}]*margin-left: 1rem", css("home.css"))
+    # 1rem is the kit's --ui-s-4 since step 13, H16.
+    assert re.search(r"\.tool-link \+ \.tool-link \{[^}]*margin-left: (1rem|var\(--ui-s-4\))", css("home.css"))

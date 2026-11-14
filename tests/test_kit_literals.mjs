@@ -52,7 +52,7 @@ test('the allow list is the per-instance names A22 1.4 lists and the vendored th
 // H7 onward (plan decision 7): a cleaned stylesheet reads only the kit's names. Each clean-up PR adds its files here;
 // H18 deletes the alias definitions and replaces this list with every stylesheet.
 const CLEANED = ['settings-rich.css', 'movies-print-rules-alerts-rich.css', 'lists-rich.css',
-  'ambient.css', 'quick.css', 'household-features.css', 'home-dashboard.css', 'workshop-pi-rich.css', 'pages.css', 'movies.css', 'components.css', 'enhance.css', 'lab.css'];
+  'ambient.css', 'quick.css', 'household-features.css', 'home-dashboard.css', 'workshop-pi-rich.css', 'pages.css', 'movies.css', 'components.css', 'enhance.css', 'lab.css', 'home.css'];
 test('a cleaned stylesheet reads no private name: every var() is a kit value or on the allow list', () => {
   const allow = JSON.parse(readFileSync(join(ROOT, '.kit-literals-allow.json'), 'utf8')).names
     .map((n) => new RegExp(`^${n.replace(/\*/g, '.*')}$`));

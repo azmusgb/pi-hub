@@ -57,7 +57,7 @@ export function weatherView(o) {
         h("span", { class: "wx-h-time" }, i === 0 ? "Now" : x.label),
         weatherIcon(i === 0 ? w.now.icon : x.icon),
         h("span", { class: "wx-h-temp" }, `${i === 0 ? w.now.temp : x.temp}°`),
-        h("span", { class: "wx-h-rain", style: `--p:${x.rain}%` }, x.rain >= 10 ? `${x.rain}%` : "", h("span", { class: "sr" }, `${x.rain}% chance of rain`)))))) : null,
+        h("span", { class: "wx-h-rain", style: `--pct:${x.rain}%` }, x.rain >= 10 ? `${x.rain}%` : "", h("span", { class: "sr" }, `${x.rain}% chance of rain`)))))) : null,
       section("This week", lampRows(w.days.map((d, i) => ({
         title: day(d.date, i),
         detail: `${d.sky}${d.rain >= 20 ? `, ${d.rain}% chance of rain` : ""}`,
