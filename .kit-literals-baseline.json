@@ -24,14 +24,13 @@
       "motion": 2
     },
     "hub/static/enhance.css": {
-      "colour": 49,
-      "type": 42,
-      "space": 95,
-      "radius": 8,
+      "colour": 22,
+      "type": 13,
+      "space": 26,
+      "radius": 2,
       "shadow": 1,
-      "motion": 12,
-      "layer": 1,
-      "name": 32
+      "motion": 7,
+      "name": 5
     },
     "hub/static/home-dashboard.css": {
       "type": 4,
