@@ -46,8 +46,8 @@ def test_no_warm_leftovers():
 
 def test_a_lit_light_uses_the_accent_not_amber():
     lit = rule(css("home.css"), ".kiosk-light-toggle-btn.is-on")
-    assert "var(--accent)" in lit or "var(--ui-accent)" in lit  # the kit's name since step 13, H16
-    assert "--warn" not in rule(css("home.css"), ".kiosk-light-toggle-btn.is-on")
+    assert "var(--ui-accent)" in lit  # the kit's name since step 13, H16
+    assert "warn" not in lit  # neither the old --warn nor the kit's --ui-warn
     now = open(os.path.join(STATIC, "js", "now.js")).read()
     assert "light.on ? 'var(--warn)'" not in now and "isOn ? 'var(--warn)'" not in now
 
