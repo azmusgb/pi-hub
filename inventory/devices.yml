@@ -90,7 +90,7 @@ devices:
     name: "Workshop OS Smart Display"
     role: "Ambient Workshop Kiosk"
     model: "WS350 Smart Display"
-    ip: "10.0.0.124"
+    ip: "10.0.0.28"
     monitored:
       icmp: true
       icmp_interval: "30s"
