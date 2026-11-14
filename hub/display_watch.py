@@ -14,7 +14,7 @@ import urllib.request
 
 from . import db
 
-URL = os.environ.get("HUB_DISPLAY_URL", "http://10.0.0.124")
+URL = os.environ.get("HUB_DISPLAY_URL", "http://10.0.0.28")
 TIMEOUT_S = 3
 KEEP_S = 2 * 86400
 # esp_reset_reason_t (ESP-IDF), the number the firmware sends as resetReason.
