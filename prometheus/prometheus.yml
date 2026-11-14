@@ -131,7 +131,7 @@ scrape_configs:
         labels:
           role: "workstation"
           name: "Windows 11 Workstation"
-      - targets: ["10.0.0.136"]
+      - targets: ["10.0.0.38"]
         labels:
           role: "printer"
           name: "Bambu P1S Printer"

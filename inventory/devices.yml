@@ -77,7 +77,7 @@ devices:
     name: "Bambu P1S 3D Printer"
     role: "Fabrication & 3D Print"
     model: "Bambu Lab P1S"
-    ip: "10.0.0.136"
+    ip: "10.0.0.38"
     monitored:
       icmp: true
       icmp_interval: "30s"
