@@ -56,15 +56,11 @@
     "hub/static/index.html": {
       "colour": 2
     },
-    "hub/static/js/lab-photos.js": {
-      "name": 2
-    },
     "hub/static/js/lab-v2.js": {
       "colour": 22
     },
     "hub/static/js/lab.js": {
-      "colour": 3,
-      "name": 1
+      "colour": 3
     },
     "hub/static/js/main.js": {
       "colour": 2
@@ -76,10 +72,9 @@
       "colour": 3
     },
     "hub/static/lab.css": {
-      "colour": 76,
-      "type": 41,
-      "space": 136,
-      "radius": 13,
+      "colour": 7,
+      "type": 1,
+      "space": 67,
       "shadow": 3,
       "motion": 1,
       "layer": 1
