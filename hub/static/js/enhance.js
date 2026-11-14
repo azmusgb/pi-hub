@@ -56,7 +56,7 @@
     [...view.children].forEach((el, i) => {
       if (!el.hasAttribute("data-revealed")) {
         el.setAttribute("data-revealed", "1");
-        el.style.setProperty("--i", i);
+        el.style.animationDelay = `${Math.min(i, 8) * 45}ms`;
         el.classList.add("reveal");
       }
     });
