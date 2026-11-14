@@ -894,7 +894,9 @@ async def api_list_add(key: str, request: Request):
     if due not in (None, ""):
         try:
             due = int(due)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            raise HTTPException(400, "Choose a time for the reminder.")
+        if not 0 <= due <= reminders.LATEST:
             raise HTTPException(400, "Choose a time for the reminder.")
         if repeat not in ("", "daily", "weekly"):
             raise HTTPException(400, "Choose how often it repeats.")

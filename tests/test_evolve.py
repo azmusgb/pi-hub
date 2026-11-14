@@ -1,5 +1,6 @@
 import os
 import tempfile
+import threading
 import time
 
 os.environ["HUB_NO_SAMPLER"] = "1"
@@ -37,6 +38,25 @@ def test_weekly_reminder_moves_on_and_reopens(fresh):
     db.run("UPDATE items SET done = 1, done_at = 2000 WHERE id = ?", rid)
     reminders.tick(now=1000 + 7 * 86400 - 3600)  # within 12 h of the next time: back on the list
     assert db.one("SELECT done FROM items WHERE id = ?", rid)["done"] == 0
+
+
+def test_a_repeating_reminder_from_long_ago_moves_on_at_once(fresh):
+    """A due time far in the past used to be stepped forward one day at a time, which never finished."""
+    due, now = -9_000_000_000_000_000_000, 1_800_000_000
+    rid = add("Bins out", due, "daily")
+    t = threading.Thread(target=reminders.tick, kwargs={"now": now}, daemon=True)
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "tick is still stepping the reminder forward"
+    nxt = db.one("SELECT due FROM items WHERE id = ?", rid)["due"]
+    assert now < nxt <= now + 86400 and (nxt - due) % 86400 == 0
+    assert fresh == [("Reminder", "Bins out")]
+
+
+def test_a_repeating_reminder_due_exactly_now_moves_one_step(fresh):
+    rid = add("Bins out", 1000, "daily")
+    reminders.tick(now=1000)
+    assert db.one("SELECT due FROM items WHERE id = ?", rid)["due"] == 1000 + 86400
 
 
 def test_quiet_hours_hold_a_reminder_for_later(monkeypatch, fresh):

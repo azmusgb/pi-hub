@@ -4,6 +4,7 @@ import time
 from . import db, events
 
 STEP = {"daily": 86400, "weekly": 7 * 86400}
+LATEST = 4102444800  # 1 Jan 2100: a reminder is a time this century, never a number that happens to parse
 
 
 def ready():
@@ -21,9 +22,8 @@ def tick(now=None):
         if result == "Held back for quiet hours.":
             continue  # try again on the next tick after quiet hours end
         if r["repeat"] in STEP:
-            nxt = r["due"]
-            while nxt <= now:
-                nxt += STEP[r["repeat"]]
+            step = STEP[r["repeat"]]
+            nxt = r["due"] + ((now - r["due"]) // step + 1) * step  # the first of its times after now, however late
             db.run("UPDATE items SET due = ?, reminded = ? WHERE id = ?", nxt, now, r["id"])
         else:
             db.run("UPDATE items SET reminded = ? WHERE id = ?", now, r["id"])

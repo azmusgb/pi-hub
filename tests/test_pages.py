@@ -25,6 +25,14 @@ def test_changes_from_another_site_are_refused(c):
     assert r.status_code == 403
 
 
+@pytest.mark.parametrize("due", [-1, -9_000_000_000_000_000_000, 4102444801, 10**30])
+def test_a_reminder_time_outside_this_century_is_refused(c, due):
+    before = c.get("/api/lists").json()["todo"]["items"]
+    r = c.post("/api/lists/todo", json={"text": "Bins out", "due": due, "repeat": "daily"}, headers=SAME)
+    assert r.status_code == 400
+    assert c.get("/api/lists").json()["todo"]["items"] == before
+
+
 def test_lists_add_tick_clear_and_delete(c):
     r = c.post("/api/lists/shopping", json={"text": "  Oat   milk "}, headers=SAME)
     assert r.status_code == 200
