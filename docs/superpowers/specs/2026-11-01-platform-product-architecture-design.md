@@ -869,6 +869,15 @@ it depends on are done. Steps on different lines can run in parallel.
 15. **One site: absorb (A22, brief 5).** One linked app per PR, Uptime Kuma retired, Print lab's three tabs. After 12.
 16. **One site: sign-in and the nightly check (A22, brief 6).** A15 built, second passwords removed by the owner,
     the nightly screenshot check on the Mac. After 15.
+17. **Made as one: the print slice (amendment A25, brief 17).** The kit's action button and Next line, `refs` on the
+    printer's and the lab's Needs-you items, Clear the plate reporting through them, and the finished-print push
+    given an address. Depends on nothing in 13-16. Accepted by the owner's walk with a real print.
+18. **Made as one: things (A25, brief 18).** After 17 is accepted. Not approved to start: A25's approval covers 17
+    only, and 18-21 are confirmed, changed or dropped after the walk.
+19. **Made as one: actions and Needs you (A25, brief 19).** After 18. Not approved to start.
+20. **Made as one: History (A25, brief 20).** After 18. Not approved to start.
+21. **Made as one: the shared parts (A25, brief 21).** After 17; per app after that app's step-13 PRs; in the
+    Assistant, per section after step 14. Not approved to start.
 
 D9 (forge) and C1 (off-site backup, section 12) are not in this sequence. Neither blocks it. Step 2's
 `home-platform-alive` check exists before C1; C1 adds `offsite-backup`.
@@ -1118,3 +1127,9 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   Pi Hub pages (Uptime Kuma retired), Pi Hub's own sign-in, and one home for print-lab. Amends sections 5.1, 5.2, 5.3,
   5.6 and 9, A4 (requirements 5 to 8), A6 decisions 1, 2, 6 and 11, and A7 P1; adds migration steps 11 to 16.
   Approved by the owner on 11 Nov 2026 ("merge 230", pi-hub #230).
+- **A25. Made as one** (`2026-11-13-amendment-a25-made-as-one.md`): the sites behave as one product. A thing (a
+  print, a system, a release, an experiment) has one address and one row and opens in place; every action reports the
+  same way and offers the next step; one History page answers "what changed", with one line on Home. Built one moment
+  at a time, starting with a print finishing. Adds migration steps 17 to 21. Merged by the owner on 14 Nov 2026
+  (pi-hub #247): that approves the design and step 17 only. Steps 18 to 21, and with them the changes to sections 4,
+  5.6 and 9, A7 P1 and A8 D1, are confirmed, changed or dropped after the owner's walk of step 17.
