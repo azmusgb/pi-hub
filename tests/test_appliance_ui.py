@@ -149,9 +149,10 @@ def test_colour_triples_are_space_separated():
 def test_meter_fill_starts_at_3_to_1_on_the_well():
     # The fill's light end is the status colour at 85% over white: at 70% it was 2.95 on the light well (3:1 needed).
     css = open(os.path.join(STATIC, "enhance.css")).read()
-    for tone, var in (("ok", "ok"), ("warn", "warn"), ("danger", "danger")):
+    # The colour is the alias (--ok) or, once the stylesheet reads the kit's names (step 13, H14), the kit's (--ui-ok).
+    for tone, names in (("ok", ("ok", "ui-ok")), ("warn", ("warn", "ui-warn")), ("danger", ("danger", "ui-bad"))):
         rule = re.search(r"\.meter--%s \.meter-bar::after\s*\{([^}]*)\}" % tone, css).group(1)
-        assert f"color-mix(in srgb, var(--{var}) 85%, white)" in rule, tone
+        assert any(f"color-mix(in srgb, var(--{var}) 85%, white)" in rule for var in names), tone
 
 
 def test_the_pi_page_links_grafana_and_kuma_through_the_gate():
