@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   experimentHtml, gradeText, plain, requestsHtml, load, actRetryable, holdRender, releasePreviews, signInOffer,
+  verdictIdAfter,
 } from '../hub/static/js/lab.js';
 import { mountPhotos, openViewer, openCompare, runsOf } from '../hub/static/js/lab-photos.js';
 import { prepareSend, settle, snapshots } from '../hub/static/js/lab-observe.js';
@@ -105,6 +106,25 @@ test('I1: an edit after a stale pending request keeps the same id, with the new 
   const freed = settle(d, { id: first.id, status: 'refused', message: 'no' });
   assert.equal(freed.draft.requestId, undefined, 'only a refusal frees the id');
   assert.equal(prepareSend(freed.draft, X, () => 'rq-new').id, 'rq-new');
+});
+
+// ---- a refused verdict frees its id, as a refused observation does (I1) ----
+// The hub answers a request id it already holds with that request's status and drops the new payload (lab.py), so a
+// corrected verdict sent under the refused id never reached the Mac and showed the old refusal again.
+test('a refused verdict frees its id: the corrected verdict is a new request', () => {
+  assert.equal(verdictIdAfter('rq-1', { id: 'rq-1', status: 'refused', message: 'no' }), null);
+  assert.equal(verdictIdAfter('rq-1', { id: 'rq-1', status: 'pending' }), 'rq-1', 'a slept Mac keeps the same request');
+  assert.equal(verdictIdAfter('rq-1', { id: 'rq-1', status: 'applied' }), 'rq-1');
+  assert.equal(verdictIdAfter('rq-1', { id: 'rq-2', status: 'refused' }), 'rq-1', "another request's refusal frees nothing");
+  assert.equal(verdictIdAfter(null, { id: 'rq-1', status: 'refused' }), null);
+});
+
+test("the verdict sheet's refusal goes through verdictIdAfter", () => {
+  const src = readFileSync(new URL('../hub/static/js/lab.js', import.meta.url), 'utf8');
+  const update = src.slice(src.indexOf('function onRequestUpdate('), src.indexOf('async function sendVerdict('));
+  const from = update.indexOf('} else if (item.status === "refused") {'), to = update.indexOf('} else if (', from + 1);
+  assert.ok(from > 0 && to > from, 'the refused branch is where it was');
+  assert.match(update.slice(from, to), /^\s*state\.currentReqId = verdictIdAfter\(state\.currentReqId, item\);$/m);
 });
 
 // ---- I2: duplicate is done ----
