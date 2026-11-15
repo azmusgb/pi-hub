@@ -6,7 +6,7 @@
 param([switch]$Status, [switch]$Apply, [switch]$Undo)
 $ErrorActionPreference = 'Stop'
 $Name = 'PiLock-Paperless-8010'
-$NotThePi = @('0.0.0.0-10.0.0.29', '10.0.0.31-255.255.255.255', '::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')
+$NotThePi = @('0.0.0.0-10.0.0.79', '10.0.0.81-255.255.255.255', '::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')
 
 function Show {
   $r = Get-NetFirewallRule -Name $Name -ErrorAction SilentlyContinue
@@ -20,7 +20,10 @@ function Show {
 }
 
 if ($Apply) {
-  if (-not (Get-NetFirewallRule -Name $Name -ErrorAction SilentlyContinue)) {
+  if (Get-NetFirewallRule -Name $Name -ErrorAction SilentlyContinue) {
+    # An existing rule keeps the address it was made with; set it, so a moved Pi follows.
+    Set-NetFirewallRule -Name $Name -RemoteAddress $NotThePi
+  } else {
     New-NetFirewallRule -Name $Name -DisplayName 'Pi lock: Paperless 8010 only from the Pi (one home step 6)' `
       -Direction Inbound -Action Block -Protocol TCP -LocalPort 8010 -RemoteAddress $NotThePi -Profile Any | Out-Null
   }
