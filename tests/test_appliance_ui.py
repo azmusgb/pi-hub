@@ -98,15 +98,16 @@ def test_warning_states_use_the_warning_colour():
     for f, sel in (("enhance.css", '.fix-result[data-tone="warn"]'), ("household-features.css", '.project-card[data-warning="true"]')):
         css = open(os.path.join(STATIC, f)).read()
         rule = css[css.index(sel):css.index("}", css.index(sel))]
-        # A cleaned stylesheet (step 13) reads the kit's name; --warn is app.css's alias of the same value.
-        assert ("var(--warn)" in rule or "var(--ui-warn)" in rule) and "--accent" not in rule, (f, rule)
+        # Both stylesheets read the kit's name (step 13); app.css's --warn alias is gone since H17, so only the kit's counts.
+        assert "var(--ui-warn)" in rule and "--accent" not in rule, (f, rule)
 
 
-def test_the_status_triples_follow_the_kit():
-    kit, css = _kit(), re.sub(r"[ \t]+", " ", open(os.path.join(STATIC, "app.css")).read())
-    for mode in ("light", "dark"):
-        for name, token in (("ok", "ok"), ("warn", "warn"), ("bad", "bad"), ("pei", "accent"), ("ink", "text")):
-            assert f"--{name}-rgb: {_rgb(kit[token][mode])};" in css, (mode, name, kit[token][mode])
+def test_no_stylesheet_keeps_its_own_colour_triples():
+    # The triples (--ok-rgb, --pei-rgb, --ink-rgb, ...) copied the kit's colours by hand so that they could drift from it.
+    # Since step 13, H17 nothing reads them and they are gone: a tint is color-mix() of the kit's value (A22 1.5).
+    found = [f"{os.path.basename(p)}: {m}" for p in glob.glob(os.path.join(STATIC, "*.css"))
+             for m in re.findall(r"--[a-z-]+-rgb\s*:", open(p).read())]
+    assert found == []
 
 
 def test_browser_chrome_colours_follow_the_kit():
@@ -128,9 +129,12 @@ def test_shadows_are_the_kits_ink_not_warm_brown():
         found += [f"{os.path.basename(path)}: {w}" for w in ("32,27,20", "242,196,92", "#f2c45c") if w in flat
                   and not (w != "32,27,20" and os.path.basename(path) == "home.css" and _only_weather(path, w))]
     assert found == []
+    # The shell's shadows are the kit's (step 13, H17): its light value is that same ink, and app.css writes none of its own.
+    assert f"rgb({ink} /" in open(os.path.join(STATIC, "ui", "tokens.css")).read()
     css = re.sub(r"[ \t]+", " ", open(os.path.join(STATIC, "app.css")).read())
-    assert f"--shade-rgb: {ink};" in css
-    assert "--shadow-1: 0 1px 2px rgb(var(--shade-rgb) / .05)" in css and "rgba(15, 12, 9" not in css
+    assert "--shade-rgb" not in css and "--shadow-" not in css and "rgba(15, 12, 9" not in css
+    for value in re.findall(r"box-shadow:\s*([^;}]+)", css):
+        assert re.fullmatch(r"none|var\(--ui-shadow-[12]\)", value.strip()), value
 
 
 def _only_weather(path, w):
@@ -149,10 +153,10 @@ def test_colour_triples_are_space_separated():
 def test_meter_fill_starts_at_3_to_1_on_the_well():
     # The fill's light end is the status colour at 85% over white: at 70% it was 2.95 on the light well (3:1 needed).
     css = open(os.path.join(STATIC, "enhance.css")).read()
-    # The colour is the alias (--ok) or, once the stylesheet reads the kit's names (step 13, H14), the kit's (--ui-ok).
-    for tone, names in (("ok", ("ok", "ui-ok")), ("warn", ("warn", "ui-warn")), ("danger", ("danger", "ui-bad"))):
+    # The colour is the kit's (step 13, H14); app.css's --ok, --warn and --danger aliases are gone since H17.
+    for tone, name in (("ok", "ui-ok"), ("warn", "ui-warn"), ("danger", "ui-bad")):
         rule = re.search(r"\.meter--%s \.meter-bar::after\s*\{([^}]*)\}" % tone, css).group(1)
-        assert any(f"color-mix(in srgb, var(--{var}) 85%, white)" in rule for var in names), tone
+        assert f"color-mix(in srgb, var(--{name}) 85%, white)" in rule, tone
 
 
 def test_the_pi_page_links_grafana_and_kuma_through_the_gate():

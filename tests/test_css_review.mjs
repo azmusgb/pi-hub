@@ -9,9 +9,15 @@ const css = (f) => readFileSync(new URL(`../hub/static/${f}`, import.meta.url), 
 const ALL = ['app.css', 'pages.css', 'enhance.css', 'components.css', 'home.css', 'lab.css'];
 
 test('the focus ring is solid accent, not the 10% wash', () => {
-  const ring = css('app.css').match(/--ring:\s*([^;]+);/)[1];
-  assert.doesNotMatch(ring, /accent-soft/);
-  assert.match(ring, /var\(--accent\)/);
+  // Step 13, H17: the shell draws the kit's ring (DESIGN.md: 2px accent, offset 2px) as an outline, not a private --ring.
+  const app = css('app.css');
+  assert.doesNotMatch(app, /--ring\b/);
+  const rules = [...app.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)];
+  assert.ok(rules.length >= 6, 'the shell styles its own focus');
+  for (const [, sel, body] of rules) {
+    assert.match(body, /outline: 2px solid var\(--ui-accent\)/, sel.trim());
+    assert.doesNotMatch(body, /accent-soft|outline: none/, sel.trim());
+  }
 });
 
 test('error text uses the error colour, never the ink meant for text on a red fill', () => {

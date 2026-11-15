@@ -23,8 +23,9 @@ test("no telemetry source is \"No answer\", never \"Offline\"", async () => {
 
 test('the chip for no answer is neutral, not the error colour', () => {
   const css = read('hub/static/app.css');
-  assert.match(css, /\.printer-source\[data-state="offline"\] \.printer-source__dot \{ background: var\(--state-error\)/);
-  assert.match(css, /\.printer-source\[data-state="none"\] \.printer-source__dot \{ background: var\(--state-unknown/);
+  // The kit's lamp colours (step 13, H17): no answer is the kit's unknown, never bad.
+  assert.match(css, /\.printer-source\[data-state="offline"\] \.printer-source__dot \{ background: var\(--ui-bad\)/);
+  assert.match(css, /\.printer-source\[data-state="none"\] \.printer-source__dot \{ background: var\(--ui-unknown\)/);
 });
 
 test('a source that isn\'t answering is named once, in the kit\'s source_down words', async () => {

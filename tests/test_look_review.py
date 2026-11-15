@@ -23,7 +23,7 @@ def test_notes_on_a_warning_tint_use_body_text():
     # --warn-ink is for text on a solid warning fill; on a 10% tint it was white-on-beige / black-on-brown.
     assert "--warn-ink" not in rule(css("pages.css"), ".note")
     note = rule(css("pages.css"), ".note")
-    assert "color: var(--text)" in note or "color: var(--ui-text)" in note  # the kit's name since step 13, H11
+    assert "color: var(--ui-text)" in note  # the kit's name since step 13, H11; app.css's --text alias is gone since H17
     home = css("home.css")
     assert "--warn-ink" not in rule(home, ".out-alert")
     # Weather's warnings are the kit's ui-notice since A7 H3: no local colour on them at all.
@@ -35,7 +35,7 @@ def test_poster_titles_sit_under_the_artwork_in_the_theme_colours():
     m = css("movies.css")
     assert ".poster-card .poster-meta,\n.poster-card .poster-title" not in m
     title = rule(m, ".poster-title")
-    assert "var(--text)" in title or "var(--ui-text)" in title
+    assert "var(--ui-text)" in title  # the kit's name; app.css's --text alias is gone since step 13, H17
 
 
 def test_no_warm_leftovers():

@@ -7,14 +7,10 @@
       "motion": 6
     },
     "hub/static/app.css": {
-      "colour": 38,
-      "type": 24,
-      "space": 69,
-      "radius": 4,
-      "shadow": 1,
+      "type": 5,
+      "space": 42,
       "motion": 3,
-      "layer": 3,
-      "name": 139
+      "name": 7
     },
     "hub/static/components.css": {
       "colour": 6,
