@@ -135,7 +135,7 @@ scrape_configs:
         labels:
           role: "printer"
           name: "Bambu P1S Printer"
-      - targets: ["10.0.0.124"]
+      - targets: ["10.0.0.28"]
         labels:
           role: "display"
           name: "Workshop Smart Display"
