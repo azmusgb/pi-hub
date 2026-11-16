@@ -25,7 +25,8 @@ REPOS = {"pi-hub": "azmusgb/pi-hub", "localai": "azmusgb/LocalAI", "firmware": "
          "netmon": "azmusgb/netmon", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
          "print-lab": "azmusgb/print-lab"}
 # deploy target -> the repository name Atlas keeps snapshots under (versions.js ATLAS); others aren't mapped yet
-ATLAS = {"pi-hub": "pi-hub", "localai": "localai", "mac-watch": "localai", "print-lab": "print-lab"}
+ATLAS = {"pi-hub": "pi-hub", "localai": "localai", "mac-watch": "localai", "print-lab": "print-lab",
+         "firmware": "bambuhelper-smart-display"}
 
 
 def _service(kind, rec):
