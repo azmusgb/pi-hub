@@ -84,3 +84,9 @@ def test_the_gate_lets_machine_callers_read_it():
     caddy = (ROOT / "deploy/caddy/Caddyfile").read_text()
     line = next(l for l in caddy.splitlines() if l.strip().startswith("@machine path"))
     assert " /api/systems " in line + " "
+
+
+def test_firmware_target_has_atlas_name():
+    devices = next(h for h in systems.body()["hosts"] if h["id"] == "devices")
+    firmware = next(t for t in devices["targets"] if t["id"] == "firmware")
+    assert firmware["atlas"] == "bambuhelper-smart-display"
