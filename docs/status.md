@@ -211,7 +211,7 @@ Live on the Pi (plan `docs/superpowers/plans/2026-10-24-one-home-step-2-structur
 - **Menu:** Home · Workshop · Documents · Media · Home & network · System, plus Assistant. The Home tab's badge counts Needs you.
 - **Home:** six cards, Needs you first.
 - **Removed:** the App Suite. Its old addresses redirect.
-- **Words:** the X2D is named correctly in the hub. Bambuddy's own printer name is still "Bambu P1S", and it shows in print messages; rename it in Bambuddy › Printers.
+- **Words:** the X2D is named correctly in the hub and in Bambuddy ("Bambu X2D", model X2D). Its print log and notification history from 24–26 Oct, saved under the old "Bambu P1S" name, were renamed on 16 Nov (database backups `bambuddy.db.pre-p1s-*-20261116` beside it on the Pi).
 - **Browser check:** all 24 views pass (390 and 1440 px, light and dark, axe).
 
 **Waiting for the owner:**
