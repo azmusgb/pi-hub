@@ -80,6 +80,14 @@ def test_repositories_agree_with_system_versions():
     assert js == systems.REPOS
 
 
+def test_atlas_names_agree_with_system_versions():
+    # System › Versions links a commit to Atlas's snapshots: both name the same Atlas repository for a target.
+    src = (ROOT / "hub/static/js/versions.js").read_text()
+    block = re.search(r"const ATLAS = \{(.*?)\};", src, re.S).group(1)
+    js = dict(re.findall(r'"?([\w-]+)"?:\s*"([^"]+)"', block))
+    assert js == systems.ATLAS
+
+
 def test_the_gate_lets_machine_callers_read_it():
     caddy = (ROOT / "deploy/caddy/Caddyfile").read_text()
     line = next(l for l in caddy.splitlines() if l.strip().startswith("@machine path"))

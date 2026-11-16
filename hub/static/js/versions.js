@@ -19,7 +19,10 @@ const BY = {
 // Atlas keeps snapshots of these repositories (LocalAI's Architecture page, platform step 10), one per live commit: a
 // row links to "Architecture at this commit" there, in the shell (A4 "Atlas"). Other targets' repositories aren't
 // snapshotted yet.
-const ATLAS = { "pi-hub": "pi-hub", localai: "localai", "mac-watch": "localai", "print-lab": "print-lab" };
+const ATLAS = {
+  "pi-hub": "pi-hub", localai: "localai", "mac-watch": "localai", "print-lab": "print-lab",
+  firmware: "bambuhelper-smart-display",
+};
 const CHIP = {
   live: ["Live", "ok"], behind: ["Behind", ""], ahead: ["Ahead", ""], unknown: ["", ""], drifted: ["Drifted", "warn"],
 };
