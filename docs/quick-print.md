@@ -90,7 +90,7 @@ sends nothing. Nothing on this page is a secret; no key value is ever printed, l
 | `storage`: there wasn't room | job reason | finish or cancel a print, or delete old jobs; storage is 4 GiB with a 3 GiB reserve left to the Pi |
 | `canceled` | job reason | none |
 | The hub can't stage files yet: its Bambuddy staging key isn't set up | Prepare | run `deploy/bambuddy-staging-key.py` on the Pi |
-| Bambuddy is not 1.3.0 | Prepare, Start sheet | Start is proven on 1.3.0 only; don't use Quick Print on another version until it's re-proven |
+| Bambuddy is not 1.3.1 | Prepare, Start sheet | Start is proven on 1.3.1 only; don't use Quick Print on another version until it's re-proven |
 | Bambuddy's copy isn't the file that was prepared. Nothing was sent | Start | Prepare again |
 | The hub restarted while this was starting. Look at the printer | Outcome uncertain | look at the printer; if it isn't printing, "It isn't printing: go back", then tick both again |
 | Bambuddy accepted the start but the printer wasn't seen printing it | Outcome uncertain | the same |
@@ -124,7 +124,7 @@ would be watching it. Switching it back on makes a start that was in flight Outc
 
 | Part | Proven on | What happens elsewhere |
 |---|---|---|
-| Bambuddy | 1.3.0 | Prepare and Start refuse with the version in the message |
+| Bambuddy | 1.3.1 | Prepare and Start refuse with the version in the message |
 | Bambu Studio (Mac) | 02.09.01.70 | the worker's slice is refused (`studio_version`) |
 | Pi Hub | the release that shipped the step | rollback is the usual `pi-hub-release` rollback; the job tables are additive |
 | Three.js (3D view) | 0.187.0, MIT, hashes in `hub/static/vendor/three-0.187.0/README.md` | the view is optional |
