@@ -19,7 +19,7 @@ import urllib.request
 
 from . import bambuddy, db, printer_control
 
-SUPPORTED_VERSION = "1.3.0"  # the one-tap probe passed on it (print-lab spec, "Probe")
+SUPPORTED_VERSION = "1.3.1"  # the one-tap probe passed on it (print-lab spec, "Probe")
 PRINTER = 1
 IDLE = ("IDLE", "FINISH")
 BED_MAX_C = 35.0

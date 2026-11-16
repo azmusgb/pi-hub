@@ -26,12 +26,12 @@ def experiment(status="approved", staged=True, **kw):
     x = {"id": "E-026", "status": status, "shown_build": "BLD-026-02"}
     if staged:
         x["staged"] = {"library_file": 7, "folder": 1, "sha256": SHA, "at": "2026-11-06T10:00:00+00:00",
-                       "bambuddy": "1.3.0"}
+                       "bambuddy": "1.3.1"}
     return x | kw
 
 
 class FakeBambuddy:
-    def __init__(self, version="1.3.0", file=FILE, queue=201, start=200, delete=200):
+    def __init__(self, version="1.3.1", file=FILE, queue=201, start=200, delete=200):
         self.version, self.file, self.queue_status, self.start_status = version, file, queue, start
         self.delete_status = delete
         self.calls = []
@@ -178,7 +178,7 @@ def test_a_missing_file_starts_nothing(client, fake):
 def test_another_bambuddy_version_starts_nothing(client, fake):
     fake.version = "1.4.0"
     r = start(client)
-    assert r.status_code == 502 and "proven on 1.3.0" in r.json()["detail"] and len(fake.calls) == 1
+    assert r.status_code == 502 and "proven on 1.3.1" in r.json()["detail"] and len(fake.calls) == 1
 
 
 def test_a_refused_start_removes_the_queue_item(client, fake):
