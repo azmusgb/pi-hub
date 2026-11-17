@@ -126,6 +126,14 @@ loose presets air-printed for about 30 minutes on 27 Oct, A19), Bambuddy's X2D u
 bambuddy#2762), and Quick Print's own gates (sha256 match, plate clear, one printer command at a time, A19). Verdict:
 **do not trial until the owner wants the slicer service set up**; Quick Print stays.
 
+## Open WebUI spike, status (16 Nov, 19:37)
+
+Installed on the PC: `C:\OpenWebUI` compose, `open-webui:v0.13.3`, port 8020 locked to the Pi (`PiLock-OpenWebUI-8020`),
+sign-in off behind the gate, cloud and telemetry off, 3 GB limit, Ollama reachable. Verified from the Pi (`/health` 200);
+the Mac is blocked as intended. The gated name `openwebui.rahe-home.duckdns.org` is in pi-hub PR #272, not yet merged or
+deployed. The two-week trial starts at first real use. Not yet checked: a real chat, document search, and the `/ollama`
+route (401 without a session).
+
 ## Unknowns
 
 - Pi Hub's live state (enabled units, whether A22 O4 retired Uptime Kuma, which per-app logins are gone).
