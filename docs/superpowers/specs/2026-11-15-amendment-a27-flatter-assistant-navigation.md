@@ -25,11 +25,15 @@ Related states on a single entity type must use in-page filters or segmented chi
 - `Signals` (system anomalies) and `Claude Code` (coding runs) merge into a single **Activity** page.
 - `Atlas` remains an independent system architecture view.
 
-### D3. Move Setup into System Area
-Admin and appliance maintenance surfaces are relocated out of Assistant and into Pi Hub's `System` area:
+### D3. Move Setup into System, as one tab named "Assistant"
+Admin and appliance maintenance surfaces leave the Assistant and go to Pi Hub's `System` area (owner decision, 16 Nov):
 - The `Setup` section is removed from the Assistant's section strip.
-- Status, Models, Developer Tools, Assistant Settings, and Audit Log move under Pi Hub `System` (e.g. `/system/assistant` or child tabs of `Health`).
-- Assistant is left with exactly four operational sections: **Ask**, **Work**, **Projects**, and **Improve**.
+- `System` gets one new tab, **Assistant** (`/system/assistant`), which is a card list of the five admin pages: Status,
+  Models, Developer tools, Settings, Audit log. A card opens its page in place with a return link (`← Assistant`), the
+  same pattern as D1, so the path stays two levels (`System › Assistant`) and no sub-tab row is added.
+- Assistant is left with exactly four operational sections: **Ask**, **Work**, **Projects**, **Improve**.
+- Developer tools keeps D1's card list for its five tools; it opens in place under `System › Assistant` and its tools open
+  in place beneath it (still no sub-tabs; a return link at each step).
 
 ### D4. Assistant Home with Pinned, Recent, and Promoted ⌘K
 The `/assistant` landing prioritizes active and recurrent workflows:
@@ -55,6 +59,13 @@ Every view previously lacking an entry point is assigned a home or retired:
 - Changing backend API contracts or LocalAI model serving pipelines.
 - Redesigning tool execution sandboxes or PowerShell security gating.
 - Re-architecting Pi Hub's 5 core area rails.
+
+## Open points for the owner
+
+- Developer tools sits two clicks inside System › Assistant (card, then tool). If that is too deep for daily use, pin it
+  to Assistant home (D4) instead of moving it.
+- The LocalAI implementation starts from the live pages, not from `pages.json` alone (the 15 Nov spike showed Developer
+  tools was already a card page there).
 
 ## Evidence Required
 1. `pages.json` updated with no navigation hierarchy exceeding depth 2; total Assistant strip + tab entries reduced from ~28 to ~14.
