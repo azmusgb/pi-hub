@@ -197,6 +197,10 @@ home.home.arpa {
 	handle @paperless {
 		import site_tool 10.0.0.81:8010
 	}
+	@openwebui host openwebui.rahe-home.duckdns.org
+	handle @openwebui {
+		import site_tool 10.0.0.81:8020
+	}
 	@homebox host homebox.rahe-home.duckdns.org
 	handle @homebox {
 		import site_tool 127.0.0.1:7745
