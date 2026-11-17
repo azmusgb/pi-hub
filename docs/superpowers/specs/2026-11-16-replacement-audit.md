@@ -78,7 +78,7 @@ Print Lab is the experiment record, not a printer UI. Of about 30 commands and p
 | `filaments.json` (4.4 KB; no code reads it) | **Delete**, after copying notes, flow ratio and pressure-advance values into the matching Bambuddy spool notes |
 | `lab setup log` (drying, nozzle, calibration) | **Keep**; it feeds run records. Bambuddy maintenance overlaps only in part |
 | `lab watch` / `lab status` print progress | **Keep** (terminal); small |
-| `lab/printer/mqtt.py` (direct printer link) | **Question**: if live, it competes with Bambuddy's connection. Check use; delete if unused |
+| `lab/printer/mqtt.py` (direct printer link) | **Keep** (checked 16 Nov): `lab exp log` uses it for layer-by-layer telemetry (`cli_loop.py:178`, `run_log.py`, `tests/test_printer_log.py`). It is read-only (`ReadOnlyPublisher`) and pins the printer certificate |
 | Slicing wrappers, `exp stage/send/link`, `sync`, `pull`, `page*` (~3.5k lines of glue) | **Keep**; they are the integration with Bambuddy and Pi Hub |
 | Questions, experiments, variants, guards, verify, runs, photos, observations, verdicts, cases, design gate, qualification | **Keep**; this is the domain logic the comparison itself says to keep |
 
@@ -106,15 +106,25 @@ Bambuddy owning print records and print-lab referencing them) is already how pri
 1. Delete `filaments.json` after the Bambuddy notes copy? (recommended: yes). The copy needs a Bambuddy API key with
    Manage Inventory; print-lab's key is read-only (PATCH returns 403), so the owner creates one in Settings > API Keys
    or does the copy in the Bambuddy UI.
-2. Check whether `lab/printer/mqtt.py` is live in print-lab and delete it if not. (Pi Hub's `spools`/`samples` code was
-   checked and is not dead; nothing to remove there.) (recommended: yes)
-3. Spike Quick Print against Bambuddy's slicing? Installs nothing on the Pi if run on the Mac; needs the owner's OK to
-   touch Bambuddy settings. (recommended: yes, bounded to one day)
+2. Dead-code removal: closed. Pi Hub's `spools`/`samples` code and print-lab's `lab/printer/mqtt.py` were checked and are
+   live; nothing to remove.
+3. Quick Print vs Bambuddy slicing: read-only check done (see above); a trial needs a slicer service installed and
+   presets loaded, so it waits for the owner. (recommended: leave Quick Print as is for now)
 4. Spike Open WebUI beside LocalAI for Chat, RAG and Models only, behind the Caddy gate? This is a new service on the
    PC or Pi, so it needs the owner's OK for the install and the gate route. (recommended: yes, two weeks, then decide)
 5. Homarr, Home Assistant, n8n: not now. (recommended: close)
 
 Nothing in 1 to 5 starts until the owner says so.
+
+## Quick Print spike, first result (read-only, 16 Nov)
+
+Bambuddy on the Pi has slicing endpoints (`/api/v1/slicer-pipelines/`, `/api/v1/slicer/presets`, `slice-jobs`) and lists the
+X2D as a printer model. On this instance the slicer is not set up: no pipelines, no local, standard or cloud presets,
+cloud and Orca cloud "not_authenticated". So a trial needs a slicer service and presets installed first, which is a
+service change. Open risks a trial must settle before Quick Print could shrink: the X2D start sequence (a CLI slice from
+loose presets air-printed for about 30 minutes on 27 Oct, A19), Bambuddy's X2D upload needing a USB stick (`553`,
+bambuddy#2762), and Quick Print's own gates (sha256 match, plate clear, one printer command at a time, A19). Verdict:
+**do not trial until the owner wants the slicer service set up**; Quick Print stays.
 
 ## Unknowns
 
