@@ -88,10 +88,13 @@ Bambuddy owning print records and print-lab referencing them) is already how pri
 
 ## Cross-cutting findings
 
-1. **Duplicate sources of truth that do exist today:** `filaments.json` vs Bambuddy spools; Pi Hub `prints`, `spools`
-   and `samples` tables vs Bambuddy's archive and inventory (Pi Hub removed its shelf and board on 24 Oct; check
-   whether `spools` and `prints` are now dead); the Pi Hub `lab_*` tables and the Mac's `projects/` are a deliberate
-   copy (Mac writes, hub shows).
+1. **Duplicate sources of truth that do exist today:** `filaments.json` vs Bambuddy spools (Bambuddy's notes hold
+   lot, temperatures and the tile-fit note but not flow ratio, pressure advance or fan limits; its spool 4 says Sunlu
+   where `filaments.json` says Unbranded, so Bambuddy is the newer record). Checked on `origin/main` 16 Nov: Pi Hub's
+   `spools` table is gone (it reads Bambuddy through `hub/bambuddy.py`), `samples` is live (Pi health history,
+   `recorder.py`), and only the `prints` table's `CREATE` in `hub/db.py` is left, kept on purpose for old rows and
+   photos (`hub/filament.py`). So Pi Hub has no dead duplicate data code worth a PR. The Pi Hub `lab_*` tables and the
+   Mac's `projects/` are a deliberate copy (Mac writes, hub shows).
 2. **A27 (15 Nov, flatter Assistant navigation)** already covers the LocalAI "many pages, many tabs" complaint; the
    earlier nav restructure proposal should be reconciled with it, not run separately.
 3. **`docs/status.md` in Pi Hub is stale** (newest entry 2 Nov, specs run to A27); the "what is live" picture should
@@ -100,9 +103,11 @@ Bambuddy owning print records and print-lab referencing them) is already how pri
 
 ## Decisions for the owner
 
-1. Delete `filaments.json` after the Bambuddy notes copy? (recommended: yes)
-2. Check and remove Pi Hub's dead `spools`/`prints`/`samples` code and `lab/printer/mqtt.py` if unused? (recommended: yes,
-   as one small audited PR each, via `/sprawl-audit`)
+1. Delete `filaments.json` after the Bambuddy notes copy? (recommended: yes). The copy needs a Bambuddy API key with
+   Manage Inventory; print-lab's key is read-only (PATCH returns 403), so the owner creates one in Settings > API Keys
+   or does the copy in the Bambuddy UI.
+2. Check whether `lab/printer/mqtt.py` is live in print-lab and delete it if not. (Pi Hub's `spools`/`samples` code was
+   checked and is not dead; nothing to remove there.) (recommended: yes)
 3. Spike Quick Print against Bambuddy's slicing? Installs nothing on the Pi if run on the Mac; needs the owner's OK to
    touch Bambuddy settings. (recommended: yes, bounded to one day)
 4. Spike Open WebUI beside LocalAI for Chat, RAG and Models only, behind the Caddy gate? This is a new service on the
