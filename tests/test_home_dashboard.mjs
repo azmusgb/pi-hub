@@ -318,7 +318,7 @@ test("each rack row has one reading for the compact rows", () => {
 
 // A9 D2: short count labels on a phone, the full words kept for screen readers
 test("each count has a short phone label and keeps its full words", () => {
-  const items = countItems({ finished: 3, failed: 2, power: 1, updates: 3 });
+  const items = countItems({ finished: 3, failed: 2, power: 2, updates: 3 });
   assert.deepEqual(items.map((c) => c.label), ["prints finished", "failed", "power dips", "updates shipped"]);
   assert.deepEqual(items.map((c) => c.short), ["finished", "failed", "power dips", "updates"]);
 });
@@ -346,6 +346,13 @@ test("a lane whose source didn't answer is drawn as down, never as an empty quie
 test("the tally says — for a count whose source didn't answer, and 0 for a quiet day", () => {
   assert.deepEqual(countItems({ finished: 0, failed: null, power: 0, updates: 2 }).map((c) => c.value), ["0", "—", "0", "2"]);
   assert.deepEqual(countItems().map((c) => c.value), ["—", "—", "—", "—"]);
+});
+
+test("a zero or unknown count is plain text, never a red or amber zero; one reads singular", () => {
+  assert.deepEqual(countItems({ finished: 0, failed: 0, power: null, updates: 0 }).map((c) => c.kind), ["none", "none", "none", "none"]);
+  assert.deepEqual(countItems({ finished: 2, failed: 1, power: 3, updates: 1 }).map((c) => c.kind), ["ok", "bad", "warn", "run"]);
+  assert.deepEqual(countItems({ finished: 1, failed: 1, power: 1, updates: 1 }).map((c) => c.label),
+    ["print finished", "failed", "power dip", "update shipped"]);
 });
 
 test("a mark's time in words: a point, a range, one from before midnight and one still going", () => {
@@ -540,7 +547,7 @@ test("the tally hides the extra words visually in a narrow band, not from screen
     const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
     const state = {}, parent = k.env.root();
     mountDashboard(state, parent);
-    renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 1, updates: 3 } }), records: [], needs: { count: 0, items: [], unread: [] } }, () => {});
+    renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 2, updates: 3 } }), records: [], needs: { count: 0, items: [], unread: [] } }, () => {});
     const labels = [...parent.querySelectorAll(".hd-tally li > span")];
     assert.deepEqual(labels.map(text), ["prints finished", "failed", "power dips", "updates shipped"]);
     assert.deepEqual([...parent.querySelectorAll(".hd-tally__more")].map(text), ["prints", "shipped"]);

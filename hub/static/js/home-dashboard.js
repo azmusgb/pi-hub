@@ -316,13 +316,19 @@ export function drawDial(host, day, width, fs = 16, onMark) {
   return { marks, layout: L };
 }
 
-// Each count's words: [before, the short label a phone shows (A9 D2), after]. The words around it stay for screen readers.
-const COUNTS = [["finished", ["prints ", "finished", ""], "ok"], ["failed", ["", "failed", ""], "bad"],
-  ["power", ["", "power dips", ""], "warn"], ["updates", ["", "updates", " shipped"], "run"]];
+// Each count's words: [before, the short label a phone shows (A9 D2), after], plural then singular. The words around it
+// stay for screen readers.
+const COUNTS = [["finished", ["prints ", "finished", ""], ["print ", "finished", ""], "ok"], ["failed", ["", "failed", ""], null, "bad"],
+  ["power", ["", "power dips", ""], ["", "power dip", ""], "warn"], ["updates", ["", "updates", " shipped"], ["", "update", " shipped"], "run"]];
 
+// A count takes its band colour only when there is something to count: a red or amber zero reads as a fault
+// (Faceplate F3, status colours for status only). A zero or unknown count is plain text ("none").
 export function countItems(counts = {}) {
-  return COUNTS.map(([key, words, kind]) => ({ key, words, label: words.join(""), short: words[1], kind,
-    value: Number.isFinite(counts[key]) ? String(counts[key]) : "—" }));
+  return COUNTS.map(([key, many, one, kind]) => {
+    const n = Number.isFinite(counts[key]) ? counts[key] : null;
+    const words = n === 1 && one ? one : many;
+    return { key, words, label: words.join(""), short: words[1], kind: n > 0 ? kind : "none", value: n === null ? "—" : String(n) };
+  });
 }
 
 function tallyLabel(c) {
