@@ -318,7 +318,7 @@ test("each rack row has one reading for the compact rows", () => {
 
 // A9 D2: short count labels on a phone, the full words kept for screen readers
 test("each count has a short phone label and keeps its full words", () => {
-  const items = countItems({ finished: 3, failed: 2, power: 1, updates: 3 });
+  const items = countItems({ finished: 3, failed: 2, power: 2, updates: 3 });
   assert.deepEqual(items.map((c) => c.label), ["prints finished", "failed", "power dips", "updates shipped"]);
   assert.deepEqual(items.map((c) => c.short), ["finished", "failed", "power dips", "updates"]);
 });
@@ -540,7 +540,7 @@ test("the tally hides the extra words visually in a narrow band, not from screen
     const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
     const state = {}, parent = k.env.root();
     mountDashboard(state, parent);
-    renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 1, updates: 3 } }), records: [], needs: { count: 0, items: [], unread: [] } }, () => {});
+    renderDashboard(state, { today: day({ counts: { finished: 3, failed: 2, power: 2, updates: 3 } }), records: [], needs: { count: 0, items: [], unread: [] } }, () => {});
     const labels = [...parent.querySelectorAll(".hd-tally li > span")];
     assert.deepEqual(labels.map(text), ["prints finished", "failed", "power dips", "updates shipped"]);
     assert.deepEqual([...parent.querySelectorAll(".hd-tally__more")].map(text), ["prints", "shipped"]);
