@@ -240,3 +240,26 @@ def test_sync_refuses_a_push_that_would_wipe_the_records(client):
         assert r.status_code in (409, 422), records
         assert "nothing changed" in r.json()["detail"]
     assert client.get("/api/lab/hex-tile/record/E-001").status_code == 200
+
+
+def _sync_question(client, answered):
+    payload = {
+        "schema": "print-lab-index/1", "project": "hex-tile", "generated_at": datetime.now(timezone.utc).isoformat(),
+        "fingerprint": "fp-q-123456", "experiments": [],
+        "questions": [{"id": "Q-005", "question": "Does the seam hold?", "status": "open", "answered": answered,
+                       "experiments": ["E-001", "E-002"]}],
+        "records": {},
+    }
+    assert client.post("/api/lab/hex-tile/sync", json=payload, headers=MAC_HEADER).status_code == 200
+
+
+def test_workshop_summary_keeps_an_unknown_answered_count_unknown(client):
+    _sync_question(client, None)  # print-lab: a record the question counts can't be read
+    q = lab.workshop_summary()["questions"][0]
+    assert q["answered"] is None and q["total"] == 2
+
+
+def test_workshop_summary_keeps_a_real_zero_answered(client):
+    _sync_question(client, 0)
+    q = lab.workshop_summary()["questions"][0]
+    assert q["answered"] == 0 and q["total"] == 2

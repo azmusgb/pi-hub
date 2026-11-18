@@ -279,7 +279,7 @@ def workshop_summary() -> Optional[dict]:
                     "project": proj,
                     "id": q.get("id"),
                     "question": q.get("question") or "",
-                    "answered": q.get("answered") or 0,
+                    "answered": q.get("answered"),  # None: a record it counts can't be read, which is not 0
                     "total": len(q.get("experiments") or []),
                 })
         projects.append(proj)

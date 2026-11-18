@@ -1932,7 +1932,7 @@ function labQueue(labData) {
           h("strong", {}, `${e.id} · ${e.status}`),
           e.question_text ? h("span", { class: "meta" }, e.question_text) : null))))
       : questions.length
-        ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${questions[0].answered}/${questions[0].total} answered)`)
+        ? h("p", { class: "meta" }, `${questions[0].id}: ${questions[0].question} (${Number.isFinite(questions[0].answered) ? `${questions[0].answered}/${questions[0].total} answered` : `Unknown of ${questions[0].total} answered`})`)
         : needs.length ? null : h("p", { class: "meta" }, "All Print lab experiments are up to date on the Pi."),
     open];
 }
