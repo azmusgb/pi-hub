@@ -348,6 +348,13 @@ test("the tally says — for a count whose source didn't answer, and 0 for a qui
   assert.deepEqual(countItems().map((c) => c.value), ["—", "—", "—", "—"]);
 });
 
+test("a zero or unknown count is plain text, never a red or amber zero; one reads singular", () => {
+  assert.deepEqual(countItems({ finished: 0, failed: 0, power: null, updates: 0 }).map((c) => c.kind), ["none", "none", "none", "none"]);
+  assert.deepEqual(countItems({ finished: 2, failed: 1, power: 3, updates: 1 }).map((c) => c.kind), ["ok", "bad", "warn", "run"]);
+  assert.deepEqual(countItems({ finished: 1, failed: 1, power: 1, updates: 1 }).map((c) => c.label),
+    ["print finished", "failed", "power dip", "update shipped"]);
+});
+
 test("a mark's time in words: a point, a range, one from before midnight and one still going", () => {
   const d = day();
   assert.match(markWhen({ start: START - 600, end: START + 3600 }, d), /^until /);
