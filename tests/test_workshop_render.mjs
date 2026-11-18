@@ -280,3 +280,19 @@ test('queueWords and queuePill', async () => {
   assert.deepEqual(ws.queuePill([{ status: 'pending', waiting: 'x' }, { status: 'pending', waiting: null }]), ['1 waiting', 'warn']);
   assert.deepEqual(ws.queuePill([{ status: 'printing' }, { status: 'pending' }]), ['2 in the queue', 'ok']);
 });
+
+test('the lab queue says a question\'s answered count is unknown when it is null, and keeps a real 0', async () => {
+  const q = (answered) => ({ id: 'Q-005', question: 'Does the seam hold?', answered, total: 2 });
+  const p = await page({ '/api/workshop': () => answer });
+  let answer = workshop({ lab: { needs: [], active: [], questions: [q(null)] } });
+  try {
+    await p.ws.load(p.state);
+    let t = text(p.state.root);
+    assert.match(t, /Q-005: Does the seam hold\? \(answered unknown\)/);
+    assert.doesNotMatch(t, /null\/2|0\/2 answered/);
+    answer = workshop({ lab: { needs: [], active: [], questions: [q(0)] } });
+    await p.ws.load(p.state);
+    t = text(p.state.root);
+    assert.match(t, /\(0\/2 answered\)/);
+  } finally { p.done(); }
+});

@@ -231,6 +231,9 @@ export function outsideHtml(items) {
 }
 
 function meter(label, spent, next, total, unit) {
+  if (spent === null || spent === undefined) { // an unreadable record: the spend is unknown, not nothing
+    return `<div class="lab-meter"><div class="lab-meter__head"><span>${esc(label)}</span><span>Unknown / ${n(total)} ${unit}</span></div></div>`;
+  }
   total = Number(total) || 1;
   const a = Math.min(100, (100 * (spent || 0)) / total);
   const b = Math.min(100 - a, (100 * (next || 0)) / total);
@@ -396,16 +399,16 @@ function plansHtml(q) {
 
 export function questionHtml(q, ix) {
   const byId = byIdOf(ix);
-  const s = q.spent || {}, b = q.budget || {}, nx = q.next, st = q.stop || {}, ev = q.evidence;
+  const s = q.spent || {}, unknown = q.spent == null, b = q.budget || {}, nx = q.next, st = q.stop || {}, ev = q.evidence;
   const ids = list(q.experiments);
   const cur = [...ids].reverse().map((i) => byId[i]).find((x) => x && !DONE.has(x.status));
   const text = String(st.text || "");
   const stop = st.kind
     ? `<p class="lab-stop lab-stop--${st.kind === "owner" ? "bad" : "attention"}">${esc(text.charAt(0).toUpperCase() + text.slice(1))}</p>`
     : '<p class="lab-stop">Continue: nothing has stopped this question.</p>';
-  const head = [esc(q.id), `${Number(q.answered) || 0} of ${ids.length} answered`, ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
+  const head = [esc(q.id), (q.answered == null ? "answered unknown" : `${Number(q.answered) || 0} of ${ids.length} answered`), ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
   return `<section class="ui-section lab-question"><p class="meta">${head}</p><h2>${esc(q.question)}</h2>` +
-    meter("Time", s.minutes, nx && nx.minutes, b.minutes, "min") + meter("Material", s.g, nx && nx.g, b.g, "g") +
+    meter("Time", unknown ? null : s.minutes, nx && nx.minutes, b.minutes, "min") + meter("Material", unknown ? null : s.g, nx && nx.g, b.g, "g") +
     (nx ? `<p class="meta">${esc(nx.id)} would add ${n(nx.minutes)} min, ${n(nx.g)} g</p>` : "") + stop + plansHtml(q) +
     (cur ? `<div class="lab-now"><p class="meta"><a href="#lab-${esc(cur.id)}" data-lab-open="${esc(cur.id)}">${esc(cur.id)}</a> ${badge(STATUS[cur.status] || [cur.status, "neutral"])}</p><p class="lab-now__q">${esc(cur.question_text)}</p>${cur.why_this_test ? `<p class="meta"><b>Why this test?</b> ${esc(cur.why_this_test)}</p>` : ""}</div>` : "") +
     "</section>";

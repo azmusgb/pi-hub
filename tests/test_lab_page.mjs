@@ -34,6 +34,30 @@ test('the question card shows the real question, Time and Material meters, the n
   assert.doesNotMatch(html, /undefined|NaN|Coupons/);
 });
 
+test('a question whose record cannot be read says its figures are unknown, never 0', () => {
+  const ix = fresh();
+  const q = ix.questions[0];
+  Object.assign(q, { spent: null, reserved: null, next: null, streak: null, evidence: null, answered: null,
+    stop: { kind: 'unknown', text: "unknown: E-102 can't be read (see problems)" } });
+  const html = questionHtml(q, ix);
+  assert.match(html, /Q-005 · answered unknown/);
+  assert.doesNotMatch(html, /0 of 2 answered|NaN|undefined/);
+  assert.match(html, /<span>Time<\/span><span>Unknown \/ 540 min<\/span>/);
+  assert.match(html, /<span>Material<\/span><span>Unknown \/ 200 g<\/span>/);
+  assert.match(html, /Unknown: E-102 can&#39;t be read \(see problems\)/);
+  assert.match(html, /lab-stop--attention/);
+});
+
+test('a real zero answered and nothing spent still shows as 0', () => {
+  const ix = fresh();
+  const q = ix.questions[0];
+  Object.assign(q, { spent: { minutes: 0, g: 0 }, answered: 0, evidence: { informative: 0, uninformative: 0 } });
+  const html = questionHtml(q, ix);
+  assert.match(html, /Q-005 · 0 of 2 answered · 0 informative, 0 not/);
+  assert.match(html, /<span>Time<\/span><span>0 \/ 540 min<\/span>/);
+  assert.doesNotMatch(html, /unknown/i);
+});
+
 test('the stop line says why a question stopped, red when the owner stopped it', () => {
   const ix = fresh();
   const q = ix.questions[0];
