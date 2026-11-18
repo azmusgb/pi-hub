@@ -189,7 +189,7 @@ const clock = (iso) => {
   const d = new Date(iso);
   return !iso || Number.isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
 };
-const ofBudget = (spent, budget, unit) => budget != null ? `${fmt(spent || 0)} of ${fmt(budget)} ${unit}` : null;
+const ofBudget = (spent, budget, unit) => budget != null ? `${spent === undefined || spent === null ? "Unknown" : fmt(spent)} of ${fmt(budget)} ${unit}` : null;
 
 // The lamp beside the nameplate. A stale mirror never shows a print as live: it says what it last saw, and when
 // (A7 finding 4: "Printing" while the printer was idle and the mirror 12 h old).
@@ -221,11 +221,11 @@ export function labFaceplateHtml(ix, { stale = false, syncedAt = null } = {}) {
   const production = reference.experiment
     ? `${reference.experiment}${reference.run ? ` · ${reference.run}` : ""} · ${sealed ? "Sealed" : "Qualified"}`
     : reference.package ? (sealed ? "Sealed" : "Qualified") : "Not set";
-  const spent = (question && question.spent) || {}, budget = (question && question.budget) || {};
+  const unknownSpend = Boolean(question) && question.spent == null, spent = (question && question.spent) || {}, budget = (question && question.budget) || {};
   const readings = [
     ["Run", run ? `${run.id} · ${String(run.status || "run").replace(/_/g, " ")}` : "None yet"],
-    ["Time", ofBudget(spent.minutes, budget.minutes, "min")],
-    ["Material", ofBudget(spent.g, budget.g, "g")],
+    ["Time", ofBudget(unknownSpend ? null : spent.minutes ?? 0, budget.minutes, "min")],
+    ["Material", ofBudget(unknownSpend ? null : spent.g ?? 0, budget.g, "g")],
     ["Production", production],
   ].filter(([, v]) => v);
   const id = esc(experiment.id);

@@ -406,7 +406,7 @@ export function questionHtml(q, ix) {
   const stop = st.kind
     ? `<p class="lab-stop lab-stop--${st.kind === "owner" ? "bad" : "attention"}">${esc(text.charAt(0).toUpperCase() + text.slice(1))}</p>`
     : '<p class="lab-stop">Continue: nothing has stopped this question.</p>';
-  const head = [esc(q.id), (q.answered == null ? "answered unknown" : `${Number(q.answered) || 0} of ${ids.length} answered`), ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
+  const head = [esc(q.id), (q.answered == null ? `Unknown of ${ids.length} answered` : `${Number(q.answered) || 0} of ${ids.length} answered`), ev ? `${Number(ev.informative) || 0} informative, ${Number(ev.uninformative) || 0} not` : ""].filter(Boolean).join(" · ");
   return `<section class="ui-section lab-question"><p class="meta">${head}</p><h2>${esc(q.question)}</h2>` +
     meter("Time", unknown ? null : s.minutes, nx && nx.minutes, b.minutes, "min") + meter("Material", unknown ? null : s.g, nx && nx.g, b.g, "g") +
     (nx ? `<p class="meta">${esc(nx.id)} would add ${n(nx.minutes)} min, ${n(nx.g)} g</p>` : "") + stop + plansHtml(q) +

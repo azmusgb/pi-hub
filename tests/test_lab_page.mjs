@@ -40,7 +40,7 @@ test('a question whose record cannot be read says its figures are unknown, never
   Object.assign(q, { spent: null, reserved: null, next: null, streak: null, evidence: null, answered: null,
     stop: { kind: 'unknown', text: "unknown: E-102 can't be read (see problems)" } });
   const html = questionHtml(q, ix);
-  assert.match(html, /Q-005 · answered unknown/);
+  assert.match(html, /Q-005 · Unknown of 2 answered/);
   assert.doesNotMatch(html, /0 of 2 answered|NaN|undefined/);
   assert.match(html, /<span>Time<\/span><span>Unknown \/ 540 min<\/span>/);
   assert.match(html, /<span>Material<\/span><span>Unknown \/ 200 g<\/span>/);

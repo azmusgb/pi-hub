@@ -107,6 +107,11 @@ assert(controlHtml.includes("<dt>Time</dt><dd>0 of 180 min</dd>"));
 assert(controlHtml.includes("<dt>Material</dt><dd>0 of 80 g</dd>"));
 assert(controlHtml.includes("<dt>Production</dt><dd>Not set</dd>"));
 assert(controlHtml.includes("Experiment lifecycle"));
+// print-lab#93: a question with an unreadable record has spent: null, which is unknown, never 0.
+const unknownHtml = labFaceplateHtml({ ...ix, questions: [{ ...ix.questions[0], spent: null }] });
+assert(unknownHtml.includes("<dt>Time</dt><dd>Unknown of 180 min</dd>"));
+assert(unknownHtml.includes("<dt>Material</dt><dd>Unknown of 80 g</dd>"));
+assert(!/0 of 180 min|0 of 80 g/.test(unknownHtml.replace(/Unknown of/g, "")), "unknown spend is not drawn as 0");
 // The action is the need's verb (never "Open" alone); with no criteria to judge yet it opens the experiment.
 assert(controlHtml.includes('<a class="ui-btn ui-btn--primary" href="#lab-E-025" data-lab-open="E-025">Judge it</a>'));
 const judgeable = labFaceplateHtml({ ...ix, experiments: [{ ...exp, criteria: [{ id: "c1" }] }] });

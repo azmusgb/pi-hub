@@ -288,7 +288,7 @@ test('the lab queue says a question\'s answered count is unknown when it is null
   try {
     await p.ws.load(p.state);
     let t = text(p.state.root);
-    assert.match(t, /Q-005: Does the seam hold\? \(answered unknown\)/);
+    assert.match(t, /Q-005: Does the seam hold\? \(Unknown of 2 answered\)/);
     assert.doesNotMatch(t, /null\/2|0\/2 answered/);
     answer = workshop({ lab: { needs: [], active: [], questions: [q(0)] } });
     await p.ws.load(p.state);
