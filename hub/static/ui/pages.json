@@ -844,11 +844,10 @@
    "label": "Atlas",
    "purpose": "System Atlas: topology, changes, risk, evidence and local architecture intelligence",
    "path": "/assistant/atlas",
-   "role": "tab",
-   "parent": "changes",
+   "role": "page",
    "view": "architecture",
    "reach": [
-    "tabs",
+    "strip",
     "palette",
     "map"
    ],
@@ -857,9 +856,8 @@
   {
    "id": "assistant-status",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
-   "label": "Assistant status",
+   "area": "system",
+   "label": "Assistant",
    "purpose": "Whether the Assistant is working, and which optional services are up",
    "path": "/assistant/status",
    "role": "page",
@@ -874,8 +872,7 @@
   {
    "id": "models",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Models",
    "purpose": "Installed models and what's loaded now",
    "path": "/assistant/models",
@@ -892,8 +889,7 @@
   {
    "id": "developer-tools",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Developer tools",
    "purpose": "Files, Repository, PowerShell, Browser & computer and n8n workflows",
    "path": "/assistant/tools",
@@ -910,8 +906,7 @@
   {
    "id": "tools-files",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Files",
    "purpose": "Browse, search and safely edit mounted folders",
    "path": "/assistant/tools/files",
@@ -928,8 +923,7 @@
   {
    "id": "tools-repository",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Repository",
    "purpose": "Inspect repos and run allow-listed commands",
    "path": "/assistant/tools/repository",
@@ -946,8 +940,7 @@
   {
    "id": "tools-powershell",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "PowerShell",
    "purpose": "Approval-gated scripts on the Windows host",
    "path": "/assistant/tools/powershell",
@@ -964,8 +957,7 @@
   {
    "id": "tools-browser",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Browser & computer",
    "purpose": "Fetch pages and run approved local actions",
    "path": "/assistant/tools/browser",
@@ -982,8 +974,7 @@
   {
    "id": "tools-n8n",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "n8n workflows",
    "purpose": "Build advanced workflows in n8n",
    "path": "/assistant/tools/n8n",
@@ -1003,8 +994,7 @@
   {
    "id": "assistant-settings",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Assistant settings",
    "purpose": "Notifications, sign-in, home location and the pages you open",
    "path": "/assistant/settings",
@@ -1021,8 +1011,7 @@
   {
    "id": "audit-log",
    "system": "assistant",
-   "area": "assistant",
-   "section": "setup",
+   "area": "system",
    "label": "Audit log",
    "purpose": "What happened on the appliance, and when",
    "path": "/assistant/audit-log",
