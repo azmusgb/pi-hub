@@ -6,8 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hub import bambuddy, db, quick, quick_monitor
-from test_quick_layers import L0, L1, fresh_builds, plate, slice_ok  # noqa: F401
-from test_quick_worker import SAME, env  # noqa: F401
+import test_quick_worker as worker_tests
+from test_quick_layers import L0, L1, fresh_builds, plate, slice_ok  # noqa: F401  (fresh_builds is autouse)
+from test_quick_worker import SAME
+
+# The fixture, bound by assignment: an imported fixture named as a test's parameter reads as a redefined import.
+env = worker_tests.env
 
 
 def job(jid):

@@ -7,8 +7,11 @@ from pathlib import Path
 import pytest
 
 from hub import db, quick
-from test_quick_layers import HEAD, L0, L1, fresh_builds, plate, slice_ok, wait_ready  # noqa: F401
-from test_quick_worker import SAME, env  # noqa: F401
+import test_quick_worker as worker_tests
+from test_quick_layers import L0, L1, fresh_builds, plate, slice_ok, wait_ready  # noqa: F401  (fresh_builds is autouse)
+
+# The fixture, bound by assignment: an imported fixture named as a test's parameter reads as a redefined import.
+env = worker_tests.env
 
 STATIC = Path(__file__).parent.parent / "hub" / "static"
 VENDOR = STATIC / "vendor" / "three-0.187.0"
