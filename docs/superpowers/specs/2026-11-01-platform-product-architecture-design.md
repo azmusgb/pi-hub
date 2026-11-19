@@ -1133,6 +1133,17 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   at a time, starting with a print finishing. Adds migration steps 17 to 21. Merged by the owner on 14 Nov 2026
   (pi-hub #247): that approves the design and step 17 only. Steps 18 to 21, and with them the changes to sections 4,
   5.6 and 9, A7 P1 and A8 D1, are confirmed, changed or dropped after the owner's walk of step 17.
+- **A26. See the model on the phone before it is sliced** (`2026-11-14-amendment-a26-model-before-slice.md`): Quick
+  Print's 3D view opens as soon as a model is stored, not only after a slice, from the file the Pi already keeps.
+  Amends A19 P7. Merged by the owner on 14 Nov 2026 (pi-hub #263).
+- **A27. Flatter Assistant navigation** (`2026-11-15-amendment-a27-flatter-assistant-navigation.md`): the Assistant's
+  navigation is capped at two levels, its admin pages (Status, Models, Tools, Settings, Audit log) become one System
+  tab named Assistant, lifecycle stages become filters on one list, and orphaned views get a place. Amends A22 sections
+  2.2, 2.5, 3.2 and 3.3. Merged by the owner on 17 Nov 2026 (pi-hub #273); plan in #274 with owner decisions open.
+- **A28. Memory core is the Assistant's record of its own work** (`2026-11-19-amendment-a28-memory-core.md`): gives
+  LocalAI's memory-core design its verdict: the journal records only the Assistant's own work (D1), never house
+  things (D2); house questions are answered from Pi Hub at ask time (D3); stored text that reaches a model is quoted
+  data, in a run with no tools, on this PC only (D5). Amends baseline 1.3. Merged by the owner on 19 Nov 2026 (pi-hub #282).
 - **A29. The Assistant can read the print list** (`2026-11-19-amendment-a29-prints-for-the-assistant.md`): Pi Hub
   serves `GET /api/now/prints` (Bambuddy's newest 20: name, outcome, times, grams, error; no cost, photo or lab fields)
   on the existing `/api/now/*` machine path, so Past work can answer print questions at ask time. No Caddy, key or
