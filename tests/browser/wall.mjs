@@ -1,7 +1,7 @@
 // Wall display browser check (wall fits any screen, 26 Oct): the wall at phone, tablet, laptop, TV and portrait-monitor
 // sizes. Fails on horizontal scrolling anywhere, vertical scrolling from tablet size up, a clock that wraps, a control
 // under 44 px, a missing Needs you tile, Needs you out of a phone's first screen, the printer tile not getting the most
-// room while it prints, or serious/critical axe findings.
+// room while it prints, serious/critical axe findings, or Home not listing a need the wall's "more on Home" link leaves out.
 // Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium
 //   node wall.mjs http://127.0.0.1:8131 --stub [--shots=DIR]   (stubbed data: idle, printing and night)
 //   node wall.mjs http://10.0.0.80                              (the Pi's live data, read only)
@@ -164,14 +164,15 @@ for (const run of runs) {
   }
   await ctx.close();
 }
-if (STUB) {  // The Home card caps at 4 items.
+if (STUB) {  // The wall shows five and links "N more on Home": Home (amendment A8, no cap) must list every one of them.
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   await stub(page, 'idle');
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.home-card--needs .ui-need', { timeout: 15000 }).catch(() => problems.push('home: no Needs you card'));
-  const n = await page.locator('.home-card--needs .ui-need').count();
-  if (n < 1 || n > 4) problems.push(`home: ${n} .ui-need items on the Home card (want 1 to 4)`);
+  await page.waitForSelector('.hd-needs .ui-need', { timeout: 15000 }).catch(() => problems.push('home: no Needs you list'));
+  const titles = await page.locator('.hd-needs .ui-need__title').allTextContents();
+  const missing = NEEDS.items.map((i) => i.title).filter((t) => !titles.includes(t));
+  if (missing.length) problems.push(`home: Needs you lists ${titles.length} items and lacks ${missing.length} of the wall's ${NEEDS.items.length} (${missing.join(', ')})`);
   await ctx.close();
 }
 await browser.close();
