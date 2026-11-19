@@ -1133,3 +1133,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   at a time, starting with a print finishing. Adds migration steps 17 to 21. Merged by the owner on 14 Nov 2026
   (pi-hub #247): that approves the design and step 17 only. Steps 18 to 21, and with them the changes to sections 4,
   5.6 and 9, A7 P1 and A8 D1, are confirmed, changed or dropped after the owner's walk of step 17.
+- **A29. The Assistant can read the print list** (`2026-11-19-amendment-a29-prints-for-the-assistant.md`): Pi Hub
+  serves `GET /api/now/prints` (Bambuddy's newest 20: name, outcome, times, grams, error; no cost, photo or lab fields)
+  on the existing `/api/now/*` machine path, so Past work can answer print questions at ask time. No Caddy, key or
+  sign-in change; nothing is stored on the PC. Amends A28 D3.
