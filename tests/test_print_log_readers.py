@@ -46,6 +46,58 @@ def test_workshop_says_when_bambuddy_is_silent(monkeypatch):
     assert d["prints"] == [] and d["prints_available"] is False and d["week"] is None
 
 
+# A29: the Assistant reads the print list over plain http (/api/now/*), so it gets only these fields.
+NOW_PRINT_FIELDS = {"id", "name", "status", "word", "started", "ended", "seconds", "grams", "error"}
+
+
+def test_now_prints_gives_only_the_narrow_fields(monkeypatch):
+    now = int(time.time())
+    failed = item(7, "failed", now - 7200, now - 3600, 12.5, 0.4, name="RIFT tile")
+    failed["error"] = "0300_0100_0001_0007"
+    failed["lab"] = {"project": "P", "exp": "E-001", "build": "1"}
+    stub(monkeypatch, [failed, item(6, "completed", now - 90000, now - 86400, 3, 0.1)])
+    os.makedirs(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log"))
+    open(os.path.join(os.environ["HUB_PRINTS_DIR"], "print-log", "7.jpg"), "wb").write(b"\xff\xd8x")
+    r = TestClient(hub_app.app).get("/api/now/prints")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    d = r.json()
+    assert set(d) == {"as_of", "prints_available", "prints"}
+    assert d["prints_available"] is True and isinstance(d["as_of"], int)
+    for p in d["prints"]:
+        assert set(p) == NOW_PRINT_FIELDS
+        for gone in ("cost", "lab", "has_photo", "archive", "photo"):
+            assert gone not in p
+    assert d["prints"][0] == {"id": 7, "name": "RIFT tile", "status": "failed", "word": "Failed", "started": now - 7200,
+                              "ended": now - 3600, "seconds": 3600, "grams": 12.5, "error": "0300_0100_0001_0007"}
+    assert [p["id"] for p in d["prints"]] == [7, 6]
+
+
+def test_now_prints_keeps_the_newest_twenty_from_the_shared_fetch(monkeypatch):
+    asked = []
+
+    def prints(limit=50):
+        asked.append(limit)
+        return [item(i) for i in range(100, 0, -1)][:limit]
+    monkeypatch.setattr(bambuddy, "prints", prints)
+    d = TestClient(hub_app.app).get("/api/now/prints").json()
+    assert asked == [20]  # the same call /api/workshop makes, served from the one cached Bambuddy fetch
+    assert len(d["prints"]) == 20 and [p["id"] for p in d["prints"]][:2] == [100, 99]
+
+
+def test_now_prints_says_when_bambuddy_is_silent(monkeypatch):
+    stub(monkeypatch, None)
+    r = TestClient(hub_app.app).get("/api/now/prints")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["prints_available"] is False and d["prints"] == []
+
+
+def test_now_prints_with_no_prints_yet_is_still_available(monkeypatch):
+    stub(monkeypatch, [])
+    d = TestClient(hub_app.app).get("/api/now/prints").json()
+    assert d["prints_available"] is True and d["prints"] == []
+
+
 def test_week_hours_use_start_to_end_when_seconds_is_missing(monkeypatch):
     now = int(time.time())
     failed = item(5, "failed", now - 7200, now - 3600)
