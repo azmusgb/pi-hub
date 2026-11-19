@@ -31,7 +31,6 @@ def test_ask_says_local_ai_is_quiet_when_it_cannot_reach_it(monkeypatch):
         ask.ask("Is the printer busy?")
 
 
-import pytest
 from hub import records
 
 
