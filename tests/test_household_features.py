@@ -1,7 +1,6 @@
 import os
 os.environ['HUB_NO_SAMPLER'] = '1'
 
-import json
 from pathlib import Path
 import sqlite3
 import subprocess

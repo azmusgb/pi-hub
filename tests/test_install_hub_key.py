@@ -1,5 +1,5 @@
 """The hash install.sh prints must equal sha256 of the key as the hub sends it (stripped)."""
-import hashlib, pathlib, subprocess, textwrap
+import hashlib, pathlib, subprocess
 
 SRC = (pathlib.Path(__file__).parent.parent / "deploy" / "install.sh").read_text()
 SNIPPET = SRC.split("# hub-key-begin\n")[1].split("# hub-key-end")[0]

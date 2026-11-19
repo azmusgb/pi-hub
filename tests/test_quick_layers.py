@@ -1,9 +1,7 @@
 """A19 P5: the layers of a sliced Quick Print job, read from the sliced file. The parser on synthetic and real G-code, the
 refusals, the sidecar and its lifecycle, and the owner-only routes."""
-import io
 import json
 import time
-import zipfile
 from pathlib import Path
 
 import pytest

@@ -40,7 +40,7 @@ def test_records_list_order_and_fields():
 
 
 def test_workshop_includes_lab_summary_and_ams_trays(monkeypatch):
-    from hub import lab, sources
+    from hub import lab
     lab.ready()
     records.db.run(
         "INSERT OR REPLACE INTO lab_projects (project, meta, index_json, synced_at) VALUES (?, ?, ?, ?)",

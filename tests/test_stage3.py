@@ -1,6 +1,5 @@
 import importlib.util
 import os
-import tempfile
 from pathlib import Path
 
 os.environ["HUB_NO_SAMPLER"] = "1"

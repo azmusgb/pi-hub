@@ -254,7 +254,6 @@ def test_lab_item_survives_one_row_beside_printer_record():
 
 
 def test_api_needs_without_lab_table(monkeypatch):
-    import sqlite3
     monkeypatch.setenv("HUB_DB", os.path.join(tempfile.mkdtemp(), "fresh.db"))
     from hub import lab
     lab._ready_dbs.discard(os.environ["HUB_DB"])

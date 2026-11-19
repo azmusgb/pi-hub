@@ -237,7 +237,6 @@ def test_send_reads_at_most_the_cap_plus_one(monkeypatch):
 
 
 def test_send_http_error_body_is_capped(monkeypatch):
-    import io
     import urllib.error
     big = _Tracked(b"y" * (10 * display_ai.ANSWER_MAX))
     err = urllib.error.HTTPError("https://10.0.0.81/x", 409, "conflict", {"Content-Type": "application/json"}, big)
@@ -255,7 +254,6 @@ def test_forward_over_the_cap_is_502_and_images_get_their_own_cap():
 
 
 def test_forward_http_error_raised_by_fetch_is_capped():
-    import io
     import urllib.error
     big = _Tracked(b"y" * (10 * display_ai.ANSWER_MAX))
 
