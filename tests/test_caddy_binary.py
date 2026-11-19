@@ -1,4 +1,5 @@
 """Caddy runs as the pinned build with the DuckDNS module (docs/superpowers/specs/2026-11-01-real-names-design.md, N3)."""
+import fnmatch
 import os
 import re
 
@@ -80,3 +81,18 @@ def test_the_gate_check_covers_every_gated_name():
     real = set(re.findall(r"^\t@([a-z]+) host \1\.rahe-home\.duckdns\.org$", _caddyfile(), re.M))
     assert names == real - {"hub", "family"}
     assert "plex" not in names
+
+
+def _served_over_plain_http(path):
+    """Whether the http:// block's @machine matcher sends this path to the hub (Caddy's path globs, as fnmatch reads them)."""
+    block = _caddyfile().split("\nhttp:// {", 1)[1].split("\n}\n", 1)[0]
+    (line,) = [x for x in block.splitlines() if x.strip().startswith("@machine path ")]
+    return any(fnmatch.fnmatchcase(path, p) for p in line.split()[2:])
+
+
+def test_the_assistants_print_list_is_a_machine_path():
+    """A29: Local AI reads /api/now/prints over plain http with no Caddy change; the Workshop's own list stays signed-in."""
+    assert _served_over_plain_http("/api/now/prints")
+    assert _served_over_plain_http("/api/now") and _served_over_plain_http("/api/now/poster/0.jpg")
+    assert not _served_over_plain_http("/api/workshop")
+    assert not _served_over_plain_http("/workshop")

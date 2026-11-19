@@ -1,5 +1,6 @@
 """One home, step 6 (lock): plain http on the old addresses keeps only the machine callers' paths; browsers go to the
 gate, on the same page. Reads the Caddyfile as Caddy adapts it (skipped where caddy isn't installed)."""
+import fnmatch
 import json
 import os
 import shutil
@@ -60,6 +61,14 @@ def test_machine_paths_match_any_host(plain_http):
     want = sorted(p for p in MACHINE_PATHS if p != "/home-ca.crt")
     route = next(r for r in plain_http if _paths(r) == want)
     assert all("host" not in m for m in route["match"])
+
+
+def test_the_assistants_print_list_reaches_the_hub_and_workshop_does_not(plain_http):
+    # A29: /api/now/prints falls under /api/now/*; /api/workshop still goes to the signed-in hub.
+    want = sorted(p for p in MACHINE_PATHS if p != "/home-ca.crt")
+    route = next(r for r in plain_http if _paths(r) == want)
+    assert any(fnmatch.fnmatchcase("/api/now/prints", p) for p in _paths(route))
+    assert not any(fnmatch.fnmatchcase("/api/workshop", p) for r in plain_http for p in _paths(r))
 
 
 def test_browsers_keep_their_path(plain_http):
