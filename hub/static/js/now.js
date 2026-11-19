@@ -903,7 +903,7 @@ function outsideLine(o) {
 const outward = (href) => /^https?:/.test(href);
 const go = (link) => { const href = resolveLink(link); return outward(href) ? { href, target: "_blank", rel: "noopener" } : { href, "data-link": true }; };
 
-// The kit draws every Needs you list (Home card, wall and desk tile). It hands back absolute same-origin hrefs; the
+// The kit draws the wall's and the desk's Needs you tile. It hands back absolute same-origin hrefs; the
 // SPA router takes those (main.js reads a[data-link] and compares origins), so mark the internal ones for it.
 function needsList(items, { max, more = null, dense = false }) {
   const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub", max, more, dense });
@@ -920,50 +920,11 @@ function cardButton(action, onDone) {
 
 function homeCard(c, cam, onDone) {
   const showCam = c.key === "workshop" && cam?.ok && /^(Printing|Paused)/.test(c.status);
-  
-  if (c.key === "needs" && c.items?.length > 1) {
-    const primaryItem = c.items[0];
-    const otherCount = c.items.length - 1;
-    let expanded = false;
-
-    const summaryCount = h("span", { class: "needs-triage-badge" }, `${c.items.length} total`);
-    const toggleBtn = h("button", {
-      type: "button",
-      class: "btn btn-ghost needs-toggle-btn",
-      "aria-expanded": "false"
-    }, `+ ${otherCount} more issues ▾`);
-
-    const extraContainer = h("div", { class: "needs-extra-items", hidden: true },
-      needsList(c.items.slice(1), { max: 8, dense: true })
-    );
-
-    toggleBtn.addEventListener("click", () => {
-      expanded = !expanded;
-      extraContainer.hidden = !expanded;
-      toggleBtn.setAttribute("aria-expanded", String(expanded));
-      toggleBtn.textContent = expanded ? "Collapse issues ▴" : `+ ${otherCount} more issues ▾`;
-    });
-
-    return h("section", { class: `home-card home-card--needs`, dataset: { tone: c.tone }, "aria-labelledby": `card-${c.key}` },
-      h("div", { class: "home-card-head" },
-        h("div", { class: "needs-head-left" },
-          h("h2", { id: `card-${c.key}`, class: "home-card-title" }, c.title),
-          summaryCount
-        ),
-        h("span", { class: "dot", dataset: { tone: c.tone }, "aria-hidden": "true" })),
-      h("p", { class: "home-card-status" }, "Action required:"),
-      needsList([primaryItem], { max: 1 }),
-      toggleBtn,
-      extraContainer
-    );
-  }
-
   return h("section", { class: `home-card home-card--${c.key}`, dataset: { tone: c.tone }, "aria-labelledby": `card-${c.key}` },
     h("div", { class: "home-card-head" },
       h("h2", { id: `card-${c.key}`, class: "home-card-title" }, c.title),
       h("span", { class: "dot", dataset: { tone: c.tone }, "aria-hidden": "true" })),
     h("p", { class: "home-card-status" }, c.status),
-    c.items?.length ? needsList(c.items, { max: 4 }) : null,
     c.note ? h("p", { class: "meta" }, c.note) : null,
     showCam ? h("div", { class: "home-card-cam-wrap", style: "position:relative; cursor:zoom-in;", onclick: () => openCameraModal(null) },
       h("img", { class: "house-cam-img home-card-cam", src: `/api/camera.jpg?t=${Date.now()}`, alt: "The X2D's camera", loading: "lazy" }),

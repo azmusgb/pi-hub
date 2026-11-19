@@ -1,5 +1,5 @@
 {
-  "kit": "2.22.0",
+  "kit": "2.23.0",
   "files": {
     "hub/static/ambient.css": {
       "colour": 22,
@@ -37,8 +37,8 @@
     },
     "hub/static/home.css": {
       "colour": 47,
-      "type": 49,
-      "space": 68,
+      "type": 48,
+      "space": 64,
       "radius": 1
     },
     "hub/static/household-features.css": {
