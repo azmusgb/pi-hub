@@ -5,6 +5,7 @@
 import { clockTime, h } from "./core.js";
 import { printerButtons } from "./printer-actions.js";
 import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
+import { couldntCheck } from "./wording.js";
 import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, recordTone, renderProblems,
   splitNowRecords } from "./control-room.js";
 
@@ -698,9 +699,11 @@ export function renderDashboard(state, src, onReload) {
 
   // Needs you: the same merged list as before, ordered by tone; the badge counts it (baseline 5.5). With neither of
   // its sources answering there is no list (state.probs null: the badge is left alone); with one, the list says which
-  // part is missing, and never "Nothing needs you".
+  // part is missing, and never "Nothing needs you". The same when Needs you answered without one of its own sources
+  // (`unread`): what it has is listed, with the source it couldn't check named under it, as on the wall.
   {
-    const down = [src.needs ? "" : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"),
+      src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
     hd.needsCount.textContent = probs?.length ? String(probs.length) : "";

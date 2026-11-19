@@ -7,6 +7,13 @@ export function agoText(hours) {
   return `${Math.round(hours / 24)} days ago`;
 }
 
+// /api/needs answered, but a source of its own couldn't be read (`unread`, hub/needs.py): the words every Needs you
+// list uses for it (Home, the wall, the house cards), "" when the hub read them all. No full stop: the caller ends it.
+export function couldntCheck(needs) {
+  const unread = Array.isArray(needs?.unread) ? needs.unread.filter((s) => typeof s === "string" && s) : [];
+  return unread.length ? `Couldn't check ${unread.join(" or ")}` : "";
+}
+
 // Homebridge brings some appliances in as one switch per function (the Bosch dishwasher: power, "active program" and a
 // switch per program). Only appliances named here are grouped: three switches from one maker are not an appliance.
 const APPLIANCE_NAMES = { Bosch: "Dishwasher" };

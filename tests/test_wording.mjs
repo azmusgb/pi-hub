@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agoText, applianceControls, applianceLabel, groupAppliances, laundryLine, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
+import { agoText, couldntCheck, applianceControls, applianceLabel, groupAppliances, laundryLine, printWords, printLabText, printErrorCode, printSeconds, weekPill, plainInternet, workshopDisplayLabel } from '../hub/static/js/wording.js';
 
 test('backup and event ages read like speech', () => {
   assert.equal(agoText(0), 'less than an hour ago');
@@ -129,4 +129,12 @@ test('laundry lines say what each machine is doing, read-only', () => {
   assert.equal(line({ state: 'fault', name: 'Dryer' }), 'Dryer: needs attention');
   assert.equal(line({ state: 'offline', name: 'Dishwasher' }), 'Dishwasher: not connected');
   assert.equal(line({ state: 'unknown' }), 'Washer: state unknown');
+});
+
+test("a Needs you answer names the sources the hub couldn't read, and says nothing when it read them all", () => {
+  assert.equal(couldntCheck({ count: 0, items: [], unread: ['Local AI'] }), "Couldn't check Local AI");
+  assert.equal(couldntCheck({ unread: ['Local AI', 'Print lab'] }), "Couldn't check Local AI or Print lab");
+  for (const needs of [{ unread: [] }, {}, null, undefined, { unread: 'Local AI' }, { unread: [null, ''] }]) {
+    assert.equal(couldntCheck(needs), '');
+  }
 });
