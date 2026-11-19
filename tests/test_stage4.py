@@ -5,7 +5,7 @@ os.environ["HUB_NO_SAMPLER"] = "1"
 
 import pytest  # noqa: E402
 
-from hub import db, events, filament, recorder  # noqa: E402
+from hub import events, filament, recorder  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

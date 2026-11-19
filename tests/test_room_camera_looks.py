@@ -1,7 +1,6 @@
 """Quick looks for the Room view camera (amendment A20 D2, plan P2): three built-in looks (Night, Bright, Bed close-up),
 up to 8 custom looks stored in the settings table under room_camera_looks, validating names and control settings."""
 import os
-import sys
 import tempfile
 import pytest
 

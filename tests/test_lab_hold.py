@@ -3,7 +3,11 @@ one hold, 45 minutes, owner-cancellable, a restart drops it. Bambuddy is the fak
 import pytest
 
 from hub import auth, lab_hold, lab_start, sources
-from test_lab_start import SAME, client, experiment, fake, kinds, printer, start, sync  # noqa: F401  (fixtures)
+import test_lab_start as start_tests
+from test_lab_start import SAME, experiment, kinds, start, sync
+
+# The fixtures, bound by assignment: an imported fixture named as a test's parameter reads as a redefined import.
+client, fake, printer = start_tests.client, start_tests.fake, start_tests.printer
 
 
 @pytest.fixture(autouse=True)

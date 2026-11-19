@@ -345,7 +345,7 @@ def test_a_duplicate_completion_is_refused(env):
 
 
 def test_a_wrong_sha_is_refused_at_the_upload(env):
-    jid = new_job(env)
+    new_job(env)
     j = claimed(env)
     r = push(env, j, GOOD, sha="b" * 64)
     assert r.status_code == 422 and r.json()["reason"] == "sha"
@@ -378,7 +378,7 @@ def test_a_bad_start_sequence_is_refused_on_the_pi_even_when_the_mac_says_sliced
 
 @pytest.mark.parametrize("data", [b"not a zip", sliced_file("G28\n")])
 def test_a_file_that_isnt_a_sliced_plate_is_refused_on_the_pi(env, data):
-    jid = new_job(env)
+    new_job(env)
     j = claimed(env)
     push(env, j, data)
     assert finish(env, j, data).json()["state"] == "needs_attention"
@@ -527,7 +527,7 @@ def test_a_needs_attention_report_and_a_bad_report(env):
     j = claimed(env)
     r = env.post(url(j, "complete"), json={"generation": 1, "outcome": "needs_attention", "message": "Odd output"}, headers=MAC)
     assert r.json()["state"] == "needs_attention" and job(jid)["reason"] == "Odd output"
-    jid2 = new_job(env)
+    new_job(env)
     j2 = claimed(env)
     for body in ({"generation": 1, "outcome": "maybe"}, {"generation": 1, "outcome": "failed", "cause": "bored"},
                  {"generation": 1, "outcome": "failed", "message": "x" * 301}):
@@ -645,7 +645,7 @@ def test_lines_split_across_reads_are_whole(env, tmp_path, monkeypatch):
 
 
 def test_no_more_bytes_after_an_artifact_is_complete(env):
-    jid = new_job(env)
+    new_job(env)
     j = claimed(env)
     assert push(env, j, GOOD).json()["done"]
     h = {**OCT, "X-Size": str(len(GOOD) + 5), "X-Sha256": hashlib.sha256(GOOD).hexdigest()}

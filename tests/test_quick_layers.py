@@ -1,15 +1,17 @@
 """A19 P5: the layers of a sliced Quick Print job, read from the sliced file. The parser on synthetic and real G-code, the
 refusals, the sidecar and its lifecycle, and the owner-only routes."""
-import io
 import json
 import time
-import zipfile
 from pathlib import Path
 
 import pytest
 
 from hub import db, quick, quick_layers
-from test_quick_worker import GOOD_BLOCK, SAME, claimed, env, finish, new_job, push, sliced_file  # noqa: F401
+import test_quick_worker as worker_tests
+from test_quick_worker import GOOD_BLOCK, claimed, finish, new_job, push, sliced_file
+
+# The fixture, bound by assignment: an imported fixture named as a test's parameter reads as a redefined import.
+env = worker_tests.env
 
 HEAD = ["; HEADER", *GOOD_BLOCK, "; MACHINE_START_GCODE_END", "M83"]
 REAL = Path(__file__).parent / "fixtures" / "quick-real-4-layers.gcode.3mf"

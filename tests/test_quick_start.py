@@ -10,7 +10,11 @@ from pathlib import Path
 import pytest
 
 from hub import db, lab_hold, lab_start, printer_control, quick, quick_start
-from test_quick_worker import SAME, env, new_job  # noqa: F401
+import test_quick_worker as worker_tests
+from test_quick_worker import SAME, new_job
+
+# The fixture, bound by assignment: an imported fixture named as a test's parameter reads as a redefined import.
+env = worker_tests.env
 
 ROOT = Path(__file__).resolve().parents[1]
 GOOD = {"connected": True, "bambuddy_state": "IDLE", "hms": [], "bed_temp": 24.0, "job_name": None,
