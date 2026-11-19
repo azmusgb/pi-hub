@@ -332,6 +332,18 @@ def api_now_poster(n: int):
         raise HTTPException(502, "Plex didn't send the poster")
 
 
+NOW_PRINT_FIELDS = ("id", "name", "status", "word", "started", "ended", "seconds", "grams", "error")
+
+
+@app.get("/api/now/prints")
+def api_now_prints():
+    """The print list for the Assistant (A29), over plain http like /api/now: Bambuddy's newest 20 from the fetch
+    /api/workshop shares, with no cost, photo, lab or archive. prints_available is false when Bambuddy doesn't answer."""
+    log = bambuddy.prints(20)  # None when Bambuddy doesn't answer
+    return fresh({"as_of": int(time.time()), "prints_available": log is not None,
+                  "prints": [{k: p.get(k) for k in NOW_PRINT_FIELDS} for p in log or []]})
+
+
 @app.get("/api/movies/pick")
 def api_movies_pick(kids: bool = False, short: bool = False, skip: str = "", section: str = "all", genre: str = ""):
     choice = plex.pick(kids, 105 if short else None, tuple(skip.split(",")[:30]), section=section, genre=genre)
