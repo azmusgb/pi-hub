@@ -526,6 +526,34 @@ test("Needs you never says all clear when its sources didn't answer, and leaves 
   } finally { k.done(); }
 });
 
+// /api/needs answers, but says a source of its own couldn't be read (`unread`, hub/needs.py): the list is not known
+// to be empty, so Home names that source, as the wall does (wallNeeds), with or without items.
+test("Needs you names a source the hub couldn't read, and never says nothing needs you without it", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    renderDashboard(state, { today: null, records: [], needs: { count: 0, items: [], unread: ["Local AI"] } }, () => {});
+    assert.deepEqual(state.probs, []);
+    assert.doesNotMatch(text(state.hd.needs), /Nothing needs you/);
+    assert.match(text(state.hd.needs), /Couldn't check Local AI\. It will keep trying\./);
+    assert.equal(text(state.hd.needsCount), "", "nothing is counted");
+    const item = { id: "x", title: "E-026: Send it", tone: "warn", source: "Print lab" };
+    renderDashboard(state, { today: null, records: [], needs: { count: 1, items: [item], unread: ["Local AI"] } }, () => {});
+    assert.match(text(state.hd.needs), /E-026: Send it/);
+    assert.match(text(state.hd.needs), /Couldn't check Local AI\./, "the list it has, and what is missing from it");
+    assert.equal(text(state.hd.needsCount), "1");
+    renderDashboard(state, { today: null, records: null, needs: { count: 0, items: [], unread: ["Local AI", "Print lab"] } }, () => {});
+    assert.doesNotMatch(text(state.hd.needs), /Nothing needs you/);
+    assert.match(text(state.hd.needs), /Couldn't check Local AI or Print lab\. Pi Hub's records isn't answering\. It will keep trying\./);
+    for (const unread of [[], undefined, "Local AI"]) {  // nothing unread, or not a list: the hub read all it has
+      renderDashboard(state, { today: null, records: [], needs: { count: 0, items: [], unread } }, () => {});
+      assert.match(text(state.hd.needs), /^Nothing needs you right now\.$/);
+    }
+  } finally { k.done(); }
+});
+
 test("a refresh puts keyboard focus back where it was", async () => {
   const k = kitInstall();
   try {

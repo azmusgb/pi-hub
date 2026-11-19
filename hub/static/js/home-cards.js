@@ -1,6 +1,6 @@
 // Home's cards (one home, "Home cards"): data in, card models out, so the page and the tests agree on the words.
 import { toolUrl } from "./sections.js";
-import { agoText } from "./wording.js";
+import { agoText, couldntCheck } from "./wording.js";
 
 const TONES = ["bad", "attention", "warn"];
 const SLOW_MS = 100;  // as the internet record (things/network.py)
@@ -19,15 +19,15 @@ function needsCard(needs) {
     return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: "Couldn't check what needs you",
       items: [], note: "", action: null, link: null };
   }
-  if (!needs.count && needs.unread?.length) {
-    return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: `Couldn't check ${needs.unread.join(" or ")}`,
-      items: [], note: "", action: null, link: null };
+  const unread = couldntCheck(needs);
+  if (!needs.count && unread) {
+    return { key: "needs", title: "Needs you", tone: "warn", count: 0, status: unread, items: [], note: "", action: null, link: null };
   }
   if (!needs.count) return null;
   const tone = TONES.find((t) => needs.items.some((i) => i.tone === t)) || "warn";
   return {
     key: "needs", title: "Needs you", tone, count: needs.count, status: plural(needs.count, "thing"),
-    items: needs.items, note: needs.unread?.length ? `Couldn't check ${needs.unread.join(" or ")}.` : "",
+    items: needs.items, note: unread ? `${unread}.` : "",
     action: null, link: null,  // each item is its own action
   };
 }

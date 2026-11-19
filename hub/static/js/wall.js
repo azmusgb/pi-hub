@@ -1,5 +1,6 @@
 // The wall display's words and numbers (wall fits any screen, 26 Oct): data in, plain models out, so the page and the
 // tests agree. No DOM here; now.js draws them.
+import { couldntCheck } from "./wording.js";
 
 const TONES = ["bad", "attention", "warn"];
 
@@ -19,7 +20,7 @@ export function wallNeeds(needs, max = 5) {
   if (!needs) return { tone: "warn", status: "Couldn't check what needs you", items: [], more: 0, clear: false };
   const items = Array.isArray(needs.items) ? needs.items : [];
   const count = Number(needs.count) || items.length;
-  const unread = needs.unread?.length ? `Couldn't check ${needs.unread.join(" or ")}` : "";
+  const unread = couldntCheck(needs);
   if (!count) {
     return unread
       ? { tone: "warn", status: unread, items: [], more: 0, clear: false }
