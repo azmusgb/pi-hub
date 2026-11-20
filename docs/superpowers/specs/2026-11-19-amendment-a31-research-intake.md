@@ -1,6 +1,6 @@
 # Amendment A31: the Assistant follows sources you register and keeps what it reads
 
-Date: 2026-11-19 · Status: **proposed** (approved when the owner merges this PR) · Amends: baseline 3 (Knowledge and
+Date: 2026-11-19 · Status: **approved** (merged by the owner on 19 Nov 2026, pi-hub #289) · Amends: baseline 3 (Knowledge and
 workspace is LocalAI-only: adds a store there), A27 (adds one page under Improve and one card under System › Assistant,
 inside its four sections and two-level cap), A28 D5 (extends its rules for stored text to text fetched from outside) ·
 Builds on: baseline 6.2 (only Pi Hub and the display act; unchanged), 10 (a failed read is never shown as empty), A7

@@ -1148,3 +1148,8 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   serves `GET /api/now/prints` (Bambuddy's newest 20: name, outcome, times, grams, error; no cost, photo or lab fields)
   on the existing `/api/now/*` machine path, so Past work can answer print questions at ask time. No Caddy, key or
   sign-in change; nothing is stored on the PC. Amends A28 D3.
+- **A31. The Assistant follows sources you register and keeps what it reads** (`2026-11-19-amendment-a31-research-intake.md`):
+  LocalAI gains a `research_*` store and fetches owner-registered Atom/RSS feeds on a schedule behind an address guard,
+  off unless `LOCALAI_RESEARCH=on` (D2, D3); fetched text is data read by a run with no tools, and a finding never
+  enters a run that has tools (D4, extends A28 D5); one Research page under Improve (D5). Approves phases 1 and 2 only;
+  no Pi Hub change. Merged by the owner on 19 Nov 2026 (pi-hub #289).
