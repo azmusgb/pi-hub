@@ -1158,3 +1158,9 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   changes); phase 4 only with its per-topic budgets enforced before any model call; the chat research tool only for kept or
   promoted findings, quoted as untrusted data (amends A31 D4.3); the reader stays unwired until the cost-tier contract is in
   force. Amends A31. Merged by the owner on 20 Nov 2026 (pi-hub #292).
+- **A33. Decisions that need the owner's answer are one list in Pi Hub, answered by a tap** (`2026-11-21-amendment-a33-owner-decisions.md`):
+  Needs you gains a Decisions group fed by a Pi Hub `decisions` table: question, two to four options (or a short text
+  answer), the recommended one marked. The owner answers by tap; a tap records the answer and does nothing else. Sessions
+  add decisions with the Mac key and read answers through a key-gated home-mcp `decisions` tool; a session never answers.
+  Decisions do not count toward the Needs badge or the wall display. Three PRs: kit, Pi Hub, home-mcp. Amends section 6.
+  Merged by the owner on 21 Nov 2026 (pi-hub #294).
