@@ -101,7 +101,7 @@ resumes. A session never answers.
    answered rows runs on write.
 9. **Table is created lazily** (`CREATE TABLE IF NOT EXISTS`), like the other tables.
 
-## For the owner to settle (builder questions only they can answer)
+## Settled by the owner's standing "proceed as you recommend" (21 Nov); overrule in this PR
 
 1. **Who can read decision text?** Recommended: the read route needs a key, and the page's list needs the owner session.
    Reason: decisions can hold plan details, and `/api/needs` is open to the home network. home-mcp has no credentials today
