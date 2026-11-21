@@ -40,14 +40,16 @@ breadth are labels until a budget check exists: before any model call attributed
 character budgets are read, a failed read stops the call (it is never zero used), and an exhausted budget queues the
 work and leaves intake running. The enforcement is a precondition of wiring the reader (D4), not a follow-up.
 
-**D3 Phase 5's tool is not approved as built.** It breaks A31 D4.3 (a finding never enters a run with tools) and
-returns unreviewed and dismissed text to such a run. Until D3 is satisfied the tool is removed from the agent catalog
-(or `researchStore` is not passed to it). Two ways to approve it, owner to pick:
+**D3 Phase 5's tool is approved only in this form (owner chose, 20 Nov 2026).** As built it breaks A31 D4.3 (a finding
+never enters a run with tools) and returns unreviewed and dismissed text to such a run. Until the form below exists the
+tool is removed from the agent catalog (or `researchStore` is not passed to it). The form:
 
-- **D3a (recommended):** read-only, and only findings the owner has `kept` or `promoted`; the claim and quote reach
-  the model inside the existing `UNTRUSTED` markers, as data, with the tool unable to act on them; A31 D4.3 is
-  amended to say exactly this. A test shows an `extracted` finding and a dismissed one are never returned.
-- **D3b:** keep A31 D4.3 as written; the tool returns only counts and finding ids and the owner opens the text in the page.
+- Read-only, and only findings the owner has `kept` or `promoted`. `extracted` and `dismissed` findings are never returned.
+- The claim and quote reach the model inside the existing `UNTRUSTED` markers, as data. The tool cannot act on them, and
+  nothing a finding says changes a repo, a setting or a device.
+- **A31 D4.3 is amended** to read: a finding never enters a run with tools, except a kept or promoted finding returned
+  by the read-only research tool, quoted as untrusted data.
+- A test shows an `extracted` and a `dismissed` finding are never returned.
 
 **D4 The reader stays unwired until the cost contract is in force.** No model reads fetched documents until LocalAI #601
 section 11 (tiers, four budget caps checked before the call, Tier 2 only on promotion or the stated gate) is merged
@@ -66,7 +68,7 @@ and its enforcement exists. A31's open question on cloud reading stays open: thi
 
 - L2 authority, any experiment that changes code or settings, and any model-graded scoring as a primary metric.
 - Cloud models for reading, per source (A31's open item, unchanged).
-- Phase 5's tool beyond D3, and any chat route that writes (A30 owns chat control).
+- Phase 5's tool beyond D3 (for example any write, or findings in any other state), and any chat route that writes (A30 owns chat control).
 - A repo indexer, tiers, budgets and the measures table in LocalAI #601: approved only when this amendment or a
   successor lists them; #601 is a proposal.
 
@@ -77,8 +79,8 @@ opens the database); a new service or dependency.
 
 ## Evidence required
 
-- D3: a test that the tool returns no `extracted` or `dismissed` finding, and that with the tool removed an agent run
-  has no research read. Or (D3b) a test that it returns ids and counts only.
+- D3: a test that the tool returns no `extracted` or `dismissed` finding, that its output sits inside the untrusted
+  markers, and that with the tool removed an agent run has no research read.
 - D2: a test that an exhausted topic budget queues and intake still runs, and that an unreadable counter blocks the call
   rather than allowing it.
 - D4: `git grep` shows the reader has a caller only after D2's check exists.
