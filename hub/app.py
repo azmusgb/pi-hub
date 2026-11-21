@@ -534,9 +534,16 @@ def api_printer_start_cancel(project: str, experiment: str, request: Request):
 
 
 @app.post("/api/printer/{action}")
-def api_printer_action(action: str, request: Request):
+async def api_printer_action(action: str, request: Request, source_run: str = None):
     """Clear the plate, pause or resume, through Bambuddy with the hub's control key (owner only)."""
     role, device = need(request, "owner")
+    if not source_run and request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                source_run = body.get("source_run")
+        except Exception:
+            pass
     if action not in printer_control.STEPS:
         raise HTTPException(404, "The printer can clear, pause or resume.")
     if printer_control.hold(action) is not None:
@@ -555,7 +562,7 @@ def api_printer_action(action: str, request: Request):
         printer_control.release()
     if "no key" not in r["steps"].values():  # Bambuddy was asked: the next refresh reads its state again
         sources._cache.pop("bambuddy_printer", None)
-    auth.log(role, device, f"printer:{action}", r["say"])  # every action logs the device (baseline; A12 plan 9)
+    auth.log(role, device, f"printer:{action}", r["say"], source_run=source_run)  # every action logs the device (baseline; A12 plan 9)
     if not r["ok"]:
         raise HTTPException(503 if "no key" in r["steps"].values() else 502, r["say"])
     return fresh({"ok": True, "say": r["say"]})
@@ -1118,16 +1125,23 @@ def api_action_verification(name: str, request: Request):
 
 
 @app.post("/api/actions/{name}")
-def api_action(name: str, request: Request):
+async def api_action(name: str, request: Request, source_run: str = None):
     role, device = need(request, "household")
+    if not source_run and request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                source_run = body.get("source_run")
+        except Exception:
+            pass
     try:
         result = actions.run(name)
-        auth.log(role, device, name, result["message"])
+        auth.log(role, device, name, result["message"], source_run=source_run)
         return fresh(result)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
-        auth.log(role, device, name, str(e))
+        auth.log(role, device, name, str(e), source_run=source_run)
         raise HTTPException(502, str(e))
 
 

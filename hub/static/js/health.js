@@ -1424,7 +1424,7 @@ async function runFix(
     return;
   }
 
-  if (!checkOnly && !(await askFirst(trigger, confirmText || FIX_WHAT[name] || `${label}?`, { confirm: label, danger: name === "restart:pi" }))) {
+  if (!checkOnly && !(await askFirst(trigger, confirmText || FIX_WHAT[name] || `${label}?`, { confirm: label, danger: name === "restart:pi", typed: name === "restart:pi", challenge: "REBOOT" }))) {
     return;
   }
   if (state.running) {
