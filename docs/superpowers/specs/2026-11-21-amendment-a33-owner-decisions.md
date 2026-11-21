@@ -1,6 +1,6 @@
 # Amendment A33: Decisions that need the owner's answer are one list in Pi Hub, answered by a tap
 
-Date: 2026-11-21 · Status: **proposed** (approved when the owner merges this PR) · Amends: baseline section 6 (Needs you
+Date: 2026-11-21 · Status: **approved** (merged by the owner on 21 Nov 2026, pi-hub #294) · Amends: baseline section 6 (Needs you
 is built from records; this adds one source whose rows are asked questions, not conditions) · Builds on: one-needs-you,
 A7 (one page), A25 (every action reports the same way), the notify machine-key model (`hub/notify_routes.py`),
 home-mcp (read-only today).
