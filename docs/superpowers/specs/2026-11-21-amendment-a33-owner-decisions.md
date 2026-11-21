@@ -45,7 +45,7 @@ print or setting change); a decision answered by a session or a peer on the owne
 
 A. **Pi Hub stores decisions and records taps (chosen by the owner, 21 Nov).** A `decisions` table in Pi Hub's database;
    a "Decisions" group in Needs you; `POST /api/decisions/{id}/answer` (owner session) and `POST /api/decisions/{source}`
-   (machine key) to add one; a `decisions` view in home-mcp so sessions read answers. Trades: one table, three routes,
+   (machine key) to add one; a `decisions` view in home-mcp so sessions read answers (key-gated read, owner 1 below). Trades: one table, three routes,
    a kit component, an amendment; in return the answer survives chat and is visible to every session.
 B. A file in the repo the page reads. Rejected: a tap cannot change a repo file, and the file changes only when a
    deploy ships, so a tap could not be recorded.
@@ -79,6 +79,36 @@ resumes. A session never answers.
 4. A household-role session cannot answer; a request without a key cannot add.
 5. Decision text appears in `decisions` output marked as untrusted.
 6. Browser check at 390 and 1366 px, light and dark, axe clean, keyboard-only answer works.
+
+## Calls made while writing (the owner can overrule any)
+
+1. **Owner means the `owner` role** (`hub/auth.py:19`, `need(request, "owner")`), the same check owner-only routes use. A tailnet
+   device that `who()` treats as owner counts as owner. The household and kid roles cannot answer.
+2. **Adding a decision uses the Mac key.** The sessions that ask run on the Mac, so `POST /api/decisions/{source}` accepts
+   the existing `mac-watch` key (`X-Hub-Mac-Key`). No new key file; no change to `deploy/`.
+3. **Kit first.** Needs has no groups today (`hub/needs.py` returns a flat `items` list; `hub/static/ui/needs.js` is
+   kit-synced). P1 is a kit change to the Needs renderer and a decision row. Pi Hub returns decisions as a separate
+   `decisions` list beside `items`, built after the condition folds, so the printer and name matching in `needs.py` never
+   sees them.
+4. **A second tap returns the stored answer.** The write is `UPDATE ... WHERE answered_at IS NULL`; a double tap answers 200
+   with the first stored answer, and a different answer to an answered row is 409.
+5. **Re-asking.** The same `id` while open updates the row. The same `id` after it is answered is refused with 409; a
+   changed mind is a new `id` and the new row's `supersedes` field names the old one (a column in the table).
+6. **Limits.** Two to four options, each at most 60 characters; the question at most 280; a text answer at most 500; `link`
+   passes the same check `notify` uses for a click address; `recommended` must be one of the options.
+7. **The unreadable-table item** is one `bad`-tone Needs item with a stable id, not an `unread` note.
+8. **Answers go in the action log** (`auth.log`) as well as the table, so A25's History can show them later. Retention of
+   answered rows runs on write.
+9. **Table is created lazily** (`CREATE TABLE IF NOT EXISTS`), like the other tables.
+
+## For the owner to settle (builder questions only they can answer)
+
+1. **Who can read decision text?** Recommended: the read route needs a key, and the page's list needs the owner session.
+   Reason: decisions can hold plan details, and `/api/needs` is open to the home network. home-mcp has no credentials today
+   (`home-mcp/src/home_mcp/hub.py`), so P3 adds one key setting to home-mcp.
+2. **Do open decisions count toward the Needs badge and the wall display?** Recommended: no. The badge and display keep
+   counting conditions; the Decisions group shows its own count on Home. Reason: a pending question is not a fault, and the
+   wall display should not look worse because a question is waiting.
 
 ## Left to the builder
 
