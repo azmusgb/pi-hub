@@ -1180,9 +1180,14 @@ function passwordSheet() {
 // Runs a Fix-it action after confirmation and reports what happened.
 // A risky action asks first, in place (A7 P7): the kit's inline confirm opens under `trigger` (the button pressed, or
 // the palette's input), repeating its verb. With no trigger or no kit there is nowhere to ask, so nothing runs.
-export function askFirst(trigger, what, { confirm, danger } = {}) {
+// Amendment A30 Phase 4 (D3): Consequential/host-level actions (e.g. restart:pi) use typed confirmation.
+export function askFirst(trigger, what, { confirm, danger, typed, challenge } = {}) {
   const kit = globalThis.ApplianceConfirm;
-  if (!trigger || typeof kit?.ask !== "function") return Promise.resolve(false);
+  if (!trigger) return Promise.resolve(false);
+  if (typed && typeof kit?.askTyped === "function") {
+    return kit.askTyped(trigger, { what, ...(confirm ? { confirm } : {}), ...(typeof danger === "boolean" ? { danger } : {}), challenge: challenge || "REBOOT" });
+  }
+  if (typeof kit?.ask !== "function") return Promise.resolve(false);
   return kit.ask(trigger, { what, ...(confirm ? { confirm } : {}), ...(typeof danger === "boolean" ? { danger } : {}) });
 }
 
@@ -1213,6 +1218,7 @@ export async function fix(
     onResult,
     trigger = null,
     asked = false,
+    source_run = null,
     isCurrent = () =>
       true,
   } = {},
@@ -1236,7 +1242,7 @@ export async function fix(
     !(await askFirst(
       trigger,
       question,
-      { confirm: label, danger: name === "restart:pi" },
+      { confirm: label, danger: name === "restart:pi", typed: name === "restart:pi", challenge: "REBOOT" },
     ))
   ) {
     return false;
@@ -1248,12 +1254,8 @@ export async function fix(
   );
 
   try {
-    const result =
-      await post(
-        `/api/actions/${encodeURIComponent(
-          name,
-        )}`,
-      );
+    const url = `/api/actions/${encodeURIComponent(name)}${source_run ? `?source_run=${encodeURIComponent(source_run)}` : ""}`;
+    const result = await post(url, source_run ? { source_run } : undefined);
 
     if (
       !isCurrent()

@@ -57,10 +57,16 @@ def test_owner_sign_in_unlocks_actions_and_settings(c, monkeypatch):
     assert c.get("/api/settings").status_code == 401
     assert c.post("/api/signin", json={"password": "correct horse"}, headers=SAME).json()["role"] == "owner"
     monkeypatch.setattr(actions, "helper", lambda name, timeout=0: {"ok": True, "message": "Done."})
-    r = c.post("/api/actions/restart:plex", headers=SAME)
+    r = c.post("/api/actions/restart:plex", headers=SAME, params={"source_run": "run-test-123"})
     assert r.status_code == 200 and r.json()["message"] == "Plex restarted."
     assert c.get("/api/settings").status_code == 200
-    assert auth.recent_actions()[0]["action"] == "restart:plex"
+    latest = auth.recent_actions()[0]
+    assert latest["action"] == "restart:plex"
+    assert latest["source_run"] == "run-test-123"
+
+    r2 = c.post("/api/actions/restart:plex", headers=SAME, json={"source_run": "run-json-456"})
+    assert r2.status_code == 200
+    assert auth.recent_actions()[0]["source_run"] == "run-json-456"
 
 
 def test_unknown_actions_are_refused(c):

@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY, role TEXT NOT NULL, created INTEGER NOT NULL, expires INTEGER NOT NULL, device TEXT
 );
-CREATE TABLE IF NOT EXISTS action_log (ts INTEGER NOT NULL, role TEXT, device TEXT, action TEXT, result TEXT);
+CREATE TABLE IF NOT EXISTS action_log (ts INTEGER NOT NULL, role TEXT, device TEXT, action TEXT, result TEXT, source_run TEXT);
 CREATE TABLE IF NOT EXISTS shortcut_keys (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, last_used INTEGER
 );
@@ -40,6 +40,10 @@ _tries_lock = threading.Lock()
 
 def _ready():
     db.conn().executescript(SCHEMA)
+    try:
+        db.run("ALTER TABLE action_log ADD COLUMN source_run TEXT")
+    except Exception:
+        pass
 
 
 def get(key, default=None):
@@ -234,16 +238,16 @@ def need(request: Request, role):
     return have, device
 
 
-def log(role, device, action, result):
+def log(role, device, action, result, source_run=None):
     _ready()
-    db.run("INSERT INTO action_log (ts, role, device, action, result) VALUES (?, ?, ?, ?, ?)",
-           int(time.time()), role, (device or "")[:80], action, result[:200])
+    db.run("INSERT INTO action_log (ts, role, device, action, result, source_run) VALUES (?, ?, ?, ?, ?, ?)",
+           int(time.time()), role, (device or "")[:80], action, result[:200], (source_run or None))
     db.run("DELETE FROM action_log WHERE ts < ?", int(time.time()) - 90 * 86400)
 
 
 def recent_actions(limit=30):
     _ready()
-    return db.rows("SELECT ts, role, device, action, result FROM action_log ORDER BY ts DESC, rowid DESC LIMIT ?", limit)
+    return db.rows("SELECT ts, role, device, action, result, source_run FROM action_log ORDER BY ts DESC, rowid DESC LIMIT ?", limit)
 
 
 # ---- Keys for Siri Shortcuts: one per phone, shown once, stored only as a hash ----
