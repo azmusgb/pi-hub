@@ -1153,3 +1153,8 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   off unless `LOCALAI_RESEARCH=on` (D2, D3); fetched text is data read by a run with no tools, and a finding never
   enters a run that has tools (D4, extends A28 D5); one Research page under Improve (D5). Approves phases 1 and 2 only;
   no Pi Hub change. Merged by the owner on 19 Nov 2026 (pi-hub #289).
+- **A32. Research measurement, topics and chat reads: what shipped, and what is approved** (`2026-11-20-amendment-a32-research-phases-3-5.md`):
+  LocalAI shipped research phases 3 to 5 without an amendment. Phase 3 is approved as a recorder (no model calls, no code
+  changes); phase 4 only with its per-topic budgets enforced before any model call; the chat research tool only for kept or
+  promoted findings, quoted as untrusted data (amends A31 D4.3); the reader stays unwired until the cost-tier contract is in
+  force. Amends A31. Merged by the owner on 20 Nov 2026 (pi-hub #292).
