@@ -52,8 +52,8 @@ a tap on the phone, and any session reads the answer back before it asks again.
 - **Input checks to reuse:** `notify_routes._line()` (one-line text, `:65`) and `_click()` (https on a known host, `:71`).
 - **home-mcp** sends no credentials today (`src/home_mcp/hub.py:27-39`, only `Accept`). Every tool returns `ok:false` with
   the failing source rather than guessing.
-- **Nothing of A33 exists:** no `decisions` table, route, kit component or home-mcp tool (`git grep -i decision` on
-  `origin/main -- hub` finds only unrelated text).
+- **Nothing of A33 exists:** no `decisions` table, route, kit component or home-mcp tool (`git grep -il decision origin/main -- hub`
+  finds the word only in lab, print and event code).
 
 ## Decisions this plan makes (for the owner's review)
 
@@ -136,8 +136,8 @@ Each names A33 and the criteria it covers, says whether coverage is full or part
 - Routes in `hub/app.py`:
   - `POST /api/decisions/{source}`, which needs the key;
   - `GET /api/decisions`, which needs the key;
-  - `POST /api/decisions/{id}/answer`, which needs `need(request, "owner")` and `same_origin`, like the other owner
-    writes;
+  - `POST /api/decisions/{id}/answer`, which needs `need(request, "owner")` and refuses a cross-site request (Fetch
+    Metadata `sec-fetch-site`, the check `hub/gate.py:77` makes);
   - `/api/needs` gains `decisions` for an owner caller only (decisions 3–5).
 - Home's Needs you card draws `ApplianceNeeds.renderDecisions` under the condition rows. A tap posts the answer, and the
   row changes to "Recorded" from the response, not from a guess.
