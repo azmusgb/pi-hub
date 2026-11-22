@@ -1148,6 +1148,14 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   serves `GET /api/now/prints` (Bambuddy's newest 20: name, outcome, times, grams, error; no cost, photo or lab fields)
   on the existing `/api/now/*` machine path, so Past work can answer print questions at ask time. No Caddy, key or
   sign-in change; nothing is stored on the PC. Amends A28 D3.
+- **A30. The Assistant is an operational agent, with chat as its primary interface** (`2026-11-19-amendment-a30-operational-assistant.md`):
+  the Assistant proposes and Pi Hub executes: an action card opens Pi Hub's own confirmation and `action_log` records the
+  Assistant's run id (D1); four read-only Pi Hub reads in chat, on this PC's model only, outside text marked untrusted
+  (D2; amends A28 D5.2/D5.4 and A29 D4 for these reads only); printer actions only when asked in that turn, restarts and
+  reboots always confirm, host-level actions need typed confirmation (D3); chat is the Assistant's front door, A27's
+  navigation folded in (D4); a turn that read house data stays private, with its thread (D5); a local/cloud chip from the
+  recorded attempts (D6). D7 (close the Open WebUI trial) is marked "the owner decides" and was not decided by the merge.
+  Delivered in phases 2-4, each its own PR per repo. Merged on 20 Nov 2026 (pi-hub #288).
 - **A31. The Assistant follows sources you register and keeps what it reads** (`2026-11-19-amendment-a31-research-intake.md`):
   LocalAI gains a `research_*` store and fetches owner-registered Atom/RSS feeds on a schedule behind an address guard,
   off unless `LOCALAI_RESEARCH=on` (D2, D3); fetched text is data read by a run with no tools, and a finding never

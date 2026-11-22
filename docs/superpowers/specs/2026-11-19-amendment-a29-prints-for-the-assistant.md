@@ -1,6 +1,6 @@
 # Amendment A29: the Assistant can read the print list
 
-Date: 2026-11-19 · Status: **proposed** (approved when the owner merges this PR) · Amends: A28 D3 (how the Assistant
+Date: 2026-11-19 · Status: **approved** (merged on 19 Nov 2026, pi-hub #285) · Amends: A28 D3 (how the Assistant
 reads prints) and its non-goal "any change to Pi Hub's code, routes or pages" for this one route · Builds on: baseline
 7 (Bambuddy holds prints; Pi Hub draws them; LocalAI reads house facts and does not hold them), the shared contract
 "House facts (`/api/now`, `/api/needs`, `/api/records`)", A25 (a print has one address).

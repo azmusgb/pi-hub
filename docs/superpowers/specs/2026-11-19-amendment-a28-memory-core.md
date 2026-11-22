@@ -1,6 +1,6 @@
 # Amendment A28: memory core is the Assistant's record of its own work
 
-Date: 2026-11-19 · Status: **proposed** (approved when the owner merges this PR) · Amends: baseline 1.3 (adds the
+Date: 2026-11-19 · Status: **approved** (merged on 19 Nov 2026, pi-hub #282) · Amends: baseline 1.3 (adds the
 verdict for LocalAI's `2026-10-23-memory-core-design.md`, which the reconciliation did not list) · Builds on: baseline
 3 (Knowledge and workspace: memory, LocalAI-only), 6.5 (two histories), 6.7 (asking the AI), 7 (page ownership), 8.2
 (Find, Assistant); A25 section 4 (History); A27 (the Assistant's navigation); LocalAI's `coordinator` (local by

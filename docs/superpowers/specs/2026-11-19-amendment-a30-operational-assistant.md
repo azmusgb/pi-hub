@@ -1,6 +1,6 @@
 # Amendment A30: the Assistant is an operational agent, with chat as its primary interface
 
-Date: 2026-11-19 · Status: **proposed** (approved when the owner merges this PR, decision by decision as marked) ·
+Date: 2026-11-19 · Status: **approved** (merged on 20 Nov 2026, pi-hub #288: D1-D6 as recommended; D7 stays the owner's, as marked) ·
 Amends: baseline 6.2 ("Surfaces that can act", l.601) and the Assistant rows of section 7 (l.708-711) only if D1's
 alternative is chosen; A27 (D4 here); A28 D5.2 and D5.4 and A29 D4 (D2 here, for named reads only) · Builds on:
 baseline 4 (Actions are part of a Record, l.364-367), 6.7 (asking the AI, l.682), 8.2 (action confirmation,

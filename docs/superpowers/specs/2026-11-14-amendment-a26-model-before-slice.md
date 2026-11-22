@@ -1,6 +1,6 @@
 # Amendment A26: see the model on the phone before it is sliced
 
-Date: 2026-11-14 · Status: **proposed** (approved when the owner merges this PR) · Amends: A19 P7 (Quick Print's 3D view
+Date: 2026-11-14 · Status: **approved** (merged on 14 Nov 2026, pi-hub #263) · Amends: A19 P7 (Quick Print's 3D view
 is offered once a slice exists) · Builds on: A19 (Quick Print), A16 P10 (the hub stores and serves, the browser draws).
 
 ## Why
