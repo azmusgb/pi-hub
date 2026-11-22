@@ -6,7 +6,7 @@
   "py_unused_variables": 0,
   "py_complex_functions": 7,
   "py_dead_code_high": 0,
-  "py_dead_code_maybe": 2,
+  "py_dead_code_maybe": 1,
   "test_lint_findings": 27,
   "dup_blocks": 5,
   "dup_lines": 55,
