@@ -71,15 +71,22 @@ export function fillTabs(strip, { items, selected, idPrefix, panel, onSelect, ex
   }, label, extra(key))));
 }
 
-// "Needs you here": this page's own items from Needs you, through the kit's list; hidden while there are none or Needs
-// you doesn't answer (Home says that, not every page).
+// "Needs you here": this page's own items from Needs you, through the kit's list; hidden while there are none. When Needs
+// you doesn't answer, a section never shown stays hidden (Home says that, not every page), and one already showing keeps
+// its items with a note that they couldn't be refreshed: a failed read is never shown as "nothing needs you here".
 export function needsHere() {
   return h("section", { class: "ui-section needs-here", hidden: true, "aria-label": "Needs you here" }, h("h2", {}, "Needs you here"));
 }
 
 export async function fillNeedsHere(el, path) {
-  let items = [];
-  try { items = ((await api("/api/needs")) || {}).items || []; } catch { items = []; }
+  let items;
+  try { items = ((await api("/api/needs")) || {}).items; } catch { items = null; }
+  if (!Array.isArray(items)) {
+    if (!el.hidden && !el.querySelector(".needs-here__stale")) {
+      el.append(h("p", { class: "ui-section__note needs-here__stale", role: "status" }, "Couldn't refresh this just now; it shows what was last read."));
+    }
+    return;
+  }
   const mine = items.filter((i) => typeof i?.link === "string" && (i.link === path || i.link.startsWith(`${path}?`) || i.link.startsWith(`${path}#`)));
   el.hidden = !mine.length;
   const list = mine.length ? ApplianceNeeds.renderList(mine, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub" }) : null;

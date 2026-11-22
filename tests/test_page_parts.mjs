@@ -68,3 +68,41 @@ test('Needs you here: only this page\'s items, hidden when none', async () => {
     assert.equal(el.hidden, true);
   } finally { dom.uninstall(); }
 });
+
+// A failed read is its own state: what was shown stays, marked as not refreshed, never cleared as if nothing needs you.
+test('Needs you here: a failed refresh keeps the items and says so; the next good read clears the note', async () => {
+  const routes = { '/api/needs': { items: [{ id: 'a', source: 'Pi Hub', tone: 'warn', title: 'Ad blocking', detail: 'Off.', link: '/network' }] } };
+  const dom = install({ fetch: routes });
+  const kit = { exports: {} };
+  new Function('module', readFileSync(new URL('../hub/static/ui/needs.js', import.meta.url), 'utf8'))(kit);
+  globalThis.ApplianceNeeds = kit.exports;
+  const parts = await import('../hub/static/js/page-parts.js');
+  try {
+    const el = parts.needsHere();
+    await parts.fillNeedsHere(el, '/network');
+    assert.equal(el.hidden, false);
+    routes['/api/needs'] = new Error('down');
+    await parts.fillNeedsHere(el, '/network');
+    assert.equal(el.hidden, false, 'still shown');
+    assert.deepEqual(el.querySelectorAll('.ui-need__title').map(text), ['Ad blocking']);
+    assert.match(text(el.querySelector('.needs-here__stale')), /Couldn't refresh/);
+    routes['/api/needs'] = { items: [] };
+    await parts.fillNeedsHere(el, '/network');
+    assert.equal(el.hidden, true);
+    assert.equal(el.querySelector('.needs-here__stale'), null);
+  } finally { dom.uninstall(); }
+});
+
+test('Needs you here: a failed first read stays hidden (Home reports it), with nothing invented', async () => {
+  const dom = install({ fetch: { '/api/needs': new Error('down') } });
+  const kit = { exports: {} };
+  new Function('module', readFileSync(new URL('../hub/static/ui/needs.js', import.meta.url), 'utf8'))(kit);
+  globalThis.ApplianceNeeds = kit.exports;
+  const parts = await import('../hub/static/js/page-parts.js');
+  try {
+    const el = parts.needsHere();
+    await parts.fillNeedsHere(el, '/network');
+    assert.equal(el.hidden, true);
+    assert.equal(el.querySelectorAll('.ui-need__title').length, 0);
+  } finally { dom.uninstall(); }
+});
