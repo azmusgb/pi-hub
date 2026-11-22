@@ -20,7 +20,7 @@ CODE_FILE = os.path.join(_tmp, "setup-code")
 with open(CODE_FILE, "w") as f:
     f.write("ABCD-1234\n")
 
-from hub import room_camera, app as hub_app, auth, db  # noqa: E402
+from hub import room_camera, room_snapshots, app as hub_app, auth, db  # noqa: E402
 
 ORIGIN = {"Origin": "http://testserver"}
 FAKE_JPG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xdb\x00C\x00\xff\xd9"
@@ -37,7 +37,7 @@ def setup_env(monkeypatch, tmp_path):
 
     snap_dir = tmp_path / "snapshots"
     snap_dir.mkdir()
-    monkeypatch.setattr(room_camera, "SNAPSHOT_DIR", str(snap_dir))
+    monkeypatch.setattr(room_snapshots, "SNAPSHOT_DIR", str(snap_dir))
     yield snap_dir
 
 
@@ -56,11 +56,11 @@ def test_snapshot_write_pair(setup_env):
     """Saving a snapshot creates both <id>.jpg and <id>.json."""
     cam = room_camera.CAMERA
     with patch.object(cam, "still", AsyncMock(return_value=(FAKE_JPG, time.time()))):
-        meta = asyncio.run(room_camera.save_snapshot())
+        meta = asyncio.run(room_snapshots.save_snapshot())
 
     assert re.match(r"^\d{13}$", meta["id"])
-    jpg_path = os.path.join(room_camera.SNAPSHOT_DIR, f"{meta['id']}.jpg")
-    json_path = os.path.join(room_camera.SNAPSHOT_DIR, f"{meta['id']}.json")
+    jpg_path = os.path.join(room_snapshots.SNAPSHOT_DIR, f"{meta['id']}.jpg")
+    json_path = os.path.join(room_snapshots.SNAPSHOT_DIR, f"{meta['id']}.json")
 
     assert os.path.exists(jpg_path)
     assert os.path.exists(json_path)
@@ -88,14 +88,14 @@ def test_snapshot_fifo_retention_200(setup_env):
         with open(os.path.join(snap_dir, f"{s_id}.json"), "w") as f:
             json.dump({"id": s_id, "created_at": (base_time + i) / 1000}, f)
 
-    snaps = room_camera.list_snapshots()
+    snaps = room_snapshots.list_snapshots()
     assert len(snaps) == 200
 
     # Save 201st
     with patch.object(cam, "still", AsyncMock(return_value=(FAKE_JPG, time.time()))):
-        new_meta = asyncio.run(room_camera.save_snapshot())
+        new_meta = asyncio.run(room_snapshots.save_snapshot())
 
-    snaps = room_camera.list_snapshots()
+    snaps = room_snapshots.list_snapshots()
     assert len(snaps) == 200
     # Oldest (1700000000000) should be gone
     oldest_id = str(base_time)
@@ -107,13 +107,13 @@ def test_snapshot_fifo_retention_200(setup_env):
 def test_snapshot_id_validation(setup_env):
     """Invalid ids like ../x, 1, 14 digits, slashes are refused before disk access."""
     with pytest.raises(room_camera.Invalid):
-        room_camera.get_snapshot_path("../x")
+        room_snapshots.get_snapshot_path("../x")
     with pytest.raises(room_camera.Invalid):
-        room_camera.get_snapshot_path("1")
+        room_snapshots.get_snapshot_path("1")
     with pytest.raises(room_camera.Invalid):
-        room_camera.get_snapshot_path("12345678901234")  # 14 digits
+        room_snapshots.get_snapshot_path("12345678901234")  # 14 digits
     with pytest.raises(room_camera.Invalid):
-        room_camera.get_snapshot_path("123456789012/a")
+        room_snapshots.get_snapshot_path("123456789012/a")
 
 
 def test_delete_snapshot(setup_env):
@@ -130,7 +130,7 @@ def test_delete_snapshot(setup_env):
     assert os.path.exists(jpg_path)
     assert os.path.exists(json_path)
 
-    room_camera.delete_snapshot(s_id)
+    room_snapshots.delete_snapshot(s_id)
     assert not os.path.exists(jpg_path)
     assert not os.path.exists(json_path)
 
@@ -142,7 +142,7 @@ def test_missing_sidecar_still_lists(setup_env):
     with open(os.path.join(snap_dir, f"{s_id}.jpg"), "wb") as f:
         f.write(b"jpg")
 
-    snaps = room_camera.list_snapshots()
+    snaps = room_snapshots.list_snapshots()
     assert any(s["id"] == s_id for s in snaps)
 
 
@@ -152,7 +152,7 @@ def test_frame_over_max_frame_refused(setup_env):
     big_frame = b"x" * (room_camera.MAX_FRAME + 1)
     with patch.object(cam, "still", AsyncMock(return_value=(big_frame, time.time()))):
         with pytest.raises(room_camera.Invalid) as exc:
-            asyncio.run(room_camera.save_snapshot())
+            asyncio.run(room_snapshots.save_snapshot())
         assert "too large" in exc.value.reason.lower()
 
 
