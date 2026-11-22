@@ -32,6 +32,16 @@ export function wallNeeds(needs, max = 5) {
     clear: false, note: unread };
 }
 
+// What steps aside, in order, while the one-screen wall is too tight for Needs you (the owner's choice, 21 Nov): the
+// next hours, then the Favourite controls tile, and only then Needs you rows from the bottom, never below one. `max`
+// is the rows to draw; the "more on Home" link counts the rest. now.js stops at the first step that fits.
+export function wallFitSteps(count, max = 5) {
+  const rows = Math.min(Math.max(0, Math.trunc(Number(count)) || 0), max);
+  const steps = [[], ["extra"], ["extra", "house"]].map((aside) => ({ aside, max }));
+  for (let r = rows - 1; r >= 1; r--) steps.push({ aside: ["extra", "house"], max: r });
+  return steps;
+}
+
 // The next few hours of the forecast, from this hour on.
 export function nextHours(hours, now = new Date(), n = 6) {
   if (!Array.isArray(hours)) return [];

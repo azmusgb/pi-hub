@@ -1,7 +1,7 @@
 // The wall display's words (wall fits any screen, 26 Oct): the clock's parts, the Needs you tile and the extra tiles.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallFitSteps, wallLayout, wallNeeds,
   WALL_VIEWS, getWallView, getWallCustomConfig, resolveWallPanes } from '../hub/static/js/wall.js';
 
 test('the clock splits the time from a small AM/PM, and 24-hour clocks have none', () => {
@@ -30,6 +30,18 @@ test("Needs you says when it couldn't check, rather than All clear", () => {
   assert.equal(wallNeeds(null).clear, false);
   assert.equal(wallNeeds({ count: 0, items: [], unread: ['Local AI'] }).status, "Couldn't check Local AI");
   assert.equal(wallNeeds(undefined).status, 'Checking…');
+});
+
+test('a tight wall: the next hours step aside, then the Favourite controls, then rows from the bottom, never the last', () => {
+  assert.deepEqual(wallFitSteps(8), [
+    { aside: [], max: 5 }, { aside: ['extra'], max: 5 }, { aside: ['extra', 'house'], max: 5 },
+    { aside: ['extra', 'house'], max: 4 }, { aside: ['extra', 'house'], max: 3 },
+    { aside: ['extra', 'house'], max: 2 }, { aside: ['extra', 'house'], max: 1 }]);
+  // Three needs: two rows can go. One need, none, or a list that couldn't be read: nothing to drop, the tiles still step aside.
+  assert.deepEqual(wallFitSteps(3).map((s) => s.max), [5, 5, 5, 2, 1]);
+  for (const count of [1, 0, undefined, null, NaN, -2]) {
+    assert.deepEqual(wallFitSteps(count), [{ aside: [], max: 5 }, { aside: ['extra'], max: 5 }, { aside: ['extra', 'house'], max: 5 }]);
+  }
 });
 
 test('the extra tiles: the hours from now on, and events not long past', () => {

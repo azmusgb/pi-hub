@@ -2,6 +2,8 @@
 // sizes. Fails on horizontal scrolling anywhere, vertical scrolling from tablet size up, a clock that wraps, a control
 // under 44 px, a missing Needs you tile, Needs you out of a phone's first screen, the printer tile not getting the most
 // room while it prints, serious/critical axe findings, or Home not listing a need the wall's "more on Home" link leaves out.
+// On a one-screen size it also fails when Needs you scrolls in its tile or cuts a row off, when the camera leaves the
+// printer tile, or when rows were dropped before the next hours and the Favourite controls stepped aside.
 // Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium
 //   node wall.mjs http://127.0.0.1:8131 --stub [--shots=DIR]   (stubbed data: idle, printing and night)
 //   node wall.mjs http://10.0.0.80                              (the Pi's live data, read only)
@@ -42,6 +44,10 @@ const now = (printer) => ({ status_available: true, summary: 'All good at home',
 const HOME = { connected: true, favourites: ['light-1'], accessories: [
   { id: 'lamp-1', name: 'Govee Lamp', kind: 'light', room: 'Bedroom', on: false },
   { id: 'light-1', name: 'Workshop Light', kind: 'light', room: 'Workshop', on: true, brightness: 100 }] };
+// The house as the owner's has it: one favourite lamp outside the workshop, so the house column carries the taller
+// Favourite controls tile (the Workshop light card above is short, and hid a Needs you tile that scrolled, 19 Nov).
+const HOME_FAVOURITE = { connected: true, favourites: ['lamp-1'], accessories: [
+  { id: 'lamp-1', name: 'Floor Lamp', kind: 'light', room: 'Bedroom', on: false, brightness: 52 }] };
 const NEEDS = { count: 0, unread: [], items: [
   // A long detail (the print lab's judging steps, 28 Oct) must cut off, not widen the page.
   { source: 'Bambuddy', tone: 'attention', title: 'Judge the print', detail: 'Look at: fronts under one low side light, ruler on the face: count the ridges and note their heights from the bed; then twist each pair apart by hand. Photos help.', link: 'tool:bambuddy' },
@@ -50,17 +56,18 @@ const NEEDS = { count: 0, unread: [], items: [
   { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' },
   { source: 'Pi Hub', tone: 'warn', title: 'Sixth', detail: 'x', link: '/' }, { source: 'Pi Hub', tone: 'warn', title: 'Seventh', detail: 'x', link: '/' }] };
 NEEDS.count = NEEDS.items.length;
+const FEW = { count: 2, unread: [], items: NEEDS.items.slice(0, 2) };
 const CAMERA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
   <stop offset="0" stop-color="#2b2f36"/><stop offset="1" stop-color="#101216"/></linearGradient></defs>
   <rect width="1280" height="720" fill="url(#g)"/><path d="M180 600 L1100 600 L980 420 L300 420 Z" fill="#3a3f47"/>
   <g fill="#c9a24a"><rect x="560" y="470" width="70" height="50" rx="6"/><rect x="650" y="470" width="70" height="50" rx="6"/></g>
   <rect x="600" y="230" width="90" height="140" rx="8" fill="#5a5f68"/><path d="M630 370 l15 40 l15 -40 Z" fill="#9aa0a8"/></svg>`;
 
-async function stub(page, printer, needs = NEEDS, camera = true) {
+async function stub(page, printer, needs = NEEDS, camera = true, home = HOME) {
   const json = (body) => (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/now', json(now(PRINTERS[printer])));
   await page.route('**/api/outside', json(OUTSIDE));
-  await page.route('**/api/home', json(HOME));
+  await page.route('**/api/home', json(home));
   await page.route('**/api/camera', json(camera ? { ok: true, source: 'Pi' } : { ok: false }));
   await page.route('**/api/needs', json(needs));
   await page.route('**/api/camera.jpg*', (route) => route.fulfill({ contentType: 'image/svg+xml', body: CAMERA_SVG }));
@@ -76,16 +83,21 @@ const runs = STUB
      ...SIZES.map(([n, w, h]) => ({ n, w, h, printer: 'printing', at: '2026-10-26T12:48:00', noCamera: true, shot: n === 'tv1080' || n === 'phone' ? `after-${n}-no-camera` : null })),
      // The desk layout (an iPad at the desk, 28 Oct): both orientations, printing and idle.
      ...SIZES.filter(([n]) => n.startsWith('ipad')).flatMap(([n, w, h]) => ['printing', 'idle'].map((printer) =>
-       ({ n, w, h, printer, desk: true, at: '2026-10-26T12:48:00', shot: `after-desk-${n}-${printer}` })))]
+       ({ n, w, h, printer, desk: true, at: '2026-10-26T12:48:00', shot: `after-desk-${n}-${printer}` }))),
+     // A full Needs you list beside the Favourite controls tile, printing: the one-screen sizes.
+     ...SIZES.filter(([, w, h]) => fits(w, h)).map(([n, w, h]) => ({ n, w, h, printer: 'printing', favourite: true, at: '2026-10-26T12:48:00', shot: `after-${n}-favourite` })),
+     // Two needs fit beside the Favourite controls once the next hours step aside: the controls stay.
+     ...SIZES.filter(([, w, h]) => fits(w, h)).map(([n, w, h]) => ({ n, w, h, printer: 'printing', favourite: true, few: true, at: '2026-10-26T12:48:00', shot: n === 'ipad-land' ? 'after-ipad-land-favourite-few' : null }))]
   : SIZES.map(([n, w, h]) => ({ n, w, h, printer: null, shot: `live-${n}` }));
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}`;
+  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}${run.favourite ? ' favourite controls' : ''}${run.few ? ' two needs' : ''}`;
+  const list = run.few ? FEW : NEEDS;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
-  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS, !run.noCamera);
+  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : list, !run.noCamera, run.favourite ? HOME_FAVOURITE : HOME);
   await page.goto(`${BASE}/wall${run.desk ? '?layout=desk' : ''}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.wall-board[data-printing]', { timeout: 15000 }).catch(() => problems.push(`${where}: the wall never loaded`));
   await page.waitForTimeout(400);
@@ -113,8 +125,18 @@ for (const run of runs) {
       lowest: Math.max(...[...document.querySelectorAll('.wall-board > *')].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect().bottom)),
       clockH: time ? time.getBoundingClientRect().height : 0, clockFs: fs, clockText: time?.textContent,
       needs: !!document.querySelector('.wall-needs .wall-needs-head h2'),
+      // Needs you shows whole rows or none: nothing scrolled out of its tile, the "more" link included.
+      needsBox: (() => { const t = document.querySelector('.wall-needs'); if (!t) return null; const b = t.getBoundingClientRect();
+        const out = (e) => { const x = e.getBoundingClientRect(); return x.top < b.top - 1 || x.bottom > b.bottom + 1; };
+        const more = t.querySelector('.ui-needs__more');
+        return { client: t.clientHeight, scroll: t.scrollHeight, cut: [...t.querySelectorAll('.ui-need')].filter(out).length, moreCut: !!more && out(more) }; })(),
+      // The picture stays inside the printer tile (a starved tile let it run over the tile below).
+      camOut: (() => { const c = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container'), t = document.querySelector('.wall-print');
+        return c && t ? Math.round(c.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom) : 0; })(),
       needItems: document.querySelectorAll('.wall-needs .ui-need').length,
-      needMore: !!document.querySelector('.wall-needs .ui-needs__more a'),
+      needMore: document.querySelector('.wall-needs .ui-needs__more a')?.textContent.trim() ?? null,
+      aside: document.querySelector('.wall-board')?.dataset.aside ?? '',
+      favourites: !!document.querySelector('.home-favourites')?.checkVisibility(),
       needEmpty: !!document.querySelector('.wall-needs .ui-needs__empty'),
       needTool: [...document.querySelectorAll('.wall-needs a.ui-need__link[target=_blank]')].map((a) => a.href),
       needInternal: [...document.querySelectorAll('.wall-needs a.ui-need__link:not([target])')].every((a) => a.hasAttribute('data-link')),
@@ -127,6 +149,13 @@ for (const run of runs) {
       camNone: document.querySelector('.kiosk-cam-none') ? r('.kiosk-cam-container')?.height : null,
       light: document.querySelector('.kiosk-light-name strong')?.textContent ?? null,
       layer: (() => { const s = document.querySelector('.kiosk-sub .nowrap'); return s ? { text: s.textContent, lines: s.getClientRects().length } : null; })(),
+      // Would one more Needs you row fit? Tried last, with a copy of the last row, and taken out again.
+      oneMoreFits: (() => { const t = document.querySelector('.wall-needs'), rows = t?.querySelectorAll('.ui-need'), print = document.querySelector('.wall-print');
+        if (!rows?.length) return null;
+        const extra = rows[rows.length - 1].cloneNode(true); rows[rows.length - 1].after(extra);
+        const cam = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container')?.getBoundingClientRect();
+        const ok = t.scrollHeight <= t.clientHeight + 1 && (!cam || (cam.height >= 140 && cam.bottom <= print.getBoundingClientRect().bottom + 1));
+        extra.remove(); return ok; })(),
     };
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
@@ -136,16 +165,34 @@ for (const run of runs) {
   if (fits(w, h) && m.lowest > m.ih + 1) problems.push(`${where}: a tile runs off the bottom (${Math.round(m.lowest)} > ${m.ih})`);
   if (!m.clockText || m.clockH > m.clockFs * 1.3) problems.push(`${where}: the clock "${m.clockText}" wraps (${Math.round(m.clockH)} px at ${m.clockFs} px)`);
   if (!m.needs) problems.push(`${where}: no Needs you tile`);
+  if (fits(w, h) && m.needsBox) {
+    if (m.needsBox.scroll > m.needsBox.client + 1) problems.push(`${where}: Needs you scrolls inside its tile (${m.needsBox.client} px for ${m.needsBox.scroll} px of list)`);
+    if (m.needsBox.cut) problems.push(`${where}: ${m.needsBox.cut} of ${m.needItems} Needs you rows are cut off`);
+    if (m.needsBox.moreCut) problems.push(`${where}: the "more on Home" link is cut off`);
+  }
+  if (m.camOut > 1) problems.push(`${where}: the camera runs ${m.camOut} px out of the printer tile`);
   if (run.clear && !m.allClear) problems.push(`${where}: Needs you doesn't say All clear when nothing needs you`);
   if (STUB && run.clear && !m.needEmpty) problems.push(`${where}: no kit empty state when nothing needs you`);
   if (STUB && !run.clear) {
-    if (m.needItems !== 5) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
-    if (!m.needMore) problems.push(`${where}: no "more on Home" link`);
+    // Five rows, or on a one-screen size too tight for five: fewer whole rows, but only after the next hours and the
+    // Favourite controls have stepped aside, and only as few as it takes (the owner's order, 21 Nov).
+    const full = Math.min(5, list.items.length), left = list.items.length - m.needItems;
+    const trimmed = fits(w, h) && m.needItems >= 1 && m.needItems < full;
+    if (m.needItems !== full && !trimmed) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly ${full} of ${list.items.length})`);
+    if (trimmed && m.aside !== 'extra house') problems.push(`${where}: Needs you rows were dropped (${m.needItems} of ${full}) before the next hours and the Favourite controls stepped aside ("${m.aside}")`);
+    if (trimmed && m.oneMoreFits) problems.push(`${where}: Needs you shows ${m.needItems} rows where ${m.needItems + 1} fit`);
+    if (left > 0 && !m.needMore) problems.push(`${where}: no "more on Home" link`);
+    else if (left > 0 && m.needMore !== `${left} more on Home`) problems.push(`${where}: ${m.needItems} of ${list.items.length} rows shown, but the link says "${m.needMore}"`);
+    else if (left <= 0 && m.needMore) problems.push(`${where}: a "${m.needMore}" link with nothing more to show`);
+    // The owner's house, a full list: all five rows show, the Favourite controls stepping aside where they must.
+    // They stay where there is room: beside two needs, and on the tall portrait screen whatever the list.
+    if (run.favourite && fits(w, h) && m.needItems !== full) problems.push(`${where}: ${m.needItems} rows beside the Favourite controls tile (want ${full}: the controls step aside first)`);
+    if (run.favourite && (run.few || n === 'portrait-screen') && !m.favourites) problems.push(`${where}: the Favourite controls stepped aside though the list fits beside them`);
     if (m.needTool.length !== 1 || new URL(m.needTool[0]).origin === new URL(BASE).origin) problems.push(`${where}: tool: link didn't resolve to the gate address (${m.needTool})`);
     if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
   }
   if (STUB && !m.weather) problems.push(`${where}: no weather`);
-  if (STUB && m.light !== 'Workshop Light') problems.push(`${where}: the Workshop card shows "${m.light}", not the Workshop Light`);
+  if (STUB && !run.favourite && m.light !== 'Workshop Light') problems.push(`${where}: the Workshop card shows "${m.light}", not the Workshop Light`);
   if (m.needsBottom > m.ih || m.headBottom > m.ih) problems.push(`${where}: clock, weather or Needs you below the first screen`);
   for (const s of m.small) problems.push(`${where}: control "${s.text}" is ${Math.round(s.h)} px tall${s.wraps ? ' and its label wraps' : ''}`);
   if (run.printer === 'printing') {

@@ -44,6 +44,10 @@ body.wall.night { filter: brightness(0.55); }
 .wall-board > .wall-house { grid-area: house; }
 .wall-board > .wall-extra { grid-area: extra; display: none; }
 .wall-board > .wall-tools { grid-area: tools; }
+/* A one-screen wall too tight for Needs you (now.js fitWall): the next hours step aside first, then the Favourite
+   controls tile. */
+.wall-board[data-aside~="extra"] > .wall-extra { display: none; }
+.wall-board[data-aside~="house"] .home-favourites { display: none; }
 .wall-board > * { min-width: 0; }
 
 /* Tiles: one quiet surface each. */
@@ -493,14 +497,19 @@ body.wall.night { filter: brightness(0.55); }
   .wall-board, .wall-board[data-printing="0"], .wall-board[data-printing="1"] {
     grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
     grid-template-areas: "head head" "print needs" "print extra" "print house" "print ." "print tools";
-    /* A long Needs you list scrolls inside its tile; the house below it is never cut off. */
+    /* Needs you is the row that gives when the column is too full; fitWall (now.js) reads that and makes room, so
+       the list doesn't scroll and the house below it is never cut off. */
     grid-template-rows: auto minmax(0, auto) auto auto minmax(0, 1fr) auto;
   }
   .wall-board > .wall-extra { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Many things need you: the next hours step aside so the list has the room. */
   .wall-board[data-needs-many="1"] > .wall-extra { display: none; }
-  /* The house keeps its full height (a scrolling house could shrink to nothing and spill under the toolbar); Needs
-     you is the one that scrolls. */
+  /* With the next hours aside, or none to show, their row goes too: an empty row's gap isn't spent on nothing. */
+  .wall-board:not([data-layout="desk"]):is([data-needs-many="1"], [data-aside~="extra"], [data-extra="0"]) {
+    grid-template-areas: "head head" "print needs" "print house" "print ." "print tools";
+    grid-template-rows: auto minmax(0, auto) auto minmax(0, 1fr) auto;
+  }
+  /* The house keeps its full height (a scrolling house could shrink to nothing and spill under the toolbar). */
   .wall-board > .wall-house { grid-template-columns: minmax(0, 1fr); overflow: visible; min-height: auto; }
   .wall-board > .wall-tools { align-self: end; justify-content: flex-end; }
   .wall-head { padding-bottom: calc(var(--wall-gap) * .2); }
