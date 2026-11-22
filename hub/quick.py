@@ -280,6 +280,7 @@ def evict(need: int, now: float | None = None) -> int:
     outcome stay; the job says its file was removed. Returns bytes freed."""
     ready()
     now = now or time.time()
+    from . import quick_layers  # imports this module, so not at the top
     jobs = db.rows("SELECT * FROM quick_jobs WHERE file_removed = 0")
     order = sorted((j for j in jobs if _tier(j, now) is not None), key=lambda j: (_tier(j, now), j["updated"]))
     freed = 0
@@ -294,6 +295,7 @@ def evict(need: int, now: float | None = None) -> int:
                 if p and p.exists():
                     freed += p.stat().st_size
                     p.unlink(missing_ok=True)
+            quick_layers.forget(j["id"])  # its layers in memory point at the sidecar just removed
             state = "stale" if j["state"] == "sliced" else "canceled" if j["state"] in ("draft", "ready_to_slice") else j["state"]
             c.execute("UPDATE quick_jobs SET file_removed = 1, state = ?, reason = ?, updated = ? WHERE id = ?",
                       (state, "File removed to make room; a new slice needs the model uploaded again.", int(now), j["id"]))
