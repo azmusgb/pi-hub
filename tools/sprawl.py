@@ -5,7 +5,8 @@ Runs pinned versions of ruff, vulture, jscpd and (for repos with a package.json)
 through uvx/npx, so nothing is installed into the repo. Writes report.json and report.md
 to --out, and with --baseline compares the counts against a saved baseline.
 
-Exit codes: 0 ok, 1 a count rose above the baseline, 2 usage or setup error.
+Exit codes: 0 ok, 1 a count rose above the baseline, 2 usage or setup error, or a tool failed so a
+baselined count is unknown.
 """
 from __future__ import annotations
 
@@ -25,6 +26,9 @@ RUFF = "ruff@0.8.4"
 VULTURE = "vulture==2.14"
 JSCPD = "jscpd@4.0.5"
 KNIP = "knip@5.33.3"
+# knip's TypeScript peer is ">=5.0.4", so npx would pick TypeScript 7 (the native port, no JS compiler API) and knip
+# crashes on ts.getDefaultLibFilePath. Pin a 5.x TypeScript next to it.
+TYPESCRIPT = "typescript@5.6.3"
 
 PY_EXT = {".py"}
 JS_EXT = {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"}
@@ -156,7 +160,7 @@ def run_jscpd(root: Path, work: Path) -> dict:
 def run_knip(root: Path) -> dict:
     if not (root / "package.json").exists():
         return {"skipped": "no package.json at the repo root"}
-    res = run(["npx", "-y", KNIP, "--reporter", "json", "--no-exit-code", "--no-progress"], root)
+    res = run(["npx", "-y", "-p", KNIP, "-p", TYPESCRIPT, "knip", "--reporter", "json", "--no-exit-code", "--no-progress"], root)
     try:
         data = json.loads(res.stdout)
     except json.JSONDecodeError:
@@ -188,12 +192,13 @@ def summarise(r: dict) -> dict:
         "py_dead_code_high": sum(1 for v in prod_dead if v["confidence"] >= 90),
         "py_dead_code_maybe": sum(1 for v in prod_dead if v["confidence"] < 90),
         "test_lint_findings": sum(ruff.values()) - sum(prod_ruff.values()) + len(r["vulture"]) - len(prod_dead),
-        "dup_blocks": len(r["jscpd"].get("clones", [])),
-        "dup_lines": r["jscpd"].get("duplicated_lines") or 0,
+        # A tool that failed is unknown (None), never zero: a crashed check must not read as a clean one.
+        "dup_blocks": None if r["jscpd"].get("error") else len(r["jscpd"].get("clones", [])),
+        "dup_lines": None if r["jscpd"].get("error") else r["jscpd"].get("duplicated_lines") or 0,
         "big_files": sum(1 for s in r["sizes"] if s["lines"] >= BIG_FILE_LINES),
-        "js_unused_files": len(knip.get("files", [])) if isinstance(knip, dict) else 0,
-        "js_unused_exports": len(knip.get("exports", [])) if isinstance(knip, dict) else 0,
-        "js_unused_deps": len(knip.get("dependencies", [])) + len(knip.get("devDependencies", [])) if isinstance(knip, dict) else 0,
+        "js_unused_files": None if "error" in knip else len(knip.get("files", [])),
+        "js_unused_exports": None if "error" in knip else len(knip.get("exports", [])),
+        "js_unused_deps": None if "error" in knip else len(knip.get("dependencies", [])) + len(knip.get("devDependencies", [])),
     }
 
 
@@ -204,7 +209,9 @@ def write_md(r: dict, path: Path, delta: dict | None) -> None:
          (f". Duplication: {r['jscpd']['percentage']}%." if r["jscpd"].get("percentage") is not None else "."), "",
          "| Measure | Count |" + (" Baseline |" if delta else ""), "|---|---|" + ("---|" if delta else "")]
     for k, v in s.items():
-        L.append(f"| {k} | {v} |" + (f" {delta[k]['baseline']} ({delta[k]['change']:+d}) |" if delta and k in delta else (" — |" if delta else "")))
+        d = delta.get(k) if delta else None
+        cell = (f" {d['baseline']} ({d['change']:+d}) |" if d["change"] is not None else f" {d['baseline']} (unknown) |") if d else (" — |" if delta else "")
+        L.append(f"| {k} | {'unknown (tool failed)' if v is None else v} |" + cell)
     L += ["", f"## Largest files (≥ {BIG_FILE_LINES} lines)", ""]
     L += [f"- `{x['file']}`: {x['lines']:,}" for x in r["sizes"] if x["lines"] >= BIG_FILE_LINES] or ["None."]
     L += ["", "## Largest duplicate blocks", ""]
@@ -260,18 +267,23 @@ def main() -> None:
              "jscpd": run_jscpd(root, work), "knip": run_knip(root)}
     r["summary"] = summarise(r)
 
-    delta, worse = None, []
+    delta, worse, unknown = None, [], []
     if a.baseline:
         try:
             base = json.loads(a.baseline.read_text())["summary"]
         except (OSError, KeyError, json.JSONDecodeError) as e:
             die(f"cannot read baseline {a.baseline}: {e}")
-        delta = {k: {"baseline": base[k], "change": v - base[k]} for k, v in r["summary"].items() if k in base}
-        worse = [k for k, d in delta.items() if d["change"] > 0]
+        delta = {k: {"baseline": base[k], "change": None if v is None or base[k] is None else v - base[k]}
+                 for k, v in r["summary"].items() if k in base}
+        worse = [k for k, d in delta.items() if d["change"] is not None and d["change"] > 0]
+        unknown = [k for k, d in delta.items() if d["change"] is None]
         r["delta"] = delta
 
     (a.out / "report.json").write_text(json.dumps(r, indent=1))
     write_md(r, a.out / "report.md", delta)
+    failed = [k for k, v in r["summary"].items() if v is None]
+    if a.write_baseline and failed:
+        die("not writing a baseline: these counts are unknown because a tool failed: " + ", ".join(failed))
     if a.write_baseline:
         a.write_baseline.write_text(json.dumps({"source": r["source"], "summary": r["summary"]}, indent=1) + "\n")
 
@@ -279,7 +291,12 @@ def main() -> None:
     print(f"report: {a.out / 'report.md'}")
     if worse and delta:
         print("rose above baseline: " + ", ".join(f"{k} {delta[k]['change']:+d}" for k in worse))
+    if unknown:
+        print("unknown against baseline (a tool failed): " + ", ".join(unknown))
+    if worse:
         sys.exit(1)
+    if unknown:
+        sys.exit(2)
 
 
 if __name__ == "__main__":
