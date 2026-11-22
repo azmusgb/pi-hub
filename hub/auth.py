@@ -158,20 +158,6 @@ def session(token, gate=False):
     return row
 
 
-def gate_session(owner_token):
-    """A token only the front gate accepts (role "gate"): it is the cookie every gated tool sees, so it must
-    never work as a hub session. It belongs to the owner sign-in that made it (device "gate:<that session's hash>"),
-    ends when that sign-in ends, and goes when it signs out. None when owner_token isn't a live owner session."""
-    owner = session(owner_token)
-    if not owner or owner["role"] != "owner":
-        return None
-    token = secrets.token_urlsafe(32)
-    db.run("INSERT INTO sessions (token_hash, role, created, expires, device) VALUES (?, 'gate', ?, ?, ?)",
-           hashlib.sha256(token.encode()).hexdigest(), int(time.time()), owner["expires"],
-           "gate:" + hashlib.sha256(owner_token.encode()).hexdigest())
-    return token
-
-
 def gate_code(owner_token, host):
     """A one-time code (good GATE_CODE_SECONDS) that `host`'s tool trades for its own gate token. Each tool's cookie is
     host-only, so each tool redeems this on its own host. None when owner_token isn't a live owner."""
@@ -188,8 +174,8 @@ def gate_code(owner_token, host):
 
 
 def redeem_gate_code(code, host):
-    """Spends a gate code for a new gate token, same as gate_session makes. A code is refused, and kept, on any other
-    host; on its own host it is spent whatever follows. None when expired or its owner sign-in has ended."""
+    """Spends a gate code for a new gate token (role "gate", device "gate:<owner hash>"). A code is refused, and kept,
+    on any other host; on its own host it is spent whatever follows. None when expired or its owner sign-in has ended."""
     if not code:
         return None
     _ready()
