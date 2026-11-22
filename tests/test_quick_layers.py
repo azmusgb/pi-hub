@@ -214,6 +214,22 @@ def test_evicting_a_slice_takes_its_sidecars_and_sweep_removes_orphans(env):
     assert not orphan.exists()
 
 
+def test_evicting_a_slice_forgets_its_layers_so_the_same_slice_is_read_again(env):
+    """Eviction deletes the sidecar; the in-memory layers must go with it, or the same slice coming back (same hash)
+    reads as ready from memory while every layer it offers is gone from disk."""
+    jid = slice_ok(env, plate(L0, L1))
+    wait_ready(env, jid)
+    job = quick.get(jid)
+    path, data = quick.slice_path(job), quick.slice_path(job).read_bytes()
+    db.run("UPDATE quick_jobs SET updated = 0 WHERE id = ?", jid)
+    assert quick.evict(10 ** 9, now=time.time() + 10 ** 7) > 0
+    assert jid not in quick_layers._builds
+    path.write_bytes(data)  # the identical slice comes back
+    db.run("UPDATE quick_jobs SET file_removed = 0, state = 'sliced' WHERE id = ?", jid)
+    assert wait_ready(env, jid)["state"] == "ready"
+    assert env.get(f"/api/quick/jobs/{jid}/layers/0").json()["z"] == 0.2
+
+
 def test_the_sidecar_counts_toward_the_quota(env):
     jid = slice_ok(env, plate(L0, L1))
     before = quick.usage()["files"]
