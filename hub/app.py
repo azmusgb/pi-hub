@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, room_camera, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -785,7 +785,7 @@ async def api_room_camera_reset(request: Request):
 @app.get("/api/camera/room/looks")
 def api_room_camera_looks(request: Request):
     need(request, "owner")
-    return fresh({"looks": room_camera.get_looks()})
+    return fresh({"looks": room_looks.get_looks()})
 
 
 @app.post("/api/camera/room/looks")
@@ -799,51 +799,51 @@ async def api_room_camera_save_look(request: Request):
         return JSONResponse({"field": None, "reason": "Send look as {name, values}."}, status_code=422,
                             headers={"Cache-Control": "no-store"})
     try:
-        look = room_camera.save_look(body["name"], body["values"])
+        look = room_looks.save_look(body["name"], body["values"])
     except room_camera.Invalid as e:
         return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
                             headers={"Cache-Control": "no-store"})
     auth.log(role, device, "room-camera:look", f"saved '{look['name']}'")
-    return fresh({"look": look, "looks": room_camera.get_looks()})
+    return fresh({"look": look, "looks": room_looks.get_looks()})
 
 
 @app.delete("/api/camera/room/looks/{name}")
 def api_room_camera_delete_look(name: str, request: Request):
     role, device = need(request, "owner")
     try:
-        room_camera.delete_look(name)
+        room_looks.delete_look(name)
     except room_camera.Invalid as e:
         return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
                             headers={"Cache-Control": "no-store"})
     auth.log(role, device, "room-camera:look", f"deleted '{name}'")
-    return fresh({"deleted": name, "looks": room_camera.get_looks()})
+    return fresh({"deleted": name, "looks": room_looks.get_looks()})
 
 
 @app.get("/api/camera/room/snapshots")
 def api_room_camera_list_snapshots(request: Request):
     need(request, "owner")
-    return fresh({"snapshots": room_camera.list_snapshots()})
+    return fresh({"snapshots": room_snapshots.list_snapshots()})
 
 
 @app.post("/api/camera/room/snapshots")
 async def api_room_camera_take_snapshot(request: Request):
     role, device = need(request, "owner")
     try:
-        meta = await room_camera.save_snapshot()
+        meta = await room_snapshots.save_snapshot()
     except room_camera.Invalid as e:
         return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
                             headers={"Cache-Control": "no-store"})
     except room_camera.Unavailable as e:
         return _room_unavailable(e)
     auth.log(role, device, "room-camera:snapshot", f"saved snapshot '{meta['id']}'")
-    return fresh({"snapshot": meta, "snapshots": room_camera.list_snapshots()})
+    return fresh({"snapshot": meta, "snapshots": room_snapshots.list_snapshots()})
 
 
 @app.get("/api/camera/room/snapshots/{snapshot_id}.jpg")
 def api_room_camera_get_snapshot_jpg(snapshot_id: str, request: Request):
     need(request, "owner")
     try:
-        path = room_camera.get_snapshot_path(snapshot_id, "jpg")
+        path = room_snapshots.get_snapshot_path(snapshot_id, "jpg")
     except room_camera.Invalid:
         return Response(status_code=404)
     if not os.path.exists(path):
@@ -860,12 +860,12 @@ def api_room_camera_get_snapshot_jpg(snapshot_id: str, request: Request):
 def api_room_camera_delete_snapshot(snapshot_id: str, request: Request):
     role, device = need(request, "owner")
     try:
-        room_camera.delete_snapshot(snapshot_id)
+        room_snapshots.delete_snapshot(snapshot_id)
     except room_camera.Invalid as e:
         return JSONResponse({"field": e.field, "reason": e.reason}, status_code=422,
                             headers={"Cache-Control": "no-store"})
     auth.log(role, device, "room-camera:snapshot", f"deleted snapshot '{snapshot_id}'")
-    return fresh({"deleted": snapshot_id, "snapshots": room_camera.list_snapshots()})
+    return fresh({"deleted": snapshot_id, "snapshots": room_snapshots.list_snapshots()})
 
 
 
