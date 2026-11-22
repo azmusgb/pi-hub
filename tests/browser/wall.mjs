@@ -2,6 +2,8 @@
 // sizes. Fails on horizontal scrolling anywhere, vertical scrolling from tablet size up, a clock that wraps, a control
 // under 44 px, a missing Needs you tile, Needs you out of a phone's first screen, the printer tile not getting the most
 // room while it prints, serious/critical axe findings, or Home not listing a need the wall's "more on Home" link leaves out.
+// On a one-screen size it also fails when Needs you scrolls in its tile or cuts a row off, when the camera leaves the
+// printer tile, or when rows were dropped before the next hours and the Favourite controls stepped aside.
 // Usage (from the Mac): cd tests/browser && npm install && npx playwright install chromium
 //   node wall.mjs http://127.0.0.1:8131 --stub [--shots=DIR]   (stubbed data: idle, printing and night)
 //   node wall.mjs http://10.0.0.80                              (the Pi's live data, read only)
@@ -128,7 +130,8 @@ for (const run of runs) {
       camOut: (() => { const c = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container'), t = document.querySelector('.wall-print');
         return c && t ? Math.round(c.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom) : 0; })(),
       needItems: document.querySelectorAll('.wall-needs .ui-need').length,
-      needMore: !!document.querySelector('.wall-needs .ui-needs__more a'),
+      needMore: document.querySelector('.wall-needs .ui-needs__more a')?.textContent.trim() ?? null,
+      aside: document.querySelector('.wall-board')?.dataset.aside ?? '',
       needEmpty: !!document.querySelector('.wall-needs .ui-needs__empty'),
       needTool: [...document.querySelectorAll('.wall-needs a.ui-need__link[target=_blank]')].map((a) => a.href),
       needInternal: [...document.querySelectorAll('.wall-needs a.ui-need__link:not([target])')].every((a) => a.hasAttribute('data-link')),
@@ -141,6 +144,13 @@ for (const run of runs) {
       camNone: document.querySelector('.kiosk-cam-none') ? r('.kiosk-cam-container')?.height : null,
       light: document.querySelector('.kiosk-light-name strong')?.textContent ?? null,
       layer: (() => { const s = document.querySelector('.kiosk-sub .nowrap'); return s ? { text: s.textContent, lines: s.getClientRects().length } : null; })(),
+      // Would one more Needs you row fit? Tried last, with a copy of the last row, and taken out again.
+      oneMoreFits: (() => { const t = document.querySelector('.wall-needs'), rows = t?.querySelectorAll('.ui-need'), print = document.querySelector('.wall-print');
+        if (!rows?.length) return null;
+        const extra = rows[rows.length - 1].cloneNode(true); rows[rows.length - 1].after(extra);
+        const cam = document.querySelector('.kiosk-cam-img')?.closest('.kiosk-cam-container')?.getBoundingClientRect();
+        const ok = t.scrollHeight <= t.clientHeight + 1 && (!cam || (cam.height >= 140 && cam.bottom <= print.getBoundingClientRect().bottom + 1));
+        extra.remove(); return ok; })(),
     };
   });
   if (m.sw > m.iw) problems.push(`${where}: scrolls sideways (${m.sw} > ${m.iw})`);
@@ -159,8 +169,14 @@ for (const run of runs) {
   if (run.clear && !m.allClear) problems.push(`${where}: Needs you doesn't say All clear when nothing needs you`);
   if (STUB && run.clear && !m.needEmpty) problems.push(`${where}: no kit empty state when nothing needs you`);
   if (STUB && !run.clear) {
-    if (m.needItems !== 5) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
+    // Five rows, or on a one-screen size too tight for five: fewer whole rows, but only after the next hours and the
+    // Favourite controls have stepped aside, and only as few as it takes (the owner's order, 21 Nov).
+    const trimmed = fits(w, h) && m.needItems >= 1 && m.needItems < 5;
+    if (m.needItems !== 5 && !trimmed) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
+    if (trimmed && m.aside !== 'extra house') problems.push(`${where}: Needs you rows were dropped (${m.needItems} of 5) before the next hours and the Favourite controls stepped aside ("${m.aside}")`);
+    if (trimmed && m.oneMoreFits) problems.push(`${where}: Needs you shows ${m.needItems} rows where ${m.needItems + 1} fit`);
     if (!m.needMore) problems.push(`${where}: no "more on Home" link`);
+    else if (m.needMore !== `${NEEDS.items.length - m.needItems} more on Home`) problems.push(`${where}: ${m.needItems} of ${NEEDS.items.length} rows shown, but the link says "${m.needMore}"`);
     if (m.needTool.length !== 1 || new URL(m.needTool[0]).origin === new URL(BASE).origin) problems.push(`${where}: tool: link didn't resolve to the gate address (${m.needTool})`);
     if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
   }
