@@ -9,7 +9,7 @@ import { setNeeds } from "./navigation.js";
 import { problemsBadge } from "./control-room.js";
 import { leaveDashboard, mountDashboard, renderDashboard } from "./home-dashboard.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
-import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallLayout, wallNeeds,
+import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallFitSteps, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
 
 export const every = 15;
@@ -852,16 +852,39 @@ function renderWallHeader(state, out) {
 }
 
 // The Needs you tile: the top items, in the hub's order, each its own link; a calm "All clear" when nothing does.
-function renderWallNeeds(state, needs) {
-  const m = wallNeeds(needs, 5);
+// `max` is 5 unless the screen is too tight for five (fitWall).
+function renderWallNeeds(state, needs, max = 5) {
+  const m = wallNeeds(needs, max);
+  state.wallNeedsMax = max;
   state.wallNeeds.dataset.tone = m.tone;
   state.wallNeeds.replaceChildren(...[
     h("div", { class: "wall-needs-head" },
       h("h2", { id: "wall-needs-title" }, "Needs you"),
       h("span", { class: "wall-needs-status" }, m.status)),
-    // Full list in, the kit trims it to 5 and adds the "more" link; "Checking…" and "Couldn't check" show no list at all.
-    m.clear || m.items.length ? needsList(needs.items, { max: 5, dense: true, more: m.more && needs.items.length > 5 ? { href: "/", label: `${m.more} more on Home` } : null }) : null,
+    // Full list in, the kit trims it to `max` and adds the "more" link; "Checking…" and "Couldn't check" show no list at all.
+    m.clear || m.items.length ? needsList(needs.items, { max, dense: true, more: m.more && needs.items.length > max ? { href: "/", label: `${m.more} more on Home` } : null }) : null,
     m.note ? h("p", { class: "meta" }, m.note) : null].filter(Boolean));
+}
+
+// One screen, no scrolling: while the Needs you list doesn't fit its tile, or the picture is squeezed under a readable
+// size or out of the printer tile, things step aside in wallFitSteps' order. Every draw starts from the full board, so
+// what stepped aside comes back as soon as there is room. A wall that scrolls as a page (a phone) and the desk, which
+// has its own rules, are left as drawn.
+const WALL_CAM_MIN = 140;  // px: the smallest picture the wall check (tests/browser/wall.mjs) accepts
+function fitWall(state) {
+  const board = state.wallBoard, tile = state.wallNeeds, needs = state.wallNeedsData;
+  if (!board || state.desk) return;
+  const oneScreen = getComputedStyle(board).overflowY === "hidden";
+  const tight = () => {
+    if (tile.scrollHeight > tile.clientHeight + 1) return true;
+    const cam = state.wallPrint.querySelector(".kiosk-cam-img")?.closest(".kiosk-cam-container")?.getBoundingClientRect();
+    return !!cam && (cam.height < WALL_CAM_MIN || cam.bottom > state.wallPrint.getBoundingClientRect().bottom + 1);
+  };
+  for (const step of wallFitSteps(needs?.items?.length, 5)) {
+    board.dataset.aside = step.aside.join(" ");
+    if (step.max !== state.wallNeedsMax) renderWallNeeds(state, needs, step.max);
+    if (!oneScreen || !tight()) break;
+  }
 }
 
 // Extra tiles for tall screens (a portrait monitor): the next hours of weather and what's on today.
@@ -1156,6 +1179,10 @@ export function mount(state) {
       state.wallHead, state.wallNeeds, state.wallPrint, state.wallHouse, state.wallExtra, state.wallTools);
     state.summary.hidden = true;
     state._clockTimer = setInterval(() => { if (state.wallHM) setWallClock(state); }, 1000);
+    // A turned or resized screen has a different amount of room: fit again, once per frame.
+    if (state._onResize) removeEventListener("resize", state._onResize);
+    state._onResize = () => { cancelAnimationFrame(state._fitFrame); state._fitFrame = requestAnimationFrame(() => fitWall(state)); };
+    addEventListener("resize", state._onResize);
     state.root.append(state.wallBoard, state.summary);
   } else {
     state.hero = h("section", { class: "home-context", "aria-label": "Around the house" }, state.summary, state.outside);
@@ -1217,7 +1244,11 @@ export async function load(state) {
   if (state.eyebrow) state.eyebrow.textContent = eyebrowLabel();
 
 
-  if (isWallMode()) return loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
+  if (isWallMode()) {
+    await loadWall(state, d, out, home, cam, displayAccessories, controlsTitle);
+    fitWall(state);
+    return;
+  }
 
   // The line holds the hub's own words until Needs you answers (no count flashes up and goes).
   const line = (text) => {
@@ -1261,6 +1292,7 @@ export function failed(state) {
 async function loadWall(state, d, out, home, cam, displayAccessories, controlsTitle) {
   const needs = await settle(api("/api/needs"), 4000, null);
   if (needs) setNeeds(needs);
+  state.wallNeedsData = needs;
   state.summary.hidden = true;
   renderWallHeader(state, out);
 
@@ -1381,4 +1413,5 @@ export function leave(state) {
   clearInterval(state._eyebrowTimer);
   clearInterval(state._camTimer);
   if (state._clockTimer) clearInterval(state._clockTimer);
+  if (state._onResize) { removeEventListener("resize", state._onResize); cancelAnimationFrame(state._fitFrame); }
 }

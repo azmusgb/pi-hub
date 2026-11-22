@@ -56,6 +56,7 @@ const NEEDS = { count: 0, unread: [], items: [
   { source: 'Local AI', tone: 'warn', title: 'Approve the E-023 print', detail: 'The lab has a new experiment ready for the X2D.', link: '/workshop' },
   { source: 'Pi Hub', tone: 'warn', title: 'Sixth', detail: 'x', link: '/' }, { source: 'Pi Hub', tone: 'warn', title: 'Seventh', detail: 'x', link: '/' }] };
 NEEDS.count = NEEDS.items.length;
+const FEW = { count: 2, unread: [], items: NEEDS.items.slice(0, 2) };
 const CAMERA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
   <stop offset="0" stop-color="#2b2f36"/><stop offset="1" stop-color="#101216"/></linearGradient></defs>
   <rect width="1280" height="720" fill="url(#g)"/><path d="M180 600 L1100 600 L980 420 L300 420 Z" fill="#3a3f47"/>
@@ -84,16 +85,19 @@ const runs = STUB
      ...SIZES.filter(([n]) => n.startsWith('ipad')).flatMap(([n, w, h]) => ['printing', 'idle'].map((printer) =>
        ({ n, w, h, printer, desk: true, at: '2026-10-26T12:48:00', shot: `after-desk-${n}-${printer}` }))),
      // A full Needs you list beside the Favourite controls tile, printing: the one-screen sizes.
-     ...SIZES.filter(([, w, h]) => fits(w, h)).map(([n, w, h]) => ({ n, w, h, printer: 'printing', favourite: true, at: '2026-10-26T12:48:00', shot: `after-${n}-favourite` }))]
+     ...SIZES.filter(([, w, h]) => fits(w, h)).map(([n, w, h]) => ({ n, w, h, printer: 'printing', favourite: true, at: '2026-10-26T12:48:00', shot: `after-${n}-favourite` })),
+     // Two needs fit beside the Favourite controls once the next hours step aside: the controls stay.
+     ...SIZES.filter(([, w, h]) => fits(w, h)).map(([n, w, h]) => ({ n, w, h, printer: 'printing', favourite: true, few: true, at: '2026-10-26T12:48:00', shot: n === 'ipad-land' ? 'after-ipad-land-favourite-few' : null }))]
   : SIZES.map(([n, w, h]) => ({ n, w, h, printer: null, shot: `live-${n}` }));
 
 for (const run of runs) {
   const { n, w, h } = run;
-  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}${run.favourite ? ' favourite controls' : ''}`;
+  const where = `${run.desk ? 'desk ' : ''}${n} ${w}x${h}${run.printer ? ` ${run.printer}` : ''}${run.clear ? ' all clear' : ''}${run.shot?.endsWith('night') ? ' night' : ''}${run.noCamera ? ' no camera' : ''}${run.favourite ? ' favourite controls' : ''}${run.few ? ' two needs' : ''}`;
+  const list = run.few ? FEW : NEEDS;
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const page = await ctx.newPage();
   if (run.at) await page.clock.setFixedTime(new Date(run.at));
-  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : NEEDS, !run.noCamera, run.favourite ? HOME_FAVOURITE : HOME);
+  if (STUB) await stub(page, run.printer, run.clear ? { count: 0, items: [], unread: [] } : list, !run.noCamera, run.favourite ? HOME_FAVOURITE : HOME);
   await page.goto(`${BASE}/wall${run.desk ? '?layout=desk' : ''}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.wall-board[data-printing]', { timeout: 15000 }).catch(() => problems.push(`${where}: the wall never loaded`));
   await page.waitForTimeout(400);
@@ -132,6 +136,7 @@ for (const run of runs) {
       needItems: document.querySelectorAll('.wall-needs .ui-need').length,
       needMore: document.querySelector('.wall-needs .ui-needs__more a')?.textContent.trim() ?? null,
       aside: document.querySelector('.wall-board')?.dataset.aside ?? '',
+      favourites: !!document.querySelector('.home-favourites')?.checkVisibility(),
       needEmpty: !!document.querySelector('.wall-needs .ui-needs__empty'),
       needTool: [...document.querySelectorAll('.wall-needs a.ui-need__link[target=_blank]')].map((a) => a.href),
       needInternal: [...document.querySelectorAll('.wall-needs a.ui-need__link:not([target])')].every((a) => a.hasAttribute('data-link')),
@@ -171,12 +176,18 @@ for (const run of runs) {
   if (STUB && !run.clear) {
     // Five rows, or on a one-screen size too tight for five: fewer whole rows, but only after the next hours and the
     // Favourite controls have stepped aside, and only as few as it takes (the owner's order, 21 Nov).
-    const trimmed = fits(w, h) && m.needItems >= 1 && m.needItems < 5;
-    if (m.needItems !== 5 && !trimmed) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly 5 of ${NEEDS.items.length})`);
-    if (trimmed && m.aside !== 'extra house') problems.push(`${where}: Needs you rows were dropped (${m.needItems} of 5) before the next hours and the Favourite controls stepped aside ("${m.aside}")`);
+    const full = Math.min(5, list.items.length), left = list.items.length - m.needItems;
+    const trimmed = fits(w, h) && m.needItems >= 1 && m.needItems < full;
+    if (m.needItems !== full && !trimmed) problems.push(`${where}: ${m.needItems} .ui-need items (want exactly ${full} of ${list.items.length})`);
+    if (trimmed && m.aside !== 'extra house') problems.push(`${where}: Needs you rows were dropped (${m.needItems} of ${full}) before the next hours and the Favourite controls stepped aside ("${m.aside}")`);
     if (trimmed && m.oneMoreFits) problems.push(`${where}: Needs you shows ${m.needItems} rows where ${m.needItems + 1} fit`);
-    if (!m.needMore) problems.push(`${where}: no "more on Home" link`);
-    else if (m.needMore !== `${NEEDS.items.length - m.needItems} more on Home`) problems.push(`${where}: ${m.needItems} of ${NEEDS.items.length} rows shown, but the link says "${m.needMore}"`);
+    if (left > 0 && !m.needMore) problems.push(`${where}: no "more on Home" link`);
+    else if (left > 0 && m.needMore !== `${left} more on Home`) problems.push(`${where}: ${m.needItems} of ${list.items.length} rows shown, but the link says "${m.needMore}"`);
+    else if (left <= 0 && m.needMore) problems.push(`${where}: a "${m.needMore}" link with nothing more to show`);
+    // The owner's house, a full list: all five rows show, the Favourite controls stepping aside where they must.
+    // They stay where there is room: beside two needs, and on the tall portrait screen whatever the list.
+    if (run.favourite && fits(w, h) && m.needItems !== full) problems.push(`${where}: ${m.needItems} rows beside the Favourite controls tile (want ${full}: the controls step aside first)`);
+    if (run.favourite && (run.few || n === 'portrait-screen') && !m.favourites) problems.push(`${where}: the Favourite controls stepped aside though the list fits beside them`);
     if (m.needTool.length !== 1 || new URL(m.needTool[0]).origin === new URL(BASE).origin) problems.push(`${where}: tool: link didn't resolve to the gate address (${m.needTool})`);
     if (!m.needInternal) problems.push(`${where}: an internal need link lacks data-link`);
   }
