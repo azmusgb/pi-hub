@@ -582,6 +582,7 @@ export function mountDashboard(state, parent) {
   hd.needsCount = h("b", { class: "hd-meter hd-needs__count" });
   hd.decisions = h("div", { class: "hd-needs__decisions", hidden: true });  // A33: the owner's open questions
   hd.asked = decisionsState();
+  hd.needsHeading = h("h2", { id: "hd-needs-h", tabindex: "-1" }, "Needs you");  // where focus goes when a group it was in goes
   hd.rack = h("ul", { class: "hd-rack__units" }, ...skeletonRows(5));
   hd.others = h("div", { class: "hd-others" });
   hd.root = h("div", { class: "hd" },
@@ -589,7 +590,7 @@ export function mountDashboard(state, parent) {
       h("div", { class: "hd-band__head" }, h("h2", { id: "hd-today-h" }, "Today so far"), hd.counts),
       hd.plot, hd.detail),
     h("section", { class: "hd-needs", "aria-labelledby": "hd-needs-h" },
-      h("div", { class: "hd-head" }, h("h2", { id: "hd-needs-h" }, "Needs you"), hd.needsCount), hd.needs, hd.decisions),
+      h("div", { class: "hd-head" }, hd.needsHeading, hd.needsCount), hd.needs, hd.decisions),
     h("section", { class: "hd-rack", "aria-labelledby": "hd-rack-h" },
       h("div", { class: "hd-head" }, h("h2", { id: "hd-rack-h" }, "Systems")), hd.rack, hd.others));
   parent.append(hd.root);
@@ -684,14 +685,27 @@ function renderRack(hd, rows, onReload) {
 function showDecisions(hd, needs, onReload) {
   hd.reload = onReload;
   const node = drawDecisions(hd.asked, needs, onReload);
-  if (hd.decisions.firstChild !== node) hd.decisions.replaceChildren(...(node ? [node] : []));
+  if (hd.decisions.firstChild !== node) {
+    hd.decisionsHadFocus = hd.decisions.contains(document.activeElement);
+    hd.decisions.replaceChildren(...(node ? [node] : []));
+  }
   hd.decisions.hidden = !node;
   return !!node?.querySelector(".ui-decision");
 }
 
+// Focus that was inside a group that went or was redrawn, and that nothing put back (the kit leaves it on the status
+// line once the last row is answered, which isn't one of Home's focusable things), goes to the Needs you heading,
+// never to the top of the page.
+function rescueFocus(hd) {
+  if (hd.decisionsHadFocus && !hd.root.contains(document.activeElement)) hd.needsHeading.focus({ preventScroll: true });
+  hd.decisionsHadFocus = false;
+}
+
 // Home couldn't read the hub at all (now.js failed()): the decisions shown stay, marked not current.
 export function decisionsUnread(state) {
-  if (state.hd) showDecisions(state.hd, null, state.hd.reload);
+  if (!state.hd) return;
+  showDecisions(state.hd, null, state.hd.reload);
+  rescueFocus(state.hd);
 }
 
 // One render of everything Home read. `src` holds each route's answer, null for one that didn't answer.
@@ -755,5 +769,6 @@ export function renderDashboard(state, src, onReload) {
     h("ul", { class: "hd-others__list" }, ...fine.map((r) => h("li", {},
       h("a", { href: recordPath(r.id), "data-link": true }, RECORD_LABELS[r.id] || r.id), h("span", {}, r.headline || r.state)))))] : []));
   refocus(hd, spot);
+  rescueFocus(hd);
   return rows;
 }
