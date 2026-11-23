@@ -136,6 +136,22 @@ def test_a_text_decision_has_no_options_and_the_link_is_optional():
     assert d["kind"] == "text" and d["options"] == [] and d["recommended"] is None and d["link"] is None
 
 
+def test_a_link_may_point_at_github():
+    link = "https://github.com/azmusgb/pi-hub/blob/main/docs/superpowers/specs/2026-11-21-amendment-a33-owner-decisions.md"
+    assert ask(link=link).json()["decision"]["link"] == link
+
+
+@pytest.mark.parametrize("link", ["https://gist.github.com/x", "https://github.com.evil.example/x",
+                                  "http://github.com/x", "https://github.com:8443/x"])
+def test_only_github_itself_over_https_is_added(link):
+    assert ask(link=link).status_code == 400
+
+
+def test_notify_links_still_refuse_github():
+    from hub.notify_routes import _click
+    assert _click("https://github.com/x") is None
+
+
 def test_the_link_is_rebuilt_from_its_parts():
     d = ask(link="https://HUB.rahe-home.duckdns.org?x=1#y").json()["decision"]
     assert d["link"] == "https://hub.rahe-home.duckdns.org/?x=1#y"

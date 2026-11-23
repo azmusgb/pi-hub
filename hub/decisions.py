@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from . import auth, db, releases
-from .notify_routes import _click, _line
+from .notify_routes import CLICK_HOSTS, _click, _line
 
 router = APIRouter(prefix="/api/decisions")
 
@@ -36,6 +36,8 @@ WHO_UNREADABLE = {"id": "pi:who:unreadable", "source": "Pi Hub", "tone": "bad", 
 UNREADABLE = {"id": "pi:decisions:unreadable", "source": "Pi Hub", "tone": "bad", "title": "Decisions can't be read",
               "detail": "Pi Hub couldn't read its list of open decisions, so none are shown."}
 
+# Decision links may also point at a spec or PR on GitHub (owner, 23 Nov); notify links stay on the hub hosts.
+LINK_HOSTS = CLICK_HOSTS | {"github.com"}
 COLUMNS = "id, source, kind, question, options, recommended, link, created_at, answered_at, answer, supersedes"
 SCHEMA = ("CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, source TEXT NOT NULL, question TEXT NOT NULL, "
           "options TEXT NOT NULL, recommended TEXT, link TEXT, kind TEXT NOT NULL, created_at INTEGER NOT NULL, "
@@ -132,13 +134,13 @@ def valid(body):
         raise ValueError(f"The question is one line of 1 to {QUESTION} characters.")
     options, recommended = _choices(kind, body)
     link = body.get("link")
-    if link is not None and _click(link) is None:
-        raise ValueError("link must be an https address on the hub or the Assistant.")
+    if link is not None and _click(link, LINK_HOSTS) is None:
+        raise ValueError("link must be an https address on the hub, the Assistant or github.com.")
     supersedes = body.get("supersedes")
     if supersedes is not None and (not isinstance(supersedes, str) or not ID.fullmatch(supersedes) or supersedes == did):
         raise ValueError("supersedes must name another decision's id.")
     return {"id": did, "kind": kind, "question": question, "options": options, "recommended": recommended,
-            "link": _click(link) if link is not None else None, "supersedes": supersedes}
+            "link": _click(link, LINK_HOSTS) if link is not None else None, "supersedes": supersedes}
 
 
 def _shape(row):
