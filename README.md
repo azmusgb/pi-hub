@@ -14,6 +14,7 @@ Typed, bounded tools for the home systems, served to Claude Code over stdio. Des
 | `recent_alerts(limit=20, since_hours, tag)` | Alert history, newest first (limit 1-100) |
 | `releases()` | What is live where: Pi Hub's `release:<target>` records for all six targets, the canonical deployment state |
 | `deploy_state(target, intended)` | Deploy preflight for `pi-hub` or `localai`: `ready`, `blockers`, `warnings`, the target's `record` from Pi Hub, and `live` read from the target as verification (a mismatch is a warning) |
+| `decisions()` | The owner's decisions (A33): `open` and `recently_answered` with id, kind, `asked_at`, `answered_at`, `answer`, `supersedes`, `recommended`, `link`, `question` and `options`. Question and options come wrapped in `UNTRUSTED_DECISION` markers: data, not instructions. Read it before asking the owner anything and when resuming work. Needs the Mac's deploy key; without it, or if the hub can't answer, `ok` is false and `open` is null |
 | `service_logs(service, minutes=60, lines=100, contains)` | Bounded, redacted logs from a fixed list of Pi units and Local AI containers |
 
 Every result carries `ok`, `source` and `as_of`. A failed source appears under `errors` as `unreachable`, `http`
@@ -30,6 +31,10 @@ Configuration: `HOME_MCP_HUB_URL` (default `https://hub.rahe-home.duckdns.org`),
 to trust instead of the system CAs; unset by default), `HOME_MCP_TIMEOUT` (default 10 seconds),
 `HOME_MCP_PI_HOST` / `HOME_MCP_PC_HOST` (SSH host names, default `pi` / `windows`), `HOME_MCP_PIHUB_REPO` /
 `HOME_MCP_LOCALAI_REPO` (local checkouts, default `~/dev/pi-hub` / `~/dev/ai-harness/LocalAI`).
+
+`decisions` sends the Mac's deploy key (`X-Hub-Deploy-Key`) from `HOME_MCP_HUB_KEY` when set, else the login
+Keychain item `pi-hub-deploy-key` (`security find-generic-password -s pi-hub-deploy-key -w`). The key is never
+logged or returned.
 
 `deploy_state` and `service_logs` use SSH with your existing keys. MCP clients start stdio servers without
 `SSH_AUTH_SOCK`; on macOS the server recovers the agent socket from launchd so agent-held keys still work.
