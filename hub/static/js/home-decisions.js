@@ -17,7 +17,7 @@ export const LINK_ORIGINS = [...["hub", "assistant"].map((id) => `https://${tool
 // (null: none read), the ids recorded here (a read that left before the write landed doesn't bring them back), the
 // answers in flight, and what is drawn.
 export function decisionsState() {
-  return { owner: false, last: null, recorded: new Set(), busy: 0, node: null, sig: "" };
+  return { owner: false, last: null, recorded: new Set(), busy: 0, node: null, sig: "", drawn: null };
 }
 
 const unrecorded = (ds, list) => list.filter((d) => !ds.recorded.has(d?.id));
@@ -43,10 +43,20 @@ export function decisionsView(ds, needs) {
   return ds.last.length ? { list: ds.last, state: "" } : null;
 }
 
-// The answer the hub says it holds for `id`, or false: a reply without one is never taken as recorded.
+// What a drawn group shows, as one string: two reads with the same one draw the same rows.
+const signature = (view) => JSON.stringify([view.state, view.list.map((d) => [d.id, d.kind, d.question, d.options,
+  d.recommended, d.link])]);
+
+// The answer the hub says it holds for `id`, or false: a reply without one is never taken as recorded. The kit takes
+// the recorded row out of the group itself, so the group drawn is now the list without it: the next read, which no
+// longer lists it, matches and redraws nothing (the other rows keep a failed note or a half-written answer).
 function held(ds, id, d) {
   if (!d || d.id !== id || !d.answered_at || typeof d.answer !== "string" || !d.answer) return false;
   ds.recorded.add(id);
+  if (ds.drawn) {
+    ds.drawn = { ...ds.drawn, list: ds.drawn.list.filter((x) => x?.id !== id) };
+    ds.sig = signature(ds.drawn);
+  }
   return d.answer;
 }
 
@@ -77,14 +87,13 @@ export function drawDecisions(ds, needs, reload) {
   const view = decisionsView(ds, needs);
   if (ds.busy && ds.node) return ds.node;
   if (!view) return (ds.node = null);
-  const sig = JSON.stringify([view.state, view.list.map((d) => [d.id, d.kind, d.question, d.options, d.recommended, d.link])]);
+  const sig = signature(view);
   if (ds.node && sig === ds.sig) return ds.node;
   const frag = globalThis.ApplianceNeeds.renderDecisions(view.list, {
     onAnswer: (id, answer) => answerDecision(ds, id, answer, reload), here: new URL(location.href), resolve: resolveLink,
     allowOrigins: LINK_ORIGINS, ...(view.state ? { state: view.state } : {}),
   });
-  ds.sig = sig;
-  ds.node = frag.firstChild || null;
+  Object.assign(ds, { sig, drawn: view, node: frag.firstChild || null });
   for (const a of ds.node?.querySelectorAll("a") || []) if (a.origin === location.origin) a.setAttribute("data-link", "");
   return ds.node;
 }

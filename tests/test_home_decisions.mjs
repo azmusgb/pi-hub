@@ -238,6 +238,57 @@ test("a refresh with nothing changed leaves the group alone: a half-written answ
   } finally { k.done(); }
 });
 
+// UI review, 23 Nov: after one answer was recorded, the next 15 s read (which no longer lists it) redrew the group and
+// wiped the other rows' "Not recorded" note, the "Recorded" line and a half-written answer.
+test("a recorded answer alone never redraws the rest: the next read keeps a failed note, the status and typed text", async () => {
+  const T = { id: "a28-print-route", kind: "text", question: "Which print route?", options: [], answered_at: null };
+  const k = home([json(200, { ok: true, recorded: true, decision: { ...D1, answered_at: 1795000000, answer: "System" } }),
+    json(500, { detail: "boom" })]);
+  try {
+    k.draw(owner([D1, D2, T]));
+    const node = k.group();
+    k.option("a27-activity", "System").click();
+    await settle();
+    k.option("a30-listing", "Yes").click();
+    await settle();
+    k.state.hd.decisions.querySelector("textarea").value = "The Pi's own";
+    k.draw(owner([D2, T]));  // the next poll: the hub no longer lists the recorded one
+    assert.equal(k.group(), node, "not redrawn");
+    assert.equal(text(k.group().querySelector(".ui-decisions__status")), "Recorded: System");
+    assert.equal(text(k.rows()[0].querySelector(".ui-decision__note")), "Not recorded. Try again.");
+    assert.equal(k.state.hd.decisions.querySelector("textarea").value, "The Pi's own");
+    k.draw(owner([D2, T, { ...D1, id: "a31-new", question: "A new one?" }]));  // a new decision still draws
+    assert.notEqual(k.group(), node);
+    assert.equal(k.rows().length, 3);
+  } finally { k.done(); }
+});
+
+test("answering the last decision by keyboard: when the group goes on the next read, focus moves to Needs you", async () => {
+  const k = home([json(200, { ok: true, recorded: true, decision: { ...D2, answered_at: 1795000000, answer: "Yes" } })]);
+  try {
+    k.draw(owner([D2]));
+    const b = k.option("a30-listing", "Yes");
+    b.focus();
+    b.click();
+    await settle();
+    assert.ok(k.group().contains(document.activeElement), "the kit puts focus on the group's status line");
+    k.draw(owner([]));
+    assert.equal(k.group(), null, "nothing open: the group goes");
+    assert.equal(document.activeElement, k.state.hd.root.querySelector("#hd-needs-h"), "focus is on the Needs you heading");
+    assert.equal(k.state.hd.root.querySelector("#hd-needs-h").getAttribute("tabindex"), "-1");
+  } finally { k.done(); }
+});
+
+test("focus on a decision button survives a redraw by its place, not the heading", () => {
+  const k = home();
+  try {
+    k.draw(owner([D1, D2]));
+    k.option("a30-listing", "Yes").focus();
+    k.draw(owner([D1, { ...D2, question: "List A30 in the baseline now?" }]));  // asked again: redrawn
+    assert.equal(document.activeElement, k.option("a30-listing", "Yes"));
+  } finally { k.done(); }
+});
+
 test("a spec link may go to the hub's hosts or github.com, and nowhere else", () => {
   const k = home();
   try {
