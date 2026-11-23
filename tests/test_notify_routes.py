@@ -1,5 +1,4 @@
 """Phone notices from the other systems (platform step 5, D2): POST /api/notify/{source}, sent through events.push()."""
-import hashlib
 import os
 import tempfile
 
@@ -8,11 +7,10 @@ os.environ["HUB_NO_SAMPLER"] = "1"
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from hub import app as hubapp, events, lab_guard, notify_routes, releases, system  # noqa: E402
+from helpers_keys import KEYS, LAB_KEY, install_keys  # noqa: E402
+from hub import app as hubapp, events, notify_routes, system  # noqa: E402
 
 client = TestClient(hubapp.app)
-KEYS = {"localai": "k-localai-" + "1" * 40, "mac": "k-mac-" + "2" * 40}
-LAB_KEY = "k-lab-" + "3" * 40
 HEADERS = {"localai": {"X-Hub-Deploy-Key": KEYS["localai"]}, "mac-watch": {"X-Hub-Deploy-Key": KEYS["mac"]},
            "print-lab": {"X-Hub-Mac-Key": LAB_KEY}}
 KIND = {"localai": "failed", "mac-watch": "outage", "print-lab": "verdict"}
@@ -26,14 +24,7 @@ def post(source, json=None, headers=None):
 @pytest.fixture(autouse=True)
 def fresh(monkeypatch, tmp_path):
     os.environ["HUB_DB"] = os.path.join(tempfile.mkdtemp(), "hub.db")
-    keys = tmp_path / "deploy_keys"
-    keys.mkdir()
-    for name, key in KEYS.items():
-        (keys / f"{name}.sha256").write_text(hashlib.sha256(key.encode()).hexdigest() + "\n")
-    monkeypatch.setattr(releases, "KEY_DIR", str(keys))
-    lab = tmp_path / "lab_mac_key.sha256"
-    lab.write_text(hashlib.sha256(LAB_KEY.encode()).hexdigest() + "\n")
-    monkeypatch.setattr(lab_guard, "KEY_HASH_FILE", str(lab))
+    install_keys(monkeypatch, tmp_path)
     monkeypatch.setattr(system, "ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
     sent = []
 
