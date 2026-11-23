@@ -114,7 +114,7 @@ async def test_lists_read_only_tools():
     async with Client(build_server(serve())) as client:
         tools = (await client.list_tools()).tools
     assert sorted(t.name for t in tools) == sorted(
-        ["hub_now", "printer_status", "pi_health", "source_freshness", "recent_alerts", "releases", "deploy_state", "service_logs"])
+        ["hub_now", "printer_status", "pi_health", "source_freshness", "recent_alerts", "releases", "deploy_state", "service_logs", "decisions"])
     assert all(t.annotations.read_only_hint for t in tools)
 
 
