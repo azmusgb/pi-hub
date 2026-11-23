@@ -765,42 +765,6 @@
    "needs": "pc"
   },
   {
-   "id": "changes-in-progress",
-   "system": "assistant",
-   "area": "assistant",
-   "section": "improve",
-   "label": "In progress",
-   "purpose": "Changes being planned, tested or waiting for your OK",
-   "path": "/assistant/changes/in-progress",
-   "role": "filter",
-   "parent": "changes",
-   "view": "inProgress",
-   "reach": [
-    "chips",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "changes-shipped",
-   "system": "assistant",
-   "area": "assistant",
-   "section": "improve",
-   "label": "Shipped",
-   "purpose": "What changed, release by release",
-   "path": "/assistant/changes/shipped",
-   "role": "filter",
-   "parent": "changes",
-   "view": "shipped",
-   "reach": [
-    "chips",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
    "id": "signals",
    "system": "assistant",
    "area": "assistant",
@@ -854,16 +818,33 @@
    "needs": "pc"
   },
   {
-   "id": "assistant-status",
+   "id": "assistant-system",
    "system": "assistant",
    "area": "system",
    "label": "Assistant",
-   "purpose": "Whether the Assistant is working, and which optional services are up",
-   "path": "/assistant/status",
+   "purpose": "Whether the Assistant is working, its models and tools, settings and audit log",
+   "path": "/assistant/system",
    "role": "page",
-   "view": "status",
+   "view": "system",
    "reach": [
     "strip",
+    "palette",
+    "map"
+   ],
+   "needs": "pc"
+  },
+  {
+   "id": "status",
+   "system": "assistant",
+   "area": "system",
+   "label": "Assistant status",
+   "purpose": "Whether the Assistant is working, and which optional services are up",
+   "path": "/assistant/status",
+   "role": "detail",
+   "parent": "assistant-system",
+   "view": "status",
+   "reach": [
+    "card:assistant-system",
     "palette",
     "map"
    ],
@@ -876,11 +857,11 @@
    "label": "Models",
    "purpose": "Installed models and what's loaded now",
    "path": "/assistant/models",
-   "role": "tab",
-   "parent": "assistant-status",
+   "role": "detail",
+   "parent": "assistant-system",
    "view": "models",
    "reach": [
-    "tabs",
+    "card:assistant-system",
     "palette",
     "map"
    ],
@@ -893,101 +874,53 @@
    "label": "Developer tools",
    "purpose": "Files, Repository, PowerShell, Browser & computer and n8n workflows",
    "path": "/assistant/tools",
-   "role": "tab",
-   "parent": "assistant-status",
+   "role": "detail",
+   "parent": "assistant-system",
    "view": "tools",
    "reach": [
-    "tabs",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "tools-files",
-   "system": "assistant",
-   "area": "system",
-   "label": "Files",
-   "purpose": "Browse, search and safely edit mounted folders",
-   "path": "/assistant/tools/files",
-   "role": "detail",
-   "parent": "developer-tools",
-   "view": "workbench",
-   "reach": [
-    "card:developer-tools",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "tools-repository",
-   "system": "assistant",
-   "area": "system",
-   "label": "Repository",
-   "purpose": "Inspect repos and run allow-listed commands",
-   "path": "/assistant/tools/repository",
-   "role": "detail",
-   "parent": "developer-tools",
-   "view": "repoTools",
-   "reach": [
-    "card:developer-tools",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "tools-powershell",
-   "system": "assistant",
-   "area": "system",
-   "label": "PowerShell",
-   "purpose": "Approval-gated scripts on the Windows host",
-   "path": "/assistant/tools/powershell",
-   "role": "detail",
-   "parent": "developer-tools",
-   "view": "powershell",
-   "reach": [
-    "card:developer-tools",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "tools-browser",
-   "system": "assistant",
-   "area": "system",
-   "label": "Browser & computer",
-   "purpose": "Fetch pages and run approved local actions",
-   "path": "/assistant/tools/browser",
-   "role": "detail",
-   "parent": "developer-tools",
-   "view": "actions",
-   "reach": [
-    "card:developer-tools",
-    "palette",
-    "map"
-   ],
-   "needs": "pc"
-  },
-  {
-   "id": "tools-n8n",
-   "system": "assistant",
-   "area": "system",
-   "label": "n8n workflows",
-   "purpose": "Build advanced workflows in n8n",
-   "path": "/assistant/tools/n8n",
-   "role": "detail",
-   "parent": "developer-tools",
-   "view": "automations",
-   "reach": [
-    "card:developer-tools",
+    "card:assistant-system",
     "palette",
     "map"
    ],
    "tools": [
     "n8n"
+   ],
+   "cards": [
+    {
+     "id": "files",
+     "label": "Files",
+     "purpose": "Browse, search and safely edit mounted folders",
+     "path": "/assistant/tools/files",
+     "view": "workbench"
+    },
+    {
+     "id": "repository",
+     "label": "Repository",
+     "purpose": "Inspect repos and run allow-listed commands",
+     "path": "/assistant/tools/repository",
+     "view": "repoTools"
+    },
+    {
+     "id": "powershell",
+     "label": "PowerShell",
+     "purpose": "Approval-gated scripts on the Windows host",
+     "path": "/assistant/tools/powershell",
+     "view": "powershell"
+    },
+    {
+     "id": "browser",
+     "label": "Browser & computer",
+     "purpose": "Fetch pages and run approved local actions",
+     "path": "/assistant/tools/browser",
+     "view": "actions"
+    },
+    {
+     "id": "n8n",
+     "label": "n8n workflows",
+     "purpose": "Build advanced workflows in n8n",
+     "path": "/assistant/tools/n8n",
+     "view": "automations"
+    }
    ],
    "needs": "pc"
   },
@@ -998,11 +931,11 @@
    "label": "Assistant settings",
    "purpose": "Notifications, sign-in, home location and the pages you open",
    "path": "/assistant/settings",
-   "role": "tab",
-   "parent": "assistant-status",
+   "role": "detail",
+   "parent": "assistant-system",
    "view": "settings",
    "reach": [
-    "tabs",
+    "card:assistant-system",
     "palette",
     "map"
    ],
@@ -1015,11 +948,11 @@
    "label": "Audit log",
    "purpose": "What happened on the appliance, and when",
    "path": "/assistant/audit-log",
-   "role": "tab",
-   "parent": "assistant-status",
+   "role": "detail",
+   "parent": "assistant-system",
    "view": "activity",
    "reach": [
-    "tabs",
+    "card:assistant-system",
     "palette",
     "map"
    ],
@@ -1048,6 +981,49 @@
     "map"
    ],
    "needs": "mac"
+  }
+ ],
+ "redirects": [
+  {
+   "id": "changes-in-progress",
+   "path": "/assistant/changes/in-progress",
+   "to": "changes",
+   "stage": "in-progress"
+  },
+  {
+   "id": "changes-shipped",
+   "path": "/assistant/changes/shipped",
+   "to": "changes",
+   "stage": "shipped"
+  },
+  {
+   "id": "assistant-status",
+   "to": "status"
+  },
+  {
+   "id": "tools-files",
+   "to": "developer-tools",
+   "card": "files"
+  },
+  {
+   "id": "tools-repository",
+   "to": "developer-tools",
+   "card": "repository"
+  },
+  {
+   "id": "tools-powershell",
+   "to": "developer-tools",
+   "card": "powershell"
+  },
+  {
+   "id": "tools-browser",
+   "to": "developer-tools",
+   "card": "browser"
+  },
+  {
+   "id": "tools-n8n",
+   "to": "developer-tools",
+   "card": "n8n"
   }
  ]
 }
