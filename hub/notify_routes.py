@@ -68,9 +68,9 @@ def _line(v, limit):
     return v[:limit] or None
 
 
-def _click(v):
+def _click(v, hosts=CLICK_HOSTS):
     """The tap link rebuilt from its parsed parts, or None. Plain printable ASCII only (no backslash, space, `@` or
-    control characters), so no parser reads a different host than the one checked; https on a known host, no port."""
+    control characters), so no parser reads a different host than the one checked; https on one of `hosts`, no port."""
     if not isinstance(v, str) or not 0 < len(v) <= 300 or not SAFE_URL.fullmatch(v):
         return None
     try:
@@ -78,7 +78,7 @@ def _click(v):
         port = u.port
     except ValueError:
         return None
-    if u.scheme != "https" or u.hostname not in CLICK_HOSTS or port is not None or u.username or u.password:
+    if u.scheme != "https" or u.hostname not in hosts or port is not None or u.username or u.password:
         return None
     return f"https://{u.hostname}{u.path or '/'}" + (f"?{u.query}" if u.query else "") + (
         f"#{u.fragment}" if u.fragment else "")

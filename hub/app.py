@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, systems, today
+from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, decisions, systems, today
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -31,6 +31,7 @@ if QUICK:
         app.include_router(_router)
 app.include_router(display_routes.router)
 app.include_router(notify_routes.router)
+app.include_router(decisions.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
@@ -48,6 +49,21 @@ if os.environ.get("HUB_NO_SAMPLER") != "1":
 
 def fresh(data):
     return JSONResponse(data, headers={"Cache-Control": "no-store"})
+
+
+def _keyed_source(request: Request):
+    """Another system's phone notice (platform step 5) or a session on the Mac asking the owner (A33), carrying a key:
+    True when it is that source's own key, verified (the post is exempt from the page check); the refusal when it isn't;
+    None when the request is neither (no key header, or another path: an answer to a decision never is one)."""
+    if "x-hub-deploy-key" not in request.headers and "x-hub-mac-key" not in request.headers:
+        return None
+    path = request.url.path
+    if path.startswith("/api/notify/"):
+        if not notify_routes.key_ok(request, path[len("/api/notify/"):]):
+            return JSONResponse({"detail": notify_routes.WRONG_KEY}, status_code=401)
+        return True
+    asker = decisions.added_by(path)
+    return (decisions.key_refusal(request, asker) or True) if asker else None
 
 
 @app.middleware("http")
@@ -87,12 +103,10 @@ async def guard(request: Request, call_next):
         if not releases.key_ok(request, request.url.path[len("/api/releases/"):]):
             return JSONResponse({"detail": "That deploy key is missing or wrong."}, status_code=401)
         deploy = True
-    # Another system's phone notice (platform step 5): exempt only with that source's own key, verified.
-    if unsafe and request.url.path.startswith("/api/notify/") and (
-            "x-hub-deploy-key" in request.headers or "x-hub-mac-key" in request.headers):
-        if not notify_routes.key_ok(request, request.url.path[len("/api/notify/"):]):
-            return JSONResponse({"detail": notify_routes.WRONG_KEY}, status_code=401)
-        deploy = True
+    keyed = _keyed_source(request) if unsafe else None
+    if isinstance(keyed, Response):
+        return keyed
+    deploy = deploy or keyed is True
     if unsafe and not shortcut and not webhook and not mac and not display and not deploy:
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         if urlparse(origin).netloc != request.headers.get("host", ""):
@@ -221,8 +235,13 @@ async def api_release_report(target: str, request: Request):
 
 
 @app.get("/api/needs")
-def api_needs():
-    return fresh(needs.current())
+def api_needs(request: Request):
+    data = needs.current()
+    try:
+        owner = auth.who(request)[0] == "owner"
+    except sqlite3.Error:  # who can't be told: decisions stay out, and the page says why
+        return fresh(decisions.fault(data, decisions.WHO_UNREADABLE))
+    return fresh(decisions.attach(data) if owner else data)  # A33: beside items, for the owner only
 
 
 @app.get("/api/system/backups")
