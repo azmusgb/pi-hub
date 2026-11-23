@@ -7,7 +7,7 @@ import { plainInternet, tileState, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { problemsBadge } from "./control-room.js";
-import { leaveDashboard, mountDashboard, renderDashboard } from "./home-dashboard.js";
+import { decisionsUnread, leaveDashboard, mountDashboard, renderDashboard } from "./home-dashboard.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallFitSteps, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
@@ -1286,6 +1286,7 @@ export function failed(state) {
   state.summary.dataset.tone = "bad";
   state.summary.hidden = false;  // Home may have hidden an empty line
   if (state.hero) state.hero.hidden = false;
+  decisionsUnread(state);  // the owner's decisions shown stay, marked not current (A33)
 }
 
 // The wall: Needs you is fetched with the rest (it decides the first tile), then each tile is drawn in place.

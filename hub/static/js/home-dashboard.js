@@ -6,6 +6,7 @@ import { clockTime, h } from "./core.js";
 import { printerButtons } from "./printer-actions.js";
 import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { couldntCheck } from "./wording.js";
+import { decisionsState, drawDecisions } from "./home-decisions.js";
 import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, recordTone, renderProblems,
   splitNowRecords } from "./control-room.js";
 
@@ -579,6 +580,8 @@ export function mountDashboard(state, parent) {
   hd.detail = h("p", { class: "hd-band__detail", "aria-live": "polite" });
   hd.needs = h("div", { class: "hd-needs__list" }, h("span", { class: "ui-skeleton", style: "height:4em" }));
   hd.needsCount = h("b", { class: "hd-meter hd-needs__count" });
+  hd.decisions = h("div", { class: "hd-needs__decisions", hidden: true });  // A33: the owner's open questions
+  hd.asked = decisionsState();
   hd.rack = h("ul", { class: "hd-rack__units" }, ...skeletonRows(5));
   hd.others = h("div", { class: "hd-others" });
   hd.root = h("div", { class: "hd" },
@@ -586,7 +589,7 @@ export function mountDashboard(state, parent) {
       h("div", { class: "hd-band__head" }, h("h2", { id: "hd-today-h" }, "Today so far"), hd.counts),
       hd.plot, hd.detail),
     h("section", { class: "hd-needs", "aria-labelledby": "hd-needs-h" },
-      h("div", { class: "hd-head" }, h("h2", { id: "hd-needs-h" }, "Needs you"), hd.needsCount), hd.needs),
+      h("div", { class: "hd-head" }, h("h2", { id: "hd-needs-h" }, "Needs you"), hd.needsCount), hd.needs, hd.decisions),
     h("section", { class: "hd-rack", "aria-labelledby": "hd-rack-h" },
       h("div", { class: "hd-head" }, h("h2", { id: "hd-rack-h" }, "Systems")), hd.rack, hd.others));
   parent.append(hd.root);
@@ -612,7 +615,7 @@ function light(hd, target) {
 
 // What has focus inside Home, as its position among Home's focusable things, so a refresh that redraws the page can
 // put it back (a keyboard user is not dropped to the top every 15 s).
-const FOCUSABLE = "a[href], button, summary, [tabindex='0']";
+const FOCUSABLE = "a[href], button, summary, textarea, [tabindex='0']";
 function focusSpot(hd) {
   const el = document.activeElement;
   if (!el || !hd.root.contains(el)) return -1;
@@ -676,6 +679,21 @@ function renderRack(hd, rows, onReload) {
   hd.rack.replaceChildren(...rows.map((r) => rackRow(r, onReload, compact)));
 }
 
+// The Decisions group into its own slot (A33), left in place when it is the same node, so a refresh doesn't move a row
+// someone is answering. True when it shows open questions.
+function showDecisions(hd, needs, onReload) {
+  hd.reload = onReload;
+  const node = drawDecisions(hd.asked, needs, onReload);
+  if (hd.decisions.firstChild !== node) hd.decisions.replaceChildren(...(node ? [node] : []));
+  hd.decisions.hidden = !node;
+  return !!node?.querySelector(".ui-decision");
+}
+
+// Home couldn't read the hub at all (now.js failed()): the decisions shown stay, marked not current.
+export function decisionsUnread(state) {
+  if (state.hd) showDecisions(state.hd, null, state.hd.reload);
+}
+
 // One render of everything Home read. `src` holds each route's answer, null for one that didn't answer.
 export function renderDashboard(state, src, onReload) {
   const hd = state.hd;
@@ -708,9 +726,10 @@ export function renderDashboard(state, src, onReload) {
     state.probs = probs;
     hd.needsCount.textContent = probs?.length ? String(probs.length) : "";
     const note = down.length ? h("p", { class: "hd-needs__down" }, `${down.join(". ")}. It will keep trying.`) : null;
+    const asked = showDecisions(hd, src.needs, onReload);  // under the condition rows; never counted (A33)
     hd.needs.replaceChildren(...[
       probs?.length ? renderProblems(probs, onReload) : null,
-      note || (probs?.length ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
+      note || (probs?.length || asked ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
     ].filter(Boolean));
     (probs || []).forEach((p, i) => {
       const li = hd.needs.querySelector(".ui-needs")?.children?.[i];
