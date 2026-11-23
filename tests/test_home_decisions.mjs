@@ -263,7 +263,8 @@ test("a recorded answer alone never redraws the rest: the next read keeps a fail
   } finally { k.done(); }
 });
 
-test("answering the last decision by keyboard: when the group goes on the next read, focus moves to Needs you", async () => {
+// UI re-review, 23 Nov: dropping the group on the next read sent focus to the heading, above the screen.
+test("answering the last decision by keyboard: the next read keeps the group while focus is in it, then drops it", async () => {
   const k = home([json(200, { ok: true, recorded: true, decision: { ...D2, answered_at: 1795000000, answer: "Yes" } })]);
   try {
     k.draw(owner([D2]));
@@ -271,11 +272,33 @@ test("answering the last decision by keyboard: when the group goes on the next r
     b.focus();
     b.click();
     await settle();
-    assert.ok(k.group().contains(document.activeElement), "the kit puts focus on the group's status line");
+    const node = k.group();
+    assert.ok(node.contains(document.activeElement), "the kit puts focus on the group's status line");
+    k.draw(owner([]));  // Home's next read: nothing open
+    assert.equal(k.group(), node, "kept while focus is in it");
+    assert.ok(node.contains(document.activeElement), "focus stays where the kit put it");
+    assert.equal(text(node.querySelector(".ui-decisions__status")), "Recorded: Yes");
+    k.state.hd.root.querySelector(".hd-unit__go").focus();  // the owner moves on
     k.draw(owner([]));
-    assert.equal(k.group(), null, "nothing open: the group goes");
-    assert.equal(document.activeElement, k.state.hd.root.querySelector("#hd-needs-h"), "focus is on the Needs you heading");
-    assert.equal(k.state.hd.root.querySelector("#hd-needs-h").getAttribute("tabindex"), "-1");
+    assert.equal(k.group(), null, "the first read after focus left drops it");
+    assert.equal(k.state.hd.decisions.hidden, true);
+    assert.equal(document.activeElement, k.state.hd.root.querySelector(".hd-unit__go"), "focus is left alone");
+  } finally { k.done(); }
+});
+
+test("any other removal with focus inside moves focus to the Needs you heading and brings it into view", () => {
+  const k = home();
+  try {
+    k.draw(owner([D2]));
+    k.option("a30-listing", "Yes").focus();
+    const heading = k.state.hd.root.querySelector("#hd-needs-h");
+    const scrolls = [];
+    heading.scrollIntoView = (o) => scrolls.push(o);
+    k.draw(needs(undefined));  // signed out since: the group goes from under the focused button
+    assert.equal(k.group(), null);
+    assert.equal(document.activeElement, heading);
+    assert.equal(heading.getAttribute("tabindex"), "-1");
+    assert.deepEqual(scrolls, [{ block: "nearest", behavior: "instant" }], "into view, never a smooth scroll");
   } finally { k.done(); }
 });
 

@@ -685,19 +685,28 @@ function renderRack(hd, rows, onReload) {
 function showDecisions(hd, needs, onReload) {
   hd.reload = onReload;
   const node = drawDecisions(hd.asked, needs, onReload);
-  if (hd.decisions.firstChild !== node) {
-    hd.decisionsHadFocus = hd.decisions.contains(document.activeElement);
+  const shown = hd.decisions.firstChild;
+  const focused = shown?.contains(document.activeElement);
+  // The last row answered: the kit leaves focus on the group's "Recorded: …" line. A read with nothing open keeps
+  // that group, and focus with it, until focus moves on; the first read after that takes it away.
+  if (!node && focused && !shown.querySelector(".ui-decision")) return false;
+  if (shown !== node) {
+    hd.decisionsHadFocus = focused;
     hd.decisions.replaceChildren(...(node ? [node] : []));
+    if (!node) rescueFocus(hd);  // gone: nothing of it to restore by position, so straight to the heading
   }
   hd.decisions.hidden = !node;
   return !!node?.querySelector(".ui-decision");
 }
 
-// Focus that was inside a group that went or was redrawn, and that nothing put back (the kit leaves it on the status
-// line once the last row is answered, which isn't one of Home's focusable things), goes to the Needs you heading,
-// never to the top of the page.
+// Focus that was inside a group that went, or was redrawn and not put back by position, goes to the Needs you heading,
+// never to the top of the page, and the heading is brought into view if it is off screen (at once: no smooth scroll,
+// so reduced motion is respected).
 function rescueFocus(hd) {
-  if (hd.decisionsHadFocus && !hd.root.contains(document.activeElement)) hd.needsHeading.focus({ preventScroll: true });
+  if (hd.decisionsHadFocus && !hd.root.contains(document.activeElement)) {
+    hd.needsHeading.focus({ preventScroll: true });
+    hd.needsHeading.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }
   hd.decisionsHadFocus = false;
 }
 
