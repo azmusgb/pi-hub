@@ -119,6 +119,19 @@ def test_local_ai_items_open_the_assistant_page_they_are_about():
     assert links["localai:odd-1"] == "tool:assistant"
 
 
+def test_local_ai_items_open_a_live_assistant_view_never_a_retired_id():
+    """A27 (kit 2.26.0): the Assistant's admin and tool pages became cards. Each view a Needs you item opens is still a
+    row's or a card's view in the kit's list, and none is an id the list retired (its `redirects`)."""
+    listed = json.loads((ROOT / "hub/static/ui/pages.json").read_text())
+    rows = [p for p in listed["pages"] if p["system"] == "assistant"]
+    views = {p["view"] for p in rows if "view" in p} | {c["view"] for p in rows for c in p.get("cards", [])}
+    retired = {r["id"] for r in listed["redirects"]}
+    assert {"assistant-status", "tools-files", "changes-shipped"} <= retired
+    for kind, link in needs.ASSISTANT_VIEW.items():
+        view = link.split("#", 1)[1]
+        assert view in views and view not in retired, (kind, link)
+
+
 def test_local_ai_the_display_and_the_pc_open_health_where_they_are_shown():
     """Workshop flow W.1: their cards left Workshop; Health shows their state."""
     for key in ("local_ai", "workshop_display", "pc"):
