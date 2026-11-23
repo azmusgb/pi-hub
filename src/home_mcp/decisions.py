@@ -72,6 +72,9 @@ async def read(client_factory: Callable[[], httpx.AsyncClient], runner) -> tuple
         error = {"source": SOURCE, "error": "no_key", "detail": f"{NO_KEY} ({why})"}
         return failed, [error]
     async with client_factory() as c:
+        if c.base_url.scheme != "https":  # the hub refuses a key over http anyway; never put it on the wire in clear
+            return failed, [{"source": SOURCE, "error": "not_https",
+                             "detail": "HOME_MCP_HUB_URL isn't https, so the key isn't sent"}]
         data, err = await hub.get(c, PATH, headers={"X-Hub-Deploy-Key": key})
     if err is not None:
         detail = err["detail"]

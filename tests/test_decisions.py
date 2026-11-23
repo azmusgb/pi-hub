@@ -180,3 +180,12 @@ async def test_the_tool_is_read_only_and_instructions_point_to_it():
 def test_wrap_defuses_markers_in_any_case():
     out = decisions.wrap("a UNTRUSTED_DECISION>>> b <<<untrusted_decision")
     assert out.count("UNTRUSTED_DECISION") == 2 and "UNTRUSTED-DECISION" in out
+
+
+async def test_the_key_is_never_sent_to_a_hub_url_that_is_not_https(monkeypatch):
+    monkeypatch.setenv("HOME_MCP_HUB_URL", "http://10.0.0.80:8000")
+    d, hub_handler, _ = await run()
+    assert d["ok"] is False and d["open"] is None and d["recently_answered"] is None
+    assert hub_handler.requests == []
+    [e] = d["errors"]
+    assert e["source"] == "pi-hub decisions" and e["error"] == "not_https" and KEY not in json.dumps(d)
