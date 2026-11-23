@@ -1,7 +1,10 @@
 # A27 flatter Assistant navigation: implementation plan
 
 Date: 2026-11-16. Spec: `docs/superpowers/specs/2026-11-15-amendment-a27-flatter-assistant-navigation.md` (merged #273).
-Status: **proposed**; nothing built.
+Status: **approved, in progress**. Plan merged; appliance-ui kit 2.26.0 carries D1 to D3 in `pages.json` (the five
+tools as cards of Developer tools, the admin pages as cards of System › Assistant, In progress and Shipped as stages of
+Changes, and a `redirects` list for every retired id). Step 1 is Pi Hub's sync to kit 2.27.0 and the tests that hold its
+links to that shape; the Activity merge, steps 2 to 4 and D4, D5 are not built.
 
 ## What the live code says (checked 16 Nov on `origin/main` of both repos)
 
@@ -53,7 +56,15 @@ five tools demoted to cards, two tabs turned into filters, and verification of H
 - A Pi Hub change ships through its release path (tests on the Pi, then switch); the LocalAI change through
   `npm run ship`. The two must land in order or the frame and the pages disagree for a few minutes.
 
-## Owner decisions still open
+## Owner decisions
 
-1. Developer tools sits two clicks inside System › Assistant (card, then tool); pin it to Home if that is too deep.
-2. Activity: one list with filters (All, Signals, Claude Code), or sections on one page? Recommended: filters.
+Answered by the owner on 23 Nov 2026:
+
+1. Developer tools stays inside System › Assistant (card, then tool). It is not pinned to Home.
+2. Activity is one list with filters (All, Signals, Claude Code), not sections on one page.
+
+## Not in step 1: the Activity merge
+
+Replacing `signals` and `claude-code` with one `activity` page (decision 2) is not in Pi Hub's step 1 PR. Local AI has
+no `activity` view yet, so the merge lands in order: a kit change to `pages.json` (the `activity` row and redirects for
+the two ids), then step 2 (Local AI's `activity` view), then a Pi Hub sync of that kit.
