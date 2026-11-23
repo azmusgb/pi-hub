@@ -129,17 +129,28 @@ for (const [width, height] of [[390, 844], [1366, 900]]) {
     if (await status() !== `Recorded: ${PICK}`) bad(`after a poll the status reads "${await status()}"`);
     if (await page.evaluate(() => document.activeElement?.closest('.ui-decision')?.dataset.decision) !== SECOND.id) bad('after a poll focus left the failed row');
 
-    // Try again (focus is still on the option) and record it: the last row goes; on the next read the group goes, and
-    // focus lands in Needs you, never on the page's body.
+    // Try again (focus is still on the option) and record it: the last row goes. Home's next read has nothing open,
+    // but the group (its "Recorded" line) stays while focus is in it, and the focused element is on screen (UI
+    // re-reviews, 23 Nov: focus fell to the body, then to a heading above the screen).
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => !document.querySelector('.hd-needs .ui-decision'), null, { timeout: 5000 })
       .catch(() => bad('the retried row stayed'));
     if (await status() !== `Recorded: ${FAIL}`) bad(`after the retry the status reads "${await status()}"`);
     await poll().catch(() => bad('Home never read Needs you again after the last answer'));
-    const gone = await page.evaluate(() => ({ group: !!document.querySelector('.hd-needs .ui-decisions'),
-      tag: document.activeElement?.tagName, inNeeds: !!document.activeElement?.closest('.hd-needs') }));
-    if (gone.group) bad('the empty group stayed after the read');
-    if (gone.tag === 'BODY' || !gone.inNeeds) bad(`after the last answer and a read, focus is on ${gone.tag}, outside Needs you`);
+    const seen = await page.evaluate(() => {
+      const a = document.activeElement, r = a?.getBoundingClientRect();
+      return { group: !!document.querySelector('.hd-needs .ui-decisions'), tag: a?.tagName, inNeeds: !!a?.closest('.hd-needs'),
+        visible: !!r && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+        rect: r ? [Math.round(r.top), Math.round(r.bottom)] : null };
+    });
+    if (!seen.group) bad('the group went while focus was in it');
+    if (seen.tag === 'BODY' || !seen.inNeeds) bad(`after the last answer and a read, focus is on ${seen.tag}, outside Needs you`);
+    if (!seen.visible) bad(`after the last answer and a read, the focused ${seen.tag} is off screen (${seen.rect} in ${height})`);
+    await shot('recorded');
+    // Focus moves on: the next read takes the empty group away.
+    await page.keyboard.press('Tab');
+    await poll().catch(() => bad('Home never read Needs you again after focus moved on'));
+    if (await page.$('.hd-needs .ui-decisions')) bad('the empty group stayed after focus left it and Home read again');
     await page.screenshot({ path: `${OUT}decisions-page-${width}-${colorScheme}.png`, fullPage: true });
     await ctx.close();
   }
