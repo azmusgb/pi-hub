@@ -39,11 +39,13 @@ def make_client(transport: httpx.AsyncBaseTransport | None = None) -> httpx.Asyn
                              headers={"Accept": "application/json"})
 
 
-async def get(client: httpx.AsyncClient, path: str) -> tuple[object | None, dict | None]:
-    """(data, None) on success, else (None, failure) with error unreachable, http or bad_json."""
+async def get(client: httpx.AsyncClient, path: str,
+              headers: dict[str, str] | None = None) -> tuple[object | None, dict | None]:
+    """(data, None) on success, else (None, failure) with error unreachable, http or bad_json. headers are sent with
+    this request only; nothing from them enters a failure."""
     source = f"pi-hub {path}"
     try:
-        r = await client.get(path)
+        r = await client.get(path, headers=headers)
     except httpx.TimeoutException:
         return None, {"source": source, "error": "unreachable", "detail": "timed out"}
     except httpx.HTTPError as e:
