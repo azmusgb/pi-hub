@@ -1,7 +1,8 @@
 // A33 P2 browser check (plan 2026-11-21-a33-owner-decisions, criteria 2 and 6): Home's Needs you as the owner with two
 // open decisions, at 390 and 1366 px, light and dark. Keyboard only: Tab to an option and press Enter; the row leaves and
-// says what was recorded, the other stays. Then a failed answer (the hub answers 500) keeps its row and says so. axe
-// (no serious or critical findings) and screenshots before and after.
+// says what was recorded, the other stays. Then a failed answer (the hub answers 500) keeps its row and says so, and
+// still does after Home's next read; the retry is recorded, and once the group goes focus stays in Needs you. axe (no
+// serious or critical findings) and screenshots before and after.
 // The answers never leave the browser: /api/needs and the answer POST are answered here (the preview is read-only and
 // refuses POSTs anyway). The seed is fixtures/decisions/needs.json, which the preview also serves with --fixture.
 // Usage (from the Mac): cd tests/browser && npm install
@@ -16,7 +17,7 @@ const OUT = new URL('./out/', import.meta.url).pathname;
 const SEED = JSON.parse(readFileSync(new URL('./fixtures/decisions/needs.json', import.meta.url), 'utf8'));
 const [FIRST, SECOND] = SEED.decisions.open;
 const PICK = FIRST.options[1];   // the recommended option: answered, and recorded
-const FAIL = SECOND.options[0];  // answered, and the hub fails the write
+const FAIL = SECOND.options[0];  // answered: the hub fails the write, then records the retry
 mkdirSync(OUT, { recursive: true });
 
 const problems = [];
@@ -39,8 +40,11 @@ for (const [width, height] of [[390, 844], [1366, 900]]) {
       const id = decodeURIComponent(new URL(req.url()).pathname.split('/')[3]);
       const { answer } = req.postDataJSON() || {};
       posts.push({ id, answer, method: req.method() });
-      if (id !== FIRST.id) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"boom"}' });
-      const d = { ...FIRST, answered_at: 1795431000, answer };
+      // The second decision's first write fails; its retry is recorded.
+      if (id !== FIRST.id && posts.filter((p) => p.id === id).length === 1) {
+        return route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"boom"}' });
+      }
+      const d = { ...SEED.decisions.open.find((x) => x.id === id), answered_at: 1795431000, answer };
       answered.set(id, d);
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, recorded: true, decision: d }) });
     });
@@ -115,6 +119,27 @@ for (const [width, height] of [[390, 844], [1366, 900]]) {
     if (back !== SECOND.id) bad('focus did not stay on the failed row');
     await axe('one recorded, one failed');
     await shot('answered');
+
+    // Home's next 15 s read no longer lists the recorded one: the failed note, the Recorded line and focus stay
+    // (UI review, 23 Nov: that poll redrew the group and wiped both).
+    const poll = () => page.waitForResponse((r) => r.url().endsWith('/api/needs'), { timeout: 20000 }).then(() => page.waitForTimeout(600));
+    await poll().catch(() => bad('Home never read Needs you again'));
+    const kept = await rows();
+    if (kept.length !== 1 || kept[0].note !== 'Not recorded. Try again.') bad(`after a poll the failed note went: ${JSON.stringify(kept)}`);
+    if (await status() !== `Recorded: ${PICK}`) bad(`after a poll the status reads "${await status()}"`);
+    if (await page.evaluate(() => document.activeElement?.closest('.ui-decision')?.dataset.decision) !== SECOND.id) bad('after a poll focus left the failed row');
+
+    // Try again (focus is still on the option) and record it: the last row goes; on the next read the group goes, and
+    // focus lands in Needs you, never on the page's body.
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('.hd-needs .ui-decision'), null, { timeout: 5000 })
+      .catch(() => bad('the retried row stayed'));
+    if (await status() !== `Recorded: ${FAIL}`) bad(`after the retry the status reads "${await status()}"`);
+    await poll().catch(() => bad('Home never read Needs you again after the last answer'));
+    const gone = await page.evaluate(() => ({ group: !!document.querySelector('.hd-needs .ui-decisions'),
+      tag: document.activeElement?.tagName, inNeeds: !!document.activeElement?.closest('.hd-needs') }));
+    if (gone.group) bad('the empty group stayed after the read');
+    if (gone.tag === 'BODY' || !gone.inNeeds) bad(`after the last answer and a read, focus is on ${gone.tag}, outside Needs you`);
     await page.screenshot({ path: `${OUT}decisions-page-${width}-${colorScheme}.png`, fullPage: true });
     await ctx.close();
   }
