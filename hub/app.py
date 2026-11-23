@@ -239,8 +239,8 @@ def api_needs(request: Request):
     data = needs.current()
     try:
         owner = auth.who(request)[0] == "owner"
-    except sqlite3.Error:
-        owner = False  # who can't be told: decisions are the owner's alone, so they stay out
+    except sqlite3.Error:  # who can't be told: decisions stay out, and the page says why
+        return fresh(decisions.fault(data, decisions.WHO_UNREADABLE))
     return fresh(decisions.attach(data) if owner else data)  # A33: beside items, for the owner only
 
 

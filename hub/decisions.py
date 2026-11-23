@@ -29,6 +29,10 @@ KEEP_ANSWERED = 50  # answered rows kept, newest first (decision 9); open rows s
 NEEDS_ANSWERED = 5  # answered rows /api/needs shows the owner
 MAX_BODY = 8192
 WRONG_KEY = "That key is missing or wrong for this source."
+# Who is asking can't be read (the sign-in records fail): its own fault, worded without naming decisions, so a caller
+# who isn't the owner learns nothing about them from it.
+WHO_UNREADABLE = {"id": "pi:who:unreadable", "source": "Pi Hub", "tone": "bad", "title": "Sign-in can't be checked",
+                  "detail": "Pi Hub couldn't read its sign-in records, so parts of this page for the owner are hidden."}
 UNREADABLE = {"id": "pi:decisions:unreadable", "source": "Pi Hub", "tone": "bad", "title": "Decisions can't be read",
               "detail": "Pi Hub couldn't read its list of open decisions, so none are shown."}
 
@@ -44,6 +48,14 @@ _ready = set()
 
 class Unreadable(Exception):
     """The decisions table can't be read: its own state, never an empty list."""
+
+
+class Changed(Exception):
+    """The decision was asked again between reading it and recording the answer; `row` is the question as it is now."""
+
+    def __init__(self, row):
+        super().__init__(row["id"])
+        self.row = row
 
 
 class Answered(Exception):
@@ -130,9 +142,14 @@ def valid(body):
 
 
 def _shape(row):
-    options = json.loads(row["options"])
+    """A stored row as the routes answer it. Raises Unreadable when its options can't be read: that is the table
+    failing, never the caller's bad input."""
+    try:
+        options = json.loads(row["options"])
+    except (TypeError, ValueError) as e:
+        raise Unreadable(f"decision {row['id']}: options can't be read") from e
     if not isinstance(options, list):
-        raise ValueError("options is not a list")
+        raise Unreadable(f"decision {row['id']}: options is not a list")
     return {**row, "options": options}
 
 
@@ -182,19 +199,24 @@ def _answer_for(row, value):
 def answer(did, value, role, device, now=None):
     """Records the owner's answer once (plan decision 6). Returns (row, recorded): a second tap of the same answer is
     (stored row, False). Raises LookupError for an unknown id, ValueError for an answer that doesn't fit, Answered when
-    a different answer is already stored."""
+    a different answer is already stored, Changed when the question was asked again before the write."""
     row = get(did)
     if row is None:
         raise LookupError(did)
     text = _answer_for(row, value)
-    if db.run("UPDATE decisions SET answer = ?, answered_at = ? WHERE id = ? AND answered_at IS NULL", text,
-              int(now or time.time()), did).rowcount:
+    # The write names the question and options the answer was checked against, so a session asking again in between
+    # (add() updates them in place) leaves the row open rather than storing an answer to a question no longer asked.
+    if db.run("UPDATE decisions SET answer = ?, answered_at = ? WHERE id = ? AND answered_at IS NULL AND kind = ? "
+              "AND question = ? AND options = ?", text, int(now or time.time()), did, row["kind"], row["question"],
+              json.dumps(row["options"])).rowcount:
         auth.log(role, device, f"decision:{did}", "answered")
         db.run(TRIM, KEEP_ANSWERED)
         return get(did), True
     row = get(did)
     if row is None:
         raise LookupError(did)
+    if row["answered_at"] is None:
+        raise Changed(row)
     if row["answer"] == text:
         return row, False
     raise Answered(row)
@@ -209,7 +231,7 @@ def open_and_recent(answered=NEEDS_ANSWERED):
         done = db.rows(f"SELECT {COLUMNS} FROM decisions WHERE answered_at IS NOT NULL "
                        "ORDER BY answered_at DESC, rowid DESC LIMIT ?", answered)
         return {"open": [_shape(r) for r in opened], "answered": [_shape(r) for r in done]}
-    except (sqlite3.Error, ValueError, TypeError) as e:
+    except sqlite3.Error as e:
         raise Unreadable(str(e)) from e
 
 
@@ -221,10 +243,16 @@ def attach(data):
         data["decisions"] = open_and_recent()
     except Unreadable:
         data["decisions"] = None
-        items = data["items"]
-        at = next((n for n, i in enumerate(items) if i.get("tone") != "bad"), len(items))
-        items.insert(at, dict(UNREADABLE))
-        data["count"] = data.get("count", 0) + 1
+        fault(data, UNREADABLE)
+    return data
+
+
+def fault(data, item):
+    """`item` added to a Needs you answer after its other faults, and counted."""
+    items = data["items"]
+    at = next((n for n, i in enumerate(items) if i.get("tone") != "bad"), len(items))
+    items.insert(at, dict(item))
+    data["count"] = data.get("count", 0) + 1
     return data
 
 
@@ -269,6 +297,11 @@ async def answer_route(did: str, request: Request):
     except Answered as e:
         return JSONResponse({"detail": "That decision already has a different answer.", "decision": e.row},
                             status_code=409)
+    except Changed as e:
+        return JSONResponse({"detail": "Not recorded: the question changed. Read it again.", "decision": e.row},
+                            status_code=409)
+    except Unreadable:
+        raise HTTPException(503, "Not recorded: that decision can't be read.")
     except sqlite3.Error:
         raise HTTPException(503, "Not recorded: decisions can't be written. Try again.")
     return {"ok": True, "recorded": recorded, "decision": row}
@@ -285,6 +318,8 @@ async def add_route(source: str, request: Request):
         row, outcome = add(source, valid(body))
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except Unreadable:
+        raise HTTPException(503, "Not stored: that decision can't be read.")
     except sqlite3.Error:
         raise HTTPException(503, "Not stored: decisions can't be written.")
     except Answered as e:

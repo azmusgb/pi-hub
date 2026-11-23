@@ -336,3 +336,49 @@ def test_a_failed_write_says_not_recorded_and_keeps_the_row(monkeypatch):
     assert r.status_code == 503 and "Not recorded" in r.json()["detail"]
     monkeypatch.setattr(db, "run", real)
     assert [d["id"] for d in listed()["open"]] == ["a27-activity-shape"]
+
+
+def test_a_re_ask_between_the_check_and_the_write_never_stores_a_stale_option(monkeypatch):
+    """QA defect 1: the answer is checked against the options it is written against, in one step."""
+    ask()
+    real = decisions._answer_for
+
+    def re_asked_meanwhile(row, value):
+        text = real(row, value)
+        ask(question="Which shape, now?", options=["Cards", "Rows"], recommended="Rows")  # a session asks again
+        return text
+
+    monkeypatch.setattr(decisions, "_answer_for", re_asked_meanwhile)
+    r = tap("a27-activity-shape", "List")
+    assert r.status_code == 409 and r.json()["decision"]["options"] == ["Cards", "Rows"]
+    d = listed()["open"][0]
+    assert d["answer"] is None and d["question"] == "Which shape, now?"
+
+
+@pytest.mark.parametrize("stored", ["{", '"List"', "null"])
+def test_a_corrupt_stored_row_is_503_not_400(stored):
+    """QA defect 3: a row the hub can't read is a read failure, not the owner's bad answer."""
+    ask()
+    db.run("UPDATE decisions SET options = ? WHERE id = ?", stored, "a27-activity-shape")
+    r = tap("a27-activity-shape", "List")
+    assert r.status_code == 503 and "can't be read" in r.json()["detail"]
+    assert client.get("/api/decisions", headers=MAC).status_code == 503
+    assert ask().status_code == 200  # asking again while open rewrites the row, which repairs it
+    assert listed()["open"][0]["options"] == ["List", "Timeline"]
+
+
+def test_when_who_is_asking_cant_be_read_needs_says_so_without_naming_decisions(monkeypatch):
+    """QA defect 2: a failed sign-in read is its own bad item, never a quiet "not the owner"."""
+    ask()
+
+    def broken(token, gate=False):  # as auth.session(): no token never reads the database
+        if token:
+            raise sqlite3.OperationalError("database disk image is malformed")
+
+    monkeypatch.setattr(auth, "session", broken)
+    data = client.get("/api/needs", cookies={auth.COOKIE: "owner-token"}).json()
+    assert "decisions" not in data
+    bad = [i for i in data["items"] if i["id"] == "pi:who:unreadable"]
+    assert len(bad) == 1 and bad[0]["tone"] == "bad" and bad == [decisions.WHO_UNREADABLE]
+    assert "decision" not in (bad[0]["title"] + bad[0]["detail"]).lower()
+    assert data["count"] == client.get("/api/needs").json()["count"] + 1
