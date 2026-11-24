@@ -19,6 +19,9 @@ OWNER_LIFETIME = 30 * 86400
 RANK = {"none": 0, "kid": 1, "household": 2, "owner": 3}
 MAX_TRIES, LOCK_SECONDS = 5, 600
 GATE_CODE_SECONDS = 30
+# Password hashing cost. Stored hashes carry only salt and digest, so changing this would refuse every stored password.
+# tests/conftest.py lowers it for the test process; tests/test_auth_cost.py pins this value.
+SCRYPT_COST = {"n": 2 ** 14, "r": 8, "p": 1, "dklen": 32}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -60,14 +63,14 @@ def put(key, value):
 
 def _hash(secret, salt=None):
     salt = salt or secrets.token_bytes(16)
-    digest = hashlib.scrypt(secret.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    digest = hashlib.scrypt(secret.encode(), salt=salt, **SCRYPT_COST)
     return {"salt": salt.hex(), "hash": digest.hex()}
 
 
 def _check(secret, stored):
     if not stored:
         return False
-    digest = hashlib.scrypt(secret.encode(), salt=bytes.fromhex(stored["salt"]), n=2 ** 14, r=8, p=1, dklen=32)
+    digest = hashlib.scrypt(secret.encode(), salt=bytes.fromhex(stored["salt"]), **SCRYPT_COST)
     return hmac.compare_digest(digest.hex(), stored["hash"])
 
 
