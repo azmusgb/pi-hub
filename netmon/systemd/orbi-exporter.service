@@ -1,0 +1,18 @@
+[Unit]
+Description=Orbi Router UPnP Prometheus Exporter
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/netmon/scripts/orbi_exporter.py
+Restart=always
+RestartSec=5s
+Environment=ORBI_IP=10.0.0.1
+Environment=ORBI_PORT=5000
+Environment=EXPORTER_PORT=9120
+Environment=POLL_INTERVAL=10
+
+[Install]
+WantedBy=multi-user.target

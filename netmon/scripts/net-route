@@ -1,0 +1,10 @@
+#!/bin/bash
+# net-route: Visual MTR / traceroute report
+set -euo pipefail
+
+TARGET="${1:-1.1.1.1}"
+
+echo "Tracing network route and packet loss to: $TARGET"
+echo "Running 10 probe cycles (MTR report mode)..."
+echo "---------------------------------------------------------"
+sudo mtr --report --report-cycles 10 "$TARGET"

@@ -8,7 +8,7 @@ export const every = 60;
 
 const REPO = {
   "pi-hub": "azmusgb/pi-hub", localai: "azmusgb/LocalAI", firmware: "azmusgb/bambuhelper-smart-display",
-  netmon: "azmusgb/netmon", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
+  netmon: "azmusgb/pi-hub", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
   "print-lab": "azmusgb/print-lab",
 };
 const BY = {

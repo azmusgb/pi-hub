@@ -1,0 +1,12 @@
+#!/bin/bash
+# net-discover: Manual LAN host discovery via ARP
+set -euo pipefail
+
+INTERFACE="${1:-eth0}"
+
+echo "Scanning local network on $INTERFACE (ARP scan)..."
+echo "---------------------------------------------------------"
+sudo arp-scan --interface="$INTERFACE" \
+  --ouifile=/usr/share/arp-scan/ieee-oui.txt \
+  --macfile=/etc/arp-scan/mac-vendor.txt \
+  --localnet

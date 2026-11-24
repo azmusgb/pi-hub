@@ -22,7 +22,7 @@ HOSTS = [
 
 # deploy target -> its GitHub repository (System › Versions links commits with the same table, versions.js REPO)
 REPOS = {"pi-hub": "azmusgb/pi-hub", "localai": "azmusgb/LocalAI", "firmware": "azmusgb/bambuhelper-smart-display",
-         "netmon": "azmusgb/netmon", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
+         "netmon": "azmusgb/pi-hub", "mac-watch": "azmusgb/LocalAI", "x2d-bridge-mac": "azmusgb/bambuhelper-smart-display",
          "print-lab": "azmusgb/print-lab"}
 # deploy target -> the repository name Atlas keeps snapshots under (versions.js ATLAS); others aren't mapped yet
 ATLAS = {"pi-hub": "pi-hub", "localai": "localai", "mac-watch": "localai", "print-lab": "print-lab",

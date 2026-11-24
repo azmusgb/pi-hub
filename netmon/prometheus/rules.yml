@@ -1,0 +1,74 @@
+groups:
+  - name: netmon_network_alerts
+    rules:
+      - alert: GatewayUnreachable
+        expr: probe_success{job="gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Local Gateway (10.0.0.1) unreachable"
+          description: "Pi cannot reach the local router/gateway via ICMP."
+
+      - alert: InternetDown
+        expr: count(probe_success{job="wan-ip"} == 0) == count(probe_success{job="wan-ip"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External WAN IP connectivity down"
+          description: "All external WAN probe targets (1.1.1.1, 8.8.8.8) are failing ICMP."
+
+      - alert: DNSFailing
+        expr: count(probe_success{job="wan-dns"} == 0) == count(probe_success{job="wan-dns"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DNS queries failing"
+          description: "All DNS resolution probes to resolvers are failing."
+
+      - alert: HTTPConnectivityFailing
+        expr: count(probe_success{job="wan-http"} == 0) == count(probe_success{job="wan-http"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP/HTTPS connectivity failing"
+          description: "Web endpoints cannot be reached despite IP/DNS status."
+
+      - alert: HostUnreachable
+        expr: probe_success{job="lan-hosts"} == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LAN host {{ $labels.instance }} unreachable"
+          description: "ICMP ping to LAN host has failed for over 3 minutes."
+
+      - alert: ServiceUnreachable
+        expr: probe_success{job="lan-services"} == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LAN service {{ $labels.service }} unreachable"
+          description: "TCP connection to {{ $labels.instance }} has failed for over 3 minutes."
+
+      - alert: HighInternetLatency
+        expr: avg_over_time(probe_duration_seconds{job="wan-ip"}[5m]) > 0.080
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High WAN latency (>80ms sustained)"
+          description: "External ping latency averaged {{ $value | humanizeDuration }} over 5m."
+
+      - alert: PacketLossDetected
+        expr: (1 - avg_over_time(probe_success{job=~"gateway|wan-ip"}[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained packet loss (>5%) to {{ $labels.instance }}"
+          description: "Target has sustained {{ $value | printf \"%.1f\" }}% packet loss over the last 5 minutes."
