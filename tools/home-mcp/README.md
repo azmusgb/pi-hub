@@ -39,6 +39,31 @@ logged or returned.
 `deploy_state` and `service_logs` use SSH with your existing keys. MCP clients start stdio servers without
 `SSH_AUTH_SOCK`; on macOS the server recovers the agent socket from launchd so agent-held keys still work.
 
+## Mission reporting (A35 M1a)
+
+`home-mission` is a CLI in this package. Unlike the MCP tools, which are read-only, it **writes**: to a local spool
+(`~/.claude/mission-spool.jsonl`) and to Pi Hub's mission routes. It is **off by default**: nothing is posted until
+`~/.claude/mission-config.json` says `{"enabled": true}`. A missing or unreadable file means off.
+
+```sh
+home-mission validate docs/missions/a34.json            # exit 0, or 1 with the problems
+home-mission import docs/missions/a34.json --repo azmusgb/pi-hub --commit <sha> --dry-run
+home-mission import docs/missions/a34.json --repo azmusgb/pi-hub --commit <sha>   # posts; exit 2 if Pi Hub has no mission routes yet
+home-mission drain                                      # post the spool, one drainer at a time
+home-mission spool status                               # events waiting, by source, and the oldest
+```
+
+- Event ids are stable for a manifest at a commit, so importing it again is a no-op; the spool keeps each event's
+  `event_id`, so a replayed drain is too.
+- Keys: the Keychain items `pi-hub-mission-<source>-key` (2 s timeout), or `HOME_MISSION_KEY_<SOURCE>`. Keys are sent
+  only to an https hub, and never logged.
+- The drain keeps the spool on 429, 5xx, 401, 404, unreachable or no key; it drops events on any other 4xx and writes
+  one line (code and count) to `~/.claude/mission-drain.log`.
+- The contract and manifest schema are read from this repo's `docs/contracts/mission-events-v1.json` and
+  `docs/missions/manifest.schema.json`, so run it from an editable install in a pi-hub checkout (`uv sync`).
+- Paths can be moved with `HOME_MISSION_SPOOL`, `HOME_MISSION_LOCK`, `HOME_MISSION_LOG` and `HOME_MISSION_CONFIG`;
+  print-lab is `HOME_MCP_PRINTLAB_REPO` (default `~/dev/print-lab`), read from its `origin/main`.
+
 ## Checks
 
 ```sh

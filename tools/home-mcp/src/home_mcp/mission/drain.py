@@ -1,0 +1,187 @@
+"""Posting mission events to Pi Hub (A35 §6.2, §7.4): the single drainer for the spool, and the batch client the
+importer shares. A failed read of the outcome is never treated as a success: events leave the spool only on a 200,
+or when the hub refuses them for what they are (a 4xx that isn't about the caller's key, route or rate)."""
+import fcntl
+import json
+import os
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+import httpx
+
+from .. import decisions, hub, shell
+from . import spool
+from .validate import load_contract
+
+BATCH = 50
+KEY_TIMEOUT = 2.0  # the Keychain can prompt; a hook must never wait on it
+LATE_AFTER_S = 60  # an event older than this when posted is marked late (§6.2: spooled events keep their `at`)
+# 4xx codes that say something is wrong with the caller's setup, not with the events: keep the spool and stop.
+# 409 is the contract's "version": the hub doesn't accept this client's contract, so dropping would lose everything.
+KEEP_CODES = {401, 404, 408, 409, 429}
+
+
+def _path(env: str, default: str) -> Path:
+    return Path(os.environ.get(env) or default).expanduser()
+
+
+def lock_path() -> Path:
+    return _path("HOME_MISSION_LOCK", "~/.claude/mission-drain.lock")
+
+
+def log_path() -> Path:
+    return _path("HOME_MISSION_LOG", "~/.claude/mission-drain.log")
+
+
+def config_path() -> Path:
+    return _path("HOME_MISSION_CONFIG", "~/.claude/mission-config.json")
+
+
+def log(message: str) -> None:
+    """One line to the drain log. Callers pass codes and counts only, never a key or a response body."""
+    line = f"{hub.now_iso()} {message}\n"
+    try:
+        p = log_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError:
+        pass  # the log is a courtesy; a full disk must not fail a drain
+
+
+def enabled() -> tuple[bool, str]:
+    """(on, why). Off unless the config file says `"enabled": true`; an unreadable file is off, and says so."""
+    try:
+        cfg = json.loads(config_path().read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return False, "no mission-config.json, so mission reporting is off"
+    except (OSError, ValueError):
+        return False, "mission-config.json is unreadable, so mission reporting is off"
+    if not isinstance(cfg, dict) or cfg.get("enabled") is not True:
+        return False, "mission reporting is off (enabled is not true)"
+    return True, ""
+
+
+@dataclass
+class Outcome:
+    kind: str  # ok, drop or keep
+    code: int | None  # the HTTP status, None when unreachable
+    detail: str = ""
+
+
+@dataclass
+class DrainResult:
+    status: str  # disabled, busy, empty, done or stopped
+    detail: str = ""
+    posted: int = 0
+    dropped: int = 0
+    kept: int = 0
+
+
+def key_names(source: str) -> tuple[str, str]:
+    """(Keychain item, env variable) for a source's key."""
+    return f"pi-hub-mission-{source}-key", f"HOME_MISSION_KEY_{source.upper().replace('-', '_')}"
+
+
+async def source_key(source: str, runner) -> tuple[str | None, str | None]:
+    item, env = key_names(source)
+    return await decisions.hub_key(runner, item=item, timeout=KEY_TIMEOUT, env=env)
+
+
+async def post_batch(client: httpx.AsyncClient, source: str, key: str, events: list[dict]) -> Outcome:
+    """POST one batch of at most 50 events. The key goes in a header and nowhere else: nothing here logs it."""
+    try:
+        r = await client.post(f"/api/missions/events/{source}", json=events,
+                              headers={"X-Mission-Contract": "1", "X-Hub-Deploy-Key": key})
+    except httpx.TimeoutException:
+        return Outcome("keep", None, "timed out")
+    except httpx.HTTPError as e:
+        return Outcome("keep", None, type(e).__name__)
+    code = r.status_code
+    if code == 200:
+        return Outcome("ok", code)
+    if code in KEEP_CODES or code >= 500 or code < 400:
+        return Outcome("keep", code)
+    return Outcome("drop", code)
+
+
+def _late(event: dict, now: datetime) -> dict:
+    """The event as posted: marked late when it sat in the spool, with its original `at` untouched."""
+    try:
+        at = datetime.fromisoformat(event["at"])
+    except (KeyError, TypeError, ValueError):
+        return event
+    if at.tzinfo is not None and (now - at).total_seconds() > LATE_AFTER_S:
+        return {**event, "late": True}
+    return event
+
+
+async def drain(client_factory: Callable[[], httpx.AsyncClient] = hub.make_client, runner=shell.run) -> DrainResult:
+    """Post everything in the spool, once, if mission reporting is on and no other drain is running."""
+    on, why = enabled()
+    if not on:
+        return DrainResult("disabled", why)
+    lock = lock_path()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return DrainResult("busy", "another drain holds the lock")
+        return await _drain_locked(client_factory, runner)
+    finally:
+        os.close(fd)
+
+
+async def _drain_locked(client_factory, runner) -> DrainResult:
+    entries = spool.read_all()
+    if not entries:
+        return DrainResult("empty", "the spool is empty")
+    result = DrainResult("done")
+    known = load_contract()["sources"]
+    by_source: dict[str, list[dict]] = {}
+    unknown = [e["event"]["event_id"] for e in entries if e["source"] not in known]
+    if unknown:  # a line for a source the contract doesn't have can never be sent
+        spool.remove(unknown)
+        result.dropped += len(unknown)
+        log(f"drain: dropped {len(unknown)} events for an unknown source")
+    for e in entries:
+        if e["source"] in known:
+            by_source.setdefault(e["source"], []).append(e["event"])
+    async with client_factory() as client:
+        if client.base_url.scheme != "https":  # never put a key on the wire in clear
+            log("drain: stopped, the hub URL is not https")
+            return _stopped(result, "HOME_MCP_HUB_URL isn't https, so keys aren't sent")
+        for source, events in by_source.items():
+            key, why = await source_key(source, runner)
+            if key is None:
+                log(f"drain: stopped, no key for source {source} ({why})")
+                return _stopped(result, f"no key for {source}: {why}")
+            now = datetime.now(timezone.utc)
+            for i in range(0, len(events), BATCH):
+                batch = events[i:i + BATCH]
+                out = await post_batch(client, source, key, [_late(e, now) for e in batch])
+                ids = [e["event_id"] for e in batch]
+                if out.kind == "ok":
+                    spool.remove(ids)
+                    result.posted += len(ids)
+                elif out.kind == "drop":
+                    spool.remove(ids)
+                    result.dropped += len(ids)
+                    log(f"drain: hub refused {len(ids)} {source} events with HTTP {out.code}, dropped")
+                else:
+                    reason = f"HTTP {out.code}" if out.code else out.detail
+                    log(f"drain: stopped, {reason}, kept the spool")
+                    return _stopped(result, reason)
+    return result
+
+
+def _stopped(result: DrainResult, reason: str) -> DrainResult:
+    """Mark the result stopped; kept is whatever is still in the spool."""
+    result.status = "stopped"
+    result.detail = reason
+    result.kept = len(spool.read_all())
+    return result

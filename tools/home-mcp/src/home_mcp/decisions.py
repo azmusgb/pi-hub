@@ -39,11 +39,13 @@ def wrap(text) -> str:
     return f"{OPEN_MARK}\n{_MARKER.sub('UNTRUSTED-DECISION', str(text))}\n{CLOSE_MARK}"
 
 
-async def hub_key(runner) -> tuple[str | None, str | None]:
-    """(key, None), or (None, why not). HOME_MCP_HUB_KEY wins; else the login Keychain. The key is never put in a reason."""
-    key = (os.environ.get("HOME_MCP_HUB_KEY") or "").strip()
+async def hub_key(runner, item: str = KEYCHAIN_ITEM, timeout: float = KEYCHAIN_TIMEOUT,
+                  env: str = "HOME_MCP_HUB_KEY") -> tuple[str | None, str | None]:
+    """(key, None), or (None, why not). The env var `env` wins; else the login Keychain item. The key is never put in a
+    reason. The defaults are the deploy key; mission drains pass their own item, timeout and variable."""
+    key = (os.environ.get(env) or "").strip()
     if not key:
-        run = await runner(["security", "find-generic-password", "-s", KEYCHAIN_ITEM, "-w"], timeout=KEYCHAIN_TIMEOUT)
+        run = await runner(["security", "find-generic-password", "-s", item, "-w"], timeout=timeout)
         if run.code != 0:
             return None, "the Keychain lookup failed" if run.code is not None else "the Keychain lookup didn't finish"
         key = run.out.strip()
