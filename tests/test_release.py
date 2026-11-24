@@ -60,9 +60,11 @@ if name == 'git':
     elif 'log' in args and os.environ.get('MSG'): print(os.environ['MSG'])
     else: print('Test release')
 elif name == 'timeout':
+    with open(os.environ['CALLS'], 'a') as calls: calls.write('timeout ' + ' '.join(args) + '\n')
     if 'node' in args and os.environ.get('FAIL') == 'js': sys.exit(1)
     print('tests passed')
 elif name == 'python3':
+    if args == ['-c', 'import xdist']: sys.exit(0 if os.environ.get('XDIST') else 1)  # the release's xdist check
     if '--gate' in args:
         print('{"checks": []}')
         sys.exit(1 if os.environ.get('FAIL') == 'gate' else 0)
@@ -126,9 +128,9 @@ def release(release_template, tmp_path):
     runner.write_text(script)
     tools = base / 'bin'
 
-    def run(fail='', kind='gate', healthy='', msg='', py=0, js=0):
+    def run(fail='', kind='gate', healthy='', msg='', py=0, js=0, xdist=False):
         env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy, 'MSG': msg,
-               'PY_START': str(py), 'JS_START': str(js),
+               'PY_START': str(py), 'JS_START': str(js), 'XDIST': '1' if xdist else '',
                'ARCHIVE': str(archives[kind]), 'FAIL': fail, 'CALLS': str(tmp_path / 'calls')}
         return subprocess.run(['bash', str(runner), SHA], env=env, capture_output=True, text=True)
     return root, helper, run
@@ -466,3 +468,42 @@ def test_tests_at_the_budget_still_go_live_and_say_so(release):
     log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
     assert log[0]['status'] == 'live'
     assert re.fullmatch(f'{said}; every page and API answered.', log[0]['message'])
+
+
+# A34 P0 decision 7: with pytest-xdist installed the Python tests run on 3 workers, one test file to a worker, and the
+# message says so; without it they run in one process as before and the message has no worker count.
+def _pytest_call(root):
+    [call] = [c for c in (root.parent / 'calls').read_text().splitlines() if c.startswith('timeout 900 ')]
+    return call.split()
+
+
+def test_tests_run_on_three_workers_when_xdist_is_installed(release):
+    root, _, run = release
+    result = run(py=412, js=41, xdist=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    said = r'Tests passed in 41[23] s on 3 workers \(JS 4[12] s\)'
+    assert re.search(f'pi-hub: {said}\n', result.stdout), result.stdout
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert re.fullmatch(f'{said}; every page and API answered.', log[0]['message'])
+    call = _pytest_call(root)
+    assert call[call.index('-n') + 1] == '3' and call[call.index('--dist') + 1] == 'loadfile'
+    assert call[-1] == 'tests'
+
+
+def test_tests_run_in_one_process_without_xdist(release):
+    root, _, run = release
+    result = run(py=412, js=41)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert re.search(r'pi-hub: Tests passed in 41[23] s \(JS 4[12] s\)\n', result.stdout), result.stdout
+    assert 'workers' not in result.stdout
+    call = _pytest_call(root)
+    assert '-n' not in call and '--dist' not in call
+    assert call[-5:] == ['pytest', '-q', '-p', 'no:cacheprovider', 'tests']
+
+
+def test_parallel_tests_over_budget_still_say_so(release):
+    root, _, run = release
+    result = run(py=600, js=41, xdist=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    said = r'Tests passed in 60[01] s on 3 workers \(JS 4[12] s\), tests over budget \(600 s\)'
+    assert re.search(f'pi-hub: {said}\n', result.stdout), result.stdout

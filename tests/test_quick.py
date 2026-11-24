@@ -43,11 +43,14 @@ def stl(n=2) -> bytes:
 
 
 def three_mf(extra=None, model=b"<model/>") -> bytes:
+    """A fixed entry date, so the same entries give the same bytes: a parametrize id built from them must match in
+    every pytest-xdist worker, and zipfile otherwise stamps each entry with the current 2-second clock."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("3D/3dmodel.model", model)
-        for k, v in (extra or {}).items():
-            z.writestr(k, v)
+        for k, v in {"3D/3dmodel.model": model, **(extra or {})}.items():
+            entry = zipfile.ZipInfo(k, date_time=(2026, 1, 1, 0, 0, 0))
+            entry.external_attr = 0o600 << 16  # what writestr(name, …) gives
+            z.writestr(entry, v)
     return buf.getvalue()
 
 
@@ -259,7 +262,9 @@ def test_canceling_an_upload_removes_it(env, tmp_path):
 
 # --- Q7: states ------------------------------------------------------------------------------------------------
 
-LEGAL = [(a, b) for a, tos in quick.ALLOWED.items() for b in tos]
+# Sorted: ALLOWED's values are sets, whose order changes between processes, and pytest-xdist needs every worker to
+# collect the same tests in the same order.
+LEGAL = [(a, b) for a, tos in quick.ALLOWED.items() for b in sorted(tos)]
 
 
 @pytest.mark.parametrize("a,b", LEGAL)
@@ -515,7 +520,10 @@ def test_a_full_store_makes_room_by_evicting_inactive_files_only(env, monkeypatc
     old = old_job(env, "failed", "old.stl")
     live = old_job(env, "slicing", "live.stl")
     monkeypatch.setattr(quick, "QUOTA", raw_job(old)["model_bytes"] + raw_job(live)["model_bytes"] + 100)
-    r = env.post("/api/quick/uploads", json={"filename": "n.stl", "size": 500}, headers=SAME)
+    # The new file is the old one's size: over the 100 bytes left, and room once the old file goes. A fixed 500 needed
+    # the old file to be 400 bytes or more, which held only when earlier tests had already advanced _n.
+    size = raw_job(old)["model_bytes"]
+    r = env.post("/api/quick/uploads", json={"filename": "n.stl", "size": size}, headers=SAME)
     assert r.status_code == 200
     assert raw_job(old)["file_removed"] == 1 and raw_job(live)["file_removed"] == 0
 

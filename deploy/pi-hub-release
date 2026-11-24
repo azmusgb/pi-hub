@@ -11,6 +11,9 @@ CUR=$BASE/current
 LOG=/var/lib/pi-hub-releases/releases.json
 # release:pi-hub (platform step 3): the hub reads each report from here; the newest 10 are kept.
 INBOX=/var/lib/pi-hub-releases/inbox
+# Test processes when pytest-xdist is installed (A34 P0 decision 7): 3 of the Pi's 4 cores, the camera's ffmpeg keeps
+# the rest busy during a print. Without xdist the tests run in one process, as before.
+WORKERS=3
 # Serialise pushes and owner-requested rollbacks.
 exec 9>/var/lock/pi-hub-release.lock
 flock -n 9 || { echo "pi-hub: another release is running"; exit 1; }
@@ -108,10 +111,14 @@ export TMPDIR="$TESTDB/tmp"
 # 15 minutes: on the SD card the full suite took 608 s on 8 Nov, past the old 600 s limit with every test passing.
 # Each release reports its test time (A34 P0): the budget is 600 s; past it the release still goes live but says so.
 # The timeout is the only stop.
+# Each xdist worker moves HUB_DB into its own folder under $TESTDB (tests/conftest.py); one test file runs in one worker.
+PARALLEL=""
+ON=""
+if python3 -c 'import xdist' 2>/dev/null; then PARALLEL="-n $WORKERS --dist loadfile"; ON=" on $WORKERS workers"; fi
 rc=0
 # $SECONDS, not date: the Pi has no RTC, NTP can step the wall clock mid-run, and a bad date would abort under set -e.
 SECONDS=0
-(cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 900 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1) || rc=$?
+(cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 900 python3 -m pytest -q -p no:cacheprovider $PARALLEL tests > "$TESTDB/test.log" 2>&1) || rc=$?
 if [ "$rc" != 0 ]; then
   tail -15 "$TESTDB/test.log"
   [ "$rc" = 124 ] && say "tests ran past 15 minutes and were stopped"
@@ -130,7 +137,7 @@ if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null; then
   (cd "$NEW.tmp" && timeout 120 node --test tests/*.mjs > "$TESTDB/js.log" 2>&1) || js=$?
   JS_PART=" (JS $SECONDS s)"
 fi
-TESTED="Tests passed in $PY_SECONDS s$JS_PART"
+TESTED="Tests passed in $PY_SECONDS s$ON$JS_PART"
 if [ "$PY_SECONDS" -ge 600 ]; then TESTED="$TESTED, tests over budget (600 s)"; fi
 if [ "$js" != 0 ]; then
   tail -15 "$TESTDB/js.log"

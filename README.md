@@ -26,12 +26,13 @@ HUB_NO_SAMPLER=1 HUB_DB=/tmp/pi-hub-dev/hub.db \
 
 Open `http://127.0.0.1:8765`. `HUB_NO_SAMPLER=1` disables background polling, recording, rules, digests and reminders. The separate database avoids using production household data. Page requests still call their configured integrations; use mocked responses when testing successful hardware flows on a Mac. Pi diagnostics and privileged fixes require the Pi environment.
 
-This repository does not yet provide a Python dependency manifest; the command above assumes an already provisioned `.venv`.
+This repository does not yet provide a Python dependency manifest; the command above assumes an already provisioned `.venv`. The tests need `pytest` and `httpx`; `pytest-xdist` is optional and runs them in parallel (`.venv/bin/python -m pip install pytest-xdist`), as the Pi's release does with `python3-pytest-xdist`.
 
 ## Checks
 
 ```sh
 HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests
+HUB_NO_SAMPLER=1 .venv/bin/python -m pytest -q -p no:cacheprovider -n 4 --dist loadfile tests  # with pytest-xdist
 node --test tests/*.mjs
 bash -n deploy/install.sh deploy/pi-hub-release
 git diff --check
