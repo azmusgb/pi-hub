@@ -16,6 +16,9 @@ const COND = { id: "x", title: "E-026: Send it", tone: "warn", source: "Print la
 const needs = (decisions, items = []) => ({ count: items.length, unread: [], items, ...(decisions === undefined ? {} : { decisions }) });
 const owner = (open = [D1, D2]) => needs({ open, answered: [] });
 const settle = () => new Promise((r) => setTimeout(r, 10));
+// Waits for a condition that a timer in the code brings about (a reload scheduled after the answer settles), up to
+// 2 s: a fixed delay loses the race on a loaded Pi (release of 357e689, 23 Nov).
+const until = async (ok) => { for (const end = Date.now() + 2000; !ok() && Date.now() < end;) await settle(); };
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 // Home mounted on the fake DOM; `answers` is the hub's reply to each POST, in order (a Response, or an Error to throw).
@@ -174,7 +177,7 @@ test("409 question changed: nothing is recorded, Home reads the group again and 
   try {
     k.draw(owner());
     k.option("a27-activity", "System").click();
-    await settle();
+    await until(() => k.reloads() > 0);
     assert.equal(k.rows().length, 2, "the row stays");
     assert.equal(k.rows()[0].dataset.state, "failed");
     assert.equal(k.reloads(), 1, "read again");
