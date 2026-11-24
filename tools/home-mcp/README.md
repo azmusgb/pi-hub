@@ -51,7 +51,17 @@ home-mission import docs/missions/a34.json --repo azmusgb/pi-hub --commit <sha> 
 home-mission import docs/missions/a34.json --repo azmusgb/pi-hub --commit <sha>   # posts; exit 2 if Pi Hub has no mission routes yet
 home-mission drain                                      # post the spool, one drainer at a time
 home-mission spool status                               # events waiting, by source, and the oldest
+home-mission attach a34 [workstream] --session <id>     # the /mission skill's actions: bind this directory's session,
+home-mission task <task> start|done [--summary ...]     #   report a task, show the binding, or remove it
+home-mission status | detach
 ```
+
+Claude Code sessions report through `claude/hooks/mission-report.py` (standard library only; it appends to the spool
+and starts `home-mission drain` detached, never posts, always exits 0 within 2 s) and the `/mission` skill in
+`claude/skills/mission/`. Only sessions attached with `/mission attach` report; the binding lives in
+`~/.claude/mission-attach.json`, keyed by the directory's real path. `scripts/install-claude-mission.sh [--dry-run]`
+links both into `~/.claude` (or `CLAUDE_DIR`), writes `mission-config.json` with reporting off if it is absent, and
+prints the `settings.json` hook entries to add by hand; it never edits `settings.json`.
 
 - Event ids are stable for a manifest at a commit, so importing it again is a no-op; the spool keeps each event's
   `event_id`, so a replayed drain is too.
@@ -61,7 +71,8 @@ home-mission spool status                               # events waiting, by sou
   one line (code and count) to `~/.claude/mission-drain.log`.
 - The contract and manifest schema are read from this repo's `docs/contracts/mission-events-v1.json` and
   `docs/missions/manifest.schema.json`, so run it from an editable install in a pi-hub checkout (`uv sync`).
-- Paths can be moved with `HOME_MISSION_SPOOL`, `HOME_MISSION_LOCK`, `HOME_MISSION_LOG` and `HOME_MISSION_CONFIG`;
+- Paths can be moved with `HOME_MISSION_SPOOL`, `HOME_MISSION_LOCK`, `HOME_MISSION_LOG`, `HOME_MISSION_CONFIG`,
+  `HOME_MISSION_ATTACH` and `HOME_MISSION_STATE` (the hook's tool start times and prompt ids);
   print-lab is `HOME_MCP_PRINTLAB_REPO` (default `~/dev/print-lab`), read from its `origin/main`.
 
 ## Checks
