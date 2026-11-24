@@ -28,6 +28,7 @@ import { pageStrip, revealCurrent } from "./system-strip.js";
 import { renderSources } from "./sources.js";
 import { assistantHref, assistantButton, TOOLS } from "./sections.js";
 import { SITE, sectionFor } from "./site.js";
+import { watchShell } from "./shell-update.js";
 
 // The Assistant button opens /assistant in the shell (A4) with the open page and its key facts (set as the person
 // reaches for it, so they are the ones on screen). On /assistant itself it carries none: it returns to the frame.
@@ -293,10 +294,13 @@ document.addEventListener("click", (e) => {
   }
   const query = new URLSearchParams(url.search);
   const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
-  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message) or replaces the page in place:
-  // Back still leaves the Assistant in one step (A4 requirement 7).
-  if (url.pathname === "/assistant" && location.pathname === "/assistant") {
-    if (current?.mod.retarget?.(current.state, url)) return;
+  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message, which keeps what is typed in it)
+  // or replaces the page in place: Back still leaves the Assistant in one step (A4 requirement 7).
+  const handOff = url.pathname === "/assistant" && location.pathname === "/assistant";
+  if (handOff && current?.mod.retarget?.(current.state, url)) return;
+  // A deploy has taken over since this page loaded (shell-update.js): load the new version with this step.
+  if (shell.stale()) { location.assign(destination); return; }
+  if (handOff) {
     history.replaceState({}, "", destination);
     show(url.pathname, { focus: true });
     return;
@@ -308,7 +312,10 @@ document.addEventListener("click", (e) => {
 
 // Jumping to a section (#group-…) is also a history step; only a new page address re-renders.
 let shownPath = location.pathname + location.search;
-window.addEventListener("popstate", () => { if (location.pathname + location.search !== shownPath) show(location.pathname); });
+window.addEventListener("popstate", () => {
+  if (location.pathname + location.search === shownPath) return;
+  if (shell.stale()) location.reload(); else show(location.pathname);
+});
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); stayAwake(); } });
 
 async function stayAwake() {
@@ -344,7 +351,9 @@ async function gateSignIn() {
   else toast(`Couldn't sign in to the other tools. Open https://${location.host} and try again.`, "bad");
 }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+const shell = "serviceWorker" in navigator
+  ? watchShell(navigator.serviceWorker, navigator.serviceWorker.register("/sw.js").catch(() => null))
+  : { stale: () => false };
 tick();
 setInterval(tick, 15000);
 show(location.pathname);
