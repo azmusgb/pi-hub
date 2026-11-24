@@ -18,7 +18,7 @@ SHA = 'a' * 40
 PI_DIRS = ['srv', 'opt/pi-hub/releases/previous', 'var/lock',
            'usr/local/bin', 'usr/local/lib/pi-hub', 'etc/systemd/system', 'etc/caddy']
 TOOLS = ['git', 'timeout', 'python3', 'mv', 'readlink']  # these need Python
-SHELL_TOOLS = ['systemctl', 'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']  # these only log and answer
+SHELL_TOOLS = ['systemctl', 'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy', 'date']  # these only log and answer
 
 
 @pytest.fixture(scope='module')
@@ -99,6 +99,13 @@ curl)
   exit 7 ;;
 caddy)
   echo "caddy $*" >> "$CALLS" ;;
+date)  # CLOCK="t1 t2 …": each call answers the next time, so a test can say how long the tests took
+  [ -z "$CLOCK" ] && exec /bin/date "$@"
+  n=$(cat "$CALLS.clock" 2>/dev/null || echo 0)
+  echo $((n + 1)) > "$CALLS.clock"
+  set -- $CLOCK
+  shift "$n"
+  echo "$1" ;;
 esac
 # flock, sleep and rsvg-convert succeed without touching the host.
 exit 0
@@ -123,8 +130,9 @@ def release(release_template, tmp_path):
     runner.write_text(script)
     tools = base / 'bin'
 
-    def run(fail='', kind='gate', healthy='', msg=''):
+    def run(fail='', kind='gate', healthy='', msg='', clock=''):
         env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy, 'MSG': msg,
+               'CLOCK': clock,
                'ARCHIVE': str(archives[kind]), 'FAIL': fail, 'CALLS': str(tmp_path / 'calls')}
         return subprocess.run(['bash', str(runner), SHA], env=env, capture_output=True, text=True)
     return root, helper, run
@@ -432,3 +440,31 @@ def test_a_version_is_named_by_its_change(release, msg, name):
     run(msg=msg)
     log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
     assert log[0]['subject'] == name
+
+
+# A34 P0: each release states its own test time; past the 600 s budget it still goes live and says so.
+# The clock reads: before pytest, after pytest (and before node), after node.
+@pytest.mark.parametrize('clock, said', [
+    ('1000 1412 1453', 'Tests passed in 412 s (JS 41 s)'),
+    ('1000 1600 1630', 'Tests passed in 600 s (JS 30 s)'),
+])
+def test_a_live_release_reports_its_test_time(release, clock, said):
+    root, _, run = release
+    result = run(clock=clock)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f'pi-hub: {said}\n' in result.stdout
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert (log[0]['status'], log[0]['message']) == ('live', f'{said}; every page and API answered.')
+    [r] = reports(root)
+    assert r['message'] == f'{said}; every page and API answered.'
+
+
+def test_tests_over_budget_still_go_live_and_say_so(release):
+    root, _, run = release
+    result = run(clock='1000 1601 1642')
+    assert result.returncode == 0, result.stdout + result.stderr
+    said = 'Tests passed in 601 s (JS 41 s), tests over budget (600 s)'
+    assert f'pi-hub: {said}\n' in result.stdout
+    assert (root / 'opt/pi-hub/current').resolve().name == SHA[:10]
+    log = json.loads((root / 'var/lib/pi-hub-releases/releases.json').read_text())
+    assert (log[0]['status'], log[0]['message']) == ('live', f'{said}; every page and API answered.')
