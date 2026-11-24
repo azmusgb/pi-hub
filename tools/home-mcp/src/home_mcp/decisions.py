@@ -123,7 +123,9 @@ def _check_plain(r: dict) -> None:
         raise ValueError("evidence isn't a list of ids")
     number = r.get("number")
     if number is not None:
-        ok = isinstance(number, dict) and all(_num(number.get(k)) for k in ("min", "max", "step"))
+        # Only these four keys: any other key would be returned plainly, so session text could ride in it.
+        ok = (isinstance(number, dict) and set(number) <= {"min", "max", "step", "unit"}
+              and all(_num(number.get(k)) for k in ("min", "max", "step")))
         unit = number.get("unit") if isinstance(number, dict) else None
         if not ok or not (unit is None or (isinstance(unit, str) and _UNIT.fullmatch(unit) is not None)):
             raise ValueError("number isn't {min, max, step, unit}")
