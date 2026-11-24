@@ -160,6 +160,39 @@ def test_each_hms_item_says_its_own_code_and_severity():  # final review M4, I2
     assert by_id["pi:source:hms:0700_0100"]["tone"] == "warn"
 
 
+def test_a_severity_1_or_2_alert_beside_a_running_print_doesnt_claim_to_stop_it():
+    # 24 Nov: "It pauses the print. Alert 0x2000b." while the X2D was at 29% and printing
+    b = {**bud("RUNNING", progress=29), "hms": [{"code": c, "severity": s, "module": 5} for c, s in
+                                                (("0x2000b", 2), ("0x1000c", 1), ("0x3000a", 3))]}
+    by_id = {i["id"]: i for i in needs.build([], {"cards": []}, NOW, problems(b=b), printing=True)["items"]}
+    assert by_id["pi:source:hms:0x2000b"]["detail"] == "Alert 0x2000b."
+    assert by_id["pi:source:hms:0x1000c"]["detail"] == "Alert 0x1000c."
+    assert by_id["pi:source:hms:0x3000a"]["detail"] == "The print carries on. Alert 0x3000a."
+    assert by_id["pi:source:hms:0x2000b"]["tone"] == "bad"  # the tone is the severity's, as before
+    idle = {i["id"]: i for i in needs.build([], {"cards": []}, NOW, problems(b=b))["items"]}
+    assert idle["pi:source:hms:0x2000b"]["detail"] == "It pauses the print. Alert 0x2000b."
+    assert idle["pi:source:hms:0x1000c"]["detail"] == "It stops the print. Alert 0x1000c."
+
+
+def test_needs_reads_whether_a_print_is_running_from_the_printers_record(monkeypatch):
+    seen = []
+    monkeypatch.setattr(needs, "build", lambda *a, **kw: seen.append(kw["printing"]) or {})
+    monkeypatch.setattr(sources, "localai_feed", lambda: {"cards": []})
+    for state, stale in (("printing", False), ("paused", False), ("idle", False), ("printing", True)):
+        needs.current({"printer": {"id": "printer", "state": state, "stale": stale, "severity": "ok", "since": NOW}})
+    needs.current({})
+    assert seen == [True, False, False, False, False], "a stale or missing record doesn't say a print is running"
+
+
+def test_only_a_printer_alert_can_be_acknowledged():
+    b = {**FAILED, "hms": [{"code": "0500_0200", "severity": 2, "module": 5}]}
+    n = needs.build([], FEED, NOW, problems({"drive_state": "Not mounted"}, b,
+                                                   obico={"enabled": True, "per_printer": {"1": {"class": "failure", "error": None}}}))
+    acks = {i["id"]: i.get("ack") for i in n["items"]}
+    assert acks.pop("pi:source:hms:0500_0200") is True
+    assert len(acks) >= 4 and set(acks.values()) == {None}, "no other item carries ack"
+
+
 # ---- the print lab's own asks (Plan D, Task 1) ----
 def _need(id, action, why="why", urgency=1, **kw):
     return dict({"id": id, "urgency": urgency, "action": action, "why": why, "command": "x"}, **kw)

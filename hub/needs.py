@@ -120,11 +120,12 @@ def _one_row(items, about, ours):
     return [i for i in items if i is keep or i not in named]
 
 
-def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=frozenset()):
+def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=frozenset(), printing=False):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
     knows when the plate is cleared. `healthy`: ids of the hub's records that are OK and fresh; another source's item
     about one of those things is out of date (2 Nov: Local AI said the Workshop display wasn't answering while the
-    hub's own record had it online, and Home's "All else OK" listed it)."""
+    hub's own record had it online, and Home's "All else OK" listed it). `printing`: the printer's record says a print
+    is running now, so a severity 1 or 2 alert still listed isn't stopping or pausing it."""
     items = []
     by_id = {r["id"]: r for r in problems}
     for key, i in issue_items(list(problems)):
@@ -134,7 +135,10 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
                 sev = e.get("severity")
                 known = isinstance(sev, int) and not isinstance(sev, bool)
                 effect = HMS_EFFECT.get(sev) if known else None
-                items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB,
+                if printing and sev in (1, 2):  # "It pauses the print." beside a print at 29% and running (24 Nov)
+                    effect = None
+                # ack: the owner can acknowledge it (POST /api/needs/ack); the record then leaves it out
+                items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB, "ack": True,
                               "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
                               "title": hms_title(e),
                               "detail": f"{effect} Alert {e['code']}." if effect else f"Alert {e['code']}.",
@@ -200,4 +204,5 @@ def current(recs=None, *, fetch=True):
     feed = sources.localai_feed() if fetch else sources.localai_feed_cached()
     healthy = frozenset(k for k, r in recs.items() if isinstance(r, dict) and r.get("severity") == "ok" and not r.get("stale"))
     return build((), feed, int(time.time()), records.problems(recs), lab=lab.stored_needs(),
-                 printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"), healthy=healthy)
+                 printer_done=not printer.get("stale") and printer.get("state") in ("finished", "failed"), healthy=healthy,
+                 printing=not printer.get("stale") and printer.get("state") == "printing")
