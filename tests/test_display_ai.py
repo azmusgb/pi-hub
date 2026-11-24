@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 
 import pytest
@@ -46,13 +47,18 @@ def test_answer_is_cached_for_15_seconds():
 
 
 def test_slow_localai_never_delays_household():
+    answered = threading.Event()  # Local AI answers only after the household has had its reply
+
     def slow(url, key):
-        time.sleep(5)
+        answered.wait(10)
         return 200, json.dumps(GOOD).encode()
     t = time.monotonic()
-    r = display_ai.cards(100, fetch=slow)
-    assert time.monotonic() - t < 3.5
-    assert r["available"] is False and r["cards"] == [] and r["images"] == []
+    try:
+        r = display_ai.cards(100, fetch=slow)
+        assert time.monotonic() - t < 3.5
+        assert r["available"] is False and r["cards"] == [] and r["images"] == []
+    finally:
+        answered.set()
 
 
 @pytest.mark.parametrize("body", [[], "<html>", {"cards": "x"}, 500])

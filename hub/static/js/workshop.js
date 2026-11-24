@@ -8,6 +8,7 @@ import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerActionList, printerBusy, printerButtons, runPrinterAction } from "./printer-actions.js";
+import { mergeProblems, problemItems } from "./control-room.js";
 
 export const every = 15;
 
@@ -111,7 +112,7 @@ export function mount(state) {
       es.addEventListener("change", (ev) => {
         try {
           const ch = JSON.parse(ev.data);
-          if (ch?.id === "printer") load(state);
+          if (RELOAD_ON.has(ch?.id)) load(state);
         } catch {}
       });
     } catch {}
@@ -1774,16 +1775,46 @@ export function cardPills(d) {
   return { history: down ? null : weekPill(d.week), filament: down ? null : undefined };
 }
 
+// The records this page redraws on, and the ones whose Needs you rows it lists: the printer's own alerts (hms) and
+// failure detection (obico). The printer record itself is the band and Clear the plate.
+const ALERTS = new Set(["hms", "obico"]);
+const RELOAD_ON = new Set(["printer", ...ALERTS]);
+
+// The printer's alerts as Home lists them: Home's own merge of /api/records and /api/needs (home-dashboard.js), kept to
+// the hms and obico rows. Null when neither answered (`undefined`, not asked, is no alerts).
+export function printerAlerts(records, needs) {
+  if (records === undefined && needs === undefined) return [];
+  if (!Array.isArray(records) && !needs) return null;
+  return mergeProblems(records || [], needs)
+    .filter((p) => ALERTS.has(p.kind === "need" ? p.record : p.recordId))
+    .map((p) => ({ kind: "alert", id: p.id, item: notHere(problemItems([p])[0]) }));
+}
+
+// Home's row links to this page ("Open printer"); here that link would only reload it and lose the place, so it goes.
+// A link elsewhere (Bambuddy's failure-detection settings) stays.
+function notHere(item) {
+  if (item.link !== "/workshop") return item;
+  const rest = { ...item };
+  delete rest.link;
+  delete rest.action;
+  return rest;
+}
+
 // What the page shows, from /api/workshop, the viewer's role and what this page last saw from Bambuddy (`last`, kept
 // while it answers, so its sections can show the last known with its age when it doesn't). Null until the first answer.
-export function workshopView(d, { role = "none", last = null } = {}) {
+// `records` and `needs` are /api/records' list and /api/needs (null: didn't answer), for the printer's alerts;
+// `lastAlerts` the alerts last shown, kept with a note when neither answers.
+export function workshopView(d, { role = "none", last = null, records, needs: needsRead, lastAlerts = [] } = {}) {
   if (!d || !d.printer) return null;
   const p = d.printer;
   const owner = role === "owner";
   const down = bambuddyDown(d);
   const actions = Array.isArray(p.actions) ? p.actions : [];
   const labNeeds = Array.isArray(d.lab?.needs) ? d.lab.needs : [];
-  const needs = [];
+  const read = printerAlerts(records, needsRead);
+  const alertsUnread = read === null;
+  // The printer's alerts first: one that stops or pauses the print matters most.
+  const needs = [...(alertsUnread ? lastAlerts : read)];
   // Clear the plate has one control: here, first, for the owner. The band keeps pause and resume.
   if (actions.includes("clear")) {
     needs.push({ kind: "clear", title: ["stopped", "finished"].includes(p.state) ? "Done: clear the plate" : "Clear the plate",
@@ -1804,6 +1835,9 @@ export function workshopView(d, { role = "none", last = null } = {}) {
     down,
     owner,
     needs,
+    alertsUnread,
+    // A failed read of the alerts shows the section with its note, never an empty "nothing needs you".
+    needsShown: needs.length > 0 || alertsUnread,
     signIn: !owner && (actions.length > 0 || labNeeds.length > 0),
     bandActions: owner ? actions.filter((a) => a !== "clear") : [],
     lastPrint: p.state === "idle" && latest ? `Last print: ${latest.name}, ${printWords(latest)[0]}, ${when(latest.started)}` : null,
@@ -1845,7 +1879,10 @@ const LAB_VERBS = { "Judge the print": "judge_it", "Approve or drop": "approve",
 
 // The kit's Needs-you list, the same as Home's (A7 P2). Clear the plate is done here, so its row has the button, not a link.
 function needsList(state, v) {
-  const items = v.needs.map((n) => n.kind === "clear"
+  // Shown with nothing to list only when the alerts couldn't be read: the note alone, since the kit's empty list would
+  // say "Nothing needs you" about what nobody read.
+  if (!v.needs.length) return [unreadNote("Couldn't read the printer's alerts just now.")];
+  const items = v.needs.map((n) => n.kind === "alert" ? n.item : n.kind === "clear"
     ? { id: "clear", source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail }
     : { id: `lab-${n.id}`, source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail,
       link: n.href || undefined, action: n.href && n.verb ? { key: n.verb, link: n.href } : undefined });
@@ -1853,16 +1890,23 @@ function needsList(state, v) {
   v.needs.forEach((n, i) => {
     const li = list.children[i];
     if (!li) return;
-    li.dataset.key = n.kind === "clear" ? "clear-need" : `lab-${n.id}`;
+    li.dataset.key = n.kind === "alert" ? n.id : n.kind === "clear" ? "clear-need" : `lab-${n.id}`;
     // The checklist can run to a paragraph: two lines here (the whole of it on hover and in Print lab).
     const detail = li.querySelector(".ui-need__detail");
     if (detail && n.detail) { detail.classList.add("clamp-2"); detail.title = n.detail; }
     if (n.kind === "clear" && n.action) li.firstChild.append(clearButton(state));
   });
+  for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
   return [list,
+    // "Last read" only when last-read alerts are listed; other rows (Clear the plate, lab items) aren't alerts.
+    v.alertsUnread ? unreadNote(v.needs.some((n) => n.kind === "alert")
+      ? "Couldn't read the printer's alerts just now; this shows what was last read."
+      : "Couldn't read the printer's alerts just now.") : null,
     v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
       h("button", { type: "button", class: "ghost small", dataset: { key: "sign-in" }, onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
 }
+
+const unreadNote = (words) => h("p", { class: "ui-section__note needs-here__stale", role: "status" }, words);
 
 function clearButton(state) {
   // Made disabled while an action is running, so a redraw mid-action can't offer a second tap.
@@ -2121,12 +2165,16 @@ export async function load(state) {
   const started = Date.now();
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
   // read-only.
-  const [d, cam, pr, me] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false, unanswered: true }),
-    settle(api("/api/projects"), 6000, { available: false }), settle(whoami(), 6000, { role: "none" })]);
+  // The printer's alerts come from the records and Needs you, as Home reads them (6 s and 4 s).
+  const [d, cam, pr, me, recs, needsRead] = await Promise.all([api("/api/workshop"), settle(api("/api/camera"), 6000, { ok: false, unanswered: true }),
+    settle(api("/api/projects"), 6000, { available: false }), settle(whoami(), 6000, { role: "none" }),
+    settle(api("/api/records"), 6000, null), settle(api("/api/needs"), 4000, null)]);
   // The Room view only for the owner (its routes refuse anyone else); a failed read leaves the aside as before A17.
   const room = me?.role === "owner" ? await settle(api("/api/camera/room"), 6000, null) : null;
-  const v = workshopView(d, { role: me?.role, last: state.last });
+  const v = workshopView(d, { role: me?.role, last: state.last, records: Array.isArray(recs?.records) ? recs.records : null,
+    needs: needsRead, lastAlerts: state.lastAlerts });
   if (!v) throw new Error("The workshop status came back empty.");
+  if (!v.alertsUnread) state.lastAlerts = v.needs.filter((n) => n.kind === "alert");
   if (!v.down) state.last = { prints: d.prints, spools: d.spools, week: d.week, at: Date.now() / 1000 };
   const busy = printerBusy();
 
@@ -2159,9 +2207,9 @@ export async function load(state) {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
 
   // Needs you here: only when something waits, never an empty section.
-  state.needs.hidden = !v.needs.length;
-  redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.signIn, busy]), () =>
-    state.needs.replaceChildren(state.needs.firstChild, ...(v.needs.length ? needsList(state, v).filter(Boolean) : [])));
+  state.needs.hidden = !v.needsShown;
+  redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.alertsUnread, v.signIn, busy]), () =>
+    state.needs.replaceChildren(state.needs.firstChild, ...(v.needsShown ? needsList(state, v).filter(Boolean) : [])));
 
   // Filament loaded and This week: one line each. While Bambuddy is down they have nothing current, and the notice covers it.
   const heading = (el) => el.firstChild;

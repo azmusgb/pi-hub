@@ -296,3 +296,41 @@ test('the lab queue says a question\'s answered count is unknown when it is null
     assert.match(t, /\(0\/2 answered\)/);
   } finally { p.done(); }
 });
+
+test('alerts unread with nothing to list: the note alone, never "Nothing needs you" beside it', async () => {
+  // /api/records and /api/needs both fail (no route: 503), nothing was shown before, and nothing else waits.
+  const p = await page({ '/api/workshop': workshop() });
+  try {
+    await p.ws.load(p.state);
+    const needs = p.state.root.querySelector('.ws-needs');
+    assert.equal(needs.hidden, false);
+    assert.doesNotMatch(text(needs), /Nothing needs you/);
+    assert.equal(needs.querySelector('.ui-needs__empty'), null);
+    assert.match(text(needs), /Couldn't read the printer's alerts just now\./);
+    assert.doesNotMatch(text(needs), /last read/);
+  } finally { p.done(); }
+});
+
+test('alerts unread with the last ones kept: their rows, and the note says they are what was last read', async () => {
+  const p = await page({ '/api/workshop': workshop() });
+  try {
+    p.state.lastAlerts = [{ kind: 'alert', id: 'pi:source:hms:0x2000b', item: { id: 'pi:source:hms:0x2000b', tone: 'bad',
+      title: 'Printer needs attention (0x2000b)', detail: 'It pauses the print. Alert 0x2000b.' } }];
+    await p.ws.load(p.state);
+    const needs = p.state.root.querySelector('.ws-needs');
+    assert.match(text(needs), /Printer needs attention \(0x2000b\)/);
+    assert.match(text(needs), /Couldn't read the printer's alerts just now; this shows what was last read\./);
+    assert.doesNotMatch(text(needs), /Nothing needs you/);
+  } finally { p.done(); }
+});
+
+test('alerts unread with only a lab item listed: the note doesn\'t claim last-read alerts are shown', async () => {
+  // Both alert reads fail and none were read before; the lab item is listed, but it isn't an alert.
+  const p = await page({ '/api/workshop': workshop({ lab: { needs: [judge], active: [], questions: [] } }) });
+  try {
+    await p.ws.load(p.state);
+    const needs = p.state.root.querySelector('.ws-needs');
+    assert.match(text(needs), /Couldn't read the printer's alerts just now\./);
+    assert.doesNotMatch(text(needs), /last read/);
+  } finally { p.done(); }
+});

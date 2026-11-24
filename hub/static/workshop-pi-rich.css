@@ -339,6 +339,8 @@
 .ws-tray .swatch { width: 10px; height: 10px; border-radius: 50%; }
 .ws-last-print { margin: var(--ui-s-2) 0 0; overflow-wrap: anywhere; }
 .ws-needs .lab-need-act { margin-top: var(--ui-s-2); align-self: flex-start; }
+/* The kit's section note sits pulled up under a heading; under the list it needs room of its own. */
+.ws-needs .needs-here__stale { margin-top: var(--ui-s-3); }
 .ws-more-item { margin-top: var(--ui-s-3); border: 1px solid var(--ui-line); border-radius: var(--ui-r-4); background: var(--ui-surface); }
 .ws-more-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: var(--ui-s-3) 1.1rem;
   cursor: pointer; font-weight: 600; border-radius: inherit; }
