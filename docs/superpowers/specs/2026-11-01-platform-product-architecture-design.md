@@ -1180,3 +1180,12 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   Spreadsheets and Claude Code chat stay framed. Eight duplicates get one owner. Phases P0-P6, D1-D14 as recommended.
   Amends A4 req 1 (browser only), l.67, 521, 708-711, 827, 829, 1044, A22 §2.1 and §4.1, A25 l.33.
   Merged by the owner on 23 Nov 2026 (pi-hub #309).
+- **A35. Mission Control: initiatives, decisions and evidence in Pi Hub; Agent World draws them**
+  (`2026-11-24-amendment-a35-mission-control.md`): Pi Hub keeps an append-only mission ledger (initiatives, stages,
+  gates, workstreams, tasks, executions, evidence references, plan revisions, commands) that Claude Code hooks, Local AI
+  missions, a Mac importer (reviewed manifests, print-lab), Pi Hub's own GitHub reader and Pi Hub releases write with
+  per-source keys. Only Pi Hub's own sources and the owner can make work verified, reviewed or accepted. A33's decisions
+  gain structured kinds, alternatives, evidence and recommendations, with digest-checked answers; no tap authorizes an
+  action in v1 (a GitHub-enforced path follows a spike). New tier-1 pages `/missions` and `/missions/<id>` (Overview,
+  Decisions, Plan, Work, Evidence), polled, no new streams. Agent World later draws the ledger and its City renderer
+  retires (M5). Phases M0-M6, D1-D10 as recommended. Amends A34 D4, A33 record, calls 2 and 6 and its tap anti-goal, baseline §7.
