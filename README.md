@@ -60,3 +60,10 @@ After restarting Plex/Homebridge or remounting movie storage, Help checks the af
 - **Automations:** preview a rule without running it, then inspect durable outcomes from real household events.
 
 See the [household feature guide](docs/household-features.md) for permissions, limits and backup behaviour.
+
+## Folded-in projects
+
+- `netmon/` — the Pi's network-monitoring stack (Prometheus, Grafana, Kuma, Orbi exporter), formerly `azmusgb/netmon`.
+  It deploys on its own with `netmon/deploy.sh` and reports `release:netmon`; Pi Hub's release does not touch it.
+- `tools/home-mcp/` — the Mac's read-only MCP server for Claude Code, formerly `azmusgb/home-mcp`. Its own `uv` project:
+  `cd tools/home-mcp && uv sync && uv run pytest`. Pi Hub's test suites don't collect it.
