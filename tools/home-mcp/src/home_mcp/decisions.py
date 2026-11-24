@@ -206,8 +206,8 @@ async def read(client_factory: Callable[[], httpx.AsyncClient], runner) -> tuple
                 detail = f"{detail}: {reason}"
         return failed, [{"source": SOURCE, "error": err["error"], "detail": detail}]
     problem = _shape_problem(data)
-    if problem:
-        return failed, [{"source": SOURCE, "error": "bad_shape", "detail": problem}]
+    if problem or not isinstance(data, dict):  # _shape_problem already refuses a non-object; this narrows the type
+        return failed, [{"source": SOURCE, "error": "bad_shape", "detail": problem or "not an object"}]
     errors: list[dict] = []
     return {"open": _rows(data, "open", errors), "recently_answered": _rows(data, "answered", errors),
             "version": 2 if data.get("version") == 2 else 1, "note": NOTE}, errors
