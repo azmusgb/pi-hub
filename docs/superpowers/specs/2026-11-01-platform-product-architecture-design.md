@@ -1172,3 +1172,11 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   add decisions with the Mac key and read answers through a key-gated home-mcp `decisions` tool; a session never answers.
   Decisions do not count toward the Needs badge or the wall display. Three PRs: kit, Pi Hub, home-mcp. Amends section 6.
   Merged by the owner on 21 Nov 2026 (pi-hub #294).
+- **A34. Pi Hub draws the Assistant; Local AI answers** (`2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md`):
+  Pi Hub draws every Assistant page that is a list, a state or a plain form; its server calls Local AI's JSON routes
+  through an owner-only, allow-listed adapter (the browser never reaches Local AI through Pi Hub). Pages open with
+  labelled last-known data while the PC sleeps; private reads are never cached on the Pi. Local AI keeps a frozen
+  standalone Home, Work, Improve and Status for when Pi Hub is down; Agent World, the developer tools, Atlas,
+  Spreadsheets and Claude Code chat stay framed. Eight duplicates get one owner. Phases P0-P6, D1-D14 as recommended.
+  Amends A4 req 1 (browser only), l.67, 521, 708-711, 827, 829, 1044, A22 §2.1 and §4.1, A25 l.33.
+  Merged by the owner on 23 Nov 2026 (pi-hub #309).
