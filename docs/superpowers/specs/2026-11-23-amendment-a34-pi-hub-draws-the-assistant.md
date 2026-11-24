@@ -72,6 +72,7 @@ without the owner's choice (D10). Releases over their test budget.
 | Streams: chat is SSE over POST (`server/chat.js:265`; 180 s default, clamp 30-900 s); missions SSE (`server/agents.js:225`); the run viewer polls every 3 s | — | `display_ai.forward` reads whole bodies under a cap and cannot stream; P5 extends it |
 | Images: request bodies up to 30 MB base64; results served by `/api/images/view` | `server/images.js:156, 268` | Generating with a source image stays framed until measured (D3) |
 | The Pi is the bottleneck | release pytest 883 s of its 900 s limit (`deploy/pi-hub-release:110`) on 23 Nov; 1,518 py + 684 js tests | P0 restores headroom; every phase has a test ceiling |
+| Pi Hub's shell-update rule (pi-hub #308, open): while the Assistant frame is open an out-of-date page never reloads on its own, and `/assistant` links hand off to the frame via `retarget()` in `main.js` | #308 (`hub/static/js/main.js`, `shell-update.js`) | P4 revisits both for pages Pi Hub draws: they are ordinary Pi Hub pages (auto-reload applies, links don't retarget); the rule stays only for tier-3 framed pages |
 | No History route on main yet | A25 §4; not found in `hub/` | Audit rows land in `action_log`; the History page is A25 step 20's |
 
 ## Design
