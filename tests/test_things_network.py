@@ -98,3 +98,18 @@ def test_adguard_paused_is_said_not_counted_as_blocking():  # iPad, 1 Nov: "Bloc
     r = network.adguard({"ok": True, "queries": 3294, "blocked": 0, "protection": False})
     assert r["state"] == "paused" and r["headline"] == "Ad blocking is off"
     assert network.adguard({"ok": True, "queries": 10, "blocked": 1, "protection": None})["state"] == "blocking"
+
+
+def test_backups_behind_when_the_pc_has_not_copied_one_for_240_h():
+    # Home's Storage said "Backed up" while the selfcheck said "Backup copied to the PC · Failed · 240 h ago"
+    from hub import now as now_mod, records, things
+    from tests.helpers_records import T, inputs
+    stale_copy = {"ts": T - 240 * 3600, "name": "pi-hub-backup.tgz"}
+    recs = things.build_all(inputs(pc_copy=stale_copy), {}, T)
+    rec = recs["backups"]
+    assert rec["state"] == "behind", rec
+    assert rec["headline"] == "The backup hasn't been copied to the PC for 10 days"
+    assert rec["detail"]["pc_copy"]["last"] == T - 240 * 3600
+    # Needs you (and Home's issues) read the same record: it is raised there with no page of its own deriving it
+    merged_recs = {id: records.merge(None, r, T) for id, r in recs.items() if r is not None}
+    assert "Backups" in [i["what"] for i in now_mod.issues_from(merged_recs)]
