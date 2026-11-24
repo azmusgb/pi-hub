@@ -47,6 +47,8 @@ def _load(name: str):
     """A mission module loaded by path, or None when it can't be (then the hook does what it can without it)."""
     try:
         spec = importlib.util.spec_from_file_location(f"_mission_{name}", MISSION_SRC / f"{name}.py")
+        if spec is None or spec.loader is None:
+            return None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
@@ -173,7 +175,7 @@ class Hook:
         tuid = self._tool_use_id()
         if tuid is None or self.tool() in SKIP_TOOLS:
             return []
-        body = {"tool_use_id": tuid, "tool": self.tool(), "label": self.label()}
+        body: dict = {"tool_use_id": tuid, "tool": self.tool(), "label": self.label()}
         duration = self._duration(tuid)
         if duration is not None:
             body["duration_ms"] = duration
@@ -222,7 +224,7 @@ class Hook:
         agent_id = r.get("agentId")
         if not (isinstance(agent_id, str) and _NAME.fullmatch(agent_id)):
             return []
-        body = {"agent_id": agent_id, "agent_type": self.L.take_state(f"agent-{agent_id}") or "agent"}
+        body: dict = {"agent_id": agent_id, "agent_type": self.L.take_state(f"agent-{agent_id}") or "agent"}
         model = self.L.clean(r.get("resolvedModel"), 80) if isinstance(r.get("resolvedModel"), str) else ""
         if model:
             body["subagent_model"] = model
@@ -258,13 +260,13 @@ class Hook:
 
     def events(self) -> list[dict]:
         """The events this firing spools, each as spool.append takes it."""
-        handler = self.HANDLERS.get(self.event)
+        handler = self.HANDLERS.get(self.event or "")
         if handler is None:
             return []
         pairs = handler(self)
         if self.claimed:  # the first firing after /mission attach without a session id completes the attach
             pairs = [("session.attached", self.L.attached_body(self.binding, self.key, "attach"))] + pairs
-        if not pairs:
+        if not pairs or self.binding is None:
             return []
         common = self.common()
         initiative = self.binding["initiative"]
