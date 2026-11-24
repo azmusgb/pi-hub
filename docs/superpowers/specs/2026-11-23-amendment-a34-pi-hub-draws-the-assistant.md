@@ -1,6 +1,6 @@
 # Amendment A34: Pi Hub draws the Assistant; Local AI answers
 
-Date: 2026-11-23 · Status: **proposed** (this PR) · Amends:
+Date: 2026-11-23 · Status: **approved** (merged by the owner on 23 Nov 2026, pi-hub #309; D1-D14 as recommended) · Amends:
 - A4 requirement 1 (a4:61-62, "separate origin, always… never a path under Pi Hub's origin") and its test (a4:62), for
   the **browser** only: Pi Hub's server may call allow-listed Local AI routes; no browser request is proxied.
 - Baseline l.521 and l.1044 (`/assistant` frames its own origin), l.708-711 (§7: the Assistant pages are rendered by
