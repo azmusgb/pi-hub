@@ -2,17 +2,16 @@
 importer shares. A failed read of the outcome is never treated as a success: events leave the spool only on a 200,
 or when the hub refuses them for what they are (a 4xx that isn't about the caller's key, route or rate)."""
 import fcntl
-import json
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
 import httpx
 
 from .. import decisions, hub, shell
 from . import spool
+from .local import config_path, enabled, lock_path, log_path  # noqa: F401 (config_path: re-exported)
 from .validate import load_contract
 
 BATCH = 50
@@ -21,22 +20,6 @@ LATE_AFTER_S = 60  # an event older than this when posted is marked late (§6.2:
 # 4xx codes that say something is wrong with the caller's setup, not with the events: keep the spool and stop.
 # 409 is the contract's "version": the hub doesn't accept this client's contract, so dropping would lose everything.
 KEEP_CODES = {401, 404, 408, 409, 429}
-
-
-def _path(env: str, default: str) -> Path:
-    return Path(os.environ.get(env) or default).expanduser()
-
-
-def lock_path() -> Path:
-    return _path("HOME_MISSION_LOCK", "~/.claude/mission-drain.lock")
-
-
-def log_path() -> Path:
-    return _path("HOME_MISSION_LOG", "~/.claude/mission-drain.log")
-
-
-def config_path() -> Path:
-    return _path("HOME_MISSION_CONFIG", "~/.claude/mission-config.json")
 
 
 def log(message: str) -> None:
@@ -49,19 +32,6 @@ def log(message: str) -> None:
             f.write(line)
     except OSError:
         pass  # the log is a courtesy; a full disk must not fail a drain
-
-
-def enabled() -> tuple[bool, str]:
-    """(on, why). Off unless the config file says `"enabled": true`; an unreadable file is off, and says so."""
-    try:
-        cfg = json.loads(config_path().read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return False, "no mission-config.json, so mission reporting is off"
-    except (OSError, ValueError):
-        return False, "mission-config.json is unreadable, so mission reporting is off"
-    if not isinstance(cfg, dict) or cfg.get("enabled") is not True:
-        return False, "mission reporting is off (enabled is not true)"
-    return True, ""
 
 
 @dataclass

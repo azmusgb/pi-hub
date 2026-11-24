@@ -1,7 +1,10 @@
 """The Mac's mission spool (A35 §6.2): one JSON line per event, `{"event": ..., "source": ...}`, appended under flock.
 Hooks only ever append here and never touch the network; the drainer posts later. Every event carries an event_id
 (set at append time unless the caller already gave one, as the importer's deterministic ids do), so a replay is
-harmless: Pi Hub dedupes by it."""
+harmless: Pi Hub dedupes by it.
+
+Standard library only, with no relative imports: claude/hooks/mission-report.py loads this file by path so a hook
+appends with exactly this line format, lock and cap."""
 import fcntl
 import json
 import os
@@ -9,12 +12,15 @@ import tempfile
 import uuid
 from collections import Counter
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-
-from .. import hub
 
 CAP_BYTES = 5 * 1024 * 1024
 KEEP_FRACTION = 0.8  # an overflow trims to this, so the next appends don't each rewrite the file
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
 def spool_path() -> Path:
@@ -119,7 +125,7 @@ def _trim(path: Path, cap: int) -> None:
             continue
         body = {"dropped": info["dropped"]}
         body.update({k: info[k] for k in ("oldest_at", "newest_at") if info[k]})
-        gap = {"event_id": str(uuid.uuid4()), "type": "gap", "at": hub.now_iso(), "initiative": info["initiative"],
+        gap = {"event_id": str(uuid.uuid4()), "type": "gap", "at": _now_iso(), "initiative": info["initiative"],
                "body": body}
         kept.append(_line({"event": gap, "source": source}))
     _replace(path, kept)

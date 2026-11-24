@@ -1,16 +1,17 @@
-"""`home-mission`: validate a manifest, import it, drain the spool, show the spool. This CLI writes (to the spool and
-to Pi Hub's mission routes), unlike the read-only MCP tools. Exit codes: 0 ok, 1 a problem or refusal, 2 Pi Hub has
-no mission routes yet."""
+"""`home-mission`: validate a manifest, import it, drain the spool, show the spool, and the /mission skill's actions
+(attach, detach, task, status). This CLI writes (to the spool, the attach binding and Pi Hub's mission routes), unlike
+the read-only MCP tools. Exit codes: 0 ok, 1 a problem or refusal, 2 Pi Hub has no mission routes yet."""
 import argparse
 import asyncio
 import json
+import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .. import hub, shell
-from . import drain, importer, spool
+from . import drain, importer, local, spool
 from .validate import validate_event, validate_manifest
 
 BATCH_SOURCE = "importer"
@@ -118,6 +119,140 @@ def cmd_spool(args) -> int:
     return 0
 
 
+def _child(initiative: str, kind: str, value: str) -> str | None:
+    """A child id of the bound initiative, from either the full id or its last segment ("measure")."""
+    cid = value if ":" in value else f"{initiative}:{kind}:{value}"
+    parts = cid.split(":")
+    ok = len(parts) == 3 and parts[0] == initiative and parts[1] == kind and local.is_slug(parts[2])
+    return cid if ok else None
+
+
+def _report(event: dict) -> str:
+    """Spool one claude event when reporting is on and it passes the contract; say what happened either way."""
+    on, why = local.enabled()
+    if not on:
+        return f"not spooled: {why}"
+    problems = validate_event("claude", event)
+    if problems:
+        return "not spooled: " + "; ".join(problems)
+    spool.append(event, "claude")
+    return f"spooled {event['type']}"
+
+
+def _session(value: str | None) -> str | None:
+    """The --session value when it is a session id. An unsubstituted ${CLAUDE_SESSION_ID} is not one."""
+    return value if local.is_uuid(value) else None
+
+
+def cmd_attach(args) -> int:
+    if not local.is_slug(args.initiative):
+        print(f"not an initiative id (lower-case letters, digits and '-'): {local.clean(args.initiative, 40)}")
+        return 1
+    workstream = _child(args.initiative, "workstream", args.workstream) if args.workstream else None
+    if args.workstream and workstream is None:
+        print(f"not a workstream of {args.initiative}: {local.clean(args.workstream, 80)}")
+        return 1
+    cwd, session = args.cwd or os.getcwd(), _session(args.session)
+    key = local.cwd_key(cwd)
+    with local.bindings_for_update() as bindings:
+        old = bindings.get(key, {})
+        same = old.get("initiative") == args.initiative
+        binding = {"initiative": args.initiative, "attached_at": local.now_iso(),
+                   "session_id": old.get("session_id") if same else None, "lineage": old.get("lineage", []) if same else []}
+        binding.update({k: v for k, v in (("workstream", workstream), ("branch", local.branch(cwd)),
+                                          ("remote", local.remote(cwd))) if v})
+        if session:
+            local.rebind(binding, session)
+            for other in [k for k, b in bindings.items() if k != key and b.get("session_id") == session]:
+                del bindings[other]  # a session reports under one binding: the newest attach wins
+        bindings[key] = binding
+    print(f"attached {key} to {args.initiative}" + (f" ({workstream})" if workstream else ""))
+    if not session:
+        print("session id not given: this session's next hook firing in this directory fills it in")
+        return 0
+    body = {**local.common(binding, cwd), **local.attached_body(binding, key, "attach")}
+    print(_report(local.event("session.attached", args.initiative, body)))
+    return 0
+
+
+def _bound(args) -> tuple[str | None, dict | None]:
+    """(key, binding) for this directory, or for --session wherever it was attached."""
+    bindings = local.load_bindings()
+    cwd, session = args.cwd or os.getcwd(), _session(args.session)
+    here = local.cwd_key(cwd)
+    key = (local.find(bindings, cwd, session) if session else None) or (here if here in bindings else None)
+    return (key, bindings[key]) if key else (None, None)
+
+
+def cmd_detach(args) -> int:
+    key, binding = _bound(args)
+    if key is None:
+        print("not attached here; nothing to detach")
+        return 0
+    with local.bindings_for_update() as bindings:
+        bindings.pop(key, None)
+    print(f"detached {key} from {binding['initiative']}")
+    if local.is_uuid(binding.get("session_id")):
+        body = {**local.common(binding, args.cwd or os.getcwd()), "reason": "detached"}
+        print(_report(local.event("session.ended", binding["initiative"], body)))
+    return 0
+
+
+def cmd_task(args) -> int:
+    key, binding = _bound(args)
+    if key is None:
+        print("not attached here: run /mission attach <initiative> first")
+        return 1
+    if not local.is_uuid(binding.get("session_id")):
+        print("the attach is still waiting for this session's id (the next hook firing fills it in); try again")
+        return 1
+    task = _child(binding["initiative"], "task", args.task)
+    if task is None:
+        print(f"not a task of {binding['initiative']}: {local.clean(args.task, 80)}")
+        return 1
+    body = {**local.common(binding, args.cwd or os.getcwd()), "task": task}
+    summary = local.clean(args.summary, 280) if args.summary else ""
+    if args.action == "done" and summary:
+        body["summary"] = summary
+    print(_report(local.event(f"task.{'started' if args.action == 'start' else 'done'}", binding["initiative"], body)))
+    return 0
+
+
+def cmd_status(args) -> int:
+    key, binding = _bound(args)
+    if key is None:
+        print("not attached here")
+    else:
+        print(f"attached: {key} -> {binding['initiative']}" + (f" ({binding['workstream']})" if binding.get("workstream") else ""))
+        print(f"session: {binding.get('session_id') or 'waiting for the next hook firing'}"
+              + (f" (lineage {len(binding['lineage'])})" if binding.get("lineage") else ""))
+        print(f"branch: {binding.get('branch') or '-'}  remote: {binding.get('remote') or '-'}")
+    on, why = local.enabled()
+    print("reporting: on" if on else f"reporting: off ({why})")
+    if local.drain_argv() is None:
+        print("drain: no command in mission-config.json, so the hook never starts one")
+    return cmd_spool(args)
+
+
+def _skill_parsers(sub) -> None:
+    """The /mission skill's actions. Each takes --cwd (default: here) and --session (the Claude Code session id)."""
+    def add(name: str, help_text: str, fn):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("--cwd", help="the session's directory (default: the current one)")
+        p.add_argument("--session", help="the Claude Code session id")
+        p.set_defaults(fn=fn)
+        return p
+    a = add("attach", "attach this directory's session to an initiative", cmd_attach)
+    a.add_argument("initiative")
+    a.add_argument("workstream", nargs="?")
+    add("detach", "remove this directory's binding", cmd_detach)
+    t = add("task", "report a task of the bound initiative started or done", cmd_task)
+    t.add_argument("task")
+    t.add_argument("action", choices=["start", "done"])
+    t.add_argument("--summary", help="one line for task done")
+    add("status", "the binding, whether reporting is on, and the spool", cmd_status)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="home-mission", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -137,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("spool", help="spool commands")
     s.add_argument("what", choices=["status"])
     s.set_defaults(fn=cmd_spool)
+    _skill_parsers(sub)
     args = ap.parse_args(argv)
     try:
         return args.fn(args)
