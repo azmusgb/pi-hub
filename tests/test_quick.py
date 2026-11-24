@@ -520,7 +520,10 @@ def test_a_full_store_makes_room_by_evicting_inactive_files_only(env, monkeypatc
     old = old_job(env, "failed", "old.stl")
     live = old_job(env, "slicing", "live.stl")
     monkeypatch.setattr(quick, "QUOTA", raw_job(old)["model_bytes"] + raw_job(live)["model_bytes"] + 100)
-    r = env.post("/api/quick/uploads", json={"filename": "n.stl", "size": 500}, headers=SAME)
+    # The new file is the old one's size: over the 100 bytes left, and room once the old file goes. A fixed 500 needed
+    # the old file to be 400 bytes or more, which held only when earlier tests had already advanced _n.
+    size = raw_job(old)["model_bytes"]
+    r = env.post("/api/quick/uploads", json={"filename": "n.stl", "size": size}, headers=SAME)
     assert r.status_code == 200
     assert raw_job(old)["file_removed"] == 1 and raw_job(live)["file_removed"] == 0
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from datetime import datetime
 
 import pytest
 
@@ -73,7 +74,12 @@ elif name == "mv":
 
 
 def reports(inbox):
-    return [json.loads(p.read_text()) for p in sorted(inbox.glob("firmware-*.json"))] if inbox.exists() else []
+    """Oldest first, as the hub applies them (releases.read_inbox: by `at`, then name). The name alone is
+    firmware-<epoch s>-<pid>: two pushes in one second sort by pid, which needn't grow (parallel test workers)."""
+    if not inbox.exists():
+        return []
+    found = [(p.name, json.loads(p.read_text())) for p in inbox.glob("firmware-*.json")]
+    return [body for _, body in sorted(found, key=lambda f: (datetime.fromisoformat(f[1]["at"]), f[0]))]
 
 
 def test_publish_is_unchanged(hook):
