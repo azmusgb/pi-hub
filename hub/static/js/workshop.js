@@ -1898,7 +1898,10 @@ function needsList(state, v) {
   });
   for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
   return [list,
-    v.alertsUnread ? unreadNote("Couldn't read the printer's alerts just now; this shows what was last read.") : null,
+    // "Last read" only when last-read alerts are listed; other rows (Clear the plate, lab items) aren't alerts.
+    v.alertsUnread ? unreadNote(v.needs.some((n) => n.kind === "alert")
+      ? "Couldn't read the printer's alerts just now; this shows what was last read."
+      : "Couldn't read the printer's alerts just now.") : null,
     v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
       h("button", { type: "button", class: "ghost small", dataset: { key: "sign-in" }, onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
 }
