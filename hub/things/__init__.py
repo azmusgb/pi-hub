@@ -42,6 +42,12 @@ def _obico():
     return bambuddy.obico_status()
 
 
+def hms_record(b):
+    """The printer's alerts for this Bambuddy reading, less the ones the owner has acknowledged."""
+    from .. import hms_ack
+    return printer.hms(b, hms_ack.current(b) if b is not None else frozenset())
+
+
 def _fetchers():
     from .. import outside, printing, sources
     return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
@@ -96,7 +102,7 @@ def build_all(inputs, prev, now):
     # Failure detection reads the printer's state: this cycle's record, or the last one if Bambuddy was silent
     printer_rec = out["printer"] if out["printer"] is not None else prev.get("printer")
     builders["obico"] = lambda: printer.obico(i("obico"), printer_rec)
-    builders["hms"] = lambda: printer.hms(i("bambuddy"))
+    builders["hms"] = lambda: hms_record(i("bambuddy"))
     for id, fn in builders.items():
         out[id] = _build(id, fn)
     # The PC off during a print: this cycle's printer and Local AI, or the last ones if their source was

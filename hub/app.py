@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, decisions, systems, today
+from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, decisions, systems, today, hms_ack, things
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -242,6 +242,44 @@ def api_needs(request: Request):
     except sqlite3.Error:  # who can't be told: decisions stay out, and the page says why
         return fresh(decisions.fault(data, decisions.WHO_UNREADABLE))
     return fresh(decisions.attach(data) if owner else data)  # A33: beside items, for the owner only
+
+
+HMS_NEED = re.compile(r"pi:source:hms:([0-9A-Za-z_]{1,40})")  # a Needs you item for one printer alert (needs.build)
+
+
+@app.post("/api/needs/ack")
+async def api_needs_ack(request: Request):
+    """The owner has seen a printer alert that needs nothing more: the hub stops listing it until the printer drops it
+    and raises it again (hms_ack). Owner only, logged. It changes what the hub says, never the printer: nothing is
+    sent to Bambuddy, and an acknowledged alert still blocks a start (lab_start.printer_refusals)."""
+    role, device = need(request, "owner")
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    id = body.get("id") if isinstance(body, dict) else None
+    m = HMS_NEED.fullmatch(id) if isinstance(id, str) else None
+    if not m:
+        raise HTTPException(400, "Only a printer alert can be acknowledged.")
+    code = m[1]
+    # The printer's list now, not the page's: a stale tab must not acknowledge an alert that has gone and come back.
+    sources._cache.pop("bambuddy_printer", None)
+    b = sources.bambuddy_printer(timeout=3)
+    if not hms_ack.answered(b):
+        raise HTTPException(503, "Bambuddy can't see the printer just now, so nothing was acknowledged.")
+    if code not in hms_ack.listed(b):
+        raise HTTPException(409, "The printer no longer lists that alert. Nothing was acknowledged.")
+    at = time.time()
+    try:
+        hms_ack.acknowledge(code, at)
+    except sqlite3.Error:
+        raise HTTPException(503, "Pi Hub couldn't save that just now. Nothing was acknowledged.")
+    # /api/needs reads the records, which the loop rebuilds every 30 s: the alerts' record is rebuilt now from this
+    # reading, so the next read leaves the row out.
+    records.store({"hms": records.merge(records.get("hms"), things.hms_record(b), at)}, at)
+    say = f"Acknowledged printer alert {code}."
+    auth.log(role, device, "needs:ack", say)
+    return fresh({"ok": True, "say": say})
 
 
 @app.get("/api/system/backups")

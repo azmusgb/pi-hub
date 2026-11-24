@@ -226,16 +226,22 @@ def obico(o, printer_rec):
     return records.make("obico", "watching", "Watching for failures", "bambuddy")
 
 
-def hms(b):
-    """The printer's own fault codes (severity 1 stop, 2 pause, 3 notice); None when Bambuddy didn't answer."""
+def hms(b, acknowledged=frozenset()):
+    """The printer's own fault codes (severity 1 stop, 2 pause, 3 notice); None when Bambuddy didn't answer.
+    `acknowledged`: codes the owner has acknowledged (hms_ack.current). They are left out of the state and the
+    headline, so every surface agrees, and stay listed in detail.acknowledged. Only what the hub says changes:
+    lab_start.printer_refusals reads Bambuddy's own list, so an acknowledged alert still blocks a start."""
     if b is None:
         return None
-    errors = list(b.get("hms") or [])
+    listed = list(b.get("hms") or [])
+    errors = [e for e in listed if e.get("code") not in acknowledged]
+    detail = {"errors": errors, "acknowledged": [e for e in listed if e.get("code") in acknowledged]}
     if not errors:
-        return records.make("hms", "clear", "No printer alerts", "bambuddy", detail={"errors": errors})
+        said = "Printer alerts acknowledged" if detail["acknowledged"] else "No printer alerts"
+        return records.make("hms", "clear", said, "bambuddy", detail=detail)
     stopping = [e for e in errors if stops(e)]  # any other severity (3, unknown, odd) stays visible as a notice
     first = (stopping or errors)[0]
-    return records.make("hms", "stopped" if stopping else "notice", hms_title(first), "bambuddy", detail={"errors": errors})
+    return records.make("hms", "stopped" if stopping else "notice", hms_title(first), "bambuddy", detail=detail)
 
 
 def hms_title(error):

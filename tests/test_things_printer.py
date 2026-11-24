@@ -404,6 +404,19 @@ def test_hms_severity_maps_to_state():
     assert said["headline"] == "X2D: The front door is open"  # Bambuddy's words, the X2D named
 
 
+def test_hms_leaves_acknowledged_codes_out_of_the_state_and_headline():
+    from hub.things import printer as p
+    b = {"hms": [{"code": "0x2000b", "severity": 2, "module": 5}, {"code": "0x3000a", "severity": 3, "module": 5}]}
+    r = p.hms(b, frozenset({"0x2000b"}))
+    assert r["state"] == "notice" and r["headline"] == "Printer needs attention (0x3000a)"
+    assert r["detail"] == {"errors": [b["hms"][1]], "acknowledged": [b["hms"][0]]}
+    r = p.hms(b, frozenset({"0x2000b", "0x3000a", "0x9"}))
+    assert r["state"] == "clear" and r["headline"] == "Printer alerts acknowledged"
+    assert r["detail"] == {"errors": [], "acknowledged": b["hms"]}
+    assert p.hms(b)["detail"] == {"errors": b["hms"], "acknowledged": []}
+    assert p.hms(None, frozenset({"0x2000b"})) is None
+
+
 def test_hms_empty_is_clear():
     from hub.things import printer as p
     assert p.hms({"hms": []})["state"] == "clear"
