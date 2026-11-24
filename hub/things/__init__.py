@@ -20,6 +20,11 @@ def _backups():
     return sources.cached("helper-backups", 300, lambda: actions.helper("backups:ages", timeout=5))
 
 
+def _pc_copy():
+    from .. import system
+    return system.pc_copy_reading()
+
+
 def _lab():
     """The print lab's view, asked only while the printer's current record is printing or paused."""
     from .. import sources
@@ -42,7 +47,7 @@ def _fetchers():
     return {"bambuddy": lambda: sources.bambuddy_printer(timeout=3), "pi_status": sources.pi_status,
             "netmon": sources.network_metrics, "lab": _lab, "sessions": sources.plex_sessions,
             "paper": printing.printer_state, "weather": outside.weather, "adguard": _adguard,
-            "backups": _backups, "obico": _obico, "camera": sources.camera_health,
+            "backups": _backups, "pc_copy": _pc_copy, "obico": _obico, "camera": sources.camera_health,
             "homebridge_login": _homebridge_login}
 
 
@@ -85,7 +90,7 @@ def build_all(inputs, prev, now):
         "weather": lambda: house.weather(i("weather")),
         "internet": lambda: network.internet(net),
         "adguard": lambda: network.adguard(i("adguard")),
-        "backups": lambda: network.backups(i("backups"), now),
+        "backups": lambda: network.backups(i("backups"), now, i("pc_copy")),
         "camera": lambda: network.camera(i("camera")),
     }
     # Failure detection reads the printer's state: this cycle's record, or the last one if Bambuddy was silent

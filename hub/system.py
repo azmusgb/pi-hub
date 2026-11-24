@@ -199,13 +199,26 @@ def releases():
     return {"current": current, "on_pi": on_pi, "log": log[:12]}
 
 
-def pc_copy():
-    """When the Windows PC last copied a backup (it pulls one each morning at 5:00)."""
+PC_COPY_FILE = "/var/lib/pi-backup/last-copied"
+
+
+def pc_copy_reading(path=PC_COPY_FILE):
+    """When the Windows PC last copied a backup (it pulls one each morning at 5:00): {"ts", "name"};
+    "never" when it hasn't copied one yet (no file), "unreadable" when the file can't be read or parsed."""
     try:
-        ts, name = open("/var/lib/pi-backup/last-copied").read().split()[:2]
+        with open(path) as f:
+            ts, name = f.read().split()[:2]
         return {"ts": int(ts), "name": name}
+    except FileNotFoundError:
+        return "never"
     except (OSError, ValueError):
-        return None
+        return "unreadable"
+
+
+def pc_copy():
+    """The last copy for Settings, None when there isn't a readable one."""
+    r = pc_copy_reading()
+    return r if isinstance(r, dict) else None
 
 
 OUTAGE_PAIRS = {"pc_down": ("pc_back", "Windows PC"), "drive_dropped": ("drive_back", "Movies drive"),
