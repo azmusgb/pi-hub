@@ -19,7 +19,9 @@ export function watchShell(container, registering, { doc = document, reload = ()
 // Not text: their value isn't typing.
 const NOT_TEXT = new Set(["checkbox", "radio", "hidden", "button", "submit", "reset", "file", "range", "color", "image"]);
 
-// A text field or box whose value differs from the one the page gave it holds the person's typing.
+// A text field or box whose value differs from the one the page gave it holds the person's typing. A frame counts as
+// typing: /assistant's composer is in Local AI's frame on its own origin, whose fields can't be read.
 function typed(doc) {
+  if (doc.querySelector("iframe")) return true;
   return [...doc.querySelectorAll("textarea, input")].some((f) => !NOT_TEXT.has(f.type) && f.value !== f.defaultValue);
 }

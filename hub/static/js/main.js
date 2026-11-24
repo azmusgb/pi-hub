@@ -294,12 +294,13 @@ document.addEventListener("click", (e) => {
   }
   const query = new URLSearchParams(url.search);
   const destination = url.pathname + (query.size ? `?${query}` : "") + url.hash;
+  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message, which keeps what is typed in it)
+  // or replaces the page in place: Back still leaves the Assistant in one step (A4 requirement 7).
+  const handOff = url.pathname === "/assistant" && location.pathname === "/assistant";
+  if (handOff && current?.mod.retarget?.(current.state, url)) return;
   // A deploy has taken over since this page loaded (shell-update.js): load the new version with this step.
   if (shell.stale()) { location.assign(destination); return; }
-  // On /assistant, a link to /assistant goes to the open frame (a hand-off by message) or replaces the page in place:
-  // Back still leaves the Assistant in one step (A4 requirement 7).
-  if (url.pathname === "/assistant" && location.pathname === "/assistant") {
-    if (current?.mod.retarget?.(current.state, url)) return;
+  if (handOff) {
     history.replaceState({}, "", destination);
     show(url.pathname, { focus: true });
     return;

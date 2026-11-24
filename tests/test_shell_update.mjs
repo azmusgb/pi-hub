@@ -111,6 +111,26 @@ test("an out-of-date page doesn't reload on return while a field holds typed tex
   } finally { p.dom.uninstall(); }
 });
 
+// /assistant draws Local AI's composer in a frame on its own origin: its fields can't be read, so an open frame counts
+// as typing (review of this fix: a return to the app would otherwise wipe a half-written message).
+test("an out-of-date page doesn't reload on return while it holds a frame whose fields can't be read", async () => {
+  const { watchShell } = await load();
+  const p = page();
+  try {
+    let reloads = 0;
+    const frame = p.doc.createElement("iframe");
+    p.dom.root().append(frame);
+    const sw = fakeContainer({ controller: {} });
+    watchShell(sw, Promise.resolve({ update: async () => {} }), { doc: p.doc, reload: () => reloads++ });
+    sw.takeOver();
+    p.hide(); p.show();
+    assert.equal(reloads, 0, "a message being written in the Assistant frame is never wiped by an update");
+    frame.remove();
+    p.hide(); p.show();
+    assert.equal(reloads, 1, "once the frame is gone, the next return reloads");
+  } finally { p.dom.uninstall(); }
+});
+
 test("main.js wires it: registers through watchShell, and an out-of-date page's next navigation is a full load", () => {
   const main = read("hub/static/js/main.js");
   assert.match(main, /import \{ watchShell \} from "\.\/shell-update\.js";/, "main.js imports watchShell");
@@ -120,6 +140,9 @@ test("main.js wires it: registers through watchShell, and an out-of-date page's 
   assert.ok(full > 0, "an in-app link on an out-of-date page loads the destination in full");
   assert.ok(full < click.indexOf("history.replaceState({}, \"\", destination)") && full < click.indexOf("history.pushState({}, \"\", destination)"),
     "the full load comes before any pushState or replaceState of the destination");
+  const handOff = click.indexOf("current?.mod.retarget?.(current.state, url)");
+  assert.ok(handOff > 0 && handOff < full,
+    "a link to /assistant on /assistant goes to the open frame by message first, keeping what is typed in it");
   assert.match(main, /addEventListener\("popstate", \(\) => \{\n[^\n]*\n  if \(shell\.stale\(\)\) location\.reload\(\); else show\(location\.pathname\);/, "Back on an out-of-date page reloads too");
   assert.ok(read("hub/static/sw.js").includes('"/static/js/shell-update.js"'), "the shell caches the module");
 });
