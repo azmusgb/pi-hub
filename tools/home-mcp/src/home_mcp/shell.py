@@ -79,3 +79,7 @@ def pihub_repo() -> str:
 
 def localai_repo() -> str:
     return str(Path(setting("HOME_MCP_LOCALAI_REPO", "~/dev/ai-harness/LocalAI")).expanduser())
+
+
+def printlab_repo() -> str:
+    return str(Path(setting("HOME_MCP_PRINTLAB_REPO", "~/dev/print-lab")).expanduser())
