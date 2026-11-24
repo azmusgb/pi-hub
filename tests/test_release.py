@@ -4,6 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -14,17 +15,23 @@ ROOT = Path(__file__).resolve().parents[1]
 SHA = 'a' * 40
 
 
-@pytest.fixture
-def release(tmp_path):
-    root = tmp_path / 'pi'
-    tools = tmp_path / 'bin'
+PI_DIRS = ['srv', 'opt/pi-hub/releases/previous', 'var/lock',
+           'usr/local/bin', 'usr/local/lib/pi-hub', 'etc/systemd/system', 'etc/caddy']
+TOOLS = ['git', 'timeout', 'python3', 'mv', 'readlink']  # these need Python
+SHELL_TOOLS = ['systemctl', 'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']  # these only log and answer
+
+
+@pytest.fixture(scope='module')
+def release_template(tmp_path_factory):
+    """What every release test starts from, built once: the fake Pi, the release archives and the fake commands.
+    Each test gets its own copy of the Pi and its own copy of the real script."""
+    base = tmp_path_factory.mktemp('release-template')
+    root = base / 'pi'
+    tools = base / 'bin'
     tools.mkdir()
-    for directory in ['srv', 'opt/pi-hub/releases/previous', 'var/lock',
-                      'usr/local/bin', 'usr/local/lib/pi-hub', 'etc/systemd/system', 'etc/caddy']:
+    for directory in PI_DIRS:
         (root / directory).mkdir(parents=True, exist_ok=True)
-    old = root / 'opt/pi-hub/releases/previous'
-    (old / 'marker').write_text('old app')
-    (root / 'opt/pi-hub/current').symlink_to(old)
+    (root / 'opt/pi-hub/releases/previous/marker').write_text('old app')
     helper = root / 'usr/local/lib/pi-hub/pi-hub-helper.py'
     helper.write_text('old helper')
     helper.chmod(0o750)
@@ -32,15 +39,9 @@ def release(tmp_path):
     (root / 'etc/systemd/system/pi-hub.service').write_text('old unit')
     (root / 'etc/systemd/system/x2d-camera-bridge.service').write_text('camera')
     (root / 'etc/caddy/Caddyfile').write_text('# package default')
-    script = (ROOT / 'deploy/pi-hub-release').read_text()
-    script = re.sub(r'/[a-z]+/(?:local/)?', lambda m: str(root) + m[0]
-                    if m[0] in ['/srv/', '/opt/', '/var/', '/usr/local/', '/etc/'] else m[0], script)
-    script = script.replace('/tmp/pi-hub-gate.json', str(tmp_path / 'gate.json'))
-    runner = tmp_path / 'release'
-    runner.write_text(script)
     archives = {}
     for kind in ('gate', 'pregate'):  # pregate: a release from before the front gate (no deploy/caddy)
-        archives[kind] = tmp_path / f'release-{kind}.tar'
+        archives[kind] = base / f'release-{kind}.tar'
         with tarfile.open(archives[kind], 'w') as tar:
             tar.add(ROOT / 'deploy', arcname='deploy',
                     filter=lambda t: None if kind == 'pregate' and '/caddy' in t.name else t)
@@ -71,27 +72,56 @@ elif name == 'mv':
     else:
         args = [a for a in args if a != '-f']
         shutil.move(args[0], args[1])
-elif name == 'systemctl':
-    with open(os.environ['CALLS'], 'a') as f: f.write(' '.join(args) + '\n')
-    if args == ['daemon-reload'] and os.environ.get('FAIL') == 'install':
-        marker = pathlib.Path(os.environ['CALLS'] + '.failed')
-        if not marker.exists(): marker.touch(); sys.exit(1)
-elif name == 'curl':
-    with open(os.environ['CALLS'], 'a') as f: f.write('curl ' + args[-1] + '\n')
-    healthy = os.environ.get('HEALTHY')
-    sys.exit(0 if not healthy or args[-1] in healthy.split() else 7)
-elif name == 'caddy':
-    with open(os.environ['CALLS'], 'a') as f: f.write('caddy ' + ' '.join(args) + '\n')
 elif name == 'readlink':
     p = pathlib.Path(args[-1])
     if not p.exists(): sys.exit(1)
     print(p.resolve())
-# flock, sleep and rsvg-convert succeed without touching the host.
 ''')
     stub.chmod(0o755)
-    for name in ['git', 'timeout', 'python3', 'mv', 'systemctl', 'readlink',
-                 'flock', 'sleep', 'curl', 'rsvg-convert', 'caddy']:
+    for name in TOOLS:
         (tools / name).symlink_to(stub)
+    # A shell stub starts in a fraction of Python's time; the script calls these most (curl and sleep 30 times each
+    # while a check waits for an address that never answers).
+    sh = tools / 'shstub'
+    sh.write_text(r'''#!/bin/sh
+set -f
+case "${0##*/}" in
+systemctl)
+  echo "$*" >> "$CALLS"
+  if [ "$*" = daemon-reload ] && [ "$FAIL" = install ] && [ ! -e "$CALLS.failed" ]; then
+    : > "$CALLS.failed"; exit 1
+  fi ;;
+curl)
+  for last; do :; done
+  echo "curl $last" >> "$CALLS"
+  [ -z "$HEALTHY" ] && exit 0
+  for h in $HEALTHY; do [ "$h" = "$last" ] && exit 0; done
+  exit 7 ;;
+caddy)
+  echo "caddy $*" >> "$CALLS" ;;
+esac
+# flock, sleep and rsvg-convert succeed without touching the host.
+exit 0
+''')
+    sh.chmod(0o755)
+    for name in SHELL_TOOLS:
+        (tools / name).symlink_to(sh)
+    return base, (ROOT / 'deploy/pi-hub-release').read_text(), archives
+
+
+@pytest.fixture
+def release(release_template, tmp_path):
+    base, script, archives = release_template
+    root = tmp_path / 'pi'
+    shutil.copytree(base / 'pi', root, symlinks=True)
+    (root / 'opt/pi-hub/current').symlink_to(root / 'opt/pi-hub/releases/previous')
+    helper = root / 'usr/local/lib/pi-hub/pi-hub-helper.py'
+    script = re.sub(r'/[a-z]+/(?:local/)?', lambda m: str(root) + m[0]
+                    if m[0] in ['/srv/', '/opt/', '/var/', '/usr/local/', '/etc/'] else m[0], script)
+    script = script.replace('/tmp/pi-hub-gate.json', str(tmp_path / 'gate.json'))
+    runner = tmp_path / 'release'
+    runner.write_text(script)
+    tools = base / 'bin'
 
     def run(fail='', kind='gate', healthy='', msg=''):
         env = {**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'HEALTHY': healthy, 'MSG': msg,
