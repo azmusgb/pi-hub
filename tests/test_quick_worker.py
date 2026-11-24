@@ -33,10 +33,14 @@ def gcode(block=GOOD_BLOCK, machine="MS", ids="GFL99") -> str:
 
 
 def sliced_file(text: str) -> bytes:
+    """A fixed entry date, so the same text gives the same bytes: a parametrize id built from them must match in
+    every pytest-xdist worker, and zipfile otherwise stamps each entry with the current 2-second clock."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("Metadata/plate_1.gcode", text)
-        z.writestr("Metadata/slice_info.config", "<x/>")
+        for name, body in (("Metadata/plate_1.gcode", text), ("Metadata/slice_info.config", "<x/>")):
+            entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            entry.external_attr = 0o600 << 16  # what writestr(name, …) gives
+            z.writestr(entry, body, compress_type=zipfile.ZIP_DEFLATED)
     return buf.getvalue()
 
 
