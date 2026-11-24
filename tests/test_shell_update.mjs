@@ -120,6 +120,6 @@ test("main.js wires it: registers through watchShell, and an out-of-date page's 
   assert.ok(full > 0, "an in-app link on an out-of-date page loads the destination in full");
   assert.ok(full < click.indexOf("history.replaceState({}, \"\", destination)") && full < click.indexOf("history.pushState({}, \"\", destination)"),
     "the full load comes before any pushState or replaceState of the destination");
-  assert.match(main, /addEventListener\("popstate", \(\) => \{[^\n]*shell\.stale\(\) \? location\.reload\(\)/, "Back on an out-of-date page reloads too");
+  assert.match(main, /addEventListener\("popstate", \(\) => \{\n[^\n]*\n  if \(shell\.stale\(\)\) location\.reload\(\); else show\(location\.pathname\);/, "Back on an out-of-date page reloads too");
   assert.ok(read("hub/static/sw.js").includes('"/static/js/shell-update.js"'), "the shell caches the module");
 });
