@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""
+net-inventory — NETMON Declarative Device Inventory Status Tool
+Reads /opt/netmon/inventory/devices.yml and displays live network state.
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+INVENTORY_PATH = "/opt/netmon/inventory/devices.yml"
+LOCAL_FALLBACK = os.path.expanduser("~/dev/netmon/inventory/devices.yml")
+
+def ping_host(ip):
+    try:
+        res = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", ip],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True
+        )
+        if res.returncode == 0:
+            m = re.search(r"time=([0-9.]+)\s*ms", res.stdout)
+            ms = m.group(1) if m else "ok"
+            return True, f"{ms} ms"
+        return False, "DOWN"
+    except Exception:
+        return False, "ERR"
+
+def parse_simple_yaml(path):
+    devices = []
+    current = None
+    with open(path) as f:
+        for line in f:
+            line_str = line.strip()
+            if not line_str or line_str.startswith("#"):
+                continue
+            if line.startswith("  ") and line.endswith(":\n") and not line.startswith("    "):
+                if current:
+                    devices.append(current)
+                current = {"id": line_str[:-1]}
+            elif current:
+                if ":" in line_str:
+                    k, v = line_str.split(":", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k in ("name", "role", "model", "ip"):
+                        current[k] = v
+    if current:
+        devices.append(current)
+    return devices
+
+def main():
+    path = INVENTORY_PATH if os.path.exists(INVENTORY_PATH) else LOCAL_FALLBACK
+    if not os.path.exists(path):
+        print(f"Error: inventory file not found at {path}", file=sys.stderr)
+        sys.exit(1)
+
+    devices = parse_simple_yaml(path)
+
+    print("\n" + "=" * 80)
+    print(" 📡 NETMON DECLARATIVE HOME NETWORK INVENTORY")
+    print("=" * 80)
+    print(f"{'IP ADDRESS':<16} {'NAME':<26} {'ROLE':<24} {'STATUS'}")
+    print("-" * 80)
+
+    for d in devices:
+        ip = d.get("ip", "—")
+        name = d.get("name", d.get("id", "Unknown"))
+        role = d.get("role", "—")
+
+        if ip == "10.0.0.80":
+            status_str = "\033[92m● LOCAL OBSERVER\033[0m"
+        elif ip != "—":
+            ok, ms = ping_host(ip)
+            if ok:
+                status_str = f"\033[92m● UP ({ms})\033[0m"
+            else:
+                status_str = "\033[91m✖ DOWN\033[0m"
+        else:
+            status_str = "—"
+
+        print(f"{ip:<16} {name:<26} {role:<24} {status_str}")
+
+    print("=" * 80 + "\n")
+
+if __name__ == "__main__":
+    main()
