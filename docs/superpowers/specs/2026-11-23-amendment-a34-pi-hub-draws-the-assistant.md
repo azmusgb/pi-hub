@@ -206,6 +206,9 @@ states its added test time and must keep Pi Hub's release tests under the P0 cei
 
 ## Decisions for the owner
 
+**Answered 23 Nov 2026, 22:37:** the owner chose "Yes, as recommended" for D1-D14. Each row's recommended answer is
+the decision; the alternatives stay listed for the record. Approval of A34 itself is the merge of this PR.
+
 | # | Question | Recommended | Alternatives |
 |---|---|---|---|
 | D1 | How does Pi Hub get Local AI's data? | **Server-side adapter on an allow-list**; the browser never reaches Local AI through Pi Hub | browser proxy (breaks A4); keep everything framed |
