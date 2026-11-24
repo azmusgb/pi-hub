@@ -165,3 +165,12 @@ def test_home_control_validates_before_calling_homebridge():
         homecontrol.set_value("../../etc", "On", True)
     with pytest.raises(ValueError):
         homecontrol.set_value("a" * 40, "TargetTemperature", 30)
+
+
+@pytest.mark.parametrize("reading", [{"ts": 1700000000, "name": "pi-hub.tgz"}, "never", "unreadable"])
+def test_settings_carries_the_pc_copy_reading_as_it_is(c, monkeypatch, reading):
+    # an unreadable copy file used to reach Settings as null, which it drew as "Not copied to the PC yet."
+    from hub import system
+    setup_hub(c)
+    monkeypatch.setattr(system, "pc_copy_reading", lambda: reading)
+    assert c.get("/api/settings").json()["pc_copy"] == reading
