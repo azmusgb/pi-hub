@@ -178,19 +178,25 @@
       "id": "a34:task:p0-timing-followups",
       "workstream": "a34:workstream:p0-tests",
       "title": "Release test timing follow-ups from QA on #313",
-      "state": "active"
+      "state": "done"
     },
     {
       "id": "a34:task:p0-measure",
       "workstream": "a34:workstream:p0-tests",
       "title": "Measure: three consecutive Pi Hub releases under 600 s (plan step 6)",
-      "state": "planned"
+      "state": "active"
+    },
+    {
+      "id": "a34:task:p0-parallel-tests",
+      "workstream": "a34:workstream:p0-tests",
+      "title": "Release tests on 3 xdist workers (plan decision 7)",
+      "state": "done"
     },
     {
       "id": "a34:task:p0-kit-sync",
       "workstream": "a34:workstream:p0-kit",
       "title": "Kit 2.27.1, System cards, Developer-tools cards (plan step 5)",
-      "state": "active"
+      "state": "done"
     }
   ],
   "dependencies": [
@@ -236,6 +242,11 @@
     },
     {
       "from": "a34:task:p0-release-time",
+      "to": "a34:task:p0-measure",
+      "kind": "blocks"
+    },
+    {
+      "from": "a34:task:p0-parallel-tests",
       "to": "a34:task:p0-measure",
       "kind": "blocks"
     }
@@ -496,6 +507,19 @@
         "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
         "line": 227
       }
+    },
+    {
+      "id": "a34:decision:p0-parallel",
+      "question": "P0 plan decision 7: run the Pi's release tests in parallel with pytest-xdist?",
+      "kind": "yesno",
+      "answer": "Yes: pytest-xdist on 3 workers (python3-pytest-xdist installed on the Pi), after serial releases of 596, 589 and 628 s.",
+      "answered_at": "2026-11-24T13:05:00-05:00",
+      "answer_source": {
+        "repo": "azmusgb/pi-hub",
+        "path": "docs/superpowers/plans/2026-11-23-a34-p0-headroom.md",
+        "commit": "aa575d5585e33b6618a11e00c931ea505baa5373",
+        "line": 99
+      }
     }
   ],
   "risks": [
@@ -646,7 +670,7 @@
     {
       "id": "a34:evidence:p0-timing-pr",
       "kind": "pr",
-      "summary": "QA follow-ups on #313: monotonic timing, no empty JS line, 600 s counts as over budget. Open.",
+      "summary": "QA follow-ups on #313, merged in #315: monotonic timing, no empty JS line, 600 s counts as over budget; live in fa4436a.",
       "pr": {
         "repo": "azmusgb/pi-hub",
         "pr": 315
@@ -659,9 +683,62 @@
       ]
     },
     {
+      "id": "a34:evidence:p0-release-times",
+      "kind": "measurement",
+      "summary": "Pi Hub release test times on 24 Nov, serial: 596 s, 589 s (eacf9d1), 628 s (fa4436a), 640 s (5ebc34f; Pi 75-78 C, load ~9-11 during an X2D print). No run of three under 600 s.",
+      "pr": {
+        "repo": "azmusgb/pi-hub",
+        "pr": 327
+      },
+      "links": [
+        {
+          "entity": "a34:task:p0-measure",
+          "role": "supports"
+        },
+        {
+          "entity": "a34:gate:p0-done",
+          "role": "refutes"
+        }
+      ]
+    },
+    {
+      "id": "a34:evidence:p0-parallel-pr",
+      "kind": "pr",
+      "summary": "#327: release tests on 3 xdist workers when xdist is installed. A trial of the branch on the Pi passed in 403 s during a print. Live in 5ebc34f; the first parallel release is the one after it.",
+      "pr": {
+        "repo": "azmusgb/pi-hub",
+        "pr": 327
+      },
+      "links": [
+        {
+          "entity": "a34:task:p0-parallel-tests",
+          "role": "supports"
+        },
+        {
+          "entity": "a34:decision:p0-parallel",
+          "role": "supports"
+        }
+      ]
+    },
+    {
+      "id": "a34:evidence:p0-kit-live",
+      "kind": "live-check",
+      "summary": "LocalAI 9420dfd serves /ui/VERSION 2.27.1 on the PC, the same version as Pi Hub's kit (P0 Done 2), read 24 Nov.",
+      "pr": {
+        "repo": "azmusgb/LocalAI",
+        "pr": 620
+      },
+      "links": [
+        {
+          "entity": "a34:gate:p0-done",
+          "role": "supports"
+        }
+      ]
+    },
+    {
       "id": "a34:evidence:p0-kit-pr",
       "kind": "pr",
-      "summary": "A27 step 2a: kit 2.27.1, System as one card page, Developer tools as tool cards. Open.",
+      "summary": "A27 step 2a, shipped 24 Nov as 9420dfd: kit 2.27.1, System as one card page, Developer tools as tool cards.",
       "pr": {
         "repo": "azmusgb/LocalAI",
         "pr": 620
