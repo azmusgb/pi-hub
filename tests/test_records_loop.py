@@ -438,7 +438,7 @@ def test_local_ai_hears_about_the_new_pc_record():
 
 
 def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
-    from hub import actions, bambuddy, homecontrol, outside, printing, sources
+    from hub import actions, bambuddy, homecontrol, outside, printing, sources, system
     calls = []
 
     def answer(name, value=None, fail=False):
@@ -458,6 +458,7 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
     monkeypatch.setattr(sources, "camera_health", answer("camera"))
     monkeypatch.setattr(bambuddy, "obico_status", answer("obico"))
     monkeypatch.setattr(homecontrol, "login_state", answer("homebridge_login"))
+    monkeypatch.setattr(system, "pc_copy_reading", answer("pc_copy"))
     monkeypatch.setattr(actions, "helper", lambda name, timeout=None: calls.append(name) or {"from": name})
     sources._cache.pop("helper-adguard", None)
     sources._cache.pop("homebridge-login", None)
@@ -465,11 +466,11 @@ def test_gather_reads_each_source_once_and_none_for_a_failure(monkeypatch):
     records.refresh(T, inputs=PRINTING)  # the lab is asked only while the printer is printing or paused
     got = things.gather()
     assert set(got) == {"bambuddy", "pi_status", "netmon", "lab", "sessions", "paper", "weather", "adguard",
-                        "backups", "camera", "obico", "homebridge_login"}
+                        "backups", "pc_copy", "camera", "obico", "homebridge_login"}
     assert got["sessions"] is None and got["paper"] is None
     assert got["adguard"] == {"from": "adguard:stats"} and got["backups"] == {"from": "backups:ages"}
     assert sorted(calls) == sorted(["bambuddy", "pi_status", "netmon", "lab", "sessions", "paper", "weather",
-                                    "camera", "obico", "adguard:stats", "backups:ages", "homebridge_login"])
+                                    "camera", "obico", "adguard:stats", "backups:ages", "pc_copy", "homebridge_login"])
     things.gather()  # the helper reports are shared with /api/network/adguard and /api/system/backups for 5 min
     assert calls.count("adguard:stats") == 1 and calls.count("backups:ages") == 1
     assert calls.count("homebridge_login") == 1  # cached too: Homebridge's login is tried at most every 5 min

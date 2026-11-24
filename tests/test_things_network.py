@@ -5,6 +5,7 @@ from hub.things import network
 from tests.helpers_records import merged
 
 NOW = 1_000_000
+COPIED = {"ts": NOW - 3 * 3600, "name": "pi-hub-backup.tgz"}  # the PC copied this morning's backup
 
 
 def test_internet_states():
@@ -46,22 +47,22 @@ def test_adguard_down_is_a_problem_even_when_the_internet_is_ok():
 
 
 def test_backups_ok_and_behind():
-    ok = network.backups({"ok": True, "ages": {"pi": NOW - 22 * 3600, "mac": NOW - 3600}}, NOW)
+    ok = network.backups({"ok": True, "ages": {"pi": NOW - 22 * 3600, "mac": NOW - 3600}}, NOW, COPIED)
     assert ok["state"] == "ok" and ok["headline"] == "Backed up: Pi 22 h ago, Mac 1 h ago"
     assert [m["name"] for m in ok["detail"]["machines"]] == ["Pi", "Mac"]
-    behind = network.backups({"ok": True, "ages": {"pi": NOW - 3600, "mac": NOW - 3 * 86400}}, NOW)
+    behind = network.backups({"ok": True, "ages": {"pi": NOW - 3600, "mac": NOW - 3 * 86400}}, NOW, COPIED)
     assert behind["state"] == "behind" and behind["headline"] == "The Mac hasn't backed up for 3 days"
-    never = network.backups({"ok": True, "ages": {"pi": None}}, NOW)
+    never = network.backups({"ok": True, "ages": {"pi": None}}, NOW, COPIED)
     assert never["state"] == "behind" and "never" in never["headline"].lower()
-    assert network.backups({"ok": True, "ages": {"pi": NOW - 48 * 3600}}, NOW)["state"] == "ok"
+    assert network.backups({"ok": True, "ages": {"pi": NOW - 48 * 3600}}, NOW, COPIED)["state"] == "ok"
 
 
 def test_backups_unknown_and_none():
-    assert network.backups(None, NOW) is None
-    assert network.backups({"ok": True, "ages": {}}, NOW)["state"] == "unknown"
-    r = network.backups({"ok": False, "message": "helper down"}, NOW)
+    assert network.backups(None, NOW, COPIED) is None
+    assert network.backups({"ok": True, "ages": {}}, NOW, COPIED)["state"] == "unknown"
+    r = network.backups({"ok": False, "message": "helper down"}, NOW, COPIED)
     assert r["state"] == "unknown" and r["headline"] == "No reading" and r["cause"] == "helper down"
-    assert network.backups({"ok": False}, NOW)["cause"] == ""
+    assert network.backups({"ok": False}, NOW, COPIED)["cause"] == ""
 
 
 def test_camera():

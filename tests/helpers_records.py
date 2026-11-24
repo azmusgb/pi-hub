@@ -25,6 +25,7 @@ GOOD = {"bambuddy": bud(), "pi_status": PI, "netmon": {"win_ok": True, "status":
         "lab": None, "sessions": [], "paper": {"state": "Ready"},
         "weather": {"now": {"temp": 50, "sky": "Clear"}, "days": [{"high": 60}], "alerts": []},
         "adguard": {"ok": True, "queries": 100, "blocked": 10}, "backups": {"ok": True, "ages": {"pi": T}},
+        "pc_copy": {"ts": T, "name": "pi-hub-backup.tgz"},
         "camera": {"ok": True}, "obico": {"enabled": True, "per_printer": {"1": {"class": "safe", "error": None}}}}
 
 
