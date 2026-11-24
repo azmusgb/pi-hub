@@ -904,6 +904,8 @@ reaches GitHub, so **D2's authorize path stays off** and is raised as D11. M1-M3
 
 ### 21.3 Decision raised
 
+**Answered 24 Nov 2026, 11:12:** the owner chose D11 as recommended (not now; revisit at M4).
+
 | # | Question | Recommended | Alternatives |
 |---|---|---|---|
 | D11 | Set up GitHub enforcement for pi-hub and print-lab: a Pi Hub GitHub App, `enforce_admins` on, and session tokens without administration? | **Not now; revisit at M4.** Merges stay under your chat "merge" and `permissions.ask` (verified to hold in bypass mode, §21.1). Private repos would need Pro | do it now for the two public repos; never |
