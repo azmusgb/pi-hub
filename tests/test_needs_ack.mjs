@@ -3,7 +3,7 @@
 // "ok" is "not acknowledged": the kit then keeps the row.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ackNeed, mergeProblems, problemItems } from "../hub/static/js/control-room.js";
+import { ackNeed, mergeProblems, needsOptions, problemItems } from "../hub/static/js/control-room.js";
 import { printerAlerts } from "../hub/static/js/workshop.js";
 
 const ID = "pi:source:hms:0x2000b";
@@ -70,4 +70,30 @@ test("the Workshop's alert rows carry it too", () => {
   assert.equal(alert.id, ID);
   assert.equal(alert.item.ack, true);
   assert.equal(printerAlerts([], asAnyone)[0].item.ack, undefined);
+});
+
+test("every Needs you list is given an onAck that posts the id and reads the list again", async () => {
+  const had = { location: globalThis.location, fetch: globalThis.fetch };
+  const posts = [];
+  let reloads = 0;
+  globalThis.location = new URL("http://hub.test/workshop");
+  globalThis.fetch = async (url, o = {}) => {
+    posts.push([String(url), o.method, JSON.parse(o.body)]);
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const opts = needsOptions(() => { reloads += 1; });
+    assert.equal(opts.self, "Pi Hub");
+    assert.equal(typeof opts.resolve, "function");
+    assert.equal(await opts.onAck(ID, HMS), true);
+    assert.deepEqual(posts, [["/api/needs/ack", "POST", { id: ID }]]);
+    await tick();
+    assert.equal(reloads, 1);
+    globalThis.fetch = async () => new Response(JSON.stringify({ detail: "Sign in as the owner first." }),
+      { status: 401, headers: { "content-type": "application/json" } });
+    assert.equal(await opts.onAck(ID, HMS), false, "a caller who isn't the owner is told it wasn't acknowledged");
+  } finally {
+    globalThis.location = had.location;
+    globalThis.fetch = had.fetch;
+  }
 });

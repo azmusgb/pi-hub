@@ -136,6 +136,36 @@ def test_a_forgetting_that_cant_be_saved_still_builds_the_record(monkeypatch):
     assert things.hms_record(printer(NOTICE))["state"] == "notice"
 
 
+def test_a_records_pass_with_bambuddy_silent_forgets_nothing():
+    hms_ack.acknowledge(PASSED, NOW)
+    built = things.build_all({"bambuddy": None, "pi_status": PI}, {}, NOW)
+    assert built["hms"] is None  # no answer is no reading, not "no alerts"
+    assert auth.get(hms_ack.KEY) == {PASSED: NOW}
+
+
+def test_acknowledged_then_a_silent_read_then_listed_again_is_still_acknowledged():
+    """Pins today's behaviour (QA finding F1): an acknowledgement outlives a gap in Bambuddy's answers, so if the
+    printer dropped the code and raised it again while Bambuddy was silent, it comes back acknowledged. Whether that
+    should show as new is an owner decision still open (see the PR); change this test with that decision."""
+    hms_ack.acknowledge(PASSED, NOW)
+    assert things.hms_record(None) is None
+    assert things.hms_record(printer(PASSED, connected=False)) is not None
+    again = things.hms_record(printer(PASSED))
+    assert again["state"] == "clear" and [e["code"] for e in again["detail"]["acknowledged"]] == [PASSED]
+
+
+def test_acknowledge_raises_and_saves_nothing_when_its_own_read_fails(monkeypatch):
+    saved = []
+
+    def broken(key, default=None):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(auth, "get", broken)
+    monkeypatch.setattr(auth, "put", lambda key, value: saved.append((key, value)))
+    with pytest.raises(sqlite3.OperationalError):
+        hms_ack.acknowledge(PASSED, NOW)
+    assert saved == []
+
+
 def test_a_start_still_reads_the_printers_own_list():
     from hub import lab_start
     hms_ack.acknowledge(PASSED, NOW)
@@ -209,3 +239,14 @@ def test_acknowledging_sends_the_printer_nothing(owner, reading, monkeypatch):
     from hub import printer_control
     monkeypatch.setattr(printer_control, "run", lambda *a, **k: pytest.fail("the printer was sent a command"))
     assert ack(owner).status_code == 200
+
+
+def test_a_log_that_cant_be_written_doesnt_undo_the_answer(owner, reading, monkeypatch):
+    def broken(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(auth, "log", broken)
+    r = ack(owner)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert r.json()["say"] == f"Acknowledged printer alert {PASSED}. Pi Hub couldn't write it to the action log."
+    assert list(auth.get(hms_ack.KEY)) == [PASSED]
+    assert records.get("hms")["state"] == "notice"
