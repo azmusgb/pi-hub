@@ -5,6 +5,7 @@ from hub.things import network
 from tests.helpers_records import merged
 
 NOW = 1_000_000
+COPIED = {"ts": NOW - 3 * 3600, "name": "pi-hub-backup.tgz"}  # the PC copied this morning's backup
 
 
 def test_internet_states():
@@ -46,22 +47,22 @@ def test_adguard_down_is_a_problem_even_when_the_internet_is_ok():
 
 
 def test_backups_ok_and_behind():
-    ok = network.backups({"ok": True, "ages": {"pi": NOW - 22 * 3600, "mac": NOW - 3600}}, NOW)
+    ok = network.backups({"ok": True, "ages": {"pi": NOW - 22 * 3600, "mac": NOW - 3600}}, NOW, COPIED)
     assert ok["state"] == "ok" and ok["headline"] == "Backed up: Pi 22 h ago, Mac 1 h ago"
     assert [m["name"] for m in ok["detail"]["machines"]] == ["Pi", "Mac"]
-    behind = network.backups({"ok": True, "ages": {"pi": NOW - 3600, "mac": NOW - 3 * 86400}}, NOW)
+    behind = network.backups({"ok": True, "ages": {"pi": NOW - 3600, "mac": NOW - 3 * 86400}}, NOW, COPIED)
     assert behind["state"] == "behind" and behind["headline"] == "The Mac hasn't backed up for 3 days"
-    never = network.backups({"ok": True, "ages": {"pi": None}}, NOW)
+    never = network.backups({"ok": True, "ages": {"pi": None}}, NOW, COPIED)
     assert never["state"] == "behind" and "never" in never["headline"].lower()
-    assert network.backups({"ok": True, "ages": {"pi": NOW - 48 * 3600}}, NOW)["state"] == "ok"
+    assert network.backups({"ok": True, "ages": {"pi": NOW - 48 * 3600}}, NOW, COPIED)["state"] == "ok"
 
 
 def test_backups_unknown_and_none():
-    assert network.backups(None, NOW) is None
-    assert network.backups({"ok": True, "ages": {}}, NOW)["state"] == "unknown"
-    r = network.backups({"ok": False, "message": "helper down"}, NOW)
+    assert network.backups(None, NOW, COPIED) is None
+    assert network.backups({"ok": True, "ages": {}}, NOW, COPIED)["state"] == "unknown"
+    r = network.backups({"ok": False, "message": "helper down"}, NOW, COPIED)
     assert r["state"] == "unknown" and r["headline"] == "No reading" and r["cause"] == "helper down"
-    assert network.backups({"ok": False}, NOW)["cause"] == ""
+    assert network.backups({"ok": False}, NOW, COPIED)["cause"] == ""
 
 
 def test_camera():
@@ -98,3 +99,51 @@ def test_adguard_paused_is_said_not_counted_as_blocking():  # iPad, 1 Nov: "Bloc
     r = network.adguard({"ok": True, "queries": 3294, "blocked": 0, "protection": False})
     assert r["state"] == "paused" and r["headline"] == "Ad blocking is off"
     assert network.adguard({"ok": True, "queries": 10, "blocked": 1, "protection": None})["state"] == "blocking"
+
+
+def test_backups_behind_when_the_pc_has_not_copied_one_for_240_h():
+    # Home's Storage said "Backed up" while the selfcheck said "Backup copied to the PC · Failed · 240 h ago"
+    from hub import now as now_mod, records, things
+    from tests.helpers_records import T, inputs
+    stale_copy = {"ts": T - 240 * 3600, "name": "pi-hub-backup.tgz"}
+    recs = things.build_all(inputs(pc_copy=stale_copy), {}, T)
+    rec = recs["backups"]
+    assert rec["state"] == "behind", rec
+    assert rec["headline"] == "The backup hasn't been copied to the PC for 10 days"
+    assert rec["detail"]["pc_copy"]["last"] == T - 240 * 3600
+    # Needs you (and Home's issues) read the same record: it is raised there with no page of its own deriving it
+    merged_recs = {id: records.merge(None, r, T) for id, r in recs.items() if r is not None}
+    assert "Backups" in [i["what"] for i in now_mod.issues_from(merged_recs)]
+
+
+def test_backups_pc_copy_states():
+    fresh = {"ok": True, "ages": {"pi": NOW - 3600}}
+    ok = network.backups(fresh, NOW, COPIED)
+    assert ok["state"] == "ok" and ok["headline"] == "Backed up: Pi 1 h ago"
+    assert ok["detail"]["pc_copy"] == {"last": NOW - 3 * 3600, "age": 3 * 3600, "name": "pi-hub-backup.tgz"}
+    # the selfcheck passes under 50 h and fails at 50 h; the record agrees
+    assert network.backups(fresh, NOW, {"ts": NOW - 50 * 3600 + 1, "name": "x"})["state"] == "ok"
+    assert network.backups(fresh, NOW, {"ts": NOW - 50 * 3600, "name": "x"})["state"] == "behind"
+    never = network.backups(fresh, NOW, "never")
+    assert never["state"] == "behind" and never["headline"] == "The backup has never been copied to the PC"
+    assert never["detail"]["pc_copy"] == {"last": None, "age": None}
+    # a copy file that can't be read, or a reader that raised (None), is neither fine nor "never"
+    for unread in ("unreadable", None, {"ts": "x"}, "garbage"):
+        r = network.backups(fresh, NOW, unread)
+        assert r["state"] == "unknown" and r["cause"] == network.PC_COPY_UNREADABLE, unread
+        assert merged(r)["severity"] == "attention"
+    # a repo behind still names the repo first
+    assert network.backups({"ok": True, "ages": {"pi": NOW - 3 * 86400}}, NOW, "never")["headline"] == \
+        "The Pi hasn't backed up for 3 days"
+
+
+def test_pc_copy_reading_keeps_never_apart_from_unreadable(tmp_path):
+    from hub import system
+    f = tmp_path / "last-copied"
+    assert system.pc_copy_reading(str(f)) == "never"
+    f.write_text("1700000000 pi-hub-2026-11-14.tgz\n")
+    assert system.pc_copy_reading(str(f)) == {"ts": 1700000000, "name": "pi-hub-2026-11-14.tgz"}
+    for garbled in ("", "soon pi-hub.tgz", "1700000000"):
+        f.write_text(garbled)
+        assert system.pc_copy_reading(str(f)) == "unreadable", garbled
+    assert system.pc_copy_reading(str(tmp_path)) == "unreadable"  # a directory: OSError, not missing
