@@ -37,7 +37,8 @@ class _Upstream(http.server.BaseHTTPRequestHandler):
 
 
 def _start(server):
-    t = threading.Thread(target=server.serve_forever, daemon=True)
+    # shutdown() waits for serve_forever's next poll; the default 0.5 s poll made each teardown take a second.
+    t = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
     return f"http://127.0.0.1:{server.server_address[1]}"
 
