@@ -1,6 +1,6 @@
 # Amendment A35: Mission Control — initiatives, decisions and evidence in Pi Hub; Agent World draws them
 
-Date: 2026-11-24 · Status: **proposed** (this PR; approval is its merge) · Amends:
+Date: 2026-11-24 · Status: **proposed** (this PR; approval is its merge; D1-D10 answered as recommended, 24 Nov) · Amends:
 - **A34 D4** (Agent World stays framed, tier 3) and A34's page-table row "agents (Agent World), Main Street": the
   initiative views become Pi Hub tier-1 pages. Agent World's spatial renderer stays framed in Local AI. From M5 it
   draws initiative state that Local AI's server reads from Pi Hub. It is never a source of that state.
@@ -746,6 +746,10 @@ Each phase is its own plan and PRs, gated by the repo's engineer agent, ui-ux-re
 - A33 rows and the A33 read keep working unchanged at every step.
 
 ## 16. Decisions for the owner
+
+**Answered 24 Nov 2026, 10:01:** the owner chose "Approve as recommended" for D2-D10 (D1 answered earlier the same
+day). Each row's recommended answer is the decision; the alternatives stay listed for the record. Approval of A35 itself
+is the merge of this PR.
 
 | # | Question | Recommended | Alternatives |
 |---|---|---|---|

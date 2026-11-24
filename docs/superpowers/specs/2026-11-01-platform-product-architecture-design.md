@@ -1188,4 +1188,4 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   gain structured kinds, alternatives, evidence and recommendations, with digest-checked answers; no tap authorizes an
   action in v1 (a GitHub-enforced path follows a spike). New tier-1 pages `/missions` and `/missions/<id>` (Overview,
   Decisions, Plan, Work, Evidence), polled, no new streams. Agent World later draws the ledger and its City renderer
-  retires (M5). Phases M0-M6, D1-D10. Amends A34 D4, A33 record, calls 2 and 6 and its tap anti-goal, baseline §7.
+  retires (M5). Phases M0-M6, D1-D10 as recommended. Amends A34 D4, A33 record, calls 2 and 6 and its tap anti-goal, baseline §7.
