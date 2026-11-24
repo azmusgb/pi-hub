@@ -276,6 +276,18 @@ Seen during acceptance, left as follow-ups:
 - **Questions should be one short line on a phone**; the detail belongs behind the link (this one was 192 characters).
 - **Release tests ran 883 s of the release's 900 s limit** on the hot Pi (79 °C) for `4c3f457`.
 
+## Open WebUI trial (A30 D7): closed 23 November 2026
+
+The owner answered A30 D7 "Close the trial" on the phone (23 November 2026, decision `a30-d7-open-webui`). The
+trial from the 16 November replacement audit is closed:
+
+- **PC:** the `openwebui` compose project (`C:\OpenWebUI\compose.yml`) is down and its container and image are
+  removed; the startup task "OpenWebUI compose up" is deleted; nothing listens on port 8020.
+- **Pi:** the gated name `openwebui.rahe-home.duckdns.org` is gone from the Caddyfile and `gate-check.sh`.
+- **Kept:** `C:\OpenWebUI\data` (about 930 MB of the trial's chats, documents and settings) stays on the PC until the
+  owner says to delete it. The firewall rule `PiLock-OpenWebUI-8020` is removed (owner's confirmation, 23 November);
+  Paperless's `PiLock-Paperless-8010` is unchanged.
+
 ## Quick Print (A19): merged and live, not yet accepted
 
 Upload an STL or 3MF, slice it on the Mac, review, Prepare, Start and monitor it on `/quick`. How it works, its keys and
