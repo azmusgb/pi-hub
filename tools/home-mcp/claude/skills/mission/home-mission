@@ -1,0 +1,10 @@
+#!/bin/sh
+# Run home-mcp's home-mission from the skill directory, which ~/.claude/skills/mission links to. pwd -P resolves the
+# link, so this finds tools/home-mcp/.venv wherever the pi-hub checkout is.
+here="$(cd "$(dirname "$0")" && pwd -P)"
+exe="$here/../../../.venv/bin/home-mission"
+if [ ! -x "$exe" ]; then
+  echo "home-mission is not built: run 'uv sync' in $(cd "$here/../../.." && pwd -P)" >&2
+  exit 1
+fi
+exec "$exe" "$@"
