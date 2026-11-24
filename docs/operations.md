@@ -242,6 +242,40 @@ What the first attempts taught (6 November): the X2D needs a USB stick for Bambu
 
 Evidence: PRs #196 (Phase 1 backend helper), #198 (Phase 2 quick looks & snapshots), #200 (Phase 3 page sliders, looks, save, pinned view), #201 (dark exposure fix), and #203 (Phase 4 viewing tools & snapshot gallery). All 47 Node browser tests and 298 Python unit tests pass clean.
 
+## Owner decisions (A33): accepted 23 November 2026
+
+**Accepted 2026-11-23**, per amendment A33 and plan `docs/superpowers/plans/2026-11-21-a33-owner-decisions.md`, with
+the owner answering on the phone. A session on the Mac adds a question with the Mac's deploy key; it shows in Home ›
+Needs you as a Decisions group for the signed-in owner only; one tap records the answer; home-mcp's `decisions` tool
+reads it back. Built in appliance-ui #48 and #49 (kit 2.27.0 and 2.27.1), pi-hub #304 and #306 (live as `4c3f457`,
+shell `pi-hub-shell-v230`) and home-mcp #9.
+
+P4's four questions (A27 Activity shape, A27 Developer-tools depth, A30 listing, A28 print route) had all been settled
+before P4 ran (the A27 two by the owner on 23 November, A29 in #285, A30 listed in `599d8e8`), so by the plan's own rule
+they were left out. The owner chose A30 D7 (close the Open WebUI trial) as the question instead.
+
+| Criterion | Evidence |
+|---|---|
+| 1 added by key shows; unreadable has its own item | `POST /api/decisions/claude` with the deploy key answered 200 "added" for `a30-d7-open-webui` (21:27:32); the owner saw the row in Home › Needs you on the iPhone. The unreadable item is covered by #304's and #306's tests. |
+| 2 one answer per tap; failed write keeps the row | The owner's tap stored "Close the trial" once (`answered_at` 21:34:25) and the row left the open list. Double-tap and failed-POST cases: #304 and #306 tests. |
+| 3 home-mcp returns the answer within one call | `decisions` returned the answer in its first call after the tap (as of 21:34:34). |
+| 4 household can't answer; no key can't add | #304 role and key tests; live on 23 November: no or wrong key 401, unkeyed POST 403, an unsigned `/api/needs` carries no decisions (rechecked after `4c3f457`). |
+| 5 text marked untrusted | Every `decisions` read wraps question, options and recommendation in `UNTRUSTED_DECISION` markers (seen live); home-mcp #9 tests. |
+| 6 390/1366, light/dark, axe, keyboard | #306: width sweep, `structure.mjs` with axe, `decisions.mjs` keyboard run, ui-ux-reviewer PASS WITH NOTES. |
+
+The owner's answer to A30 D7 is "Close the trial" (23 November 2026).
+
+Seen during acceptance, left as follow-ups:
+
+- **Two screens named "Decisions".** Local AI's Assistant › Decisions (A30's approvals) and A33's group in Home › Needs
+  you are different lists under one name; the owner looked in the Assistant first and found "Nothing needs you right
+  now" while a question waited. One place for what waits on the owner needs an amendment to A30 and A33.
+- **The phone kept the old app after the deploy.** The first tap went to the cached pre-`4c3f457` shell, which has no
+  Decisions group; only closing and reopening the app picked up v230.
+- **The question sits below the other Needs you items**, and Home's badge doesn't say one of them is a question.
+- **Questions should be one short line on a phone**; the detail belongs behind the link (this one was 192 characters).
+- **Release tests ran 883 s of the release's 900 s limit** on the hot Pi (79 °C) for `4c3f457`.
+
 ## Quick Print (A19): merged and live, not yet accepted
 
 Upload an STL or 3MF, slice it on the Mac, review, Prepare, Start and monitor it on `/quick`. How it works, its keys and
