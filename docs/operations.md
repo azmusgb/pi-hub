@@ -285,8 +285,8 @@ trial from the 16 November replacement audit is closed:
   removed; the startup task "OpenWebUI compose up" is deleted; nothing listens on port 8020.
 - **Pi:** the gated name `openwebui.rahe-home.duckdns.org` is gone from the Caddyfile and `gate-check.sh`.
 - **Kept:** `C:\OpenWebUI\data` (about 930 MB of the trial's chats, documents and settings) stays on the PC until the
-  owner says to delete it. The firewall rule `PiLock-OpenWebUI-8020` is kept until the owner confirms its removal;
-  with nothing on 8020 it blocks nothing in use.
+  owner says to delete it. The firewall rule `PiLock-OpenWebUI-8020` is removed (owner's confirmation, 23 November);
+  Paperless's `PiLock-Paperless-8010` is unchanged.
 
 ## Quick Print (A19): merged and live, not yet accepted
 
