@@ -132,3 +132,21 @@ test('load reads the records and Needs you, and a change to the alerts redraws t
   assert.match(src, /api\("\/api\/needs"\)/);
   assert.match(src, /RELOAD_ON\.has\(ch\?\.id\)/);
 });
+
+test('on Workshop an alert row is not a link to Workshop itself (tapping it would reload and lose the place)', () => {
+  const warning = rec('obico', 'warning', 'attention', { headline: 'Possible failure spotted' });
+  const blind = { id: 'pi:Failure detection', source: 'Pi Hub', tone: 'attention', title: 'Failure detection is blind',
+    detail: "The camera isn't sending frames to Bambuddy.", link: 'tool:bambuddy/settings?tab=failure-detection',
+    record: 'obico', about: 'printer', action: { key: 'open_bambuddy', link: 'tool:bambuddy/settings?tab=failure-detection' } };
+  for (const [records, needs] of [[[printing, hmsStopped], needsOf(hmsItem(2))], [[printing, hmsStopped], null],
+    [[printing, warning], null]]) {
+    const [item] = alerts(workshopView(workshop(), { ...owner, records, needs })).map((n) => n.item);
+    assert.equal(item.link, undefined);
+    assert.equal(item.action, undefined);
+    assert.ok(home(records, needs)[0].link, 'Home keeps its link to the page');
+  }
+  // A link elsewhere (Bambuddy's failure-detection settings) stays.
+  const [kept] = alerts(workshopView(workshop(), { ...owner, records: [printing], needs: needsOf(blind) })).map((n) => n.item);
+  assert.equal(kept.link, blind.link);
+  assert.deepEqual(kept.action, blind.action);
+});
