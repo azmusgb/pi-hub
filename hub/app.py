@@ -247,21 +247,8 @@ def api_needs(request: Request):
 HMS_NEED = re.compile(r"pi:source:hms:([0-9A-Za-z_]{1,40})")  # a Needs you item for one printer alert (needs.build)
 
 
-@app.post("/api/needs/ack")
-async def api_needs_ack(request: Request):
-    """The owner has seen a printer alert that needs nothing more: the hub stops listing it until the printer drops it
-    and raises it again (hms_ack). Owner only, logged. It changes what the hub says, never the printer: nothing is
-    sent to Bambuddy, and an acknowledged alert still blocks a start (lab_start.printer_refusals)."""
-    role, device = need(request, "owner")
-    try:
-        body = await request.json()
-    except Exception:
-        body = None
-    id = body.get("id") if isinstance(body, dict) else None
-    m = HMS_NEED.fullmatch(id) if isinstance(id, str) else None
-    if not m:
-        raise HTTPException(400, "Only a printer alert can be acknowledged.")
-    code = m[1]
+def _acknowledge_alert(code, role, device):
+    """The blocking part of /api/needs/ack (Bambuddy and the database): what it says, or the refusal raised."""
     # The printer's list now, not the page's: a stale tab must not acknowledge an alert that has gone and come back.
     sources._cache.pop("bambuddy_printer", None)
     b = sources.bambuddy_printer(timeout=3)
@@ -278,8 +265,28 @@ async def api_needs_ack(request: Request):
     # reading, so the next read leaves the row out.
     records.store({"hms": records.merge(records.get("hms"), things.hms_record(b), at)}, at)
     say = f"Acknowledged printer alert {code}."
-    auth.log(role, device, "needs:ack", say)
-    return fresh({"ok": True, "say": say})
+    try:
+        auth.log(role, device, "needs:ack", say)
+    except sqlite3.Error:  # it is acknowledged: a log that can't be written mustn't say it wasn't
+        say += " Pi Hub couldn't write it to the action log."
+    return say
+
+
+@app.post("/api/needs/ack")
+async def api_needs_ack(request: Request):
+    """The owner has seen a printer alert that needs nothing more: the hub stops listing it until the printer drops it
+    and raises it again (hms_ack). Owner only, logged. It changes what the hub says, never the printer: nothing is
+    sent to Bambuddy, and an acknowledged alert still blocks a start (lab_start.printer_refusals)."""
+    role, device = need(request, "owner")
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    id = body.get("id") if isinstance(body, dict) else None
+    m = HMS_NEED.fullmatch(id) if isinstance(id, str) else None
+    if not m:
+        raise HTTPException(400, "Only a printer alert can be acknowledged.")
+    return fresh({"ok": True, "say": await asyncio.to_thread(_acknowledge_alert, m[1], role, device)})
 
 
 @app.get("/api/system/backups")
