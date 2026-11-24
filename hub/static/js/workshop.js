@@ -1787,7 +1787,17 @@ export function printerAlerts(records, needs) {
   if (!Array.isArray(records) && !needs) return null;
   return mergeProblems(records || [], needs)
     .filter((p) => ALERTS.has(p.kind === "need" ? p.record : p.recordId))
-    .map((p) => ({ kind: "alert", id: p.id, item: problemItems([p])[0] }));
+    .map((p) => ({ kind: "alert", id: p.id, item: notHere(problemItems([p])[0]) }));
+}
+
+// Home's row links to this page ("Open printer"); here that link would only reload it and lose the place, so it goes.
+// A link elsewhere (Bambuddy's failure-detection settings) stays.
+function notHere(item) {
+  if (item.link !== "/workshop") return item;
+  const rest = { ...item };
+  delete rest.link;
+  delete rest.action;
+  return rest;
 }
 
 // What the page shows, from /api/workshop, the viewer's role and what this page last saw from Bambuddy (`last`, kept
