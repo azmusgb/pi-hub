@@ -323,3 +323,14 @@ test('alerts unread with the last ones kept: their rows, and the note says they 
     assert.doesNotMatch(text(needs), /Nothing needs you/);
   } finally { p.done(); }
 });
+
+test('alerts unread with only a lab item listed: the note doesn\'t claim last-read alerts are shown', async () => {
+  // Both alert reads fail and none were read before; the lab item is listed, but it isn't an alert.
+  const p = await page({ '/api/workshop': workshop({ lab: { needs: [judge], active: [], questions: [] } }) });
+  try {
+    await p.ws.load(p.state);
+    const needs = p.state.root.querySelector('.ws-needs');
+    assert.match(text(needs), /Couldn't read the printer's alerts just now\./);
+    assert.doesNotMatch(text(needs), /last read/);
+  } finally { p.done(); }
+});
