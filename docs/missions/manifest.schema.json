@@ -1,0 +1,106 @@
+{
+  "schema": "mission-manifest",
+  "version": 1,
+  "spec": "docs/superpowers/specs/2026-11-24-amendment-a35-mission-control.md §6.1, §8, §14; plan 2026-11-24-a35-m1a-mac-side.md decision 6",
+  "grammar": "docs/contracts/mission-events-v1.json#grammar (the same field types)",
+  "file": "docs/missions/<initiative id>.json, one per initiative, written by hand and reviewed by PR",
+  "rules": [
+    "Unknown fields are refused at every level.",
+    "Every child id is '<initiative>:<kind>:<slug>' with the file's initiative id and the kind that matches its list.",
+    "Ids are unique across the whole file.",
+    "Every reference (stage, workstream, task, dependency ends, evidence links) names an id defined in this file.",
+    "Dependencies form no cycle.",
+    "Lists keep the order they are written in; stage n values are unique.",
+    "An answered decision names where the answer is recorded (answer_source); a manifest never invents an answer."
+  ],
+  "fields": {
+    "manifest": {"type": "int:1..1", "required": true},
+    "initiative": {
+      "required": true,
+      "fields": {
+        "id": "slug",
+        "title": "text:160",
+        "intent": "text:1000",
+        "status": "enum:proposed|active|paused|done|retired",
+        "spec": "source_ref (optional)"
+      }
+    },
+    "stages": {
+      "required": true,
+      "list_of": {
+        "id": "child_id (kind stage)",
+        "n": "int:0..99",
+        "title": "text:160",
+        "gates": {
+          "optional": true,
+          "list_of": {
+            "id": "child_id (kind gate)",
+            "criterion": "text:1000",
+            "evidence_kinds": "list:enum:spec|plan|commit|pr|ci|test|release|live-check|measurement|review|doc:8 (optional)"
+          }
+        }
+      }
+    },
+    "workstreams": {
+      "required": false,
+      "list_of": {
+        "id": "child_id (kind workstream)",
+        "stage": "child_id of a stage",
+        "title": "text:160",
+        "repo": "repo (optional)",
+        "branch": "text:120 (optional)"
+      }
+    },
+    "tasks": {
+      "required": false,
+      "list_of": {
+        "id": "child_id (kind task)",
+        "workstream": "child_id of a workstream",
+        "title": "text:160",
+        "state": "enum:planned|assigned|queued|active|blocked|done (optional; verified, reviewed and accepted are never written by a manifest, §8)"
+      }
+    },
+    "dependencies": {
+      "required": false,
+      "list_of": {"from": "child_id", "to": "child_id", "kind": "enum:blocks|informs"}
+    },
+    "decisions": {
+      "required": false,
+      "list_of": {
+        "id": "child_id (kind decision)",
+        "question": "text:280",
+        "kind": "enum:choice|text|multi|rank|yesno|number|approve",
+        "options": "list:text:60:8 (optional)",
+        "recommended": "text:60 (optional)",
+        "answer": "text:500",
+        "answered_at": "iso (optional)",
+        "answer_source": "source_ref"
+      }
+    },
+    "risks": {
+      "required": false,
+      "list_of": {
+        "id": "child_id (kind risk)",
+        "kind": "enum:risk|blocker",
+        "title": "text:280",
+        "mitigation": "text:500 (optional)",
+        "status": "enum:open|mitigated|closed (optional)"
+      }
+    },
+    "evidence": {
+      "required": false,
+      "list_of": {
+        "id": "child_id (kind evidence)",
+        "kind": "enum:spec|plan|commit|pr|ci|test|release|live-check|measurement|finding|review|doc",
+        "summary": "text:500",
+        "source": "source_ref (optional; one of source or pr is required)",
+        "pr": "pr_ref (optional)",
+        "links": "list:link:10 (optional)"
+      }
+    },
+    "experiments": {
+      "required": false,
+      "list_of": "text:60 '<print-lab project>/<record id>', for example 'hex-tile/E-007'; read from print-lab origin/main by the importer"
+    }
+  }
+}

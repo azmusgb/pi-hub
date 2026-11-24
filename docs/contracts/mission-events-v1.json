@@ -1,0 +1,167 @@
+{
+  "contract": "mission-events",
+  "version": 1,
+  "spec": "docs/superpowers/specs/2026-11-24-amendment-a35-mission-control.md §6.2, §7.3, §7.4, §21",
+  "frozen_from": "A35 §21 M0 findings (6997f58)",
+  "grammar": {
+    "slug": "[a-z0-9][a-z0-9-]{1,39}",
+    "child_id": "<initiative slug>:<kind>:<slug>; kind one of initiative, stage, gate, workstream, task, decision, risk, evidence, experiment, deliverable",
+    "uuid": "RFC 4122 text form, lower case",
+    "iso": "ISO 8601 date-time with an offset",
+    "sha": "[0-9a-f]{7,40}",
+    "text:N": "a string of 1..N characters, no control characters except newline",
+    "label": "text:240",
+    "enum:a|b": "one of the listed strings",
+    "int:min..max": "an integer in range",
+    "bool": "true or false",
+    "repo": "owner/name, [A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}",
+    "path": "repository-relative path, text:300, no '..' segment",
+    "list:T:N": "a list of at most N items of type T"
+  },
+  "limits": {
+    "event_bytes": 4096,
+    "batch_events": 50,
+    "events_per_minute_per_source": 60,
+    "unknown_fields": "refused (400 unknown_field); additive fields arrive only with a contract change"
+  },
+  "envelope": {
+    "required": {
+      "event_id": "uuid",
+      "type": "enum: any type allowed for the posting source",
+      "at": "iso",
+      "initiative": "slug"
+    },
+    "optional": {
+      "late": "bool",
+      "body": "object: the type's fields below"
+    },
+    "set_by_pi_hub": ["seq", "received_at", "source"]
+  },
+  "sources": {
+    "claude": ["session.attached", "session.ended", "turn.started", "turn.finished", "tool.running", "tool.finished",
+      "waiting.owner", "subagent.started", "subagent.finished", "evidence.reported", "task.started", "task.done", "gap"],
+    "importer": ["initiative.imported", "stage.imported", "gate.imported", "workstream.imported", "task.imported",
+      "dependency.imported", "decision.imported", "risk.imported", "evidence.imported", "experiment.imported",
+      "plan.imported", "gap"],
+    "localai": ["execution.started", "execution.state", "execution.finished", "evidence.reported"]
+  },
+  "session_common": {
+    "required": {"session_id": "uuid"},
+    "optional": {
+      "model": "text:80 (from the transcript's message.model, §21.1; null or absent when not seen)",
+      "effort": "enum:low|medium|high|xhigh|max",
+      "branch": "text:120",
+      "remote": "repo",
+      "agent_id": "text:80 (set when the event happened inside a subagent)"
+    },
+    "applies_to": "every claude type except gap"
+  },
+  "types": {
+    "session.attached": {
+      "required": {"cwd_name": "text:120"},
+      "optional": {"workstream": "child_id", "lineage": "list:uuid:20", "start_source": "enum:startup|resume|clear|compact|attach"}
+    },
+    "session.ended": {"required": {}, "optional": {"reason": "text:60"}},
+    "turn.started": {"required": {"prompt_id": "uuid"}, "optional": {}},
+    "turn.finished": {"required": {}, "optional": {"prompt_id": "uuid"}},
+    "tool.running": {"required": {"tool_use_id": "text:80", "tool": "text:80", "label": "label"}, "optional": {}},
+    "tool.finished": {
+      "required": {"tool_use_id": "text:80", "tool": "text:80", "label": "label"},
+      "optional": {"duration_ms": "int:0..86400000", "failed": "bool"}
+    },
+    "waiting.owner": {"required": {"tool": "text:80", "label": "label"}, "optional": {}},
+    "subagent.started": {"required": {"agent_id": "text:80", "agent_type": "text:80"}, "optional": {"label": "label"}},
+    "subagent.finished": {
+      "required": {"agent_id": "text:80", "agent_type": "text:80"},
+      "optional": {"subagent_model": "text:80", "tokens": "int:0..100000000", "duration_ms": "int:0..86400000"}
+    },
+    "evidence.reported": {
+      "required": {"kind": "enum:commit|pr|test|ci|measurement", "repo": "repo"},
+      "optional": {"sha": "sha", "pr": "int:1..1000000", "summary": "text:500", "links": "list:link:10"},
+      "note": "Always trust 'reported' (§5, §8): it can never verify a task. localai may send kinds test and measurement."
+    },
+    "task.started": {"required": {"task": "child_id"}, "optional": {}},
+    "task.done": {"required": {"task": "child_id"}, "optional": {"summary": "text:280"}},
+    "gap": {"required": {"dropped": "int:1..1000000"}, "optional": {"oldest_at": "iso", "newest_at": "iso"}},
+
+    "initiative.imported": {
+      "required": {"title": "text:160", "intent": "text:1000", "status": "enum:proposed|active|paused|done|retired", "manifest": "manifest_ref"},
+      "optional": {"spec": "source_ref"}
+    },
+    "stage.imported": {"required": {"id": "child_id", "n": "int:0..99", "title": "text:160"}, "optional": {}},
+    "gate.imported": {
+      "required": {"id": "child_id", "stage": "child_id", "criterion": "text:1000"},
+      "optional": {"evidence_kinds": "list:enum:spec|plan|commit|pr|ci|test|release|live-check|measurement|review|doc:8"}
+    },
+    "workstream.imported": {
+      "required": {"id": "child_id", "stage": "child_id", "title": "text:160"},
+      "optional": {"repo": "repo", "branch": "text:120"}
+    },
+    "task.imported": {
+      "required": {"id": "child_id", "workstream": "child_id", "title": "text:160"},
+      "optional": {"state": "enum:planned|assigned|queued|active|blocked|done"}
+    },
+    "dependency.imported": {
+      "required": {"from": "child_id", "to": "child_id", "kind": "enum:blocks|informs"},
+      "optional": {}
+    },
+    "decision.imported": {
+      "required": {"id": "child_id", "question": "text:280", "kind": "enum:choice|text|multi|rank|yesno|number|approve", "answer": "text:500", "answer_source": "source_ref"},
+      "optional": {"options": "list:text:60:8", "recommended": "text:60", "answered_at": "iso"},
+      "note": "An answer recorded in a spec, imported with trust 'imported'. It never becomes an A33 row and never stands for an answer the owner hasn't given (§9.2)."
+    },
+    "risk.imported": {
+      "required": {"id": "child_id", "kind": "enum:risk|blocker", "title": "text:280"},
+      "optional": {"mitigation": "text:500", "status": "enum:open|mitigated|closed"}
+    },
+    "evidence.imported": {
+      "required": {"id": "child_id", "kind": "enum:spec|plan|commit|pr|ci|test|release|live-check|measurement|finding|review|doc", "summary": "text:500"},
+      "optional": {"source": "source_ref", "pr": "pr_ref", "links": "list:link:10"}
+    },
+    "experiment.imported": {
+      "required": {"id": "child_id", "project": "slug", "record": "text:20", "question": "text:500", "source": "source_ref"},
+      "optional": {"hypothesis": "text:1000", "prediction": "text:500", "findings": "int:0..1000"}
+    },
+    "plan.imported": {
+      "required": {"manifest": "manifest_ref", "entities": "int:0..10000"},
+      "optional": {},
+      "note": "Closes one import. Pi Hub turns the preceding *.imported events with the same manifest commit into PlanRevision n, status proposed (§8)."
+    },
+
+    "execution.started": {"required": {"execution_id": "text:80", "title": "text:120"}, "optional": {"task": "child_id"}},
+    "execution.state": {
+      "required": {"execution_id": "text:80", "state": "enum:queued|running|waiting_owner|blocked|done|failed|cancelled"},
+      "optional": {}
+    },
+    "execution.finished": {
+      "required": {"execution_id": "text:80", "state": "enum:done|failed|cancelled"},
+      "optional": {}
+    }
+  },
+  "shapes": {
+    "manifest_ref": {"repo": "repo", "path": "path", "commit": "sha"},
+    "source_ref": {"repo": "repo", "path": "path", "commit": "sha", "line": "int:1..100000 (optional)"},
+    "pr_ref": {"repo": "repo", "pr": "int:1..1000000"},
+    "link": {"entity": "child_id", "role": "enum:supports|verifies|refutes"}
+  },
+  "never_accepted": [
+    "prompt", "prompt_text", "message", "last_assistant_message", "tool_input", "tool_response", "transcript",
+    "thinking", "reasoning", "output", "content"
+  ],
+  "errors": {
+    "400 bad_json": "body is not JSON",
+    "400 bad_batch": "not a list of 1..50 events",
+    "400 unknown_type": "type not allowed for this source",
+    "400 unknown_field": "a field not in this contract, including any never_accepted name",
+    "400 bad_field": "a field fails its grammar; detail names the field, never echoes the value",
+    "401 bad_key": "the source's key is missing or wrong",
+    "403 not_your_execution": "an execution another source created",
+    "413 too_large": "an event over event_bytes",
+    "429 rate_limited": "over events_per_minute_per_source; retry after the Retry-After header",
+    "409 version": "client sends a contract version this hub does not accept"
+  },
+  "response": {
+    "200": {"accepted": "int", "duplicates": "int (event_id seen before; nothing changed)", "seq_max": "int"}
+  },
+  "compatibility": "Additive changes need no bump. A breaking change bumps version; Pi Hub accepts N and N-1 for one release (§7.4). Clients send header X-Mission-Contract: 1."
+}
