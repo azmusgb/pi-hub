@@ -1869,6 +1869,9 @@ const LAB_VERBS = { "Judge the print": "judge_it", "Approve or drop": "approve",
 
 // The kit's Needs-you list, the same as Home's (A7 P2). Clear the plate is done here, so its row has the button, not a link.
 function needsList(state, v) {
+  // Shown with nothing to list only when the alerts couldn't be read: the note alone, since the kit's empty list would
+  // say "Nothing needs you" about what nobody read.
+  if (!v.needs.length) return [unreadNote("Couldn't read the printer's alerts just now.")];
   const items = v.needs.map((n) => n.kind === "alert" ? n.item : n.kind === "clear"
     ? { id: "clear", source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail }
     : { id: `lab-${n.id}`, source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail,
@@ -1885,11 +1888,12 @@ function needsList(state, v) {
   });
   for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
   return [list,
-    v.alertsUnread ? h("p", { class: "ui-section__note needs-here__stale", role: "status" },
-      "Couldn't read the printer's alerts just now; this shows what was last read.") : null,
+    v.alertsUnread ? unreadNote("Couldn't read the printer's alerts just now; this shows what was last read.") : null,
     v.signIn ? h("p", { class: "meta" }, "Only the owner can act on these. ",
       h("button", { type: "button", class: "ghost small", dataset: { key: "sign-in" }, onclick: async () => { if (await ensure("owner")) load(state); } }, "Sign in")) : null];
 }
+
+const unreadNote = (words) => h("p", { class: "ui-section__note needs-here__stale", role: "status" }, words);
 
 function clearButton(state) {
   // Made disabled while an action is running, so a redraw mid-action can't offer a second tap.

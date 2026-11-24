@@ -310,3 +310,16 @@ test('alerts unread with nothing to list: the note alone, never "Nothing needs y
     assert.doesNotMatch(text(needs), /last read/);
   } finally { p.done(); }
 });
+
+test('alerts unread with the last ones kept: their rows, and the note says they are what was last read', async () => {
+  const p = await page({ '/api/workshop': workshop() });
+  try {
+    p.state.lastAlerts = [{ kind: 'alert', id: 'pi:source:hms:0x2000b', item: { id: 'pi:source:hms:0x2000b', tone: 'bad',
+      title: 'Printer needs attention (0x2000b)', detail: 'It pauses the print. Alert 0x2000b.' } }];
+    await p.ws.load(p.state);
+    const needs = p.state.root.querySelector('.ws-needs');
+    assert.match(text(needs), /Printer needs attention \(0x2000b\)/);
+    assert.match(text(needs), /Couldn't read the printer's alerts just now; this shows what was last read\./);
+    assert.doesNotMatch(text(needs), /Nothing needs you/);
+  } finally { p.done(); }
+});
