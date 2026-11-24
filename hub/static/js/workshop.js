@@ -8,7 +8,7 @@ import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
 import { printerActionList, printerBusy, printerButtons, runPrinterAction } from "./printer-actions.js";
-import { mergeProblems, problemItems } from "./control-room.js";
+import { mergeProblems, needsOptions, problemItems } from "./control-room.js";
 
 export const every = 15;
 
@@ -1886,7 +1886,7 @@ function needsList(state, v) {
     ? { id: "clear", source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail }
     : { id: `lab-${n.id}`, source: "Pi Hub", tone: "attention", title: n.title, detail: n.detail,
       link: n.href || undefined, action: n.href && n.verb ? { key: n.verb, link: n.href } : undefined });
-  const list = ApplianceNeeds.renderList(items, { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub" });
+  const list = ApplianceNeeds.renderList(items, needsOptions(() => load(state)));
   v.needs.forEach((n, i) => {
     const li = list.children[i];
     if (!li) return;
