@@ -1,0 +1,14 @@
+{
+  "count": 1,
+  "unread": [],
+  "items": [
+    {"id": "pi:example", "source": "Pi Hub", "tone": "warn", "title": "Backups are a day old", "detail": "The last backup finished yesterday at 2:10 AM.", "link": "/system"}
+  ],
+  "decisions": {
+    "open": [
+      {"id": "a27-activity-shape", "source": "claude", "kind": "choice", "question": "Where should Activity live once the Assistant's admin pages move into System: its own page in the System strip, or a card on the System page beside the others?", "options": ["Its own page", "A card on System"], "recommended": "A card on System", "link": "https://github.com/azmusgb/pi-hub/blob/main/docs/superpowers/specs/2026-11-01-platform-product-architecture-design.md", "created_at": 1795430000, "answered_at": null, "answer": null, "supersedes": null},
+      {"id": "a30-baseline-listing", "source": "claude", "kind": "choice", "question": "List A30 under the baseline's Amendments now?", "options": ["Yes", "After Phase 4", "Not at all"], "recommended": null, "link": null, "created_at": 1795430100, "answered_at": null, "answer": null, "supersedes": null}
+    ],
+    "answered": []
+  }
+}

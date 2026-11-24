@@ -147,6 +147,30 @@ def test_only_github_itself_over_https_is_added(link):
     assert ask(link=link).status_code == 400
 
 
+def test_home_draws_spec_links_only_to_hosts_the_server_allows():
+    """Home's spec links (hub/static/js/home-decisions.js LINK_ORIGINS: the registry's hub and Assistant hosts, and
+    github.com) are all LINK_HOSTS. The server's other hosts are the Assistant's machine-facing names, which no page
+    links (tests/test_nav_links.mjs), so a stored link to one is not drawn."""
+    import ipaddress
+    import json
+    import re
+    static = os.path.join(os.path.dirname(__file__), "..", "hub", "static")
+    src = open(os.path.join(static, "js", "home-decisions.js")).read()
+    ids = json.loads(re.search(r"LINK_ORIGINS = \[\.\.\.(\[[^\]]*\])", src).group(1))
+    registry = {t["id"]: t for t in (json.loads(m) for m in re.findall(r"Object\.freeze\((\{.*?\})\)",
+                                                                        open(os.path.join(static, "ui", "tools.js")).read()))}
+    page = {registry[i]["host"] for i in ids} | set(re.findall(r'"https://([a-z0-9.-]+)"', src))
+    assert page == {"hub.rahe-home.duckdns.org", "assistant.rahe-home.duckdns.org", "github.com"}
+    assert page <= decisions.LINK_HOSTS
+    for host in decisions.LINK_HOSTS - page:
+        machine = host.endswith(".home.arpa")
+        try:
+            machine = machine or bool(ipaddress.ip_address(host))
+        except ValueError:
+            pass
+        assert machine, f"{host}: a host people use that Home doesn't draw"
+
+
 def test_notify_links_still_refuse_github():
     from hub.notify_routes import _click
     assert _click("https://github.com/x") is None

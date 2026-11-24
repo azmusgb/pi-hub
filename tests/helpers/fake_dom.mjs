@@ -53,6 +53,8 @@ class Element extends Node {
   get id() { return this.attributes.get("id") || ""; }
   set id(v) { this.attributes.set("id", String(v)); }
   get children() { return this.childNodes.filter((c) => c instanceof Element); }
+  get nextElementSibling() { const s = this.parentNode?.children || []; return s[s.indexOf(this) + 1] || null; }
+  get previousElementSibling() { const s = this.parentNode?.children || []; return s[s.indexOf(this) - 1] || null; }
   setAttribute(k, v) { this.attributes.set(k, String(v)); }
   getAttribute(k) { return this.attributes.has(k) ? this.attributes.get(k) : null; }
   hasAttribute(k) { return this.attributes.has(k); }
@@ -61,6 +63,7 @@ class Element extends Node {
   prepend(...kids) { kids.reverse().forEach((k) => this.insertBefore(k, this.firstChild)); }
   appendChild(k) { return this.insertBefore(k, null); }
   insertBefore(k, ref) {
+    if (k?.fragment) { for (const c of [...k.childNodes]) this.insertBefore(c, ref); return k; }  // its children move
     const node = k instanceof Node ? k : new Text(k);
     node.remove();
     const at = ref ? this.childNodes.indexOf(ref) : -1;
@@ -143,6 +146,7 @@ export function install({ fetch: routes = {}, confirm = true } = {}) {
     createElement: (t) => new Element(t),
     createElementNS: (_ns, t) => new Element(t),
     createTextNode: (t) => new Text(t),
+    createDocumentFragment: () => Object.assign(new Element("#document-fragment"), { fragment: true }),
     getElementById: (id) => documentElement.querySelector(`#${id}`),
     querySelector: (s) => documentElement.querySelector(s),
     querySelectorAll: (s) => documentElement.querySelectorAll(s),
