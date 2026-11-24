@@ -7,7 +7,7 @@ PI_HOST="${1:-pi}"
 # working tree, not a commit, so a dirty deploy says so.
 COMMIT=$(git rev-parse HEAD 2>/dev/null || true)
 DIRTY=0
-[ -z "$(git status --porcelain 2>/dev/null)" ] || DIRTY=1
+[ -z "$(git status --porcelain -- . 2>/dev/null)" ] || DIRTY=1
 
 echo "Deploying NETMON stack to $PI_HOST..."
 

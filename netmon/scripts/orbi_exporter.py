@@ -10,7 +10,6 @@ Exposes:
 import json
 import logging
 import os
-import sys
 import threading
 import time
 import urllib.request
@@ -257,7 +256,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, format, *args):
+    def log_message(self, _format, *_args):
         # Silence standard HTTP access logging to prevent noisy logs
         return
 

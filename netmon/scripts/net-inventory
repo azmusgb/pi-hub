@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 INVENTORY_PATH = "/opt/netmon/inventory/devices.yml"
-LOCAL_FALLBACK = os.path.expanduser("~/dev/netmon/inventory/devices.yml")
+LOCAL_FALLBACK = os.path.expanduser("~/dev/pi-hub/netmon/inventory/devices.yml")
 
 def ping_host(ip):
     try:
