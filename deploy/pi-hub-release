@@ -109,7 +109,8 @@ export TMPDIR="$TESTDB/tmp"
 # Each release reports its test time (A34 P0): the budget is 600 s; past it the release still goes live but says so.
 # The timeout is the only stop.
 rc=0
-started=$(date +%s)
+# $SECONDS, not date: the Pi has no RTC, NTP can step the wall clock mid-run, and a bad date would abort under set -e.
+SECONDS=0
 (cd "$NEW.tmp" && HUB_NO_SAMPLER=1 HUB_DB="$TESTDB/t.db" timeout 900 python3 -m pytest -q -p no:cacheprovider tests > "$TESTDB/test.log" 2>&1) || rc=$?
 if [ "$rc" != 0 ]; then
   tail -15 "$TESTDB/test.log"
@@ -120,17 +121,17 @@ if [ "$rc" != 0 ]; then
   rm -rf "$NEW.tmp" "$TESTDB"
   exit 1
 fi
-now=$(date +%s)
-PY_SECONDS=$(( now - started ))
-started=$now
+PY_SECONDS=$SECONDS
 say "$(tail -1 "$TESTDB/test.log")"
 js=0
+JS_PART=""
 if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null; then
+  SECONDS=0
   (cd "$NEW.tmp" && timeout 120 node --test tests/*.mjs > "$TESTDB/js.log" 2>&1) || js=$?
+  JS_PART=" (JS $SECONDS s)"
 fi
-JS_SECONDS=$(( $(date +%s) - started ))
-TESTED="Tests passed in $PY_SECONDS s (JS $JS_SECONDS s)"
-if [ "$PY_SECONDS" -gt 600 ]; then TESTED="$TESTED, tests over budget (600 s)"; fi
+TESTED="Tests passed in $PY_SECONDS s$JS_PART"
+if [ "$PY_SECONDS" -ge 600 ]; then TESTED="$TESTED, tests over budget (600 s)"; fi
 if [ "$js" != 0 ]; then
   tail -15 "$TESTDB/js.log"
   record failed "JavaScript tests failed; nothing changed."
