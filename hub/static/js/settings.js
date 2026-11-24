@@ -16,6 +16,17 @@ function setting(title, { pill, tone } = {}, ...body) {
     ...body.flat().filter(Boolean));
 }
 
+// When the Windows PC last copied the Pi's backup (system.pc_copy_reading): {ts, name}, "never" (no copy yet) or
+// "unreadable". Anything that isn't a copy or "never" is drawn as unknown, never as "not copied yet". 50 h is the
+// selfcheck's and the backups record's line (the PC pulls one every morning at 5:00).
+export function pcCopyLine(copy, now = Date.now() / 1000) {
+  if (copy === "never") return h("p", { class: "note" }, "Not copied to the PC yet.");
+  const copied = Number.isFinite(copy?.ts);
+  return h("p", {}, h("span", { class: "dot", dataset: { tone: !copied ? "unknown" : now - copy.ts < 50 * 3600 ? "ok" : "warn" }, style: "display:inline-block;margin-right:.5rem" }),
+    copied ? `Copied to the Windows PC ${when(copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`
+      : "Couldn't read when the PC last copied the backup.");
+}
+
 // The faceplate (A7 P1): how much of the setup is done, and a button for each step left. It replaces the checklist the
 // page used to open on.
 export function setupPlate(steps) {
@@ -264,9 +275,7 @@ export async function load(state) {
           h("span", { class: "log-main" }, h("strong", {}, when(b.ts))), h("span", { class: "log-side" }, `${b.mb} MB`))))
         : empty("The first backup runs tonight at about 3:30."),
       h("p", { class: "meta" }, "Kept on the Pi for 14 days: hub data, lists, history, Homebridge settings and the Pi's own settings."),
-      d.pc_copy ? h("p", {}, h("span", { class: "dot", dataset: { tone: Date.now() / 1000 - d.pc_copy.ts < 50 * 3600 ? "ok" : "warn" }, style: "display:inline-block;margin-right:.5rem" }),
-        `Copied to the Windows PC ${when(d.pc_copy.ts)}. The PC fetches the newest one every morning at 5:00 and keeps 14.`)
-        : h("p", { class: "note" }, "Not copied to the PC yet.")),
+      pcCopyLine(d.pc_copy)),
     devicesCard(d.devices, save),
     // Made once: a refresh every minute would otherwise drop a pairing code off the screen.
     state.display ??= displayCard(),

@@ -215,12 +215,6 @@ def pc_copy_reading(path=PC_COPY_FILE):
         return "unreadable"
 
 
-def pc_copy():
-    """The last copy for Settings, None when there isn't a readable one."""
-    r = pc_copy_reading()
-    return r if isinstance(r, dict) else None
-
-
 OUTAGE_PAIRS = {"pc_down": ("pc_back", "Windows PC"), "drive_dropped": ("drive_back", "Movies drive"),
                 "plex_stopped": (None, "Plex"), "homebridge_stopped": (None, "Homebridge")}
 # down event -> the record that speaks for the thing, and its states that mean it is down (events.ON's)
