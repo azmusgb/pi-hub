@@ -857,3 +857,56 @@ about 28 citations and found them accurate, apart from the backup reference fixe
 - The inspector's kit markup; a kit PR names it.
 - PR splits within a phase.
 - Test fixtures.
+
+## 21. Addendum: M0 findings (24 Nov 2026)
+
+Measured on the Mac with Claude Code 2.1.323, headless (`claude -p`), in a scratch project. A logging hook was attached
+to every event, under bypass and default permission modes. The GitHub test used a scratch repository,
+`azmusgb/a35-m0-scratch`: made public only for the test, then private again, PRs #1 and #2. Spike cost about $0.44.
+Contract v1 is frozen from this section.
+
+### 21.1 Claude Code hooks
+
+| Question | Finding | Consequence for §7.3, §7.5 and §11 |
+|---|---|---|
+| Which events fire in bypass mode? | SessionStart (`source` startup or resume), UserPromptSubmit, PreToolUse, PostToolUse, PermissionRequest, SubagentStart, SubagentStop, Stop and SessionEnd all fired. Notification, PreCompact and StopFailure did not occur headless | the events in §7.3 hold; Notification stays **unverified** and is not used |
+| Does a resumed session keep its id? | yes: same `session_id`, `source: resume` | lineage is needed only after `/clear`; that `/clear` gives a new id is **unverified** (interactive only) |
+| Is the model in the hook input? | **no**, in no event. `effort: {level}` is in tool and stop events. The main session's model is in the transcript (`message.model`). A subagent's model, tokens, duration and `agentId` are in the Agent tool's PostToolUse `tool_response` (`resolvedModel`, `totalTokens`, `totalDurationMs`, `agentId`) | the hook reads the model id from the transcript's last assistant line and sends only that id. `effort` is sent as the reasoning configuration. The subagent participant is keyed by `agentId` and linked to the Agent call's `tool_use_id` |
+| Can subagent events be matched? | yes: SubagentStart and SubagentStop carry `agent_id` and `agent_type`, and every tool event inside a subagent carries the same `agent_id` | `subagent.started` and `subagent.finished` both go in the contract |
+| Is there a "waiting on the owner" signal? | PermissionRequest fires, **in bypass mode too**, when a call matches `permissions.ask` | `waiting.owner` comes from PermissionRequest only. A Stop means "Turn finished", as §7.5 says |
+| Does a PreToolUse `allow` override `permissions.ask`? | **no**, in bypass or default mode. `echo spike-ask …` was refused, and PermissionRequest fired | a Mac hook cannot relax your ask rules, and cannot authorize. That confirms §9.4 |
+| Does a PreToolUse `deny` block a call? | yes, and the model sees the reason | deny works, but D4 stands: an idle session cannot be paused, and repeated denies make the model retry |
+| Does `additionalContext` reach the model? | yes, from UserPromptSubmit and from PostToolUse: the nonce appeared in the transcript, and the direction was followed. PostToolUse hooks also fire inside subagents | advisory direction (§11) is sent **once**, as context on the next PostToolUse or UserPromptSubmit. Repeating context made the model repeat the action until it stopped itself, so delivery must be one-shot. "Delivered" means the hook emitted it, and is never "applied" |
+| Does a Stop `block` continue the turn? | yes; the model followed the reason. `stop_hook_active` was true on the second Stop | a Stop-block is used only when you choose "deliver now"; it always checks `stop_hook_active`. The current async Stop hooks are unchanged |
+
+### 21.2 GitHub authorization (D2)
+
+| Test | Result |
+|---|---|
+| Branch protection on a **private** repo (Free plan) | refused: HTTP 403, "Upgrade to GitHub Pro or make this repository public". pi-hub and print-lab are public; LocalAI, appliance-ui and home-mcp are private |
+| Merge with no `owner-authorized` status | refused ("base branch policy prohibits the merge") |
+| Status set, then a new commit pushed | refused: the new head lacks the status |
+| Status on the current head | merged. GitHub's mergeability took about 10 s to update |
+| Status posted with **your classic token**, check not bound to an app | accepted, so any session holding your token can forge it |
+| Required check bound to an `app_id`, status posted with your token | refused (`BLOCKED`): only that GitHub App can satisfy it |
+| `enforce_admins: false`, `gh pr merge --admin` | merged without the status. Your token also edited branch protection throughout this test |
+
+**Conclusion.** The GitHub gate is real enforcement only when all four of these hold:
+- (a) Pi Hub sets the check through **its own GitHub App**, and the required check is bound to that app's id;
+- (b) `enforce_admins` is on;
+- (c) the Mac sessions' GitHub credential has **no administration permission** (a fine-grained token with contents and
+  pull-request write only);
+- (d) the repository is public, or the plan is Pro.
+
+Today's sessions use your classic `repo` token, which is admin on your repositories and can turn the gate off.
+Meeting (a)-(c) means creating a GitHub App and new tokens. Those are your actions, and they change how every session
+reaches GitHub, so **D2's authorize path stays off** and is raised as D11. M1-M3 do not need it.
+
+### 21.3 Decision raised
+
+| # | Question | Recommended | Alternatives |
+|---|---|---|---|
+| D11 | Set up GitHub enforcement for pi-hub and print-lab: a Pi Hub GitHub App, `enforce_admins` on, and session tokens without administration? | **Not now; revisit at M4.** Merges stay under your chat "merge" and `permissions.ask` (verified to hold in bypass mode, §21.1). Private repos would need Pro | do it now for the two public repos; never |
+
+**Housekeeping:** `azmusgb/a35-m0-scratch` is private again and is safe to delete. Deleting it needs the
+`delete_repo` scope, which only the owner can add.
