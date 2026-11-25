@@ -233,7 +233,8 @@ def _read(name, path):
         if mirror:
             return _reply("mirror", why=why, mirror=True, stored_at=int(mirror["at"]),
                           age=max(0, int(_now() - mirror["at"])), data=mirror["body"], **more)
-        return _reply("needs_pc" if why == "pc_off" else "unreachable", why=why, data=None, **more)
+        # Pi Hub's own cap (`busy`) says nothing about the Assistant: it is not `unreachable`, which the page draws as down.
+        return _reply({"pc_off": "needs_pc", "busy": "busy"}.get(why, "unreachable"), why=why, data=None, **more)
 
     with _Slot(name) as slot:
         if not slot:
