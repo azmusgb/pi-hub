@@ -30,7 +30,7 @@ mkdirSync(OUT, { recursive: true });
 
 // Runs in the page: every problem visible at this width, keyed by a short, stable path to the element.
 function check({ TARGET, SMALL }) {
-  const SHELL = '.rail, .top, .tabbar, .foot, .skip-link';
+  const SHELL = '.ui-rail, .top, .tabbar, .foot, .skip-link';
   const path = (el) => {
     const parts = [];
     for (let n = el; n && n !== document.body && parts.length < 4; n = n.parentElement) {

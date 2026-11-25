@@ -70,6 +70,9 @@ body::before {
   padding-top: var(--ui-s-3); padding-bottom: var(--ui-s-3);
 }
 .top-lead { min-width: 0; }
+/* The head is the kit's full-width bar; its Search and Assistant stop where the page's content does (inside the page's
+   own padding, the kit's s-4). */
+.stage .top { padding-right: max(var(--ui-s-4), env(safe-area-inset-right, 0px), calc(100% - 70rem + var(--ui-s-4))); }
 /* A quiet page title (design audit). */
 .brand#page-title {
   margin: 0;
@@ -156,7 +159,20 @@ body::before {
   /* Focus brought into view by Tab stops above the tab bar, never under it (A22 9.2). */
   html { scroll-padding-bottom: calc(var(--ui-tabbar-h, calc(var(--ui-space) * 14)) + env(safe-area-inset-bottom, 0px) + var(--ui-kb-inset, 0px)); }
   .top-sub { display: none; }
+  /* KIT GAP (appliance-ui shell.css, reported): its tab label (min(fs-2, 4.6vw), 8 px each side) breaks "Household" in two
+     at 390 px, and its badge overlaps the icon from two digits. The labels are sized by the bar's own width as before
+     (A22 9.1 F6), and the badge starts beside the icon. Delete this when the kit does both. */
+  .ui-rail { container-type: inline-size; }
+  .ui-rail a { padding-inline: 0; font-size: min(var(--ui-fs-1), 3.85cqi); white-space: nowrap; }
+  .ui-rail-badge { right: auto; left: calc(50% + var(--ui-s-3)); min-width: 0; padding: 0 calc(var(--ui-space) / 2); }
   .toast { bottom: calc(var(--ui-tabbar-h, calc(var(--ui-space) * 14)) + var(--ui-s-4) + env(safe-area-inset-bottom, 0px) + var(--ui-kb-inset, 0px)); }
+}
+/* A tab under 4.5 rem (a bar under 22.5 rem, a phone under about 390 px) has no room beside its icon for "99+": it shows
+   "9+", which is still true; the full count is in the tab's name (navigation.js draws both words). */
+.ui-rail-badge-short { display: none; }
+@container (max-width: 22.5rem) {
+  .ui-rail-badge-long { display: none; }
+  .ui-rail-badge-short { display: inline; }
 }
 
 [data-wall] .ui-rail,
