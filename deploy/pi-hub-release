@@ -132,17 +132,25 @@ PY_SECONDS=$SECONDS
 say "$(tail -1 "$TESTDB/test.log")"
 js=0
 JS_PART=""
+# The JavaScript tests take 82 to 107 s on the Pi; with a Plex transcode running they passed 120 s and were stopped
+# (25 Nov 2026), and the release said only "failed". The limit has room for a busy Pi, and a stopped run says so.
+JS_LIMIT=240
 if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null; then
   SECONDS=0
-  (cd "$NEW.tmp" && timeout 120 node --test tests/*.mjs > "$TESTDB/js.log" 2>&1) || js=$?
+  (cd "$NEW.tmp" && timeout "$JS_LIMIT" node --test tests/*.mjs > "$TESTDB/js.log" 2>&1) || js=$?
   JS_PART=" (JS $SECONDS s)"
 fi
 TESTED="Tests passed in $PY_SECONDS s$ON$JS_PART"
 if [ "$PY_SECONDS" -ge 600 ]; then TESTED="$TESTED, tests over budget (600 s)"; fi
 if [ "$js" != 0 ]; then
+  # The failing tests by name first: the log's tail is the summary, or passing tests when the run was stopped.
+  grep -E '^[[:space:]]*not ok ' "$TESTDB/js.log" | head -20 || true
   tail -15 "$TESTDB/js.log"
-  record failed "JavaScript tests failed; nothing changed."
-  report failed "" "JavaScript tests failed; nothing changed."
+  JS_WHY="JavaScript tests failed; nothing changed."
+  if [ "$js" = 124 ]; then JS_WHY="JavaScript tests ran past $JS_LIMIT s and were stopped; nothing changed."; fi
+  say "$JS_WHY"
+  record failed "$JS_WHY"
+  report failed "" "$JS_WHY"
   rm -rf "$NEW.tmp" "$TESTDB"
   exit 1
 fi
