@@ -103,7 +103,7 @@ HTTP 202
 (The second direct call above used a field Local AI ignores, so it started a real run run-1795582805102-0002950 for goal 'hi'; used below for the cancel step.)
 
 ## 8. Cancel mid-run
-Ollama before cancel: [('qwen3:8b', '2026-11-25T00:30:24.06075-05:00')]; Ollama CPU: 55.6% 2.2% 0.5% 0.0% 0.0% 0.0% 
+Ollama before cancel: [('qwen3:8b', '2026-11-25T00:30:24.06075-05:00')]; Ollama CPU: 55.6% 2.2% 0.5% 0.0% 0.0% 0.0%
 ```
 $ Pi Hub follow before cancel
 {"state":"ok","fetched_at":1795582824,"run":{"id":"run-1795582805102-0002950","status":"running","progress":33,"summary":"","error":null,"cancellable":true,"createdAt":"2026-11-25T05:00:05.102Z","startedAt":"2026-11-25T05:00:05.106Z","updatedAt":"2026-11-25T05:00:05.132Z","finishedAt":null,"missionId":"mission-mwvnn3ig-55348c","outcome":null},"mission":{"workers":[{"id":"router","name":"Mission Router","state":"complete","model":"","error":null},{"id":"ux_analyst","name":"UX Analyst","state":"ru```
@@ -134,10 +134,10 @@ HTTP 404
 ```
 Ollama CPU after cancel, every 5 s:
 ```
-t+5s cpu: 0.4% 0.4% 0.0% 0.0% 0.0% 0.0% 0.0% 
-t+10s cpu: 0.4% 0.3% 0.3% 0.0% 0.0% 0.0% 0.0% 
-t+15s cpu: 0.4% 0.0% 0.0% 0.0% 0.0% 0.0% 0.0% 
-t+20s cpu: 0.7% 0.5% 0.4% 0.3% 0.0% 0.0% 0.0% 
+t+5s cpu: 0.4% 0.4% 0.0% 0.0% 0.0% 0.0% 0.0%
+t+10s cpu: 0.4% 0.3% 0.3% 0.0% 0.0% 0.0% 0.0%
+t+15s cpu: 0.4% 0.0% 0.0% 0.0% 0.0% 0.0% 0.0%
+t+20s cpu: 0.7% 0.5% 0.4% 0.3% 0.0% 0.0% 0.0%
 ```
 
 ## 7b Real mid-run failure (Local AI 38072 whose Ollama is a dead port, through Pi Hub 38801)
