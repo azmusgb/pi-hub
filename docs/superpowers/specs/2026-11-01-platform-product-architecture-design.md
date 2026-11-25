@@ -1189,3 +1189,9 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   action in v1 (a GitHub-enforced path follows a spike). New tier-1 pages `/missions` and `/missions/<id>` (Overview,
   Decisions, Plan, Work, Evidence), polled, no new streams. Agent World later draws the ledger and its City renderer
   retires (M5). Phases M0-M6, D1-D10 as recommended. Amends A34 D4, A33 record, calls 2 and 6 and its tap anti-goal, baseline §7.
+- **A36. Needs you lists only what the owner can act on; conditions are Heads up**
+  (`2026-11-25-amendment-a36-needs-you-vs-heads-up.md`): every Needs item gains `kind` (`ask` or `heads_up`); the count,
+  nav badge and Workshop display take asks only. Asks are lab items, decisions, acknowledgeable alerts, owner-fixable
+  states and urgent faults; weather, Pi heat, late-but-in-limit backups and similar conditions are Heads up, collapsed
+  on Home, with since/until. A condition past its limit escalates to an ask with a named step. Navigation links never
+  make an ask. Proposed 25 Nov 2026; approved when merged. Amends one-needs-you N2 and `count`, baseline section 6.
