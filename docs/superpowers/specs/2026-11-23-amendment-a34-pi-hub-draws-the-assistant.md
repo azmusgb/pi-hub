@@ -268,3 +268,106 @@ PR splits inside a phase, the sanitiser's implementation, test fixtures.
 - `/api/claude/events` accepting any paired device rather than only the Mac key: a `/fix`.
 - `/api/lab/*` reading Pi Hub's lab instead of the Mac mirror.
 - `models` is the only Local AI view built at runtime (`ui.js:369`): fold into P6 or a sprawl pass.
+
+## Amendment 1 (24 Nov 2026): shell, one Assistant entry, first native task, tracked coverage
+
+Status: **proposed** (this PR). Owner direction of 24 Nov 2026: adopt the kit shell in Pi Hub; remove redundant navigation
+and resolve duplicated destinations; restructure Home and the Assistant page so their purpose and primary actions are
+clear; treat the status and models reads as a prerequisite; implement one existing action-based Local AI capability
+natively (submit, task identity, real progress, result, failure, navigation away and return, reconnect, cancel where the
+backend supports it); inventory every remaining Local AI and Windows capability and track each through API, native UI
+and verification; one migrated workflow is not feature coverage.
+
+Read on 24 Nov 2026: Local AI `cfff3458` (`~/dev/ai-harness/LocalAI`), pi-hub `58891bd`, appliance-ui kit 2.29.0
+(`9f5675e`). Everything below that says "exists" was read in that code; nothing here is built by being said.
+
+What the first draft got wrong or left open, now settled by the code:
+
+| A34 text | Found | Consequence |
+|---|---|---|
+| P1 "`atlas/contracts.json` `pi-hub` consumer v1" | `atlas/contracts.json` has 29 flat entries and **no** `pi-hub` consumer of a Local AI route; no per-route `key` or `cache` field | P1 creates both |
+| "`as_of` everywhere" | No status, models or runs read carries `as_of`; `/api/status` has `checkedAt` per service only | the P1a reads below add it; the adapter stamps its own `fetched_at` on everything else |
+| "`/api/ps` (ui.js:786): confirm the route or drop it" | Not a Local AI route. It is Ollama's, folded into `GET /api/models` as `loaded[]` | drop it |
+| "Hub key + owner flag on contract routes" | The hub key is accepted on 9 routes (`server.js:183-200`); none of `/api/runs*`, `/api/agents/*`, `/api/chat/stream` | the four task routes below join the allow-list in P1a |
+| `/api/models` while Ollama is down | HTTP **502** with a degraded body | the contract read always answers 200 and names the failed source |
+| "35 views" | `VIEWS` holds **30**; with the 5 domains, 35 | the tracker lists the 30 |
+
+### Requirements added
+
+1. **Kit shell (appliance-ui 2.29.0).** Pi Hub draws its rail and tab bar with `ApplianceShell`; the hand-written rail,
+   tab-bar CSS and the duplicate switch are deleted. A22's five areas stay the rail; the Assistant is **not** a rail
+   area (a kit test says so). Local AI's hand-written shell moves to the same kit shell when its kit sync lands
+   (its `fix-mobile-shell` work is folded into that adoption, not shipped as a second shell).
+2. **One Assistant entry.** The head's Assistant button is the only persistent entry; the rail's second entry is
+   removed. Page-level "Ask about this page" buttons stay (they carry context; they are actions, not destinations).
+3. **Duplicated destinations resolved in the registry** (appliance-ui `pages.json`, then sync): one page per purpose.
+   The Assistant's System page and the hub's System area keep distinct names ("Assistant" and "System"); the Assistant's
+   `status`, `models` and `run` rows flip to `system: hub` when Pi Hub draws them (P1a, P2n); no row is drawn by two apps.
+4. **Home** answers "what needs me, and what is the house doing": Needs you first, then one Ask entry, then Systems, then
+   the day. A failed read of any of them is its own state, never empty.
+5. **Assistant page (Pi Hub-drawn)** has a purpose line, the Assistant's state with its age (ready, busy, asleep, down,
+   out of date), and three primary actions: *Start a task* (native, P2n), *Ask a question* (opens Local AI's chat with the
+   hand-off, until P5), *Recent work* (runs, opens the result). The full framed Assistant stays one tap away.
+6. **P1a, the status and models reads (prerequisite).** Before any page uses them, Local AI serves two reads for its
+   `pi-hub` consumer, `GET /api/contract/status` and `GET /api/contract/models`, each `200` with
+   `{ as_of, sources: { <name>: { state: "ok" | "failed" | "unknown", checked_at, error? } }, ... }`. A source that did
+   not answer is `failed` (never an empty list, never healthy); `unknown` is a source not yet read. `status` merges
+   `/api/status`, the Windows bridge probes (GridCraft, ArtCraft, Workshop display) and `watch`; `models` merges
+   installed, loaded, pulls and routing. Tests cover each source down, every source down and a timeout.
+7. **P2n, the first native task: a Mission.** Chosen from the code, because it is the only existing action with a task
+   identity, real progress, survival of a client disconnect and a working cancel; chat does not survive a disconnect, and
+   automations return no id before they finish.
+
+   | Step | Local AI route (allow-listed for `pi-hub`) | Notes |
+   |---|---|---|
+   | Submit | `POST /api/agents/missions/start` `{goal, projectId?, async:true}` -> `202 {runId, threadId}` | `400` goal required, unknown model; `503` model unchecked |
+   | Follow | `GET /api/runs?id=<runId>` -> `{item}`: `status` (`queued, running, streaming, awaiting_approval, completed, failed, cancelled`), `progress` (share of workers complete, 5-95), `events[]`, `cancellable`, `error`, times | progress is coarse and real; the page says "2 of 5 steps", never a fake percentage; polls every 3 s |
+   | Detail | `GET /api/agents/mission?id=<item.meta.missionId>` -> workers, timeline, `answer` | the full answer is here; `item.summary` is 600 characters |
+   | Cancel | `POST /api/runs/cancel {id}` -> `200 {item}`, `404`, `409` (not cancellable or already finished) | aborts the specialist loops and the model requests on the PC; legacy ids cannot be cancelled |
+
+   Pi Hub side: `POST /api/ai/tasks` (submit), `GET /api/ai/tasks/<runId>` (follow, including the detail),
+   `POST /api/ai/tasks/<runId>/cancel`; owner-only, allow-listed, one task view `/assistant/run/<runId>` (the kit's
+   existing `run` row). The task's identity is Local AI's `runId`; Pi Hub stores nothing but the id in the browser (to
+   resume) and never invents a status. States: submitting; queued; running with steps; waiting for approval (link to
+   Decisions); completed (answer, drawn as text); failed (Local AI's error, retry); cancelled; cancelling; *PC asleep
+   or Local AI down while following* ("can't reach the Assistant; the task may still be running; last seen at <time>",
+   never "failed"); out of date; refused. Leaving the page and returning, or reconnecting after the PC or the Pi
+   restarts, re-reads the run by id; a run Local AI marks "interrupted by appliance restart" is shown as failed with
+   that reason. Cancel is offered only while `cancellable` is true and says what it will stop.
+   **Limitation, stated:** a Mission is cancelled by aborting its server-side controller; work a specialist already
+   finished is kept. Chat and `/api/chat/stream` do not survive a disconnect and have no resume, so P5's "resume by run
+   id" can only re-read the run; it is not a promise to continue a lost stream.
+8. **The capability tracker** (`docs/superpowers/plans/2026-11-24-a34-capability-tracker.md`) lists every Local AI view
+   and route group, and the Windows services behind them, with three separate columns: API (usable as-is, needs auth
+   change, needs a new merged read, never), native UI (not started, in a PR, framed by design, drawn) and verification
+   (none, tests, live with the PC on, live with it off). A row is "done" only when all three are, and "merged" and
+   "deployed" are recorded per PR, not per row.
+
+### Phases changed
+
+| Phase | Change |
+|---|---|
+| P1 | split: **P1a** (this amendment: the two contract reads, the four task routes on the hub-key allow-list with the owner flag, `key: never` test, contract entries) ships first; the rest of P1 follows |
+| P2 | gains **P2n**: the adapter's task routes and the task view, built against a fixture of Local AI's replies, live-checked after P1a deploys |
+| P4a | System (Status, Models) reads the P1a reads; no longer "new in P4a" |
+| P4e | Assistant Home is restructured as requirement 5; Recent work reads runs |
+| (new) Kit | Pi Hub shell adoption and Home restructure (requirements 1, 2, 4); appliance-ui registry rows (requirement 3); Local AI kit sync and shell adoption (P0's second half) |
+
+### Evidence added to the completion criteria
+
+10. Shell: at 390, 768 and 1366 px, light and dark, the current area is marked on every page, arrow keys move between
+    entries, an open on-screen keyboard does not cover the field, the document scrolls, 200% text keeps labels
+    readable with no horizontal scroll: scripted, with screenshots before and after at the same viewport.
+11. Task: submit, id shown, progress from a real run, the result opened; a failure; leave and return; PC asleep while
+    following; cancel; each shown against a live Local AI, and the stale and refused states against a fixture.
+12. Unavailable Windows services: each of Ollama, ComfyUI, GridCraft/Excel, ArtCraft and the Workshop display down
+    shows its own named state and what to do, using Local AI's wording (section 4 of the tracker), never empty or healthy.
+13. The tracker is current: every row's three columns have a value and the PRs that moved them.
+
+### New decisions for the owner
+
+| # | Question | Recommended | Alternatives |
+|---|---|---|---|
+| D15 | First native task | **Mission** (progress, survives disconnect, cancel) | chat as a run (no progress, dies with the connection) |
+| D16 | The Assistant in the rail | **No: one head entry, as A22 says** | sixth rail area (needs A22 amended; six tabs on a phone) |
+| D17 | Contract route names | **`/api/contract/status` and `/api/contract/models`** | extend `/api/status` and `/api/models` in place (changes the Local AI page's own reads) |
