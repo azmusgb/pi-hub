@@ -678,7 +678,8 @@ def test_cancel_sends_the_id_and_returns_the_run(la):
     ((409, {"error": "This run is not cancellable"}), 409, "not_cancellable"),
     ((404, {"error": "Run not found"}), 404, "not_found"),
     ((502, {"error": "x"}), 503, "unreachable"),
-    ((500, {"error": "x"}), 502, "refused"),
+    ((500, {"error": "x"}), 502, "unavailable"),
+    ((403, {"error": "no"}), 502, "refused"),
     (TimeoutError("slow"), 503, "unreachable")])
 def test_each_local_ai_error_shape_on_cancel(la, answer, status, state):
     la.routes[ai.CANCEL] = answer
