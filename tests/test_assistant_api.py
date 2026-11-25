@@ -212,6 +212,32 @@ def test_a_reply_without_the_contract_shape_is_out_of_date(la):
         assert r["state"] == "out_of_date" and r["data"] is None, body
 
 
+@pytest.mark.parametrize("version", [None, 0, -1, "1", 1.0, True, [1]])
+@pytest.mark.parametrize("name,path", [("status_ok", ai.STATUS), ("status_all_failed", ai.STATUS), ("models_ollama_down", ai.MODELS)])
+def test_a_missing_or_older_contract_version_is_out_of_date_even_with_failed_sources(la, name, path, version):
+    body = fx(name)
+    if version is None:
+        body.pop("contract_version")
+    else:
+        body["contract_version"] = version
+    la.routes[path] = (200, body)
+    r = get("/api/ai/" + path.rsplit("/", 1)[1]).json()
+    assert r["state"] == "out_of_date" and r["data"] is None
+    assert not Path(ai.MIRROR_FILE).exists(), "an out-of-date answer is never stored"
+
+
+def test_a_newer_contract_version_is_accepted_and_the_minimum_is_one():
+    assert ai.MIN_CONTRACT_VERSION == 1
+
+
+def test_a_newer_contract_version_is_drawn(la):
+    body = fx("status_ok")
+    body["contract_version"] = 2
+    la.routes[ai.STATUS] = (200, body)
+    r = get("/api/ai/status").json()
+    assert r["state"] == "live" and r["data"]["contract_version"] == 2
+
+
 def test_an_older_local_ai_without_the_route_is_out_of_date(la):
     r = get("/api/ai/models").json()  # the fake answers 404 for a path it doesn't have
     assert r["state"] == "out_of_date"

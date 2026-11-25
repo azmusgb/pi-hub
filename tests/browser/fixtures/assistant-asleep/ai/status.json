@@ -6,6 +6,7 @@
   "stored_at": 996400,
   "age": 3600,
   "data": {
+    "contract_version": 1,
     "as_of": "2026-11-24T09:00:00.000Z",
     "sources": {
       "appliance": {

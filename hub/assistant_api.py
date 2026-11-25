@@ -33,6 +33,7 @@ START, RUNS, MISSION, CANCEL = "/api/agents/missions/start", "/api/runs", "/api/
 # The six paths, with the method each takes. Anything else is refused before a request is made.
 PATHS = {STATUS: "GET", MODELS: "GET", START: "POST", RUNS: "GET", MISSION: "GET", CANCEL: "POST"}
 
+MIN_CONTRACT_VERSION = 1  # the oldest contract_version of the status and models reads this adapter draws (A34: "out of date" below it)
 GOAL_MAX = 2000
 BODY_MAX = 16 * 1024
 RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{2,79}")
@@ -208,6 +209,9 @@ def _keep(name, body):
 def _contract_body(d):
     """Local AI's contract read as the pages draw it, or None when it isn't the shape the contract says (an older Local AI).
     Each source's state is one of ok, failed, unknown; anything else is unknown, never ok."""
+    v = d.get("contract_version") if isinstance(d, dict) else None
+    if not isinstance(v, int) or isinstance(v, bool) or v < MIN_CONTRACT_VERSION:
+        return None
     if not isinstance(d, dict) or "as_of" not in d or not isinstance(d.get("sources"), dict) or not d["sources"]:
         return None
     sources = {}
