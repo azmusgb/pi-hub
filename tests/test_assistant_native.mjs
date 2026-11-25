@@ -502,6 +502,47 @@ test('the one current task is offered as a link back to it', async () => {
 
 // ---- Assistant status and models ----
 
+test('the availability check landing while a submit is on its way does not give the button back: the goal is sent once', async () => {
+  let asked = 0;
+  const slow = held({ state: 'submitted', runId: RUN });
+  const f = await startForm({ post: async () => { asked++; return slow.reply(); } });
+  const go = f.el.querySelector('button[type="submit"]');
+  const send = async () => { f.el.querySelector('form').dispatchEvent({ type: 'submit', preventDefault() {} }); await flush(); };
+  try {
+    type(f.el.querySelector('textarea'), 'Do the thing');
+    await send();
+    assert.equal(text(go), 'Starting…');
+    f.start.availability({ disabled: false, phrase: '' });  // the 30 s check (assistant.js) says the Assistant is ready
+    assert.equal(go.getAttribute('aria-disabled'), 'true', 'still sending');
+    await send();
+    go.removeAttribute('aria-disabled');  // whatever the attribute says, the submit's own flag is the guard
+    await send();
+    assert.equal(asked, 1);
+    go.setAttribute('aria-disabled', 'true');
+    slow.release();
+    await flush(); await flush();
+    assert.deepEqual(f.went, [`/assistant/run/${RUN}`]);
+    assert.equal(go.hasAttribute('aria-disabled'), false);
+    assert.equal(text(go), 'Start the task');
+  } finally { f.done(); }
+});
+
+test('a submit that ends after the Assistant went down leaves the form disabled, not re-enabled by the reply', async () => {
+  const slow = held(new Response(JSON.stringify({ state: 'unreachable', error: 'x' }), { status: 503, headers: { 'content-type': 'application/json' } }));
+  const f = await startForm({ post: async () => slow.reply() });
+  const go = f.el.querySelector('button[type="submit"]');
+  try {
+    type(f.el.querySelector('textarea'), 'Do the thing');
+    f.el.querySelector('form').dispatchEvent({ type: 'submit', preventDefault() {} });
+    await flush();
+    f.start.availability({ disabled: true, phrase: 'assistant_down' });
+    slow.release();
+    await flush(); await flush();
+    assert.equal(go.getAttribute('aria-disabled'), 'true');
+    assert.equal(text(go), 'Start the task');
+  } finally { f.done(); }
+});
+
 const live = (data) => ({ state: 'live', mirror: false, fetched_at: 1, data });
 const normalise = (d) => ({ ...d, sources: Object.fromEntries(Object.entries(d.sources).map(([k, s]) => [k, s])) });
 
@@ -594,6 +635,19 @@ test('a mirror says it is the last answer, how old, and why; needs the PC; unrea
   } finally { done(); }
 });
 
+test('Pi Hub already asking, with nothing kept (busy), is not drawn as the Assistant being down', async () => {
+  const { mod, draw, done } = await pages();
+  try {
+    for (const [body, what] of [[mod.statusBody, 'status'], [mod.modelsBody, 'models']]) {
+      const box = draw(body({ state: 'busy', why: 'busy', fetched_at: 1, data: null }));
+      assert.match(text(box), new RegExp(`Pi Hub is already asking the Assistant\\. In a moment this page reads the ${what}\\.`));
+      assert.doesNotMatch(text(box), /isn't answering|Check the Assistant|asleep|Wake the PC/);
+      assert.equal(box.querySelector('.ui-notice'), null, 'no warning: nothing is known to be wrong');
+      assert.equal(box.querySelector('.ui-faceplate'), null, 'and no plate of zeros');
+    }
+  } finally { done(); }
+});
+
 test('models as captured: installed with size, loaded, default, the runtime, routing as text', async () => {
   const { mod, draw, done } = await pages();
   try {
@@ -624,6 +678,59 @@ test('models as captured with Ollama unreachable (installed and loaded null): Un
     assert.match(text(box.querySelector('details')), /Installed: fetch failed/);
     assert.doesNotMatch(text(box), /No models are installed/);
     assert.match(text(box.querySelector('#models-sources')), /Installed models.*Isn't answering/);
+  } finally { done(); }
+});
+
+test('models: a source marked ok whose list is missing or the wrong type is a read that could not be made, never 0 or nothing', async () => {
+  const { mod, draw, done } = await pages();
+  try {
+    for (const bad of [undefined, null, 'none', {}, 3]) {
+      const noInstalled = { ...contract('models_ok'), installed: bad };
+      if (bad === undefined) delete noInstalled.installed;
+      let box = draw(mod.modelsBody(live(noInstalled)));
+      const plate = text(box.querySelector('.ui-faceplate'));
+      assert.match(plate, /Unknown/);
+      assert.doesNotMatch(plate, /\b0\b|installed model|Runtime ready|Runtime not answering/);
+      assert.doesNotMatch(text(box), /No models are installed/);
+      assert.match(text(box), /Installed.*The Assistant's answer couldn't be read\./);
+      assert.match(text(box.querySelector('#models-sources')), /Installed models.*Couldn't be read/);
+      assert.match(text(box.querySelector('#models-sources')), /Loaded models.*Read/, 'a source that did answer is still read');
+
+      box = draw(mod.modelsBody(live({ ...contract('models_ok'), pulls: bad })));
+      assert.doesNotMatch(text(box), /Nothing is downloading|in progress/);
+      assert.match(text(box), /Downloads.*The Assistant's answer couldn't be read\./);
+      assert.match(text(box.querySelector('#models-sources')), /Downloads.*Couldn't be read/);
+      assert.match(text(box.querySelector('.ui-faceplate')), /1.*installed model/, 'the rest is drawn');
+
+      box = draw(mod.modelsBody(live({ ...contract('models_ok'), loaded: bad })));
+      assert.doesNotMatch(text(box.querySelector('.ui-faceplate')), /loaded now/);
+      assert.match(text(box.querySelector('.ui-faceplate')), /Loaded models not read/);
+      assert.doesNotMatch(text(box), /Not loaded/, 'no model is called not loaded when what is loaded was not read');
+    }
+    const empty = draw(mod.modelsBody(live({ ...contract('models_ok'), pulls: [] })));
+    assert.match(text(empty), /Nothing is downloading\./, 'a real empty list still says so');
+  } finally { done(); }
+});
+
+test('status: services marked ok but missing is a read that could not be made; a null entry in the list is skipped, not thrown on', async () => {
+  const { mod, draw, done } = await pages();
+  try {
+    for (const bad of [undefined, null, 'x', {}]) {
+      const box = draw(mod.statusBody(live({ ...contract('status_ok'), services: bad })));
+      const plate = text(box.querySelector('.ui-faceplate'));
+      assert.match(plate, /Unknown/);
+      assert.doesNotMatch(plate, /Working/);
+      assert.match(text(box), /The Assistant's answer couldn't be read\. Its services couldn't be read\./);
+      assert.doesNotMatch(text(box), /Local AI isn't answering/, 'it did answer; what it said could not be read');
+    }
+    const d = contract('status_ok');
+    const n = d.services.length;
+    d.services = [null, ...d.services, undefined, 7, 'x'];
+    const box = draw(mod.statusBody(live(d)));
+    assert.match(text(box.querySelector('.ui-faceplate')), /Working/);
+    const ok = draw(mod.statusBody(live(contract('status_ok'))));
+    assert.equal(box.querySelectorAll('.ui-row').length, ok.querySelectorAll('.ui-row').length);
+    assert.ok(n > 0);
   } finally { done(); }
 });
 
@@ -706,19 +813,6 @@ test('a sentence that repeats the plate is kept for assistive tech but not shown
 test('the goal is the plate caption, from this browser or from the run itself on another device', async () => {
   const run = adapter('running');
   run.run.goal = 'Plan the week <b>now</b>';
-test('Pi Hub already asking, with nothing kept (busy), is not drawn as the Assistant being down', async () => {
-  const { mod, draw, done } = await pages();
-  try {
-    for (const [body, what] of [[mod.statusBody, 'status'], [mod.modelsBody, 'models']]) {
-      const box = draw(body({ state: 'busy', why: 'busy', fetched_at: 1, data: null }));
-      assert.match(text(box), new RegExp(`Pi Hub is already asking the Assistant\\. In a moment this page reads the ${what}\\.`));
-      assert.doesNotMatch(text(box), /isn't answering|Check the Assistant|asleep|Wake the PC/);
-      assert.equal(box.querySelector('.ui-notice'), null, 'no warning: nothing is known to be wrong');
-      assert.equal(box.querySelector('.ui-faceplate'), null, 'and no plate of zeros');
-    }
-  } finally { done(); }
-});
-
   const p = await taskPage(run);  // nothing stored here: the goal comes with the run
   try {
     await p.load();
@@ -749,56 +843,3 @@ test('the "Your current task" link is a 44 px target, like the disclosure summar
   const css = readFileSync(new URL('../hub/static/pages.css', import.meta.url), 'utf8');
   assert.match(css, /\.assistant-task__current a \{[^}]*display: inline-flex;[^}]*min-height: calc\(var\(--ui-s-6\) \+ var\(--ui-s-3\)\)/);
 });
-test('models: a source marked ok whose list is missing or the wrong type is a read that could not be made, never 0 or nothing', async () => {
-  const { mod, draw, done } = await pages();
-  try {
-    for (const bad of [undefined, null, 'none', {}, 3]) {
-      const noInstalled = { ...contract('models_ok'), installed: bad };
-      if (bad === undefined) delete noInstalled.installed;
-      let box = draw(mod.modelsBody(live(noInstalled)));
-      const plate = text(box.querySelector('.ui-faceplate'));
-      assert.match(plate, /Unknown/);
-      assert.doesNotMatch(plate, /\b0\b|installed model|Runtime ready|Runtime not answering/);
-      assert.doesNotMatch(text(box), /No models are installed/);
-      assert.match(text(box), /Installed.*The Assistant's answer couldn't be read\./);
-      assert.match(text(box.querySelector('#models-sources')), /Installed models.*Couldn't be read/);
-      assert.match(text(box.querySelector('#models-sources')), /Loaded models.*Read/, 'a source that did answer is still read');
-
-      box = draw(mod.modelsBody(live({ ...contract('models_ok'), pulls: bad })));
-      assert.doesNotMatch(text(box), /Nothing is downloading|in progress/);
-      assert.match(text(box), /Downloads.*The Assistant's answer couldn't be read\./);
-      assert.match(text(box.querySelector('#models-sources')), /Downloads.*Couldn't be read/);
-      assert.match(text(box.querySelector('.ui-faceplate')), /1.*installed model/, 'the rest is drawn');
-
-      box = draw(mod.modelsBody(live({ ...contract('models_ok'), loaded: bad })));
-      assert.doesNotMatch(text(box.querySelector('.ui-faceplate')), /loaded now/);
-      assert.match(text(box.querySelector('.ui-faceplate')), /Loaded models not read/);
-      assert.doesNotMatch(text(box), /Not loaded/, 'no model is called not loaded when what is loaded was not read');
-    }
-    const empty = draw(mod.modelsBody(live({ ...contract('models_ok'), pulls: [] })));
-    assert.match(text(empty), /Nothing is downloading\./, 'a real empty list still says so');
-  } finally { done(); }
-});
-
-test('status: services marked ok but missing is a read that could not be made; a null entry in the list is skipped, not thrown on', async () => {
-  const { mod, draw, done } = await pages();
-  try {
-    for (const bad of [undefined, null, 'x', {}]) {
-      const box = draw(mod.statusBody(live({ ...contract('status_ok'), services: bad })));
-      const plate = text(box.querySelector('.ui-faceplate'));
-      assert.match(plate, /Unknown/);
-      assert.doesNotMatch(plate, /Working/);
-      assert.match(text(box), /The Assistant's answer couldn't be read\. Its services couldn't be read\./);
-      assert.doesNotMatch(text(box), /Local AI isn't answering/, 'it did answer; what it said could not be read');
-    }
-    const d = contract('status_ok');
-    const n = d.services.length;
-    d.services = [null, ...d.services, undefined, 7, 'x'];
-    const box = draw(mod.statusBody(live(d)));
-    assert.match(text(box.querySelector('.ui-faceplate')), /Working/);
-    const ok = draw(mod.statusBody(live(contract('status_ok'))));
-    assert.equal(box.querySelectorAll('.ui-row').length, ok.querySelectorAll('.ui-row').length);
-    assert.ok(n > 0);
-  } finally { done(); }
-});
-

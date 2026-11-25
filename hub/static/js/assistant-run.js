@@ -173,7 +173,12 @@ export function mount(state) {
   draw(state);
 }
 
+// One submit at a time: `starting` is the guard, and the button shows it (the page is left on success, so it stays so).
 async function retry(state, goal) {
+  if (state.ui.starting) return;
+  state.ui.starting = true;
+  state.last = "";
+  draw(state);
   const r = await submitTask(post, goal);
   if (r.ok) { (state.goto || navigateSpa)(`/assistant/run/${r.runId}`); return; }
   state.ui.starting = false;
@@ -181,12 +186,7 @@ async function retry(state, goal) {
   state.last = "";
   draw(state);
 }
-// One submit at a time: `starting` is the guard, and the button shows it (the page is left on success, so it stays so).
 
-  if (state.ui.starting) return;
-  state.ui.starting = true;
-  state.last = "";
-  draw(state);
 // Redraw when the signature changed. Focus: an element the owner was on (data-focus) is found again; if the phase changed
 // under their focus, it goes to the outcome or the status sentence; if focus was elsewhere (the rail), it is left alone.
 function draw(state) {
@@ -230,7 +230,10 @@ export function startTask({ goto = navigateSpa, storage = globalThis.localStorag
   const form = h("form", { class: "assistant-task__form" },
     h("label", { for: "assistant-task-goal" }, "What should the Assistant work on?"), goal,
     h("div", { class: "assistant-task__row" }, go, note));
-  let off = null;
+  let off = null, sending = false;
+  // The button is disabled while the Assistant can't take a task or a submit is on its way. `sending` is the submit's own
+  // guard: the availability check (every 30 s) can land mid-submit, and must not give the button back.
+  const lock = () => { if (off || sending) go.setAttribute("aria-disabled", "true"); else go.removeAttribute("aria-disabled"); };
   const current = h("p", { class: "assistant-task__current" });
   const showCurrent = () => {
     const c = readCurrent(storage);
@@ -239,12 +242,14 @@ export function startTask({ goto = navigateSpa, storage = globalThis.localStorag
   };
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (off || go.getAttribute("aria-disabled") === "true") return;
-    go.setAttribute("aria-disabled", "true");
+    if (off || sending) return;
+    sending = true;
+    lock();
     go.textContent = "Starting…";
     note.textContent = "";
     const r = await submitTask(post, goal.value, { storage });
-    go.removeAttribute("aria-disabled");
+    sending = false;
+    lock();
     go.textContent = "Start the task";
     if (r.ok) { goto(`/assistant/run/${r.runId}`); return; }
     // A refused or failed submit keeps what was typed and says what went wrong.
@@ -264,7 +269,7 @@ export function startTask({ goto = navigateSpa, storage = globalThis.localStorag
     availability({ disabled, phrase }) {
       off = disabled ? phrase : null;
       goal.disabled = !!disabled;
-      if (disabled) go.setAttribute("aria-disabled", "true"); else go.removeAttribute("aria-disabled");
+      lock();
       if (disabled) note.textContent = "";
       showCurrent();
     },
