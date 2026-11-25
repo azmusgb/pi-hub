@@ -165,6 +165,40 @@ test('PC asleep or Local AI down while following is unreachable with the last se
   assert.equal(await nextRead(), 3000, 'and polls every 3 s again');
 });
 
+test('a Local AI 500 or 429 while following (the adapter says unreachable) keeps polling, keeps what was known, and recovers', async () => {
+  // What GET /api/ai/tasks/<id> answers for a Local AI 500 or 429 (tests/test_assistant_api.py): never `refused`, which stops.
+  const t = rig({ replies: [fx('running'), unreachable(), unreachable(), fx('completed')] });
+  await t.task.tick();
+  const seen = t.m.lastSeen;
+  for (let i = 0; i < 2; i++) {
+    t.advance(60_000);
+    await t.task.tick();
+    assert.equal(t.m.phase, 'unreachable');
+    assert.equal(t.m.run.status, 'running', 'the last known run stays');
+    assert.equal(t.m.lastSeen, seen);
+  }
+  assert.equal(t.reads.length, 3, 'it reads again after each one');
+  t.advance(60_000);
+  await t.task.tick();
+  assert.equal(t.m.phase, 'completed');
+  assert.ok(!t.seen.includes('refused') && !t.seen.includes('failed'));
+});
+
+test('the hub itself answering 500 or 429 while following is unreachable and keeps polling, never refused', async () => {
+  for (const err of [fail(500, null), fail(429, { detail: 'Too many requests' }), fail(502, 'bad gateway')]) {
+    const t = rig({ replies: [fx('running'), err, fx('running')] });
+    await t.task.tick();
+    t.advance(60_000);
+    await t.task.tick();
+    assert.equal(t.m.phase, 'unreachable');
+    assert.equal(t.m.why, 'hub');
+    t.advance(60_000);
+    await t.task.tick();
+    assert.equal(t.m.phase, 'running');
+    assert.equal(t.reads.length, 3);
+  }
+});
+
 test('the hub itself not answering is unreachable too (why: hub), not an error page', async () => {
   const t = rig({ replies: [new Error('The hub could not be reached.')] });
   await t.task.tick();

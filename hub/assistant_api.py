@@ -334,6 +334,12 @@ async def _json_body(request):
 
 
 UNSURE = "Pi Hub couldn't reach the Assistant, so it doesn't know whether the task started. Check Work before trying again."
+MAYBE = "Pi Hub doesn't know whether the task started. Check Work before trying again."
+
+
+def _maybe(said, otherwise):
+    """An answer that doesn't say whether a task started: Local AI's words (or ours), then that a task may exist."""
+    return f"{(said or otherwise).rstrip('.')}. {MAYBE}"
 
 
 @router.post("/tasks")
@@ -381,7 +387,10 @@ def _submit(body):
             return say("out_of_date", 502, error="The Assistant is older than this page needs.")
         if r.status in (401, 403):
             return say("refused", 502, error=r.error() or "The Assistant refused Pi Hub's key.")
-        return say("unavailable", 503 if r.status == 503 else 502, error=r.error() or "The Assistant couldn't start the task.")
+        if r.status == 503 and r.error():  # Local AI's own refusal (its models aren't checked yet): nothing started
+            return say("unavailable", 503, error=r.error())
+        # A 5xx, a 429 or anything else may have come after the run was made: never "nothing started".
+        return say("unavailable", 503 if r.status == 503 else 502, error=_maybe(r.error(), "The Assistant answered with an error"))
     run_id, thread = r.data.get("runId"), r.data.get("threadId")
     if r.status != 202 or not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
         return say("out_of_date", 502, error="The Assistant answered in a way this page doesn't know.")
@@ -408,9 +417,10 @@ def api_task_follow(run_id: str, request: Request):
                 return _reply("not_found", error=r.error() or "The Assistant has no task with this id.")
             if r.status == 405:
                 return _reply("out_of_date", error="The Assistant is older than this page needs.")
-            if r.status == 503:
-                return _reply("unreachable", why="unreachable")
-            return _reply("refused", error=r.error() or "The Assistant refused to show this task.")
+            if r.status in (401, 403):
+                return _reply("refused", error=r.error() or "The Assistant refused to show this task.")
+            # A 5xx, a 429 or any other status says nothing about the task: it may still be running, so the page keeps asking.
+            return _reply("unreachable", why="unreachable")
         run = _run(r.data.get("item"))
         if run is None:
             return _reply("out_of_date", error="The Assistant sent a task state this page doesn't know.")
@@ -452,5 +462,8 @@ def _cancel(run_id):
             return say("not_found", 404, error=r.error() or "The Assistant has no task with this id.")
         if r.status == 409:
             return say("not_cancellable", 409, error=r.error() or "This task can't be cancelled now.")
-        return say("refused", 502, error=r.error() or "The Assistant didn't cancel the task.")
+        if r.status in (401, 403):
+            return say("refused", 502, error=r.error() or "The Assistant didn't cancel the task.")
+        return say("unavailable", 503 if r.status == 503 else 502,
+                   error="The Assistant answered with an error, so Pi Hub doesn't know whether the task was cancelled.")
     return say("ok", 200, run=_run(r.data.get("item")))

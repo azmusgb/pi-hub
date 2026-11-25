@@ -496,6 +496,20 @@ def test_each_local_ai_error_shape_on_submit(la, answer, status, state):
         assert "doesn't know whether the task started" in r.json()["error"]
 
 
+@pytest.mark.parametrize("answer", [(500, {"error": "boom"}), (500, b""), (429, {"error": "slow down"}), (503, b""), (507, {})])
+def test_an_error_on_submit_that_could_follow_a_start_never_says_nothing_started(la, answer):
+    la.routes[ai.START] = answer
+    r = post("/api/ai/tasks", {"goal": "x"})
+    assert r.json()["state"] == "unavailable" and r.status_code in (502, 503)
+    assert "doesn't know whether the task started" in r.json()["error"] and "Check Work before trying again" in r.json()["error"]
+    assert "couldn't start" not in r.json()["error"]
+
+
+def test_a_503_with_local_ais_own_reason_on_submit_is_its_refusal_as_it_says_it(la):
+    la.routes[ai.START] = (503, {"error": "Models not checked"})
+    assert post("/api/ai/tasks", {"goal": "x"}).json()["error"] == "Models not checked"
+
+
 def test_a_400_for_an_unknown_model_names_what_is_installed(la):
     la.routes[ai.START] = (400, {"error": "Unknown model", "code": "UNKNOWN_MODEL", "installed": ["a", "b"]})
     r = post("/api/ai/tasks", {"goal": "x"}).json()
@@ -618,6 +632,16 @@ def test_following_when_local_ai_does_not_answer_is_unreachable_never_failed(la,
     assert "run" not in resp.json() and "failed" not in resp.text
 
 
+@pytest.mark.parametrize("status", [500, 429, 501, 507, 400, 418])
+def test_a_transient_local_ai_error_while_following_is_unreachable_never_refused(la, status):
+    """Only a real refusal (401, 403) is `refused`, which ends polling: a 500 or a 429 says nothing about the task."""
+    routes_ok(la)
+    la.routes[ai.RUNS] = (status, {"error": "boom"})
+    resp = get(f"/api/ai/tasks/{RUN}")
+    assert resp.status_code == 200 and resp.json() == {"state": "unreachable", "fetched_at": int(Clock.t), "why": "unreachable"}
+    assert "failed" not in resp.text and "boom" not in resp.text
+
+
 def test_following_while_the_pc_sleeps_is_unreachable_with_no_call_after_the_probe(la):
     routes_ok(la)
     la.pc["state"] = "off"
@@ -635,6 +659,8 @@ def test_following_an_unknown_run_is_not_found(la):
 
 def test_follow_refused_by_local_ai_is_refused(la):
     la.routes[ai.RUNS] = (403, {"error": "Not allowed"})
+    assert get(f"/api/ai/tasks/{RUN}").json()["state"] == "refused"
+    la.routes[ai.RUNS] = (401, {})
     assert get(f"/api/ai/tasks/{RUN}").json()["state"] == "refused"
     la.routes[ai.RUNS] = (405, {})
     assert get(f"/api/ai/tasks/{RUN}").json()["state"] == "out_of_date"
@@ -686,6 +712,13 @@ def test_each_local_ai_error_shape_on_cancel(la, answer, status, state):
     r = post(f"/api/ai/tasks/{RUN}/cancel")
     assert (r.status_code, r.json()["state"]) == (status, state) and la.calls[0]["path"] == ai.CANCEL
     assert len(la.calls) == 1, "never retried"
+
+
+@pytest.mark.parametrize("status", [500, 429, 503])
+def test_an_error_on_cancel_does_not_say_the_task_was_or_was_not_cancelled(la, status):
+    la.routes[ai.CANCEL] = (status, {})
+    r = post(f"/api/ai/tasks/{RUN}/cancel")
+    assert "doesn't know whether the task was cancelled" in r.json()["error"] and len(la.calls) == 1
 
 
 def test_cancel_while_the_pc_sleeps_says_needs_the_pc_without_a_call(la):
