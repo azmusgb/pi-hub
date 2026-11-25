@@ -1,6 +1,6 @@
 # A34 capability tracker
 
-Date: 24 Nov 2026 · Tracks: amendment A34 and its Amendment 1 · Read: Local AI `cfff3458`, pi-hub `58891bd`
+Date: 24 Nov 2026, PR table updated 25 Nov · Tracks: amendment A34 and its Amendment 1 · Read: Local AI `2d875977`, pi-hub `802a849`
 
 One row per Local AI capability. A migrated workflow is one row, not coverage. Three columns move independently, and
 "merged" and "deployed" are recorded per PR in the last table, never inferred from a row.
@@ -80,11 +80,23 @@ is "not read yet"; none of them is ever drawn as empty or healthy.
 | PR | What | Implemented | Verified | Merged | Deployed |
 |---|---|---|---|---|---|
 | appliance-ui #52 | kit 2.29.0 shared shell | yes | tests | yes (`9f5675e`) | n/a (kit) |
-| pi-hub #332 | kit sync 2.29.0 | yes | tests | yes (`8ed517f`, 25 Nov) | no |
+| appliance-ui #53 | kit 2.30.0: drawn pages marked `drawn: hub`, run page is Task | yes | tests | yes (`1a4773b`, 25 Nov) | n/a (kit) |
+| appliance-ui #54 | kit 2.31.0: nav is one tab stop; label, icon and count never collide | yes | tests | yes (`556eb9e`, 25 Nov) | n/a (kit) |
+| appliance-ui #55 | kit 2.31.1: phone tab count text at least 12px | yes | tests | yes (`cdd2f11`, 25 Nov) | n/a (kit) |
+| appliance-ui #56 | kit 2.31.2: a two-digit count clears its icon at large text (99+ still met it in Pi Hub) | yes | tests | yes (`a975209`, 25 Nov) | n/a (kit) |
+| appliance-ui #57 | kit 2.31.3: the short count (9+) is only as tall as its text; Pi Hub's shell-nav passes with it | yes | tests | no | n/a (kit) |
+| pi-hub #332 | kit sync 2.29.0 | yes | tests | yes (`8ed517f`, 25 Nov) | yes (in `c128012`) |
 | pi-hub #333 | A34 Amendment 1 and this tracker | yes | n/a | yes (`cb362f0`, 25 Nov) | n/a |
-| pi-hub: shell adoption, Home | branch `feat-kit-shell` | in progress | none | no | no |
-| LocalAI: P1a reads and allow-list | to open | in progress | none | no | no |
-| pi-hub: adapter, status, models, task | to open | not started | none | no | no |
-| appliance-ui: registry rows | to open | not started | none | no | no |
-| LocalAI: phone-shell fix (`fix-mobile-shell`) | with before/after evidence | in progress | none | no | no |
-| LocalAI: kit sync (it serves 2.27.1) to 2.29.0 and kit shell adoption; P0 done-2 waits on it | to open | not started | none | no | no |
+| pi-hub #335 | kit sync 2.31.0 | yes | tests | yes (`572c075`, 25 Nov) | yes (release tests 431 s) |
+| pi-hub #336 | kit sync 2.31.1 | yes | tests | yes (`c128012`, 25 Nov) | yes (live; release tests 421 s) |
+| pi-hub #337 | adapter (owner-only `/api/ai`, six paths), Assistant status, Models, first task | yes | tests | yes (`802a849`, 25 Nov) | no: the release was stopped at the JS step's 120 s limit (Python 570 s), `c128012` still live |
+| pi-hub #338 | release script: a stopped JS run says so; JS limit 240 s | yes | tests | no | no |
+| pi-hub: shell adoption, Home | branch `feat-kit-shell` (local; waits on kit 2.31.3) | yes | tests (structure, tabbar, shell-update, shell-nav) | no | no |
+| LocalAI #623 | P1a: status and models in one call; start, follow and cancel a task; allow-list | yes | tests | yes (`737afa5`, 25 Nov) | yes (in `7ac93f2`) |
+| LocalAI #624 | contract reads carry a contract version | yes | tests | yes (`7ac93f2`, 25 Nov) | yes (live) |
+| LocalAI #625 | kit sync 2.31.1 | yes | tests | yes (`184000a`, 25 Nov) | no (`release` is `7ac93f2`) |
+| LocalAI #626 | shell budget 380 KB for kit 2.31.1 | yes | tests | yes (`610f135`, 25 Nov) | no |
+| LocalAI #629 | phone-shell fix (`fix-mobile-shell`) | yes | tests (4 phone suites) | yes (`3077d9c`, 25 Nov) | no |
+| LocalAI #631 | phone visual baselines for #629 | yes | tests | yes (`552fa63`, 25 Nov) | no |
+| LocalAI #632 | kit sync 2.31.2 (superseded by 2.31.3 once #57 merges) | yes | kit verify | no | no |
+| LocalAI: kit shell adoption (kit synced in #625); P0 done-2 waits on it | to open | not started | none | no | no |
