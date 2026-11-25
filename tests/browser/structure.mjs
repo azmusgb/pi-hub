@@ -26,7 +26,7 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
       // 'load', not 'networkidle': the shell keeps an EventSource on /api/records/stream open, so the network is never idle.
       await page.goto(BASE + path, { waitUntil: 'load' });
       await page.waitForTimeout(2500);
-      const current = await page.$$eval('.rail [data-page][aria-current="page"]', (a) => a.map((x) => x.dataset.page));
+      const current = await page.$$eval('.ui-rail [data-area][aria-current="page"]', (a) => a.map((x) => x.dataset.area));
       if (path !== WALL && !current.includes(key)) problems.push(`${where}: active tab ${current} (want ${key})`);
       const axe = await new AxeBuilder({ page }).exclude('.house-cam-img').analyze();
       for (const v of axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))) {
@@ -44,19 +44,24 @@ for (const [width, height] of [[390, 844], [1440, 900]]) {
         }
         await page.screenshot({ path: `${OUT}${shot(path)}-${width}-${colorScheme}.png` }); continue;
       }
-      // The header (with the clock) and the footer line up with the content's right edge.
+      // The header's controls (Search, the Assistant) and the footer line up with the content's right edge: the head is
+      // the kit's full-width bar, so it is its last control that is measured.
       if (width >= 861) {
-        const edges = await page.evaluate(() => ['.top', '#view', '.foot'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().right)));
+        // Each edge is where its content stops: a box's right edge less its own right padding.
+        const edges = await page.evaluate(() => [...[...document.querySelectorAll('.top > *')].filter((e) => e.checkVisibility()).slice(-1).map((e) => e.getBoundingClientRect().right),
+          ...['#view', '.foot'].map((s) => document.querySelector(s).getBoundingClientRect().right - parseFloat(getComputedStyle(document.querySelector(s)).paddingRight))].map(Math.round));
         if (Math.max(...edges) - Math.min(...edges) > 2) problems.push(`${where}: header, content and footer end at ${edges.join(', ')}`);
       }
-      const assistant = page.locator(width < 861 ? '.top-assistant' : '.rail-assistant');
+      // The Assistant has one persistent entry on every width: the head's button, never badged, and no second one in the nav.
+      const assistant = page.locator('.top-assistant');
       if (!(await assistant.isVisible())) problems.push(`${where}: Assistant not visible`);
-      if (await assistant.locator('.nav-badge').count()) problems.push(`${where}: Assistant has a badge`);
+      if (await assistant.locator('.ui-rail-badge').count()) problems.push(`${where}: Assistant has a badge`);
+      if (await page.locator('.ui-rail a[href="/assistant"]').count()) problems.push(`${where}: a second Assistant entry in the nav`);
       if (width < 861) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await page.waitForTimeout(200);
         const covered = await page.evaluate(() => {
-          const bar = document.querySelector('.rail').getBoundingClientRect();
+          const bar = document.querySelector('.ui-rail').getBoundingClientRect();
           const last = [...document.querySelectorAll('main section, main .home-card')].filter((e) => e.checkVisibility()).at(-1);  // not inside a closed "Show all"
           return last ? last.getBoundingClientRect().bottom > bar.top + 1 : false;
         });

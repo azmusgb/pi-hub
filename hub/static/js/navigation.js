@@ -1,15 +1,48 @@
 // Small device-local indicators. Nothing is uploaded or tracked across devices.
-import { api, h } from "./core.js";
+import { api } from "./core.js";
 import { unreadCount } from "./experience.js";
-import { homeBadge } from "./home-cards.js";
+import { SITE } from "./site.js";
 
 const ALERTS_SEEN_KEY = "hub-alerts-seen";
 
+const SVG = "http://www.w3.org/2000/svg";
+// The rail's icons, one per area (24 x 24, drawn as strokes): the shapes the rail has always had.
+const ICONS = {
+  home: [["path", { d: "M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" }]],
+  workshop: [["path", { d: "M5 4h14v4H5zM8 8v6l4 3 4-3V8M12 17v3" }]],
+  household: [["path", { d: "M5 12V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 12h18v5H3zM6 17v2M18 17v2" }]],
+  network: [["path", { d: "M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a5 5 0 0 1 6.4 0" }], ["circle", { cx: 12, cy: 19.2, r: 1.2 }]],
+  system: [["rect", { x: 5, y: 5, width: 14, height: 14, rx: 2 }],
+    ["path", { d: "M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" }]],
+};
+
+function icon(areaId) {
+  const parts = ICONS[areaId];
+
+  if (!parts) return null;
+
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("focusable", "false");
+
+  for (const [tag, attrs] of parts) {
+    const part = document.createElementNS(SVG, tag);
+    for (const [key, value] of Object.entries(attrs)) part.setAttribute(key, String(value));
+    svg.append(part);
+  }
+
+  return svg;
+}
+
 let seen = readSeenTimestamp();
-let alerts = [];
-let print = "";
+// What each badge reads. undefined: not asked yet (no badge); null: the read failed (a "?" badge, never a count that
+// may be out of date, never nothing); otherwise the answer.
+let alerts;       // /api/alerts: unread count is System's badge
+let print;        // /api/now: "" when nothing prints, else the words ("3D print running, 42%")
+let needs;        // /api/needs: its count is the Home tab's badge (one home, D7)
 let pending = false;
-let needs = null;  // /api/needs: its count is the Home tab's badge (one home, D7)
+let nav = null;   // the kit's nav (ApplianceShell.build), drawn by mountNav
+let area = "";    // the area marked current; "" when the page is in none (the Assistant, an unknown address)
 
 function readSeenTimestamp() {
   const now = Math.floor(Date.now() / 1000);
@@ -68,95 +101,74 @@ function printerStatus(printer) {
   return "";
 }
 
-function badgeText(key) {
-  if (key === "home") {
-    return homeBadge(needs);
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// One area's badge: { count, say } for the kit's setBadge and the words that name it for assistive tech. `text` replaces
+// the number ("?" for a read that failed); `dot` shows a small dot with no number (a print running has no count).
+function badgeFor(id) {
+  if (id === "home" && needs !== undefined) {
+    if (needs === null) return { count: 1, text: "?", say: "couldn't check what needs you" };
+    const n = Number(needs.count) || 0;
+    return n > 0 ? { count: n, say: `${n} need${n === 1 ? "s" : ""} you` } : null;
   }
-
-  if (key === "workshop" && print) {
-    return "Print";
+  if (id === "system" && alerts !== undefined) {
+    if (alerts === null) return { count: 1, text: "?", say: "couldn't check the alerts" };
+    const n = unreadCount(alerts, seen);
+    return n > 0 ? { count: n, say: plural(n, "new alert", "new alerts") } : null;
   }
-
-  return "";
-}
-
-function detailForPage(key, count) {
-  if (key === "home" && needs?.count > 0) {
-    return `${needs.count} need${needs.count === 1 ? "s" : ""} you`;
+  if (id === "workshop" && print !== undefined) {
+    if (print === null) return { count: 1, text: "?", say: "couldn't check the printer" };
+    return print ? { count: 1, text: "", dot: true, say: print } : null;
   }
-
-  if (key === "system") {
-    return count > 0
-      ? `${count} new alert${count === 1 ? "" : "s"}`
-      : "";
-  }
-
-  if (key === "workshop") {
-    return print;
-  }
-
-  return "";
-}
-
-function getBaseLabel(anchor) {
-  const saved = anchor.dataset.navLabel;
-
-  if (saved) {
-    return saved;
-  }
-
-  const ariaLabel = anchor.getAttribute("aria-label")?.trim();
-
-  if (ariaLabel) {
-    anchor.dataset.navLabel = ariaLabel;
-    return ariaLabel;
-  }
-
-  // Last-resort fallback for a malformed navigation link.
-  const text = anchor.textContent?.trim() || "Navigation";
-
-  anchor.dataset.navLabel = text;
-  return text;
+  return null;
 }
 
 function render() {
-  const count = unreadCount(alerts, seen);
+  const shell = globalThis.ApplianceShell;
+  if (!nav || !shell) return;
 
-  for (const anchor of document.querySelectorAll(".rail a[data-page]")) {
-    const base = getBaseLabel(anchor);
-    const key = anchor.dataset.page || "";
-    const detail = detailForPage(key, count);
-    const badge = badgeText(key);
+  for (const link of nav.querySelectorAll("a[data-area]")) {
+    const id = link.dataset.area;
+    const name = link.querySelector(".ui-rail-label")?.textContent || id;
+    const badge = badgeFor(id);
 
-    anchor.querySelector(".nav-badge")?.remove();
+    shell.setBadge(nav, id, badge ? badge.count : 0);
 
-    if (badge) {
-      anchor.append(
-        h(
-          "span",
-          {
-            class: "nav-badge",
-            "aria-hidden": "true",
-            // A count stays a number in the tab bar; a word becomes a dot there.
-            "data-count": /^\d+\+?$/.test(badge) ? "" : null,
-            "data-short": badge === "99+" ? "9+" : null,
-          },
-          badge,
-        ),
-      );
+    const mark = link.querySelector(".ui-rail-badge");
+
+    if (badge && mark) {
+      if (badge.text !== undefined) mark.textContent = badge.text;
+      if (badge.dot) mark.dataset.dot = "";
+      mark.setAttribute("aria-label", badge.say);
     }
 
-    anchor.setAttribute(
-      "aria-label",
-      detail
-        ? `${base}, ${detail}`
-        : base,
-    );
-
-    anchor.title = detail
-      ? `${base}: ${detail}`
-      : base;
+    if (badge) {
+      link.setAttribute("aria-label", `${name}, ${badge.say}`);
+      link.title = `${name}: ${badge.say}`;
+    } else {
+      link.removeAttribute("aria-label");
+      link.removeAttribute("title");
+    }
   }
+}
+
+// The kit's navigation: the rail on a wide window and the tab bar on a narrow one, one link per area of the page list,
+// in its order. Pi Hub keeps the routing (main.js follows every a[data-link]). Call once, with the .ui-shell element;
+// the nav goes first in it. Starts the kit's head-height and keyboard-inset variables.
+export function mountNav(shell) {
+  const kit = globalThis.ApplianceShell;
+  nav = kit.build(document, { areas: SITE.areas, pages: SITE.rows, current: area, icon, label: "Primary navigation" });
+  for (const link of nav.querySelectorAll("a[data-area]")) link.setAttribute("data-link", "");
+  shell.prepend(nav);
+  kit.watch(window);
+  render();
+  return nav;
+}
+
+// Marks the area the open page belongs to ("" for none: every link loses its mark).
+export function setCurrentArea(id) {
+  area = typeof id === "string" ? id : "";
+  if (nav) globalThis.ApplianceShell.setCurrent(nav, area);
 }
 
 export function markAlertsSeen(items) {
@@ -191,32 +203,29 @@ export async function updateNavigation() {
     ]);
 
     /*
-     * Preserve the previous state when a request fails.
-     *
-     * A transient API/network error should not make an existing alert badge or
-     * active-print indicator disappear until the next successful refresh.
+     * A read that failed is its own state: its badge becomes "?" until the next good answer. The count from the last
+     * good read is not kept: it may no longer be true, and nothing at all would read as "nothing needs you".
      */
-    if (alertsResult.status === "fulfilled") {
-      alerts = Array.isArray(alertsResult.value?.alerts)
-        ? alertsResult.value.alerts
-        : [];
-    }
+    alerts = alertsResult.status === "fulfilled" && Array.isArray(alertsResult.value?.alerts)
+      ? alertsResult.value.alerts
+      : null;
 
-    if (needsResult.status === "fulfilled") {
-      needs = needsResult.value;
-    }
+    needs = needsResult.status === "fulfilled" && needsResult.value && typeof needsResult.value === "object"
+      ? needsResult.value
+      : null;
 
-    if (nowResult.status === "fulfilled") {
-      print = printerStatus(nowResult.value?.printer);
-    }
+    print = nowResult.status === "fulfilled" && nowResult.value && typeof nowResult.value === "object"
+      ? printerStatus(nowResult.value.printer)
+      : null;
 
     render();
   } finally {
     pending = false;
   }
 }
-// Home shares what it just loaded, so the badge and the Needs you card never disagree.
+
+// Home shares what it just loaded, so the badge and the Needs you card never disagree. null: Home couldn't read it.
 export function setNeeds(value) {
-  needs = value;
+  needs = value === undefined ? needs : value;
   render();
 }

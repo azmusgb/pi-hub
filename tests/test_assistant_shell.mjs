@@ -158,7 +158,8 @@ test('the shell: /assistant is a page, the button opens it with the page\'s fact
   assert.match(main, /current\?\.mod\.retarget\?\.\(current\.state, url\)/);
   assert.match(main, /history\.replaceState\(\{\}, "", destination\)/, 'on /assistant, another Assistant link replaces: Back leaves in one step');
   const html = read('hub/static/index.html');
-  for (const c of ['rail-assistant', 'top-assistant']) assert.match(html, new RegExp(`class="${c}" href="/assistant" data-link`));
+  assert.match(html, /class="top-assistant" href="\/assistant" data-link/);
+  assert.doesNotMatch(html, /rail-assistant/, 'one persistent entry: the head\'s button');
   assert.doesNotMatch(html, /href="https:\/\/assistant\./, 'no button leaves the shell');
   assert.ok(read('hub/static/sw.js').includes('"/static/js/assistant.js"'));
   const css = read('hub/static/app.css');

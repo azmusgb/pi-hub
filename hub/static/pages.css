@@ -4,11 +4,10 @@
 
 /* Content width grows with the screen; very wide screens get room for a third column of cards. */
 /* A10 D3: the page's cap is in rem, so it grows with the type: 1120 px at a 16 px root, 1400 px from a 1920 px window. */
-.stage .top, .stage main, .stage .foot { max-width: 70rem; }
+.stage main, .stage .foot { max-width: 70rem; }
 
-body.wall .rail { display: none; }
+body.wall .ui-rail { display: none; }
 body.wall .shell { display: block; }
-body.wall .stage { padding-bottom: 0; }
 
 .page { display: grid; gap: 1.25rem; padding-bottom: var(--ui-s-4); }
 .page > *, .stack > *, .cards > * { min-width: 0; }
@@ -272,10 +271,10 @@ body.wall .link-btn { display: none; }
 }
 
 /* Installed as an app (Add to Home Screen): the page runs under a see-through status bar, and iPadOS blurs what sits
-   beneath it. The header and the rail keep their usual spacing and add the status bar's height on top. */
+   beneath it. The header keeps its usual spacing and adds the status bar's height on top; the rail's own (the kit's)
+   already does. */
 @media (display-mode: standalone) {
-  .top { padding-top: calc(clamp(1.5rem, 4vw, 2.75rem) + env(safe-area-inset-top)); }
-  .rail { padding-top: calc(1.5rem + env(safe-area-inset-top)); }
+  .top { padding-top: calc(var(--ui-s-3) + env(safe-area-inset-top)); }
 }
 
 /* People who ask for more contrast get solid surfaces and stronger lines. */
@@ -285,7 +284,7 @@ body.wall .link-btn { display: none; }
 }
 
 @media print {
-  .rail, .foot, .toast, button { display: none !important; }
+  .ui-rail, .foot, .toast, button { display: none !important; }
   .shell { display: block; }
   body { background: #fff; color: #000; }
 }

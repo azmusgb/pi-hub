@@ -65,9 +65,9 @@ export const SITE = makeSite();
 export const areaTools = (areaId, tools = TOOLS) => tools.filter((t) => t.area === areaId && !t.boundary && !t.retired);
 export const retiredTools = (tools = TOOLS) => tools.filter((t) => t.retired);
 
-// The rail entry a path lights: its area, or "assistant" (level 0, A4: no rail area, the button marks it). A path the
-// list doesn't have lights Home.
+// The rail entry a path lights: its area; "assistant" for /assistant and the pages under it (level 0, A4: no rail area, the head's button is
+// marked); "" for an address the list doesn't have (the page not found: no entry is marked).
 export function sectionFor(path) {
   if (path === "/assistant" || path.startsWith("/assistant/")) return "assistant";  // the Assistant's pages Pi Hub draws: the head's button marks them
-  return SITE.areaOf(path) || "home";
+  return SITE.areaOf(path) || "";
 }

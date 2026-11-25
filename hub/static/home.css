@@ -540,7 +540,8 @@ body.wall.night { filter: brightness(0.55); }
 .wx-line { stroke: #aab3ba; }
 .out-weather { display: inline-flex; align-items: center; min-height: 44px; gap: 0.35rem; color: var(--ui-muted); text-decoration: none; }
 .out-weather:hover strong { color: var(--ui-accent); }
-.out-alert { color: var(--ui-warn); font-weight: 700; text-decoration: none; }
+/* A link on its own in the outside row (not inside a sentence), so it is a full touch target. */
+.out-alert { display: inline-flex; align-items: center; min-height: calc(var(--ui-space) * 11); color: var(--ui-warn); font-weight: 700; text-decoration: none; }
 .out-soon { color: var(--ui-accent-text); }
 .wx-alert p { margin: 0.3rem 0 0; }
 /* Weather (A7): the sky's icon beside now, in the faceplate's aside. */
@@ -595,12 +596,6 @@ body.wall.night { filter: brightness(0.55); }
   border: none;
   color: var(--ui-muted);
   font-weight: 500;
-}
-
-/* 9. Recover Vertical Space (Fit Wi-Fi above fold) */
-.top {
-  padding-top: var(--ui-s-4);
-  padding-bottom: var(--ui-s-2);
 }
 
 /* The home page owns its columns; old page-level grids must not split the hero. */

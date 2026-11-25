@@ -54,7 +54,7 @@ try {
   await back();
   await page.waitForTimeout(500);
   check(await same(), 'the first install reloaded the page');
-  await page.click('.rail a[data-page="workshop"]');
+  await page.click('.ui-rail a[data-area="workshop"]');
   await page.waitForFunction(() => location.pathname === '/workshop');
   check(await same(), 'after the first install, an in-app link did a full load');
 
@@ -70,7 +70,7 @@ try {
   await page.waitForTimeout(500);
   check(await same(), 'coming back reloaded a page holding typed text');
   check(await page.evaluate(() => document.getElementById('draft')?.value) === 'A typed answer', 'the typed text was lost');
-  await Promise.all([page.waitForEvent('load', { timeout: 5000 }).catch(() => null), page.click('.rail a[data-page="workshop"]')]);
+  await Promise.all([page.waitForEvent('load', { timeout: 5000 }).catch(() => null), page.click('.ui-rail a[data-area="workshop"]')]);
   check(!(await same()), 'an out-of-date page navigated in-app instead of a full load');
   check(new URL(page.url()).pathname === '/workshop', `the full load went to ${page.url()}, not /workshop`);
 

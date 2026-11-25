@@ -585,14 +585,22 @@ export function mountDashboard(state, parent) {
   hd.needsHeading = h("h2", { id: "hd-needs-h", tabindex: "-1" }, "Needs you");  // where focus goes when a group it was in goes
   hd.rack = h("ul", { class: "hd-rack__units" }, ...skeletonRows(5));
   hd.others = h("div", { class: "hd-others" });
+  // One link to the Assistant on Home, a contextual one (main.js fills it with what is on screen and shows pc_off or
+  // assistant_down while Local AI can't answer); the head's button is the persistent entry.
+  hd.ask = h("section", { class: "hd-ask", "aria-label": "Ask the Assistant" },
+    h("p", { class: "hd-ask__text" }, "Ask about the house, the printer or anything that needs you."),
+    h("a", { class: "ui-btn", href: "/assistant", "data-link": true, "data-ask-assistant": "", "data-ask-label": "Ask the Assistant" },
+      h("span", {}, "Ask the Assistant")));
+  // What needs the owner first, then the one way to ask, what the house is doing, and its day.
   hd.root = h("div", { class: "hd" },
-    h("section", { class: "hd-band", "aria-labelledby": "hd-today-h" },
-      h("div", { class: "hd-band__head" }, h("h2", { id: "hd-today-h" }, "Today so far"), hd.counts),
-      hd.plot, hd.detail),
     h("section", { class: "hd-needs", "aria-labelledby": "hd-needs-h" },
       h("div", { class: "hd-head" }, hd.needsHeading, hd.needsCount), hd.needs, hd.decisions),
+    hd.ask,
     h("section", { class: "hd-rack", "aria-labelledby": "hd-rack-h" },
-      h("div", { class: "hd-head" }, h("h2", { id: "hd-rack-h" }, "Systems")), hd.rack, hd.others));
+      h("div", { class: "hd-head" }, h("h2", { id: "hd-rack-h" }, "Systems")), hd.rack, hd.others),
+    h("section", { class: "hd-band", "aria-labelledby": "hd-today-h" },
+      h("div", { class: "hd-band__head" }, h("h2", { id: "hd-today-h" }, "Today so far"), hd.counts),
+      hd.plot, hd.detail));
   parent.append(hd.root);
   hd.lit = null;
   hd.marks = {};
@@ -747,7 +755,8 @@ export function renderDashboard(state, src, onReload) {
       src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
-    hd.needsCount.textContent = probs?.length ? String(probs.length) : "";
+    // No count is known when neither source answered: "?", never an empty count that reads as none.
+    hd.needsCount.textContent = probs?.length ? String(probs.length) : !src.needs ? "?" : "";
     const note = down.length ? h("p", { class: "hd-needs__down" }, `${down.join(". ")}. It will keep trying.`) : null;
     const asked = showDecisions(hd, src.needs, onReload);  // under the condition rows; never counted (A33)
     hd.needs.replaceChildren(...[

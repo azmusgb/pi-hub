@@ -504,7 +504,7 @@ const kitInstall = () => {
   return { env, done() { env.uninstall(); } };
 };
 
-test("Needs you never says all clear when its sources didn't answer, and leaves the badge alone with no list", async () => {
+test("Needs you never says all clear when its sources didn't answer, and has no list to count when neither answered", async () => {
   const k = kitInstall();
   try {
     const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");

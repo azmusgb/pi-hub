@@ -8,7 +8,7 @@
 .hd {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "today" "needs" "rack";
+  grid-template-areas: "needs" "ask" "rack" "today";
   gap: clamp(1.25rem, 2.5cqi, 1.5rem);
   align-items: start;
   font-variant-numeric: tabular-nums;
@@ -20,8 +20,12 @@
 .hd-head { display: flex; align-items: baseline; gap: .625rem; min-height: 1.875rem; }
 /* Two columns where Needs you gets about 22 rem and Systems about 36 rem (A10 D4), the day across both. */
 @container home (min-width: 59.5rem) {
-  .hd { grid-template-columns: minmax(22rem, 2fr) minmax(36rem, 3fr); grid-template-areas: "today today" "needs rack"; }
+  .hd { grid-template-columns: minmax(22rem, 2fr) minmax(36rem, 3fr); grid-template-areas: "needs rack" "ask rack" "today today"; grid-template-rows: auto 1fr auto; }
 }
+
+/* Ask the Assistant: one line, the text and the link (main.js fills the link and shows it off while Local AI is down) */
+.hd-ask { grid-area: ask; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-s-2) var(--ui-s-4); min-width: 0; }
+.hd-ask__text { flex: 1 1 14rem; min-width: 0; color: var(--ui-muted); font-size: var(--ui-fs-3); }
 
 /* Mark kinds: one colour per meaning, in the band, the tally and the rack */
 .hd-k-ok { color: var(--ui-ok); fill: var(--ui-ok); }

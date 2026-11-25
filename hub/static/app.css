@@ -3,12 +3,10 @@
    ============================================================ */
 
 /* The shell reads the appliance-ui kit's values (/static/ui/tokens.css), which switch light and dark themselves.
-   What is still defined here is still read elsewhere: --tabbar-h by the shell's own rules (enhance.css sets its
-   value), and the rest by now.js's inline styles (step 13, H18 removes them). */
+   What is still defined here is still read elsewhere, by now.js's inline styles (step 13, H18 removes them). The shell
+   itself (rail, tab bar, page head, scrolling) is the kit's (/static/ui/shell.css, drawn by navigation.js). */
 :root {
   color-scheme: light;
-
-  --tabbar-h: 68px;
 
   --r-sm: 10px;
   --r-md: 14px;
@@ -60,87 +58,28 @@ body::before {
 }
 .skip:focus-visible { transform: translateY(0); outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 
-.shell {
-  position: relative; z-index: 1;
-  display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
-  min-height: 100dvh;
-}
+/* Above the page's ambient layer. The grid, the rail and the head are the kit's (.ui-shell). */
+.shell { position: relative; z-index: 1; }
 
-.rail {
-  position: sticky; top: 0; height: 100dvh;
-  display: flex; flex-direction: column; gap: 1.75rem;
-  padding: var(--ui-s-5) var(--ui-s-4) 1.25rem;
-  border-right: 1px solid var(--ui-line);
-  background: var(--ui-bar);
-  overflow-y: auto; overscroll-behavior: contain;
-  scrollbar-width: thin; scrollbar-color: var(--ui-line-2) transparent;
-}
-
-.rail-brand {
-  display: flex; align-items: center; gap: .8rem;
-  padding: .4rem var(--ui-s-2); border-radius: var(--ui-r-4);
-  text-decoration: none; color: inherit;
-}
-.rail-brand:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-
-.brand-mark {
-  flex: none; display: grid; place-items: center;
-  width: 42px; height: 42px; border-radius: var(--ui-r-3);
-  color: var(--ui-on-accent);
-  background: var(--ui-accent);
-}
-.brand-mark svg { width: 22px; height: 22px; }
-
-.brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
-.brand-name { font-weight: 800; letter-spacing: -.02em; font-size: 1.0625rem; }
-
-.rail-group { display: flex; flex-direction: column; gap: .4rem; }
-.rail ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-
-.rail a[data-page] {
-  position: relative; display: flex; align-items: center; gap: .8rem;
-  padding: .55rem var(--ui-s-3); border-radius: var(--ui-r-3);
-  color: var(--ui-muted); text-decoration: none;
-  font-size: .9375rem; font-weight: 500;
-  transition: background-color var(--ui-dur-2) var(--ui-ease), color var(--ui-dur-2) var(--ui-ease);
-}
-.rail a[data-page] svg {
-  flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor;
-  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
-  transition: transform var(--ui-dur-2) var(--ui-ease);
-}
-.rail a[data-page]:hover { background: var(--ui-surface-2); color: var(--ui-text); }
-.rail a[data-page]:hover svg { transform: scale(1.06); }
-.rail a[data-page]:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-
-.rail a[data-page][aria-current="page"],
-.rail a[data-page].is-active {
-  color: var(--ui-accent-text); background: var(--ui-accent-soft); font-weight: 600;
-}
-.rail a[data-page][aria-current="page"]::before,
-.rail a[data-page].is-active::before {
-  content: ""; position: absolute; left: -1rem; top: 50%;
-  width: 3px; height: 20px; border-radius: 0 var(--ui-r-1) var(--ui-r-1) 0;
-  background: var(--ui-accent); transform: translateY(-50%);
-}
-
-.stage { display: flex; flex-direction: column; min-width: 0; min-height: 100dvh; }
-
+/* The page head (kit: sticky, one row, the bar's colour): the title and its purpose at the left, Search and the Assistant
+   at the right. It wraps by its own width, and the phone's two-row form is in the marked block below. */
 .top {
   container: top / inline-size;
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: var(--ui-s-4) var(--ui-s-6); flex-wrap: wrap;
-  padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 3.5rem) var(--ui-s-4);
+  flex-wrap: wrap; justify-content: space-between;
+  gap: var(--ui-s-1) var(--ui-s-4);
+  padding-top: var(--ui-s-3); padding-bottom: var(--ui-s-3);
 }
 .top-lead { min-width: 0; }
+/* The head is the kit's full-width bar; its Search and Assistant stop where the page's content does (inside the page's
+   own padding, the kit's s-4). */
+.stage .top { padding-right: max(var(--ui-s-4), env(safe-area-inset-right, 0px), calc(100% - 70rem + var(--ui-s-4))); }
 /* A quiet page title (design audit). */
 .brand#page-title {
   margin: 0;
-  font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.25rem);
-  font-weight: 800; letter-spacing: -.03em; line-height: 1.02;
+  font-size: var(--ui-fs-6);
+  font-weight: 800; letter-spacing: -.03em; line-height: 1.1;
 }
-.top-sub { margin: .35rem 0 0; font-size: .9375rem; color: var(--ui-muted); max-width: 46ch; }
+.top-sub { margin: var(--ui-s-1) 0 0; font-size: var(--ui-fs-3); color: var(--ui-muted); max-width: 46ch; }
 .top-sub:empty { display: none; }
 
 /* A quiet clock: plain muted text (design audit). */
@@ -152,8 +91,7 @@ body::before {
 }
 
 #view {
-  flex: 1; width: 100%;  /* its max-width is the stage's (pages.css), so the header and footer line up with it */
-  padding: 0 clamp(1.25rem, 4vw, 3.5rem) 2.5rem;
+  width: 100%;  /* its max-width is the stage's (pages.css), so the footer lines up with it; the padding is the kit's */
   outline: none;
 }
 #view:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 4px; border-radius: var(--ui-r-4); }
@@ -161,7 +99,7 @@ body::before {
 .foot {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--ui-s-4); flex-wrap: wrap;
-  padding: var(--ui-s-4) clamp(1.25rem, 4vw, 3.5rem) var(--ui-s-5);
+  padding: var(--ui-s-4) max(var(--ui-s-4), env(safe-area-inset-right, 0px)) var(--ui-s-5) var(--ui-s-4);
   border-top: 1px solid var(--ui-line);
   font-size: var(--ui-fs-2); color: var(--ui-muted);
 }
@@ -212,59 +150,25 @@ body::before {
 .toast[hidden] { display: block; }
 .toast:not([hidden]) { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 
-/* A10 D2: shell switch: the compact rail. */
-@media (max-width: 1180px) and (min-width: 861px) {
-  .shell { grid-template-columns: 196px minmax(0, 1fr); }
-  .rail { padding: var(--ui-s-4) .65rem; gap: var(--ui-s-4); }
-  .rail a[data-page] { gap: .6rem; font-size: var(--ui-fs-3); min-height: 44px; }
-  .rail-brand { gap: .6rem; }
-}
+/* The document scrolls, so focus brought into view stops under the sticky head, not behind it (the kit sets this on main only). */
+html { scroll-padding-top: calc(var(--ui-shell-head-h, var(--ui-header-h)) + var(--ui-s-2)); }
 
-/* A10 D2: shell switch: rail or tab bar. */
+/* A10 D2: shell switch: rail or tab bar (the kit's, shell.css, is the same 860 px). */
 @media (max-width: 860px) {
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
-    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-  }
+  /* The footer sits after the page in the stage, where the kit's clearance for the tab bar doesn't reach: it carries it,
+     and the keyboard's. */
+  .ui-shell-main { padding-bottom: var(--ui-s-5); }
+  .foot { padding-bottom: calc(var(--ui-s-5) + var(--ui-tabbar-h, calc(var(--ui-space) * 14)) + env(safe-area-inset-bottom, 0px) + var(--ui-kb-inset, 0px)); }
   /* Focus brought into view by Tab stops above the tab bar, never under it (A22 9.2). */
-  html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
-  .rail {
-    position: fixed; inset: auto 0 0 0; height: auto; width: 100%;
-    flex-direction: row; align-items: stretch; gap: 0;
-    padding: .35rem 4px calc(.35rem + env(safe-area-inset-bottom));  /* px at the sides: the labels are sized from what is left */
-    border-right: 0; border-top: 1px solid var(--ui-line);
-    background: var(--ui-bar);
-    overflow: visible; z-index: var(--ui-z-bar);
-    container-type: inline-size;  /* the labels below are sized by the bar's own width */
-  }
-  .rail-brand { display: none; }
-  .rail-group { display: contents; }
-  .rail ul { display: contents; }
-  /* Five equal tabs (A22 2.2). A label is the kit's smallest size and never more than fits a fifth of the bar
-     ("Household" is the longest), so no label is cut off or runs into the next at 320 px at any text size (A22 9.1 F6;
-     step 12 plan decision 16). At 320 px that is 12 px, the floor (A10 plan decision 12). */
-  .rail li { min-width: 0; }
-  .rail li { flex: 1; display: flex; }
-  .rail a[data-page] {
-    flex: 1; min-width: 0; min-height: 56px; flex-direction: column; gap: .2rem;
-    padding: .45rem 0; font-size: min(var(--ui-fs-1), 3.85cqi); font-weight: 600;
-    text-align: center; white-space: nowrap; border-radius: var(--ui-r-3);
-  }
-  .rail a[data-page] svg { width: 22px; height: 22px; }
-  .rail a[data-page] span { display: block; }
-  .rail a[data-page][aria-current="page"]::before,
-  .rail a[data-page].is-active::before { display: none; }
-  .top { align-items: center; padding-top: var(--ui-s-5); }
+  html { scroll-padding-bottom: calc(var(--ui-tabbar-h, calc(var(--ui-space) * 14)) + var(--ui-s-2) + env(safe-area-inset-bottom, 0px) + var(--ui-kb-inset, 0px)); }
   .top-sub { display: none; }
-  .foot { padding-bottom: 1.25rem; }
-  .toast { bottom: calc(var(--tabbar-h) + var(--ui-s-4) + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(var(--ui-tabbar-h, calc(var(--ui-space) * 14)) + var(--ui-s-4) + env(safe-area-inset-bottom, 0px) + var(--ui-kb-inset, 0px)); }
 }
 
-[data-wall] .rail,
+[data-wall] .ui-rail,
 [data-wall] .foot,
 [data-wall] .skip { display: none !important; }
-[data-wall] .shell { grid-template-columns: minmax(0, 1fr); padding-bottom: 0; }
-[data-wall] .stage { min-height: 100dvh; }
+[data-wall] .shell { grid-template-columns: minmax(0, 1fr); }
 [data-wall] #view { max-width: none; }
 [data-wall] .top { padding-bottom: var(--ui-s-2); }
 
@@ -295,23 +199,17 @@ html {
   text-wrap: pretty;
 }
 
-/* Assistant (one home, D2): the rail's foot on the desktop, the top bar on the phone. Never badged. */
-.rail-assistant, .top-assistant {
+/* The Assistant (one home, D2): one persistent entry, the head's button, on every width. Never badged. A page's own
+   "Ask" link (Home's) is a kit button. */
+.top-assistant {
   display: inline-flex; align-items: center; gap: var(--ui-s-2); min-height: 44px; padding: .45rem var(--ui-s-3);
   border-radius: var(--ui-r-pill); border: 1px solid var(--ui-line); color: var(--ui-text); text-decoration: none;
   font-weight: 600; font-size: var(--ui-fs-3);
 }
-.rail-assistant { margin-top: auto; }
-.rail-assistant svg, .top-assistant svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
-.rail-assistant:focus-visible, .top-assistant:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-.top-assistant { display: none; }
-/* A10 D2: shell switch: rail or tab bar. */
-@media (max-width: 860px) {
-  .rail-assistant { display: none; }
-  .top-assistant { display: inline-flex; }
-}
+.top-assistant svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.top-assistant:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 
-/* Phone top bar, the same on every page: title, Search and Assistant on one line, the clock under them. */
+/* Phone head, the same on every page: title, Search and Assistant on one line, the clock under them. */
 /* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
   .top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .35rem var(--ui-s-2); }
@@ -325,8 +223,8 @@ html {
   .top-assistant { width: 44px; padding: 0; justify-content: center; }
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-.rail-assistant[aria-disabled], .top-assistant[aria-disabled] { cursor: not-allowed; }
-.rail-assistant[aria-current="page"], .top-assistant[aria-current="page"] {
+.top-assistant[aria-disabled], [data-ask-assistant][aria-disabled] { cursor: not-allowed; }
+.top-assistant[aria-current="page"] {
   background: var(--ui-accent-soft); border-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-line));
 }
 
@@ -345,7 +243,7 @@ html {
 .assistant-down { max-width: 40rem; }
 /* A10 D2: shell switch: rail or tab bar. */
 @media (max-width: 860px) {
-  [data-assistant] .stage { height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); }
+  [data-assistant] .stage { height: calc(100dvh - var(--ui-tabbar-h, calc(var(--ui-space) * 14)) - env(safe-area-inset-bottom, 0px)); }
   [data-assistant] #view { padding: 0 0 var(--ui-s-2); }
   [data-assistant] .assistant-frame { border-radius: 0; border-left: 0; border-right: 0; }
   [data-assistant] .assistant-down { margin: 0 1.25rem; }

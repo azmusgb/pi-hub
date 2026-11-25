@@ -8,11 +8,6 @@ const STALE_HOURS = 36;
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function homeBadge(needs) {
-  const n = Number(needs?.count) || 0;
-  return n <= 0 ? "" : n > 99 ? "99+" : String(n);
-}
-
 function needsCard(needs) {
   if (needs === undefined) return null;  // not asked yet
   if (!needs) {

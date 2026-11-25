@@ -1,6 +1,6 @@
 import { mountFreshness, refreshFreshness, renderFreshness } from "./freshness.js";
 // The hub's router: one shell, a page module per address, each refreshing itself while it's open.
-import { updateNavigation } from "./navigation.js";
+import { mountNav, setCurrentArea, updateNavigation } from "./navigation.js";
 import { api, ensure, h, loadOnce, toast } from "./core.js";
 import * as nowPage from "./now.js";
 import { initCommandPalette } from "./command-palette.js";
@@ -32,29 +32,36 @@ import { assistantHref, assistantButton, TOOLS } from "./sections.js";
 import { SITE, sectionFor } from "./site.js";
 import { watchShell } from "./shell-update.js";
 
-// The Assistant button opens /assistant in the shell (A4) with the open page and its key facts (set as the person
-// reaches for it, so they are the ones on screen). On /assistant itself it carries none: it returns to the frame.
-for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-  a.href = "/assistant";
-  const fill = () => {
-    if (!current || a.hasAttribute("aria-disabled")) return;
-    a.href = current.key === "assistant" ? "/assistant" : assistantHref(location.hostname, current.title, current.state.facts);
-  };
-  for (const ev of ["pointerdown", "focus", "click"]) a.addEventListener(ev, fill);
-  a.addEventListener("click", (e) => { if (a.hasAttribute("aria-disabled")) e.preventDefault(); });
-}
+// The Assistant opens /assistant in the shell (A4) with the open page and its key facts (set as the person reaches for
+// it, so they are the ones on screen). Its one persistent entry is the head's button; a page may carry a contextual
+// "Ask" link (Home's), marked data-ask-assistant. On /assistant itself they carry no facts: they return to the frame.
+const ASK = ".top-assistant, [data-ask-assistant]";
+const fillAsk = (e) => {
+  const a = e.target.closest?.(ASK);
+  if (!a || !current || a.hasAttribute("aria-disabled")) return;
+  a.href = current.key === "assistant" ? "/assistant" : assistantHref(location.hostname, current.title, current.state.facts);
+};
+for (const ev of ["pointerdown", "focusin", "click"]) document.addEventListener(ev, fillAsk, true);
+document.addEventListener("click", (e) => { if (e.target.closest?.(ASK)?.hasAttribute("aria-disabled")) e.preventDefault(); }, true);
 // `pc_off` or `assistant_down` while the PC is off or Local AI is down; checked now, every minute, and when the page
-// comes back into view (a phone wakes with an hour-old answer otherwise).
-async function checkAssistant() {
-  const r = await api("/api/assistant").catch(() => null);
-  const { label, disabled } = assistantButton(r?.state, r?.pc);
-  for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
-    a.querySelector("span").textContent = label;
-    a.setAttribute("aria-label", disabled ? label : "Assistant");
+// comes back into view (a phone wakes with an hour-old answer otherwise). The last answer is applied again to a link a
+// page draws after it.
+let assistantNow = assistantButton();
+function applyAssistant() {
+  const { label, disabled } = assistantNow;
+  for (const a of document.querySelectorAll(ASK)) {
+    const name = a.dataset.askLabel || "Assistant";
+    a.querySelector("span").textContent = disabled ? label : name;
+    a.setAttribute("aria-label", disabled ? label : name);
     // Without an href a link drops out of the tab order and screen readers stop reading it: keep both while it's off.
     if (disabled) { a.setAttribute("aria-disabled", "true"); a.removeAttribute("href"); a.setAttribute("role", "link"); a.tabIndex = 0; }
     else if (a.hasAttribute("aria-disabled")) { a.removeAttribute("aria-disabled"); a.removeAttribute("role"); a.removeAttribute("tabindex"); a.href = "/assistant"; }
   }
+}
+async function checkAssistant() {
+  const r = await api("/api/assistant").catch(() => null);
+  assistantNow = assistantButton(r?.state, r?.pc);
+  applyAssistant();
 }
 checkAssistant();
 setInterval(checkAssistant, 60_000);
@@ -274,14 +281,12 @@ async function show(path, { focus = false } = {}) {
   document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
   if (page.purpose) document.getElementById("page-subtitle").textContent = page.purpose;  // the Assistant pages Pi Hub draws: the list doesn't name them as Pi Hub's yet
-  for (const a of document.querySelectorAll("[data-page]")) {
-    const here = a.dataset.page === section;
-    if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
-  }
-  for (const a of document.querySelectorAll(".rail-assistant, .top-assistant")) {
+  setCurrentArea(section);  // "" on an unknown address and "assistant" on the Assistant's pages: no area is marked
+  for (const a of document.querySelectorAll(".top-assistant")) {
     if (section === "assistant") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   page.mod.mount(state);
+  applyAssistant();
   current.freshness = mountFreshness(page.key);
   if (current.freshness) view.append(current.freshness);
   await refresh();
@@ -365,6 +370,7 @@ const shell = "serviceWorker" in navigator
   : { stale: () => false };
 tick();
 setInterval(tick, 15000);
+mountNav(document.querySelector(".ui-shell"));
 show(location.pathname);
 updateNavigation();
 setInterval(updateNavigation, 60000);

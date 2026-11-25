@@ -83,9 +83,8 @@ test('Network is /devices and /network; Weather is in it; the old addresses stil
   assert.notEqual(sectionFor('/weather'), 'home');
   assert.equal(SITE.redirectFor('/control'), '/devices');   // /control was the devices page
   assert.equal(SITE.redirectFor('/movies'), '/media');
-  const html = read('hub/static/index.html');
-  assert.match(html, /<a href="\/devices" data-link data-page="network"/);
-  assert.deepEqual([...html.matchAll(/data-link data-page="([a-z]+)"/g)].map((m) => m[1]), SITE.areas.map((a) => a.id));
+  // The rail's Network link opens /devices: the kit draws it from the list's landing (tests/test_kit_shell_nav.mjs).
+  assert.doesNotMatch(read('hub/static/index.html'), /data-page=/, 'no hand-written rail');
 });
 
 test("the router draws /devices and /map, each under the name its strip gives it", () => {

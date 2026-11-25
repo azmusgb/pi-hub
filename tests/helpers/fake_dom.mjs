@@ -26,6 +26,7 @@ class Node {
 }
 
 class Text extends Node {
+  get nodeType() { return 3; }
   constructor(data) { super(); this.data = String(data); }
   get textContent() { return this.data; }
   set textContent(v) { this.data = String(v); }
@@ -48,6 +49,8 @@ class Element extends Node {
       toggle: (c, on) => { const has = this.classList.contains(c); const want = on ?? !has; if (want) this.classList.add(c); else this.classList.remove(c); return want; },
     };
   }
+  get nodeType() { return 1; }
+  get ownerDocument() { return globalThis.document; }
   get className() { return this.attributes.get("class") || ""; }
   set className(v) { this.attributes.set("class", String(v)); }
   get id() { return this.attributes.get("id") || ""; }

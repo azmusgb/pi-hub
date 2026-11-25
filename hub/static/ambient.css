@@ -80,7 +80,7 @@ body[data-house="cinema"] .ambient-layer::after {
    page shows through its labels (31 Oct 2026 report). */
 /* A10 D2: shell switch: rail or tab bar. */
 @media (min-width: 861px) {
-  body[data-house="cinema"] .rail {
+  body[data-house="cinema"] .ui-rail {
     opacity: 0.65;
     transition: opacity .8s ease;
   }
