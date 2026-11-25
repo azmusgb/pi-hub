@@ -848,7 +848,8 @@
     "palette",
     "map"
    ],
-   "needs": "pc"
+   "needs": "pc",
+   "drawn": "hub"
   },
   {
    "id": "models",
@@ -865,7 +866,8 @@
     "palette",
     "map"
    ],
-   "needs": "pc"
+   "needs": "pc",
+   "drawn": "hub"
   },
   {
    "id": "developer-tools",
@@ -962,13 +964,15 @@
    "id": "run",
    "system": "assistant",
    "area": "assistant",
-   "label": "A run",
+   "label": "Task",
+   "purpose": "One task the Assistant is working on or has finished",
    "path": "/assistant/run/<id>",
    "role": "detail",
    "reach": [
     "card:work"
    ],
-   "needs": "pc"
+   "needs": "pc",
+   "drawn": "hub"
   },
   {
    "id": "camera-fit",
