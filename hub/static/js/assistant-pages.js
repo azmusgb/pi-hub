@@ -47,7 +47,7 @@ export function banner(r) {
   if (r.state === "unreachable") return h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `${phrase("assistant_down")}. Pi Hub has no earlier answer for this page.`);
   if (r.state === "out_of_date") return h("p", { class: "ui-notice ui-notice--warn", role: "status" }, "Assistant out of date. It is older than this page needs, so nothing is shown rather than a guess.");
   if (r.state === "refused") return h("p", { class: "ui-notice ui-notice--bad", role: "status" }, r.error || "Pi Hub can't ask the Assistant.");
-  return null;
+  return null;  // live, and busy with nothing kept: Pi Hub's own cap is no warning about the Assistant (bare() says it)
 }
 
 const SOURCE_TONE = { ok: ["ok", "Read"], failed: ["bad", "Isn't answering"], unknown: ["unknown", "Not read yet"] };
@@ -79,6 +79,7 @@ function rawDetails(pairs) {
   return rows.length ? h("details", { class: "ui-disclosure" }, h("summary", { class: "ui-disclosure__summary" }, "Details"),
     h("div", { class: "ui-disclosure__body" }, ...rows.map(([k, e]) => h("p", {}, `${k}: `, h("code", {}, e))))) : null;
 }
+  busy: "Pi Hub is already asking the Assistant. In a moment this page reads the",
 
 // ---- status ----
 

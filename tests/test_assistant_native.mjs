@@ -635,6 +635,19 @@ test('a sentence that repeats the plate is kept for assistive tech but not shown
 test('the goal is the plate caption, from this browser or from the run itself on another device', async () => {
   const run = adapter('running');
   run.run.goal = 'Plan the week <b>now</b>';
+test('Pi Hub already asking, with nothing kept (busy), is not drawn as the Assistant being down', async () => {
+  const { mod, draw, done } = await pages();
+  try {
+    for (const [body, what] of [[mod.statusBody, 'status'], [mod.modelsBody, 'models']]) {
+      const box = draw(body({ state: 'busy', why: 'busy', fetched_at: 1, data: null }));
+      assert.match(text(box), new RegExp(`Pi Hub is already asking the Assistant\\. In a moment this page reads the ${what}\\.`));
+      assert.doesNotMatch(text(box), /isn't answering|Check the Assistant|asleep|Wake the PC/);
+      assert.equal(box.querySelector('.ui-notice'), null, 'no warning: nothing is known to be wrong');
+      assert.equal(box.querySelector('.ui-faceplate'), null, 'and no plate of zeros');
+    }
+  } finally { done(); }
+});
+
   const p = await taskPage(run);  // nothing stored here: the goal comes with the run
   try {
     await p.load();
