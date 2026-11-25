@@ -24,6 +24,8 @@ import * as devicesPage from "./devices.js";
 import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
 import * as assistantPage from "./assistant.js";
+import { modelsPage, PURPOSES as READ_PURPOSES, statusPage, TITLES as READ_TITLES } from "./assistant-pages.js";
+import * as taskPage from "./assistant-run.js";
 import { pageStrip, revealCurrent } from "./system-strip.js";
 import { renderSources } from "./sources.js";
 import { assistantHref, assistantButton, TOOLS } from "./sections.js";
@@ -88,6 +90,12 @@ const ROUTES = {
 const ASSISTANT = TOOLS.find((t) => t.id === "assistant");
 const PAGES = Object.fromEntries(Object.entries(ROUTES).map(([path, [key, mod]]) =>
   [path, { key, mod, title: path === "/assistant" ? ASSISTANT.name : SITE.pageAt(path).label }]));
+// The Assistant pages Pi Hub draws itself (A34 P1a, P2n). The kit's page list still names them as the Assistant's, so they
+// are named here, with the list's own labels; a task is /assistant/run/<id>, one page for every id.
+PAGES["/assistant/status"] = { key: "assistant-status", mod: statusPage, title: READ_TITLES.status, purpose: READ_PURPOSES.status };
+PAGES["/assistant/models"] = { key: "assistant-models", mod: modelsPage, title: READ_TITLES.models, purpose: READ_PURPOSES.models };
+const TASK_PAGE = { key: "assistant-run", mod: taskPage, title: taskPage.TITLE, purpose: taskPage.PURPOSE };
+const pageFor = (path) => PAGES[path] || (/^\/assistant\/run\/[^/]+$/.test(path) ? TASK_PAGE : null);
 
 // In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
 const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {
@@ -227,7 +235,7 @@ async function refresh() {
 async function show(path, { focus = false } = {}) {
   const moved = SITE.redirectFor(path);
   if (moved) { history.replaceState({}, "", moved + location.search); path = moved; }
-  const page = PAGES[path] || NOT_FOUND;  // the server answers unknown paths itself; this is in-app navigation
+  const page = pageFor(path) || NOT_FOUND;  // the server answers unknown paths itself; this is in-app navigation
   const section = sectionFor(path);
   const wallMode = path === "/wall" || new URLSearchParams(location.search).has("wall");
   if (wallMode) {
@@ -265,6 +273,7 @@ async function show(path, { focus = false } = {}) {
   document.title = `${wallMode ? "Wall display" : title} · Pi Hub`;
   document.getElementById("page-title").textContent = heading;
   if (typeof updateSubtitle === "function") updateSubtitle();
+  if (page.purpose) document.getElementById("page-subtitle").textContent = page.purpose;  // the Assistant pages Pi Hub draws: the list doesn't name them as Pi Hub's yet
   for (const a of document.querySelectorAll("[data-page]")) {
     const here = a.dataset.page === section;
     if (here) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");

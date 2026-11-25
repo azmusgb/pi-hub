@@ -410,3 +410,20 @@ details.ui-section:not([open]) { gap: 0; }
 /* Settings (A7 P1): each setting is a section; its state chip sits beside the heading. */
 .setting__head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .setting__head > h2 { margin: 0; font: inherit; font-size: var(--ui-fs-5); font-weight: 650; }
+
+/* The Assistant's pages Pi Hub draws (A34 P2, P2n): a task, the status and the models. Text from the Assistant keeps its
+   line breaks and wraps, so a long answer, error or id never runs off the page. */
+.assistant-answer { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.assistant-run__body, .assistant-read { display: grid; gap: var(--ui-s-5); }
+.assistant-run__live { margin: 0 0 var(--ui-s-3); color: var(--ui-text); }
+.assistant-run__details code, .assistant-run__failure { overflow-wrap: anywhere; }
+.assistant-task__box { flex: none; margin: 0 0 var(--ui-s-3); }
+.assistant-task__form { display: grid; gap: var(--ui-s-2); }
+.assistant-task__goal { padding: var(--ui-s-2) var(--ui-s-3); resize: vertical; line-height: 1.4; }
+.assistant-task__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-s-3); }
+.assistant-task__note, .assistant-task__purpose, .assistant-task__current { margin: 0; color: var(--ui-muted); }
+.assistant-task__note:not(:empty) { color: var(--ui-text); }
+.assistant-task__current { margin-top: var(--ui-s-2); }
+.assistant-task__current a { display: inline-flex; align-items: center; min-height: calc(var(--ui-s-6) + var(--ui-s-3)); }
+/* The disclosure's summary is a control: the target size the sweep asks of one (the kit's own is 36). */
+.assistant-run__details > summary, .assistant-task > summary { min-height: calc(var(--ui-s-6) + var(--ui-s-3)); }

@@ -68,6 +68,6 @@ export const retiredTools = (tools = TOOLS) => tools.filter((t) => t.retired);
 // The rail entry a path lights: its area, or "assistant" (level 0, A4: no rail area, the button marks it). A path the
 // list doesn't have lights Home.
 export function sectionFor(path) {
-  if (path === "/assistant") return "assistant";
+  if (path === "/assistant" || path.startsWith("/assistant/")) return "assistant";  // the Assistant's pages Pi Hub draws: the head's button marks them
   return SITE.areaOf(path) || "home";
 }

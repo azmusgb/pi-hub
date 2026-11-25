@@ -1,0 +1,32 @@
+{
+  "mission": {
+    "id": "mission-17900000-ab12",
+    "status": "complete",
+    "workers": [
+      {
+        "id": "w1",
+        "name": "Researcher",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w2",
+        "name": "Analyst",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w3",
+        "name": "Writer",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      }
+    ],
+    "timeline": [],
+    "toolEvents": [],
+    "answer": "Option A is cheapest.\n\nOption B is fastest. <b>not bold</b> <img src=x onerror=alert(1)>"
+  }
+}

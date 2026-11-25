@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, releases, notify_routes, decisions, systems, today, hms_ack, things
+from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, assistant_api, releases, notify_routes, decisions, systems, today, hms_ack, things
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -30,6 +30,7 @@ if QUICK:
     for _router in (quick.router, quick_worker.owner_router, quick_layers.router, quick_start.router, quick_monitor.router):
         app.include_router(_router)
 app.include_router(display_routes.router)
+app.include_router(assistant_api.router)
 app.include_router(notify_routes.router)
 app.include_router(decisions.router)
 sampler = sources.Sampler()
@@ -1604,6 +1605,17 @@ def _shell_paths() -> frozenset:
     return frozenset(drawn | {a for p in mine for a in p.get("aliases", [])} | {"/assistant"})
 
 
+# The Assistant pages Pi Hub draws itself (A34 P1a and P2n: Assistant status, Models, and one task). The kit's page list
+# still names them as the Assistant's (system "assistant"; flipping them is an appliance-ui change), so they are named
+# here, beside SHELL_PATHS (which stays the list's own), until it does. A task is /assistant/run/<id>, its id as the adapter takes it (hub/assistant_api.py RUN_ID).
+ASSISTANT_PAGES = frozenset({"/assistant/status", "/assistant/models"})
+ASSISTANT_RUN = re.compile(r"/assistant/run/" + assistant_api.RUN_ID.pattern)
+
+
+def _is_shell_path(path: str) -> bool:
+    return path in SHELL_PATHS or path in ASSISTANT_PAGES or bool(ASSISTANT_RUN.fullmatch(path))
+
+
 SHELL_PATHS = _shell_paths()
 
 # Any other address: a real 404, not the shell (§5.6 "Any other path"). Standalone, in the kit's look.
@@ -1656,6 +1668,6 @@ def index(page: str):
     # Every page is the same shell; the browser picks the view from the address. Paths it doesn't have get a 404.
     if page.startswith("api/"):
         raise HTTPException(404)
-    if f"/{page}" not in SHELL_PATHS:
+    if not _is_shell_path(f"/{page}"):
         return Response(NOT_FOUND_PAGE, status_code=404, media_type="text/html", headers={"Cache-Control": "no-cache"})
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})

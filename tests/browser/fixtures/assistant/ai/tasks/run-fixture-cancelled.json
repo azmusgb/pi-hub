@@ -1,0 +1,21 @@
+{
+  "state": "ok",
+  "fetched_at": 1000000,
+  "run": {
+    "id": "run-1790000000000-001a2b3",
+    "status": "cancelled",
+    "goal": null,
+    "progress": 5,
+    "summary": "",
+    "error": null,
+    "cancellable": false,
+    "createdAt": "2026-11-24T09:00:00.000Z",
+    "startedAt": "2026-11-24T09:00:01.000Z",
+    "updatedAt": "2026-11-24T09:00:20.000Z",
+    "finishedAt": "2026-11-24T09:01:00.000Z",
+    "missionId": "mission-17900000-ab12",
+    "outcome": null
+  },
+  "mission": null,
+  "mission_read": "failed"
+}

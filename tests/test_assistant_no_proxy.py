@@ -37,3 +37,18 @@ def test_the_hub_has_no_route_into_local_ai():
     paths = [getattr(r, "path", "") for r in hub_app.app.routes]
     assert not [p for p in paths if re.match(r"/(ai|assistant|localai)(/|$)", p)], "the shell serves /assistant; nothing forwards"
     assert "/assistant" in hub_app.SHELL_PATHS, "/assistant is a shell page, drawn by the browser"
+
+
+def test_the_assistants_server_side_calls_are_the_five_owner_only_api_ai_routes():
+    """A34 D1 narrows A4's test: no browser request is proxied, and the only routes in which the hub's server calls Local AI
+    for the Assistant's pages are these five (each owner-only, each mapped to one allow-listed path: tests/test_assistant_api.py)."""
+    paths = sorted(f"{m} {r.path}" for r in hub_app.app.routes if getattr(r, "path", "").startswith("/api/ai") for m in r.methods)
+    assert paths == ["GET /api/ai/models", "GET /api/ai/status", "GET /api/ai/tasks/{run_id}", "POST /api/ai/tasks",
+                     "POST /api/ai/tasks/{run_id}/cancel"]
+
+
+def test_the_shell_answers_the_three_assistant_pages_pi_hub_draws_and_no_other_assistant_path():
+    for p in ("/assistant/status", "/assistant/models", "/assistant/run/run-1790000000000-001a2b3"):
+        assert hub_app._is_shell_path(p), p
+    for p in ("/assistant/run/", "/assistant/run/a", "/assistant/run/../x", "/assistant/chat", "/assistant/run/x/y"):
+        assert not hub_app._is_shell_path(p), p
