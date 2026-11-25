@@ -86,5 +86,5 @@ is "not read yet"; none of them is ever drawn as empty or healthy.
 | LocalAI: P1a reads and allow-list | to open | in progress | none | no | no |
 | pi-hub: adapter, status, models, task | to open | not started | none | no | no |
 | appliance-ui: registry rows | to open | not started | none | no | no |
-| LocalAI: phone-shell fix (`fix-mobile-shell`) | engineer finishing, with before/after evidence | none | no | no |
+| LocalAI: phone-shell fix (`fix-mobile-shell`) | with before/after evidence | in progress | none | no | no |
 | LocalAI: kit sync to 2.29.0 and kit shell adoption | to open | not started | none | no | no |
