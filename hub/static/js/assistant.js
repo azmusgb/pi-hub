@@ -10,7 +10,10 @@
 //    and Back leaves in one step (7).
 //  - A hand-off while the frame is open goes by postMessage to the Assistant's origin, never "*" (4).
 //  - The frame takes focus once Local AI answers, and is the page's one scroller (8; app.css, [data-assistant]).
+//  - Above the frame, one separate action, "Start a task" (A34 P2n, assistant-run.js): closed it is a line; it says why it is
+//    disabled while the PC sleeps or the Assistant is down (the same two phrases as the button).
 import { api, h } from "./core.js";
+import { startTask } from "./assistant-run.js";
 import { ASSISTANT_URL, assistantButton, phrase as words } from "./sections.js";
 
 export const every = 30;
@@ -108,6 +111,7 @@ async function check(state, { force = false } = {}) {
   const r = await api("/api/assistant").catch(() => null);
   if (state.left || state.frame) return;
   const { disabled, phrase } = assistantButton(r?.state, r?.pc);
+  state.start?.availability({ disabled, phrase });
   if (disabled) down(state, phrase, false);
   else if (force || !state.timedOut) open(state);
 }
@@ -115,7 +119,8 @@ async function check(state, { force = false } = {}) {
 export function mount(state) {
   document.documentElement.dataset.assistant = "1";
   state.box = h("div", { class: "assistant-box" });
-  state.root.append(state.box);
+  state.start = startTask();
+  state.root.append(state.start.el, state.box);
   state.onMessage = (e) => {
     const route = routeFrom(e, state.frame?.contentWindow);
     if (route === null) return;

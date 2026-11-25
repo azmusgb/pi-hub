@@ -1602,18 +1602,18 @@ def _shell_paths() -> frozenset:
     pages = json.loads((STATIC / "ui" / "pages.json").read_text())["pages"]
     mine = [p for p in pages if p["system"] == "hub" and p.get("built") is not False and "#" not in p["path"]]
     drawn = {p["path"] for p in mine if p["role"] != "standalone"}
-    return frozenset(drawn | {a for p in mine for a in p.get("aliases", [])} | {"/assistant"} | ASSISTANT_PAGES)
+    return frozenset(drawn | {a for p in mine for a in p.get("aliases", [])} | {"/assistant"})
 
 
 # The Assistant pages Pi Hub draws itself (A34 P1a and P2n: Assistant status, Models, and one task). The kit's page list
 # still names them as the Assistant's (system "assistant"; flipping them is an appliance-ui change), so they are named
-# here until it does. A task is /assistant/run/<id>, its id as the adapter takes it (hub/assistant_api.py RUN_ID).
+# here, beside SHELL_PATHS (which stays the list's own), until it does. A task is /assistant/run/<id>, its id as the adapter takes it (hub/assistant_api.py RUN_ID).
 ASSISTANT_PAGES = frozenset({"/assistant/status", "/assistant/models"})
 ASSISTANT_RUN = re.compile(r"/assistant/run/" + assistant_api.RUN_ID.pattern)
 
 
 def _is_shell_path(path: str) -> bool:
-    return path in SHELL_PATHS or bool(ASSISTANT_RUN.fullmatch(path))
+    return path in SHELL_PATHS or path in ASSISTANT_PAGES or bool(ASSISTANT_RUN.fullmatch(path))
 
 
 SHELL_PATHS = _shell_paths()

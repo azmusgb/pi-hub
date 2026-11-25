@@ -682,7 +682,7 @@ def _adapter_outputs(la):
     Path(ai.MIRROR_FILE).parent.mkdir(exist_ok=True)
     Path(ai.MIRROR_FILE).write_text(json.dumps({"status": {"at": Clock.t - 3600, "body": ai._contract_body(fx("status_partial"))}}))
     la.pc["state"] = "off"
-    ai._breaker["probe"] = Clock.t
+    ai._breaker.update(probe=Clock.t, ok=0.0)  # the PC is off, the probe was just spent and nothing has answered since
     out["assistant-asleep/ai/status"], out["assistant-asleep/ai/models"] = get("/api/ai/status").json(), get("/api/ai/models").json()
     out["assistant-asleep/ai/tasks/run-fixture-running"] = get(f"/api/ai/tasks/{RUN}").json()
     return out
@@ -690,7 +690,10 @@ def _adapter_outputs(la):
 
 def test_the_browser_preview_fixtures_are_the_adapters_answers(la):
     write = os.environ.get("WRITE_AI_FIXTURES") == "1"
-    for name, body in _adapter_outputs(la).items():
+    outputs = _adapter_outputs(la)
+    assert [outputs[f"assistant-asleep/ai/{n}"]["state"] for n in ("status", "models", "tasks/run-fixture-running")] == ["mirror", "needs_pc", "unreachable"]
+    assert [outputs[f"assistant/ai/{n}"]["state"] for n in ("status", "models", "tasks/run-fixture-running")] == ["live", "live", "ok"]
+    for name, body in outputs.items():
         f = BROWSER / f"{name}.json"
         if write:
             f.parent.mkdir(parents=True, exist_ok=True)

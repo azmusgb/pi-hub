@@ -349,6 +349,7 @@ html {
   [data-assistant] #view { padding: 0 0 var(--ui-s-2); }
   [data-assistant] .assistant-frame { border-radius: 0; border-left: 0; border-right: 0; }
   [data-assistant] .assistant-down { margin: 0 1.25rem; }
+  [data-assistant] .assistant-task__box { margin-inline: var(--ui-s-3); }  /* the frame runs edge to edge here; the action keeps its margin */
 }
 
 /* ============================================================
