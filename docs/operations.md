@@ -276,6 +276,20 @@ Seen during acceptance, left as follow-ups:
 - **Questions should be one short line on a phone**; the detail belongs behind the link (this one was 192 characters).
 - **Release tests ran 883 s of the release's 900 s limit** on the hot Pi (79 °C) for `4c3f457`.
 
+## Pi Hub draws the Assistant (A34)
+
+**P0 accepted 2026-11-25**, per amendment A34 and plan `docs/superpowers/plans/2026-11-23-a34-p0-headroom.md`. The
+release tests now run on 3 workers (`pytest-xdist`, #327); three consecutive releases reported their test time under
+600 s, and both apps serve the same kit.
+
+| Criterion | Evidence |
+|---|---|
+| 1 three releases in a row under 600 s | `4b980d0` "Tests passed in 415 s on 3 workers (JS 91 s)" (25 Nov 05:12); `29d633d` "419 s (JS 89 s)" (17:21); `a3e3e14` "421 s (JS 93 s)" (17:35). The attempt before `4b980d0` failed on the JS suite's 120 s limit, not on pytest time; #338 raised that limit to 240 s. Serial runs before #327 were 589-640 s. |
+| 2 Local AI on the current kit | Pi Hub `/static/ui/VERSION` and Local AI `/ui/VERSION` both report 2.31.3 (25 Nov, Pi Hub `29d633d`, Local AI `714cf32`). |
+
+The Pi still runs at 75-79 °C under release load; headroom is about 180 s. If release times climb toward 600 s, the
+next step is splitting the largest test file, since one worker carries it.
+
 ## Open WebUI trial (A30 D7): closed 23 November 2026
 
 The owner answered A30 D7 "Close the trial" on the phone (23 November 2026, decision `a30-d7-open-webui`). The
