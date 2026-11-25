@@ -87,6 +87,7 @@
   <link rel="stylesheet" href="/static/ui/components.css">
   <link rel="stylesheet" href="/static/ui/needs.css">
   <link rel="stylesheet" href="/static/ui/palette.css">
+  <link rel="stylesheet" href="/static/ui/shell.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/pages.css">
   <link rel="stylesheet" href="/static/enhance.css">
@@ -135,91 +136,10 @@
     </span>
   </div>
 
-  <div class="shell">
-    <nav
-      class="rail"
-      aria-label="Primary navigation"
-    >
-      <a
-        class="rail-brand"
-        href="/"
-        data-link
-        aria-label="Pi Hub home"
-      >
-        <span
-          class="brand-mark"
-          aria-hidden="true"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            focusable="false"
-          >
-            <path
-              d="M4 9h16M8.5 9v10M15.5 9v10"
-              stroke="currentColor"
-              stroke-width="2.2"
-              stroke-linecap="round"
-            />
-
-            <circle
-              cx="12"
-              cy="4.4"
-              r="1.5"
-              fill="currentColor"
-            />
-          </svg>
-        </span>
-
-        <span class="brand-text">
-          <span class="brand-name">
-            Pi Hub
-          </span>
-        </span>
-      </a>
-
-      <div class="rail-group">
-        <ul>
-          <li>
-            <a href="/" data-link data-page="home" aria-label="Home" title="Home" aria-current="page">
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
-              <span>Home</span>
-            </a>
-          </li>
-          <li>
-            <a href="/workshop" data-link data-page="workshop" aria-label="Workshop" title="Workshop">
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M5 4h14v4H5zM8 8v6l4 3 4-3V8M12 17v3"/></svg>
-              <span>Workshop</span>
-            </a>
-          </li>
-          <li>
-            <a href="/media" data-link data-page="household" aria-label="Household" title="Household">
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M5 12V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 12h18v5H3zM6 17v2M18 17v2"/></svg>
-              <span>Household</span>
-            </a>
-          </li>
-          <li>
-            <a href="/devices" data-link data-page="network" aria-label="Network" title="Network">
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a5 5 0 0 1 6.4 0"/><circle cx="12" cy="19.2" r="1.2"/></svg>
-              <span>Network</span>
-            </a>
-          </li>
-          <li>
-            <a href="/system" data-link data-page="system" aria-label="System" title="System">
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
-              <span>System</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-      <a class="rail-assistant" href="/assistant" data-link aria-label="Assistant" title="Assistant">
-        <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
-        <span>Assistant</span>
-      </a>
-    </nav>
-
-    <div class="stage">
-      <header class="top">
+  <!-- The kit's shell (ui/shell.js): navigation.js draws the rail and tab bar into this grid, first. -->
+  <div class="ui-shell shell">
+    <div class="ui-shell-stage stage">
+      <header class="ui-shell-head top" data-ui-shell-head>
         <div class="top-lead">
           <h1
             class="brand"
@@ -263,6 +183,7 @@
 
       <main
         id="view"
+        class="ui-shell-main"
         tabindex="-1"
         aria-labelledby="page-title"
       ></main>
@@ -419,6 +340,7 @@
 
   <script src="/static/ui/needs.js"></script>
   <script src="/static/ui/palette.js"></script>
+  <script src="/static/ui/shell.js"></script>
   <script src="/static/ui/confirm.js"></script>
 
   <script

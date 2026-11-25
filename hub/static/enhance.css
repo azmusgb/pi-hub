@@ -228,12 +228,11 @@ kbd {
   body::after { display: none; }
 }
 @media (forced-colors: active) {
-  .rail a[aria-current="page"] { outline: 2px solid Highlight; }
-  .rail a[data-page] .nav-badge { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  .ui-rail-badge { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   body::after, body::before { display: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .rail, .clock, .toast, .shortcuts-backdrop {
+  .clock, .toast, .shortcuts-backdrop {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
@@ -241,7 +240,7 @@ kbd {
 
 /* ---------- Print ---------- */
 @media print {
-  .rail, .foot, .skip, .toast, .progress-top, .offline-banner,
+  .ui-rail, .foot, .skip, .toast, .progress-top, .offline-banner,
   .ui-palette, .shortcuts, #wall-link, #map-link, #theme-btn { display: none !important; }
   .shell { display: block; }
   .stage { min-height: 0; }
@@ -256,7 +255,7 @@ kbd {
 
 /* Quieter, smaller page titles */
 .brand#page-title {
-  font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.25rem) !important;
+  font-size: var(--ui-fs-6) !important;
   letter-spacing: -.03em;
 }
 
@@ -313,9 +312,6 @@ body::after {
   opacity: .02;
 }
 
-/* 5. Tab bar height: room for iOS safe-area so labels don't clip */
-:root { --tabbar-h: 76px; }
-
 /* Explicit feedback remains readable when a page or service is unavailable. */
 .page-notice { padding: var(--ui-s-4) 1.25rem; margin-bottom: var(--ui-s-4); border: 1px solid var(--ui-line-2); border-radius: var(--ui-r-4); background: var(--ui-surface); }
 .page-notice[hidden] { display: none; }
@@ -324,9 +320,6 @@ body::after {
 #updated::before { background: currentColor; }
 button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
-/* A10 D2: shell switch: rail or tab bar. */
-@media (max-width: 860px) { .stage { padding-bottom: 0; } }
-
 input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; }
 
 /* Shared task-first page rhythm. */
@@ -405,22 +398,8 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .fix-result h2 { margin: 0 0 var(--ui-s-2); font-size: 1.125rem; }
 .fix-result[data-tone="bad"] { border-color: var(--ui-bad); }
 .fix-result p { margin: var(--ui-s-2) 0 0; }
-.rail a[data-page] .nav-badge { margin-left: auto; border-radius: var(--ui-r-pill); background: var(--ui-accent-soft); color: var(--ui-text); padding: .1rem .35rem; font-size: .6875rem; white-space: nowrap; }
-/* A10 D2: shell switch: rail or tab bar. */
-@media (max-width: 860px) {
-  /* Beside the tab's icon, above its name: a count stays a number; a word ("Print") has no room there, so it is a dot,
-     and the tab's accessible name and title carry it ("Workshop, Printing 42%"). */
-  .rail a[data-page] .nav-badge { position: absolute; top: .35rem; left: calc(50% + 11px); margin: 0; min-width: .875rem; padding: 0 .2rem; box-sizing: border-box; font-size: .625rem; line-height: 1rem; text-align: center; font-weight: 700; background: var(--ui-accent); color: var(--ui-on-accent); }
-  .rail a[data-page] { container: tab / inline-size; }
-  .rail a[data-page] .nav-badge:not([data-count]) { top: .45rem; width: .5rem; min-width: 0; height: .5rem; padding: 0; overflow: hidden; font-size: 0; background: var(--ui-accent); }
-}
-
-/* A tab under 4.5rem (a phone under about 390 px) has no room beside its icon for "99+": it shows "9+", which is still
-   true; the full count is in the tab's name. */
-@container tab (max-width: 4.5rem) {
-  .rail a[data-page] .nav-badge[data-short] { font-size: 0; }
-  .rail a[data-page] .nav-badge[data-short]::after { content: attr(data-short); font-size: .625rem; }
-}
+/* A badge with no number: a print is running (the kit's badge counts; this one only marks). */
+.ui-rail-badge[data-dot] { min-width: 0; width: var(--ui-s-2); height: var(--ui-s-2); padding: 0; font-size: 0; line-height: 0; }
 
 .source-freshness { margin-top: var(--ui-s-6); padding-top: var(--ui-s-4); border-top: 1px solid var(--ui-line-2); }
 .source-freshness h2 { font-size: var(--ui-fs-4); }
@@ -471,7 +450,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
    changing how it reads. Desktop with a mouse keeps the compact sizes. */
 @media (pointer: coarse) {
-  .rail a[data-page], .rail-assistant, #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
   a.action { display: inline-flex; align-items: center; }
   .hud-cam-btn, .tile-fav { min-width: 44px; }
   kbd { font-size: var(--ui-fs-1); }

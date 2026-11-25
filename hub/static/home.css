@@ -597,12 +597,6 @@ body.wall.night { filter: brightness(0.55); }
   font-weight: 500;
 }
 
-/* 9. Recover Vertical Space (Fit Wi-Fi above fold) */
-.top {
-  padding-top: var(--ui-s-4);
-  padding-bottom: var(--ui-s-2);
-}
-
 /* The home page owns its columns; old page-level grids must not split the hero. */
 body:not(.wall) .page-now { display: block; }
 
