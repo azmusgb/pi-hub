@@ -36,6 +36,17 @@ const SERVICE_TONE = { HEALTHY: ["ok", "Working"], DEGRADED: ["warn", "Degraded"
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 const stateOf = (d, k) => d?.sources?.[k]?.state || "unknown";
 
+// A source marked ok whose own list is missing or the wrong type is a read that couldn't be made: it is drawn as unknown
+// with these words (DESIGN.md, "Unknown: never read, or unreadable"), never as 0, an empty list or a healthy lamp.
+const UNREAD = "The Assistant's answer couldn't be read";
+const LISTS = ["services", "installed", "loaded", "pulls"];
+const unread = (d, k) => d?.sources?.[k]?.unread === true;
+function checked(d) {
+  const sources = { ...d.sources };
+  for (const k of LISTS) if (sources[k]?.state === "ok" && !Array.isArray(d[k])) sources[k] = { ...sources[k], state: "unknown", unread: true };
+  return { ...d, sources };
+}
+
 // The notice above a reading when it isn't live. `r` is the adapter's answer.
 export function banner(r) {
   const age = typeof r.age === "number" ? ageLabel(r.age) : "";
@@ -56,18 +67,19 @@ const SOURCE_TONE = { ok: ["ok", "Read"], failed: ["bad", "Isn't answering"], un
 export function sourceRows(d, names = Object.keys(d?.sources || {})) {
   return [lampRows(names.filter((k) => d.sources[k]).map((k) => {
     const s = d.sources[k];
-    const [tone, word] = SOURCE_TONE[s.state] || SOURCE_TONE.unknown;
+    const [tone, word] = s.unread ? ["unknown", "Couldn't be read"] : SOURCE_TONE[s.state] || SOURCE_TONE.unknown;
     const [, impact, action] = wordsFor(k);
     const more = s.state === "failed" ? [impact, action] : [];
     return { title: labelOf(k), detail: more.filter(Boolean).join(" "), tone, word };
   })), rawDetails(names.filter((k) => d.sources[k]?.state === "failed").map((k) => [labelOf(k), d.sources[k].error]))];
 }
 
-const sourcesLine = (d) => Object.entries(d?.sources || {}).map(([k, s]) => ({ name: labelOf(k), tone: (SOURCE_TONE[s.state] || SOURCE_TONE.unknown)[0],
-  word: s.state === "failed" ? "isn't answering" : s.state === "unknown" ? "not read yet" : "" }));
+const sourcesLine = (d) => Object.entries(d ? checked(d).sources : {}).map(([k, s]) => ({ name: labelOf(k), tone: (SOURCE_TONE[s.state] || SOURCE_TONE.unknown)[0],
+  word: s.state === "failed" ? "isn't answering" : s.unread ? "couldn't be read" : s.state === "unknown" ? "not read yet" : "" }));
 
 // A state with nothing to read: the notice above says why, and this says what to do (not a plate of dashes).
 const NEXT = { needs_pc: "Wake the PC, then this page reads the", unreachable: "Check the Assistant on the PC, then this page reads the",
+  busy: "Pi Hub is already asking the Assistant. In a moment this page reads the",
   out_of_date: "Update the Assistant on the PC, then this page reads the", refused: "Once Pi Hub can ask the Assistant, this page reads the" };
 function bare(what, r) {
   return h("p", { class: "ui-empty" }, `${NEXT[r.state] || NEXT.unreachable} ${what}.`);
@@ -79,13 +91,12 @@ function rawDetails(pairs) {
   return rows.length ? h("details", { class: "ui-disclosure" }, h("summary", { class: "ui-disclosure__summary" }, "Details"),
     h("div", { class: "ui-disclosure__body" }, ...rows.map(([k, e]) => h("p", {}, `${k}: `, h("code", {}, e))))) : null;
 }
-  busy: "Pi Hub is already asking the Assistant. In a moment this page reads the",
 
 // ---- status ----
 
 function serviceRows(d) {
-  const list = Array.isArray(d.services) ? d.services : [];
-  return [lampRows((Array.isArray(d.services) ? d.services : []).map((s) => {
+  const list = (Array.isArray(d.services) ? d.services : []).filter((s) => s && typeof s === "object");  // an entry that isn't one is skipped
+  return [lampRows(list.map((s) => {
     const [tone, word] = SERVICE_TONE[s.state] || ["unknown", "Not reported"];
     const [, impact, action] = wordsFor(s.name);
     const down = s.state === "DOWN" || s.state === "DEGRADED";
@@ -95,11 +106,12 @@ function serviceRows(d) {
 }
 
 export function statusBody(r) {
-  const d = r.data;
   const note = banner(r);
-  if (!d) return [note, bare("status", r)];
+  if (!r.data) return [note, bare("status", r)];
+  const d = checked(r.data);
   const appliance = stateOf(d, "services");
-  const [tone, word] = appliance === "ok" ? SERVICE_TONE[d.overall] || ["unknown", "Not reported"] : ["unknown", appliance === "failed" ? "Isn't answering" : "Not read yet"];
+  const [tone, word] = appliance === "ok" ? SERVICE_TONE[d.overall] || ["unknown", "Not reported"]
+    : ["unknown", unread(d, "services") ? "Couldn't be read" : appliance === "failed" ? "Isn't answering" : "Not read yet"];
   const stale = r.state === "mirror";
   const summary = d.serviceSummary && typeof d.serviceSummary === "object" ? d.serviceSummary : null;
   const n = (k) => (num(summary?.[k]) ? summary[k] : null);
@@ -108,7 +120,7 @@ export function statusBody(r) {
     readings: [["Required services", n("core")], ["Required, not working", n("coreUnhealthy")], ["Optional services", n("optional")], ["Optional, not working", n("optionalUnhealthy")]] });
   const services = appliance === "ok"
     ? section("Services", serviceRows(d), { note: "Required services run the Assistant; optional ones add to it." })
-    : section("Services", h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `${sourceDown("Local AI")}. Its services couldn't be read.`));
+    : section("Services", h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `${unread(d, "services") ? UNREAD : sourceDown("Local AI")}. Its services couldn't be read.`));
   const others = Object.keys(d.sources).filter((k) => k !== "services");
   return [note, plate, services, others.length ? section("Other sources", sourceRows(d, others)) : null];
 }
@@ -123,16 +135,16 @@ function listSection(title, d, key, rows, emptyText) {
   const state = stateOf(d, key);
   if (state !== "ok") {
     return section(title, [h("p", { class: "ui-notice ui-notice--warn", role: "status" },
-      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.` : "Not read yet."),
+      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.` : unread(d, key) ? `${UNREAD}.` : "Not read yet."),
     state === "failed" ? rawDetails([[title, (key === "installed" || key === "loaded") && d.runtimeError ? d.runtimeError : sourceError(d, key)]]) : null]);
   }
   return section(title, rows.length ? lampRows(rows) : h("p", { class: "ui-empty" }, emptyText));
 }
 
 export function modelsBody(r) {
-  const d = r.data;
   const note = banner(r);
-  if (!d) return [note, bare("models", r)];
+  if (!r.data) return [note, bare("models", r)];
+  const d = checked(r.data);
   const stale = r.state === "mirror";
   const okOf = (k) => stateOf(d, k) === "ok";
   const installed = (Array.isArray(d.installed) ? d.installed : []).map(nameOf).filter(Boolean);
@@ -146,7 +158,9 @@ export function modelsBody(r) {
     readings: [["Default", typeof d.default === "string" ? d.default : null], ["Runtime", up === false ? "Not answering" : null]],
     actions: [h("a", { class: "ui-btn", href: `${ASSISTANT_URL}#models`, target: "_blank", rel: "noopener noreferrer" }, "Manage models on the PC ↗")] });
   const sizes = Object.fromEntries((Array.isArray(d.installed) ? d.installed : []).map((m) => [nameOf(m), sizeText(m?.sizeBytes)]));
-  const rows = installed.map((n) => ({ title: n, detail: [n === d.default ? "Default" : "", sizes[n]].filter(Boolean).join(" · "), tone: loaded.includes(n) ? "ok" : "unknown", word: loaded.includes(n) ? "Loaded" : "Not loaded" }));
+  // Whether a model is loaded is only said when what is loaded was read: otherwise the row carries no lamp, not "Not loaded".
+  const lamp = (n) => (!okOf("loaded") ? {} : loaded.includes(n) ? { tone: "ok", word: "Loaded" } : { tone: "unknown", word: "Not loaded" });
+  const rows = installed.map((n) => ({ title: n, detail: [n === d.default ? "Default" : "", sizes[n]].filter(Boolean).join(" · "), ...lamp(n) }));
   const pulls = Array.isArray(d.pulls) ? d.pulls.length : null;
   // Local AI's routing: a table of what runs where (label, where). Read as text; anything else is left out.
   const table = Array.isArray(d.routing?.table) ? d.routing.table.filter((r) => typeof r?.label === "string") : [];
