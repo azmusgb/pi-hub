@@ -61,7 +61,10 @@ if name == 'git':
     else: print('Test release')
 elif name == 'timeout':
     with open(os.environ['CALLS'], 'a') as calls: calls.write('timeout ' + ' '.join(args) + '\n')
-    if 'node' in args and os.environ.get('FAIL') == 'js': sys.exit(1)
+    if 'node' in args and os.environ.get('FAIL') == 'js':
+        print('ok 1 - one that passes\nnot ok 2 - the one that fails\n' + 'ok 3 - later ones\n' * 20)
+        sys.exit(1)
+    if 'node' in args and os.environ.get('FAIL') == 'js-stopped': sys.exit(124)  # what timeout returns when it stops a run
     print('tests passed')
 elif name == 'python3':
     if args == ['-c', 'import xdist']: sys.exit(0 if os.environ.get('XDIST') else 1)  # the release's xdist check
@@ -321,6 +324,23 @@ def test_test_failure_writes_a_failed_report(release, failure):
     [r] = reports(root)
     assert (r['result'], r['message']) == ('failed', 'JavaScript tests failed; nothing changed.')
     assert 'running' not in r
+
+
+# A stopped run is not a failing test: the Pi was busy (a Plex transcode, 25 Nov 2026) and the record must say which.
+def test_javascript_tests_stopped_at_the_limit_say_so(release):
+    root, _, run = release
+    result = run('js-stopped')
+    assert result.returncode != 0
+    assert 'timeout 240 node --test' in (root.parent / 'calls').read_text()
+    [r] = reports(root)
+    assert (r['result'], r['message']) == ('failed', 'JavaScript tests ran past 240 s and were stopped; nothing changed.')
+    assert (root / 'opt/pi-hub/current').resolve().name == 'previous'
+
+
+def test_a_failing_javascript_test_is_named_in_the_output(release):
+    root, _, run = release
+    result = run('js')
+    assert 'not ok 2 - the one that fails' in result.stdout, result.stdout
 
 
 def test_rollback_records_the_restored_commit(release):
