@@ -296,8 +296,10 @@ What the first draft got wrong or left open, now settled by the code:
 
 1. **Kit shell (appliance-ui 2.29.0).** Pi Hub draws its rail and tab bar with `ApplianceShell`; the hand-written rail,
    tab-bar CSS and the duplicate switch are deleted. A22's five areas stay the rail; the Assistant is **not** a rail
-   area (a kit test says so). Local AI's hand-written shell moves to the same kit shell when its kit sync lands
-   (its `fix-mobile-shell` work is folded into that adoption, not shipped as a second shell).
+   area (a kit test says so). Local AI's phone-shell fixes (`fix-mobile-shell`, uncommitted
+   work from the orchestrating session; ownership checked with every peer session on 24 Nov) land first as their own fix
+   PR on its present shell; adopting the kit shell there follows its kit sync (P0's second half) and replaces that
+   markup, so the fix is not a second shell, and the adoption is tracked as its own row.
 2. **One Assistant entry.** The head's Assistant button is the only persistent entry; the rail's second entry is
    removed. Page-level "Ask about this page" buttons stay (they carry context; they are actions, not destinations).
 3. **Duplicated destinations resolved in the registry** (appliance-ui `pages.json`, then sync): one page per purpose.
