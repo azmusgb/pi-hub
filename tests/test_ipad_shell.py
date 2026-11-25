@@ -21,9 +21,10 @@ def test_the_page_title_clears_the_status_bar_on_top_of_its_usual_spacing():
 
 
 def test_the_rails_name_clears_the_status_bar():
-    block = standalone("pages.css")
-    rail = re.search(r"\.rail \{([^}]*)\}", block)
-    assert rail and "env(safe-area-inset-top)" in rail.group(1)
+    # The rail is the kit's (ui-rail): its own top padding is the larger of its spacing and the status bar.
+    kit = open(os.path.join(STATIC, "ui", "shell.css")).read()
+    rail = re.search(r"\.ui-rail\{([^}]*)\}", kit)
+    assert rail and "env(safe-area-inset-top" in rail.group(1)
 
 
 def test_the_status_bar_is_solid_so_nothing_sits_under_it():

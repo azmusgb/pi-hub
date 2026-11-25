@@ -40,9 +40,11 @@ test('on a phone the page strips, Search, Restart, the theme link and the Site m
   // width gets 44 px, and the rail's own links are in the list.
   assert.doesNotMatch(css('enhance.css'), /@media \(max-width: 860px\), \(pointer: coarse\)/);
   // The tabs are the kit's ui-tabs (2.16), 48 px everywhere, so they need no touch rule here (A23 P4).
-  for (const sel of ['.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a', '.rail a[data-page]', '#theme-btn']) {
+  for (const sel of ['.top-cmd-btn', '.service-list .status-side .btn', '.link-btn', '.more-group > h2 a', '#theme-btn']) {
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
+  // The rail's links are the kit's (ui-rail): 44 px at every width, so no rule of ours.
+  assert.match(readFileSync(new URL('../hub/static/ui/shell.css', import.meta.url), 'utf8'), /\.ui-rail a\{[^}]*min-height:44px/);
 });
 
 test("Home's \"other things are fine\" disclosure and the rack's links are 44 px targets everywhere", () => {

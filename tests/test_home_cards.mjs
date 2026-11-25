@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { homeCards, homeBadge, labLink, needsSummary } from '../hub/static/js/home-cards.js';
+import { homeCards, labLink, needsSummary } from '../hub/static/js/home-cards.js';
 
 const AT = new Date(2026, 9, 25, 13, 50);
 const NOW = {
@@ -71,12 +71,10 @@ test('Needs you says which sources it could not read', () => {
   assert.equal(n.note, "Couldn't check Local AI.");
 });
 
-test('the Home badge equals the Needs you count', () => {
-  assert.equal(homeBadge({ count: 3 }), '3');
-  assert.equal(homeBadge({ count: 120 }), '99+');
-  assert.equal(homeBadge({ count: 0 }), '');
-  assert.equal(homeBadge(null), '');
-  assert.equal(by(all()).needs.count, Number(homeBadge(NEEDS)));
+// The Home tab's badge is the kit's (navigation.js, tests/test_kit_shell_nav.mjs): its number, 99+, none for zero and "?"
+// for a read that failed are tested there.
+test('the Needs you card counts what the Home badge counts', () => {
+  assert.equal(by(all()).needs.count, NEEDS.count);
 });
 
 test('links use the gate names even when the hub is opened by IP (step 6)', () => {
@@ -89,7 +87,6 @@ test('Needs you says when it could not check, even with nothing else to show', (
   assert.equal(n.tone, 'warn');
   assert.deepEqual(n.items, []);
   assert.equal(by(all({ needs: null })).needs.status, "Couldn't check what needs you");
-  assert.equal(homeBadge({ count: 0, items: [], unread: ['Local AI'] }), '');
 });
 
 test('before the extra sources answer, Home shows its cards with "Checking…" instead of waiting', () => {

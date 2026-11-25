@@ -21,8 +21,8 @@ test('every page belongs to a section', () => {
     '/': 'home', '/wall': 'home', '/weather': 'network', '/devices': 'network', '/map': 'system', '/workshop': 'workshop',
     '/documents': 'household', '/print': 'household', '/lists': 'household', '/scan': 'household',
     '/media': 'household', '/network': 'network',
-    '/system': 'system', '/backups': 'system', '/pi': 'home', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'household', '/versions': 'system',
-    '/more': 'home', '/nowhere': 'home', '/assistant': 'assistant',
+    '/system': 'system', '/backups': 'system', '/pi': '', '/alerts': 'system', '/rules': 'system', '/settings': 'system', '/drives': 'household', '/versions': 'system',
+    '/more': '', '/nowhere': '', '/assistant': 'assistant',
   };
   for (const [path, key] of Object.entries(want)) assert.equal(sectionFor(path), key, path);
 });
@@ -37,13 +37,12 @@ test('old bookmarks land in the section where the tool now lives', () => {
   for (const [path, to] of Object.entries(want)) assert.equal(redirectFor(path), to, path);
 });
 
-test('the menu markup matches the sections', () => {
+// The rail is drawn by the kit (navigation.js): index.html holds none, and the Assistant is not an area.
+test('the menu is not in the markup; the Assistant has one persistent entry', () => {
   const html = readFileSync(new URL('../hub/static/index.html', import.meta.url), 'utf8');
-  const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
-  const pages = [...nav.matchAll(/data-page="(\w+)"/g)].map((m) => m[1]);
-  assert.deepEqual(pages, SITE.areas.map((a) => a.id), 'the five areas and nothing else: no More');
-  assert.ok(nav.includes('class="rail-assistant" href="/assistant" data-link'), 'Assistant at the rail foot, in the shell (A4)');
-  assert.ok(!/data-page="[^"]*"[^>]*>[^<]*<span class="nav-badge"/.test(nav));
+  assert.ok(!/<nav\b|data-page=|rail-assistant/.test(html), 'no hand-written rail, no second Assistant entry');
+  assert.equal([...html.matchAll(/href="\/assistant"/g)].length, 1, 'the head\'s button is the one entry');
+  assert.ok(html.includes('class="top-assistant" href="/assistant" data-link'), 'the Assistant button in the head, in the shell (A4)');
 });
 
 // One home, step 6: the old addresses are retired, so every tool link is its gate name, whatever address the page has.

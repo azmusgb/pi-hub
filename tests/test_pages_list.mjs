@@ -113,21 +113,17 @@ test('test_pages_redirects: every old address in the list lands on its page (sec
 
 test('test_pages_areas: the rail and tab bar are the list\'s five areas, in order, each opening its landing', () => {
   assert.deepEqual(AREAS.map((a) => a.label), ['Home', 'Workshop', 'Household', 'Network', 'System']);
-  const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
-  const links = [...nav.matchAll(/<a href="([^"]+)" data-link data-page="([a-z]+)" aria-label="([^"]+)" title="([^"]+)"[^>]*>\s*<svg[\s\S]*?<\/svg>\s*<span>([^<]+)<\/span>/g)]
-    .map(([, href, id, name, title, word]) => ({ href, id, name, title, word }));
-  assert.deepEqual(links, AREAS.map((a) => ({ href: SITE.page(a.landing).path, id: a.id, name: a.label, title: a.label, word: a.label })));
-  assert.equal([...nav.matchAll(/data-page="/g)].length, AREAS.length, 'five areas and no More');
-  assert.doesNotMatch(html, /href="\/more"|phone-only|class="extra"/);
+  // No hand-written rail: the kit draws the nav (ApplianceShell.build in navigation.js, tests/test_kit_shell_nav.mjs).
+  assert.doesNotMatch(html, /<nav\b|data-page=|class="rail/);
   assert.equal(SITE.page(AREAS.find((a) => a.id === 'household').landing).path, '/media', 'Household opens on Movies');
-  // Every page lights its own area in the rail; the shell marks the link whose data-page is that area.
+  // Every page lights its own area in the rail; the shell marks the link whose data-area is that area.
   for (const p of BUILT.filter((x) => x.area)) assert.equal(SITE.areaOf(plain(p.path)), p.area, p.id);
-  assert.match(main, /a\.dataset\.page === section/);
-  // Five labels fit a 320 px bar at any text size (9.1 F6, plan decision 16): sized by the bar's own width, never cut.
-  const css = read('hub/static/app.css');
-  assert.match(css, /\.rail \{[^}]*container-type: inline-size;/);
-  assert.match(css, /\.rail a\[data-page\] \{[^}]*font-size: min\(var\(--ui-fs-1\), 3\.85cqi\);[^}]*white-space: nowrap;/);
-  assert.doesNotMatch(css, /\.rail a\[data-page\][^{]*\{[^}]*text-overflow/);
+  assert.match(main, /setCurrentArea\(section\)/);
+  // Five labels fit a 320 px bar at any text size (9.1 F6): the kit sizes a label from the window and wraps it, never cut.
+  const css = read('hub/static/ui/shell.css');
+  assert.match(css, /\.ui-rail a\{[^}]*overflow-wrap:anywhere/);
+  assert.match(css, /\.ui-rail a\{[^}]*flex:1 1 0;min-width:0;[^}]*font-size:min\(var\(--ui-fs-2\),4\.6vw\)/);
+  assert.doesNotMatch(css, /\.ui-rail a[^{]*\{[^}]*text-overflow/);
 });
 
 test('test_pages_tools: a page\'s "Open in" row is its tools in the list, asked for by the page\'s id', () => {
