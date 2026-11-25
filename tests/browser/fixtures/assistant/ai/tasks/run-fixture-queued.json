@@ -4,6 +4,7 @@
   "run": {
     "id": "run-1790000000000-001a2b3",
     "status": "queued",
+    "goal": null,
     "progress": 5,
     "summary": "",
     "error": null,

@@ -292,7 +292,8 @@ def _run(item):
     meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
     mid = meta.get("missionId")
     out = item.get("output") if isinstance(item.get("output"), dict) else {}
-    return {"id": _text(item.get("id"), 80), "status": item["status"],
+    inp = item.get("input") if isinstance(item.get("input"), dict) else {}
+    return {"id": _text(item.get("id"), 80), "status": item["status"], "goal": _text(inp["goal"], GOAL_MAX) or None if isinstance(inp.get("goal"), str) else None,
             "progress": int(p) if isinstance(p, (int, float)) and not isinstance(p, bool) and 0 <= p <= 100 else None,
             "summary": _text(item.get("summary"), SUMMARY_MAX), "error": _text(item.get("error"), ERROR_MAX) or None,
             "cancellable": item.get("cancellable") is True,

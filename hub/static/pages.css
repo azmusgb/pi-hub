@@ -424,5 +424,6 @@ details.ui-section:not([open]) { gap: 0; }
 .assistant-task__note, .assistant-task__purpose, .assistant-task__current { margin: 0; color: var(--ui-muted); }
 .assistant-task__note:not(:empty) { color: var(--ui-text); }
 .assistant-task__current { margin-top: var(--ui-s-2); }
+.assistant-task__current a { display: inline-flex; align-items: center; min-height: calc(var(--ui-s-6) + var(--ui-s-3)); }
 /* The disclosure's summary is a control: the target size the sweep asks of one (the kit's own is 36). */
 .assistant-run__details > summary, .assistant-task > summary { min-height: calc(var(--ui-s-6) + var(--ui-s-3)); }

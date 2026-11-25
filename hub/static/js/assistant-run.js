@@ -13,7 +13,7 @@ import { createTask, GOAL_MAX, readCurrent, stepsText, submitTask, TERMINAL, val
 export const every = 3;
 const RUN_PATH = /^\/assistant\/run\/([^/]+)\/?$/;
 const kitRow = (id) => KIT_PAGES.find((p) => p.id === id) || {};
-export const TITLE = kitRow("run").label || "A run";
+export const TITLE = kitRow("run").label;
 export const PURPOSE = "What this task is doing, and what it found";
 
 const TONES = {
@@ -23,6 +23,8 @@ const TONES = {
 };
 const WORKER_TONE = { complete: ["ok", "Done"], running: ["ok", "Running"], pending: ["unknown", "Waiting"],
   error: ["bad", "Failed"], blocked: ["unknown", "Skipped"] };
+// Phases whose sentence only repeats what the plate or the outcome already shows: the live region still says it, out of sight.
+export const QUIET = new Set(["reading", "queued", "running", "completed", "failed"]);
 const isoSeconds = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? t / 1000 : null; };
 const text = (v, n) => { const s = String(v ?? ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
@@ -74,10 +76,11 @@ function steps(m) {
     workers.length ? workerRows(workers) : null], { id: "run-steps" });
 }
 
+// The reason, once: the plate says Failed, this says why.
 function failure(m) {
   const reason = m.run?.error || "The Assistant gave no reason.";
   return h("section", { class: "ui-notice ui-notice--bad assistant-run__failure", "aria-labelledby": "run-outcome" },
-    h("h2", { id: "run-outcome", tabindex: "-1" }, "The task failed"), h("p", { class: "assistant-answer" }, reason));
+    h("h2", { id: "run-outcome", tabindex: "-1" }, "Why it stopped"), h("p", { class: "assistant-answer" }, reason));
 }
 
 function answer(m, ctl) {
@@ -120,15 +123,16 @@ function actions(m, ctl, ui) {
 function readings(m) {
   const r = m.run || {};
   const t = (iso) => (iso ? when(isoSeconds(iso)) : null);
-  return [["Your request", m.goal ? text(m.goal, 300) : null], ["Started", t(r.startedAt || r.createdAt)], ["Updated", t(r.updatedAt)],
-    ["Last seen", m.phase === "unreachable" && m.lastSeen ? when(m.lastSeen / 1000) : null]];
+  const gone = m.phase === "unreachable";
+  return [["Started", t(r.startedAt || r.createdAt)], gone ? null : ["Updated", t(r.updatedAt)],
+    gone && m.steps ? ["Steps when last seen", stepsText(m.steps)] : null, ["Last seen", gone && m.lastSeen ? when(m.lastSeen / 1000) : null]].filter(Boolean);
 }
 
 // The whole body for a model, below the live sentence.
 export function body(m, ctl, ui = {}) {
   if (m.phase === "reading") return [faceplateLoading("Task")];
   const v = phaseView(m);
-  const plate = faceplate({ name: "Task", lamp: v.lamp, readout: v.readout, size: "md", readings: readings(m),
+  const plate = faceplate({ name: "Task", lamp: v.lamp, readout: v.readout, size: "md", caption: m.goal ? text(m.goal, 300) : null, readings: readings(m),
     extra: [m.note ? h("p", { class: "ui-notice ui-notice--warn", role: "status" }, m.note) : null,
       ["running", "cancelling", "awaiting_approval"].includes(m.phase) ? meter(m.steps) : null],
     actions: actions(m, ctl, ui) });
@@ -144,7 +148,7 @@ export function mount(state) {
   const id = RUN_PATH.exec(location.pathname)?.[1] || "";
   state.runId = decodeURIComponent(id);
   state.left = false;
-  state.live = h("p", { class: "ui-faceplate__caption assistant-run__live", role: "status", "aria-live": "polite" });
+  state.live = h("p", { class: "assistant-run__live visually-hidden", role: "status", "aria-live": "polite" });
   state.body = h("div", { class: "assistant-run__body" });
   state.root.append(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" }, h("a", { href: "/assistant", "data-link": true }, "Assistant"),
     h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, TITLE)), state.live, state.body);
@@ -174,6 +178,7 @@ function draw(state) {
   const m = state.model;
   const sig = signature(m);
   state.live.textContent = phaseView(m).caption;
+  state.live.classList.toggle("visually-hidden", QUIET.has(m.phase));
   if (sig === state.last) return;
   const at = document.activeElement;
   const inside = at && state.body.contains(at);
@@ -199,11 +204,9 @@ export function leave(state) {
 
 // ---- Start a task (on the Assistant page) ----
 
-const REASON = { pc_off: "Starting a task needs the PC. It is asleep.", assistant_down: "Starting a task needs the Assistant, which isn't answering." };
-
 // A clearly separated action above the frame: closed it is one line, "Start a task"; open it is a goal box and one button.
-// `availability({disabled, phrase})` is the Assistant page's own check (pc_off, assistant_down): the form stays, disabled,
-// with the reason beside it (D13: refused while the PC sleeps, not queued).
+// `availability({disabled, phrase})` is the Assistant page's own check (pc_off, assistant_down): the form stays, disabled
+// (D13: refused while the PC sleeps, not queued). The reason is the frame's notice below, said once; the form adds none.
 export function startTask({ goto = navigateSpa, storage = globalThis.localStorage } = {}) {
   const goal = h("textarea", { id: "assistant-task-goal", class: "ui-field assistant-task__goal", rows: 3, maxlength: GOAL_MAX, autocomplete: "off",
     "aria-describedby": "assistant-task-note" });
@@ -247,7 +250,7 @@ export function startTask({ goto = navigateSpa, storage = globalThis.localStorag
       off = disabled ? phrase : null;
       goal.disabled = !!disabled;
       if (disabled) go.setAttribute("aria-disabled", "true"); else go.removeAttribute("aria-disabled");
-      note.textContent = disabled ? REASON[phrase] || "" : "";
+      if (disabled) note.textContent = "";
       showCurrent();
     },
   };

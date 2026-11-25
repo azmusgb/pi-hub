@@ -90,6 +90,7 @@ export function createTask({ runId, api, post, now = Date.now, storage = globalT
     if (b.state === "busy") { gap = Math.min(gap * 2, BACKOFF_MAX_MS); return; }  // nothing was learned: keep what is shown
     if (b.state === "ok" && b.run && PHASE_OF[b.run.status]) {
       m.run = b.run;
+      if (!m.goal && typeof b.run.goal === "string") m.goal = b.run.goal;  // a run read on another device still shows what was asked
       m.mission = b.mission || null;
       m.missionRead = b.mission_read || "none";
       m.steps = stepsOf(b.mission);

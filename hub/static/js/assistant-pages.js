@@ -54,40 +54,49 @@ const SOURCE_TONE = { ok: ["ok", "Read"], failed: ["bad", "Isn't answering"], un
 
 // One row per source the Assistant named: ok, failed (with its error and what to do) or not read yet.
 export function sourceRows(d, names = Object.keys(d?.sources || {})) {
-  return lampRows(names.filter((k) => d.sources[k]).map((k) => {
+  return [lampRows(names.filter((k) => d.sources[k]).map((k) => {
     const s = d.sources[k];
     const [tone, word] = SOURCE_TONE[s.state] || SOURCE_TONE.unknown;
     const [, impact, action] = wordsFor(k);
-    const more = s.state === "failed" ? [s.error, impact, action] : [];
+    const more = s.state === "failed" ? [impact, action] : [];
     return { title: labelOf(k), detail: more.filter(Boolean).join(" "), tone, word };
-  }));
+  })), rawDetails(names.filter((k) => d.sources[k]?.state === "failed").map((k) => [labelOf(k), d.sources[k].error]))];
 }
 
 const sourcesLine = (d) => Object.entries(d?.sources || {}).map(([k, s]) => ({ name: labelOf(k), tone: (SOURCE_TONE[s.state] || SOURCE_TONE.unknown)[0],
   word: s.state === "failed" ? "isn't answering" : s.state === "unknown" ? "not read yet" : "" }));
 
-// The plate for a state with nothing to read: a skeleton-free faceplate with the reason in its words.
-function bare(name, r) {
-  const word = r.state === "needs_pc" ? "Needs the PC" : r.state === "out_of_date" ? "Out of date" : r.state === "refused" ? "Refused" : "Not read";
-  return faceplate({ name, lamp: ["unknown", word], readout: "—", caption: "Nothing to show yet." });
+// A state with nothing to read: the notice above says why, and this says what to do (not a plate of dashes).
+const NEXT = { needs_pc: "Wake the PC, then this page reads the", unreachable: "Check the Assistant on the PC, then this page reads the",
+  out_of_date: "Update the Assistant on the PC, then this page reads the", refused: "Once Pi Hub can ask the Assistant, this page reads the" };
+function bare(what, r) {
+  return h("p", { class: "ui-empty" }, `${NEXT[r.state] || NEXT.unreachable} ${what}.`);
+}
+
+// The Assistant's raw errors ("fetch failed") are for diagnosing, not reading: they sit under Details, one line per source.
+function rawDetails(pairs) {
+  const rows = pairs.filter(([, e]) => typeof e === "string" && e);
+  return rows.length ? h("details", { class: "ui-disclosure" }, h("summary", { class: "ui-disclosure__summary" }, "Details"),
+    h("div", { class: "ui-disclosure__body" }, ...rows.map(([k, e]) => h("p", {}, `${k}: `, h("code", {}, e))))) : null;
 }
 
 // ---- status ----
 
 function serviceRows(d) {
-  return lampRows((Array.isArray(d.services) ? d.services : []).map((s) => {
+  const list = Array.isArray(d.services) ? d.services : [];
+  return [lampRows((Array.isArray(d.services) ? d.services : []).map((s) => {
     const [tone, word] = SERVICE_TONE[s.state] || ["unknown", "Not reported"];
     const [, impact, action] = wordsFor(s.name);
     const down = s.state === "DOWN" || s.state === "DEGRADED";
-    const detail = [s.required ? "Required" : "Optional", ...(down ? [s.error, s.impact || impact, action] : [])].filter(Boolean).join(" · ");
+    const detail = [s.required ? "Required" : "Optional", ...(down ? [s.impact || impact, action] : [])].filter(Boolean).join(" · ");
     return { title: s.label || s.name || "Service", detail, tone, word, value: num(s.latencyMs) ? `${Math.round(s.latencyMs)} ms` : null };
-  }));
+  })), rawDetails(list.filter((s) => s.state === "DOWN" || s.state === "DEGRADED").map((s) => [s.label || s.name || "Service", s.error]))];
 }
 
 export function statusBody(r) {
   const d = r.data;
   const note = banner(r);
-  if (!d) return [note, bare(TITLES.status, r)];
+  if (!d) return [note, bare("status", r)];
   const appliance = stateOf(d, "services");
   const [tone, word] = appliance === "ok" ? SERVICE_TONE[d.overall] || ["unknown", "Not reported"] : ["unknown", appliance === "failed" ? "Isn't answering" : "Not read yet"];
   const stale = r.state === "mirror";
@@ -112,8 +121,9 @@ const nameOf = (m) => (typeof m === "string" ? m : typeof m?.name === "string" ?
 function listSection(title, d, key, rows, emptyText) {
   const state = stateOf(d, key);
   if (state !== "ok") {
-    return section(title, h("p", { class: "ui-notice ui-notice--warn", role: "status" },
-      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.${(key === "installed" || key === "loaded") && (d.runtimeError || sourceError(d, key)) ? ` ${d.runtimeError || sourceError(d, key)}.` : ""}` : "Not read yet."));
+    return section(title, [h("p", { class: "ui-notice ui-notice--warn", role: "status" },
+      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.` : "Not read yet."),
+    state === "failed" ? rawDetails([[title, (key === "installed" || key === "loaded") && d.runtimeError ? d.runtimeError : sourceError(d, key)]]) : null]);
   }
   return section(title, rows.length ? lampRows(rows) : h("p", { class: "ui-empty" }, emptyText));
 }
@@ -121,7 +131,7 @@ function listSection(title, d, key, rows, emptyText) {
 export function modelsBody(r) {
   const d = r.data;
   const note = banner(r);
-  if (!d) return [note, bare(TITLES.models, r)];
+  if (!d) return [note, bare("models", r)];
   const stale = r.state === "mirror";
   const okOf = (k) => stateOf(d, k) === "ok";
   const installed = (Array.isArray(d.installed) ? d.installed : []).map(nameOf).filter(Boolean);
@@ -132,7 +142,7 @@ export function modelsBody(r) {
   const plate = faceplate({ name: TITLES.models, lamp: stale ? ["unknown", "Last known"] : runtime,
     readout: okOf("installed") ? String(installed.length) : "Unknown", unit: okOf("installed") ? `installed model${installed.length === 1 ? "" : "s"}` : "",
     size: "md", caption: [okOf("loaded") ? `${loaded.length} loaded now` : "Loaded models not read", stale ? `read ${ageLabel(r.age)}` : "read just now"].join(" · "),
-    readings: [["Default", typeof d.default === "string" ? d.default : null], ["Runtime", up === false ? d.runtimeError || sourceError(d, "installed") || "Not answering" : null]],
+    readings: [["Default", typeof d.default === "string" ? d.default : null], ["Runtime", up === false ? "Not answering" : null]],
     actions: [h("a", { class: "ui-btn", href: `${ASSISTANT_URL}#models`, target: "_blank", rel: "noopener noreferrer" }, "Manage models on the PC ↗")] });
   const sizes = Object.fromEntries((Array.isArray(d.installed) ? d.installed : []).map((m) => [nameOf(m), sizeText(m?.sizeBytes)]));
   const rows = installed.map((n) => ({ title: n, detail: [n === d.default ? "Default" : "", sizes[n]].filter(Boolean).join(" · "), tone: loaded.includes(n) ? "ok" : "unknown", word: loaded.includes(n) ? "Loaded" : "Not loaded" }));

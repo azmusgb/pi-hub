@@ -152,8 +152,10 @@ test('failed shows Local AI\'s own error as text, and Try again resubmits the sa
   try {
     await p.load();
     const f = p.root.querySelector('.assistant-run__failure');
-    assert.match(text(f), /The task failed/);
+    assert.match(text(f), /Why it stopped/);
     assert.match(text(f), /Run interrupted by appliance restart/);
+    assert.equal((text(p.root.querySelector('.assistant-run__body')).match(/Run interrupted by appliance restart/g) || []).length, 1, 'the reason is said once');
+    assert.doesNotMatch(text(p.root.querySelector('.assistant-run__body')), /The task failed|Stopped with an error/);
     assert.match(text(p.root.querySelector('.ui-faceplate')), /Plan the week <b>now<\/b>/, 'the goal is text too');
     p.root.querySelector('button[data-focus="retry"]').dispatchEvent({ type: 'click' });
     await flush(); await flush();
@@ -393,18 +395,18 @@ test('an empty goal is refused in the page without asking the hub', async () => 
   } finally { f.done(); }
 });
 
-test('the form is disabled with the reason beside it while the PC sleeps or the Assistant is down, and enabled again after', async () => {
+test('the form is disabled, with the reason said once by the frame notice, while the PC sleeps or the Assistant is down, and enabled again after', async () => {
   let asked = 0;
   const f = await startForm({ post: async () => { asked++; return { state: 'submitted', runId: RUN }; } });
   try {
     f.start.availability({ disabled: true, phrase: 'pc_off' });
     assert.equal(f.el.querySelector('textarea').disabled, true);
     assert.equal(f.el.querySelector('button[type="submit"]').getAttribute('aria-disabled'), 'true');
-    assert.match(text(f.el.querySelector('#assistant-task-note')), /needs the PC.*asleep/);
+    assert.equal(text(f.el.querySelector('#assistant-task-note')), '', 'the reason is the frame notice, not a second one in the form');
     await submit(f);
     assert.equal(asked, 0);
     f.start.availability({ disabled: true, phrase: 'assistant_down' });
-    assert.match(text(f.el.querySelector('#assistant-task-note')), /isn't answering/);
+    assert.equal(text(f.el.querySelector('#assistant-task-note')), '');
     f.start.availability({ disabled: false, phrase: '' });
     assert.equal(f.el.querySelector('textarea').disabled, false);
     assert.equal(f.el.querySelector('button[type="submit"]').hasAttribute('aria-disabled'), false);
@@ -458,12 +460,16 @@ test('status as captured from Local AI with Ollama up and the rest down: its imp
     assert.match(text(box.querySelector('.ui-faceplate')), /Down.*Required, not working4.*Optional, not working2/);
     const rows = Object.fromEntries(box.querySelectorAll('.ui-row').map((r) => [text(r.querySelector('.ui-row__title')), text(r)]));
     assert.match(rows.Intelligence, /Working/);
-    assert.match(rows['Image generation'], /Required.*fetch failed.*Images are unavailable\..*Start ComfyUI on the Windows host\..*Down/);
+    assert.match(rows['Image generation'], /Required.*Images are unavailable\..*Start ComfyUI on the Windows host\..*Down/);
+    assert.doesNotMatch(rows['Image generation'], /fetch failed/, 'the raw error is not on the main line');
+    assert.match(text(box.querySelector('details')), /Details.*Image generation: fetch failed/, 'it sits under Details');
     assert.match(rows['Automation engine'], /Workflows and scheduled automations are paused\..*Docker Desktop/);
     assert.match(rows['Web research'], /Research and current facts are unavailable\./);
     assert.match(rows['Companion home'], /Optional.*Core appliance unaffected.*Open the Local AI app on your Mac\./);
-    assert.match(rows['GridCraft / Excel'], /GridCraft bridge unavailable \(ENOTFOUND\).*Check that it is on and GridCraft is open, then choose Refresh\..*Isn't answering/);
-    assert.match(rows.ArtCraft, /Windows computer bridge unavailable.*Isn't answering/);
+    assert.match(rows['GridCraft / Excel'], /Check that it is on and GridCraft is open, then choose Refresh\..*Isn't answering/);
+    assert.match(rows.ArtCraft, /Isn't answering/);
+    assert.doesNotMatch(rows.ArtCraft, /ENOTFOUND/);
+    assert.match(t, /Details.*ArtCraft: .*Windows computer bridge unavailable \(ENOTFOUND\)/, 'the bridges\' own errors are under Details');
     assert.match(rows['Workshop display'], /Read/);
     assert.doesNotMatch(t, /Not read yet/);
   } finally { done(); }
@@ -505,12 +511,13 @@ test('a mirror says it is the last answer, how old, and why; needs the PC; unrea
     assert.match(text(down.querySelector('.ui-notice--warn')), /The Assistant isn't answering\..*read 1 minute ago/);
     const needs = draw(mod.statusBody({ state: 'needs_pc', why: 'pc_off', data: null }));
     assert.match(text(needs), /The PC is asleep\. This page needs the PC/);
-    assert.match(text(needs.querySelector('.ui-faceplate')), /Needs the PC.*—/);
+    assert.equal(needs.querySelector('.ui-faceplate'), null, 'no plate of dashes');
+    assert.equal(text(needs.querySelector('.ui-empty')), 'Wake the PC, then this page reads the status.');
     const unreach = draw(mod.statusBody({ state: 'unreachable', why: 'unreachable', data: null }));
     assert.match(text(unreach), /The Assistant isn't answering\. Pi Hub has no earlier answer/);
     const old = draw(mod.statusBody({ state: 'out_of_date', data: null }));
     assert.match(text(old), /Assistant out of date/);
-    assert.match(text(old.querySelector('.ui-faceplate')), /Out of date/);
+    assert.match(text(old.querySelector('.ui-empty')), /Update the Assistant on the PC/);
     const ref = draw(mod.statusBody({ state: 'refused', error: 'Pi Hub has no key for the Assistant yet.', data: null }));
     assert.match(text(ref.querySelector('.ui-notice--bad')), /no key/);
   } finally { done(); }
@@ -541,9 +548,11 @@ test('models as captured with Ollama unreachable (installed and loaded null): Un
     assert.match(plate, /Unknown/);
     assert.doesNotMatch(plate, /\b0\b/);
     assert.match(plate, /Runtime not answering/);
-    assert.match(text(box), /Ollama isn't answering\. fetch failed\./);
+    assert.match(text(box), /Ollama isn't answering\./);
+    assert.doesNotMatch(text(box.querySelector('.ui-notice')), /fetch failed/);
+    assert.match(text(box.querySelector('details')), /Installed: fetch failed/);
     assert.doesNotMatch(text(box), /No models are installed/);
-    assert.match(text(box.querySelector('#models-sources')), /Installed models.*fetch failed.*Isn't answering/);
+    assert.match(text(box.querySelector('#models-sources')), /Installed models.*Isn't answering/);
   } finally { done(); }
 });
 
@@ -596,4 +605,63 @@ test('a hub that does not answer makes load throw, so the shell says it couldn\'
     mod.statusPage.mount(state);
     await assert.rejects(() => mod.statusPage.load(state));
   } finally { dom.uninstall(); }
+});
+
+test('the task page says one name: the kit has no fallback title, and the head, breadcrumb and plate read Task', async () => {
+  const mod = await import('../hub/static/js/assistant-run.js');
+  assert.equal(mod.TITLE, 'Task');
+  const p = await taskPage(adapter('running'));
+  try {
+    await p.load();
+    assert.match(text(p.root.querySelector('.page-trail')), /Assistant \/ Task$/);
+    assert.match(text(p.root.querySelector('.ui-faceplate')), /^Task/);
+    assert.doesNotMatch(text(p.root), /A run/);
+  } finally { p.done(); }
+});
+
+test('a sentence that repeats the plate is kept for assistive tech but not shown; one that adds something is shown', async () => {
+  const mod = await import('../hub/static/js/assistant-run.js');
+  for (const s of ['running', 'queued', 'completed', 'failed']) {
+    const p = await taskPage(adapter(s));
+    try { await p.load(); assert.ok(p.root.querySelector('.assistant-run__live').classList.contains('visually-hidden'), s); assert.ok(text(p.root.querySelector('.assistant-run__live')).length > 0, s); } finally { p.done(); }
+  }
+  for (const s of ['cancelled', 'awaiting']) {
+    const p = await taskPage(adapter(s));
+    try { await p.load(); assert.equal(p.root.querySelector('.assistant-run__live').classList.contains('visually-hidden'), false, s); } finally { p.done(); }
+  }
+  assert.ok(mod.QUIET.has('running') && !mod.QUIET.has('unreachable'));
+});
+
+test('the goal is the plate caption, from this browser or from the run itself on another device', async () => {
+  const run = adapter('running');
+  run.run.goal = 'Plan the week <b>now</b>';
+  const p = await taskPage(run);  // nothing stored here: the goal comes with the run
+  try {
+    await p.load();
+    assert.match(text(p.root.querySelector('.ui-faceplate__caption')), /^Plan the week <b>now<\/b>$/);
+    assert.equal(p.root.querySelector('.ui-faceplate b'), null);
+  } finally { p.done(); }
+});
+
+test('unreachable after a good read keeps the goal and the last-known step count', async () => {
+  const storage = store();
+  const { writeCurrent } = await import('../hub/static/js/assistant-task.js');
+  writeCurrent({ runId: RUN, goal: 'Plan the week', lastSeen: 1 }, storage);
+  const seq = [adapter('running'), unreachable('unreachable')];
+  const p = await taskPage(() => seq.shift() || unreachable('unreachable'), { storage });
+  try {
+    await p.load();
+    p.state.ctl.resume();  // past the poll gap
+    await p.load();
+    const plate = text(p.root.querySelector('.ui-faceplate'));
+    assert.match(plate, /Can't reach it/);
+    assert.match(plate, /Plan the week/);
+    assert.match(plate, /Steps when last seen1 of 5 steps/);
+    assert.doesNotMatch(plate, /Failed/);
+  } finally { p.done(); }
+});
+
+test('the "Your current task" link is a 44 px target, like the disclosure summaries', () => {
+  const css = readFileSync(new URL('../hub/static/pages.css', import.meta.url), 'utf8');
+  assert.match(css, /\.assistant-task__current a \{[^}]*display: inline-flex;[^}]*min-height: calc\(var\(--ui-s-6\) \+ var\(--ui-s-3\)\)/);
 });

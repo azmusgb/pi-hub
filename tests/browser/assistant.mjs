@@ -17,8 +17,8 @@ const RUN = (s) => `/assistant/run/run-fixture-${s}`;
 const PAGES = [
   [ON, '/assistant/status', /Assistant status[\s\S]*Services/], [ON, '/assistant/models', /Models[\s\S]*Installed/],
   [ON, RUN('queued'), /Queued/], [ON, RUN('running'), /1 of 5 steps/], [ON, RUN('awaiting'), /Open Decisions/],
-  [ON, RUN('completed'), /Answer/], [ON, RUN('failed'), /The task failed/], [ON, RUN('cancelled'), /Cancelled/],
-  [ASLEEP, '/assistant/status', /The PC is asleep\. This is the Assistant's last answer/], [ASLEEP, '/assistant/models', /needs the PC/],
+  [ON, RUN('completed'), /Answer/], [ON, RUN('failed'), /Why it stopped/], [ON, RUN('cancelled'), /Cancelled/],
+  [ASLEEP, '/assistant/status', /The PC is asleep\. This is the Assistant's last answer/], [ASLEEP, '/assistant/models', /Wake the PC, then this page reads the models\./],
   [ASLEEP, RUN('running'), /Can't reach the Assistant/],
   [ON, '/assistant', /Start a task/],
 ];
@@ -38,7 +38,9 @@ for (const [width, height] of [[390, 844], [1366, 900]]) {
       const text = await page.locator('#view').innerText();
       if (!words.test(text)) problems.push(`${where}: missing ${words}`);
       if (/undefined|\[object/.test(text)) problems.push(`${where}: shows undefined or [object]`);
-      if (!(await page.locator('#page-title').innerText()).trim()) problems.push(`${where}: no page heading`);
+      const head = (await page.locator('#page-title').innerText()).trim();
+      if (!head) problems.push(`${where}: no page heading`);
+      if (path.startsWith('/assistant/run/') && (head !== 'Task' || /A run/.test(text))) problems.push(`${where}: the task page says "${head}", not one name`);
       const wide = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       if (wide > 1) problems.push(`${where}: ${wide}px of horizontal overflow`);
       const axe = await new AxeBuilder({ page }).analyze();

@@ -527,6 +527,18 @@ def test_follow_merges_the_run_and_its_mission(la):
     assert not Path(ai.MIRROR_FILE).exists()
 
 
+def test_follow_carries_the_goal_as_plain_text_so_another_device_can_show_it(la):
+    routes_ok(la)
+    item = fx("run_running")
+    item["item"]["input"] = {"goal": "Plan <script>x</script>\x00 the week" + "y" * 3000}
+    la.routes[ai.RUNS] = (200, item)
+    goal = get(f"/api/ai/tasks/{RUN}").json()["run"]["goal"]
+    assert goal.startswith("Plan <script>x</script> the week") and len(goal) <= ai.GOAL_MAX and "\x00" not in goal
+    for bad in (None, {}, {"goal": 5}, {"goal": ""}):
+        item["item"]["input"] = bad
+        assert get(f"/api/ai/tasks/{RUN}").json()["run"]["goal"] is None
+
+
 def test_follow_a_queued_run_has_no_mission_yet(la):
     routes_ok(la)
     la.routes[ai.RUNS] = (200, fx("run_queued"))
