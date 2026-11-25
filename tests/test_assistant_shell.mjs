@@ -79,7 +79,7 @@ test('Down says the phrase-table words and loads no frame; Try again opens it on
     assert.equal(p.frame(), null);
     assert.equal(text(p.root.querySelector('h2')), "The Assistant isn't answering");
     status = { state: 'Ready', pc: 'on' };
-    p.root.querySelector('button').dispatchEvent({ type: 'click' });
+    p.root.querySelector('.assistant-down button').dispatchEvent({ type: 'click' });
     await flush(); await flush();
     assert.ok(p.frame(), 'Try again opens the Assistant');
   } finally { p.dom.uninstall(); }

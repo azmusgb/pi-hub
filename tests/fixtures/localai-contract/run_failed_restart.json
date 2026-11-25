@@ -1,0 +1,19 @@
+{
+  "item": {
+    "id": "run-1790000000000-001a2b3",
+    "status": "failed",
+    "progress": 5,
+    "events": [],
+    "summary": "",
+    "output": null,
+    "error": "Run interrupted by appliance restart",
+    "cancellable": false,
+    "createdAt": "2026-11-24T09:00:00.000Z",
+    "startedAt": "2026-11-24T09:00:01.000Z",
+    "updatedAt": "2026-11-24T09:00:20.000Z",
+    "finishedAt": "2026-11-24T09:02:00.000Z",
+    "meta": {
+      "missionId": "mission-17900000-ab12"
+    }
+  }
+}
