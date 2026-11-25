@@ -6,71 +6,169 @@
   "stored_at": 996400,
   "age": 3600,
   "data": {
+    "as_of": "2026-11-25T04:51:11.584Z",
     "contract_version": 1,
-    "as_of": "2026-11-24T09:00:00.000Z",
     "sources": {
-      "appliance": {
+      "services": {
         "state": "ok",
-        "checked_at": "2026-11-24T09:00:00.000Z"
+        "checked_at": "2026-11-25T04:51:11.454Z"
       },
       "gridcraft": {
         "state": "failed",
-        "checked_at": "2026-11-24T09:00:00.000Z",
-        "error": "Not answering right now."
+        "checked_at": "2026-11-25T04:51:11.446Z",
+        "error": "GridCraft bridge unavailable (ENOTFOUND)"
       },
       "artcraft": {
-        "state": "unknown",
-        "checked_at": "2026-11-24T09:00:00.000Z"
+        "state": "failed",
+        "checked_at": "2026-11-25T04:51:11.446Z",
+        "error": "Windows computer bridge unavailable (ENOTFOUND)"
       },
       "workshop": {
-        "state": "failed",
-        "checked_at": "2026-11-24T09:00:00.000Z",
-        "error": "Not answering right now."
+        "state": "ok",
+        "checked_at": "2026-11-25T04:51:11.584Z"
       },
       "watch": {
         "state": "ok",
-        "checked_at": "2026-11-24T09:00:00.000Z"
+        "checked_at": "2026-11-25T04:51:11.441Z"
       }
     },
-    "appliance": {
-      "name": "Local AI"
-    },
-    "overall": "DEGRADED",
+    "overall": "DOWN",
     "services": [
       {
         "name": "ollama",
-        "label": "Ollama",
+        "label": "Intelligence",
         "required": true,
-        "state": "DOWN",
-        "latencyMs": null,
-        "error": "Not answering right now.",
-        "checkedAt": "2026-11-24T09:00:00.000Z",
-        "impact": "Chat, research and missions are unavailable."
+        "state": "HEALTHY",
+        "statusCode": 200,
+        "latencyMs": 17,
+        "checkedAt": "2026-11-25T04:51:11.453Z",
+        "availability": "available",
+        "displayState": "HEALTHY",
+        "severity": "ok",
+        "impact": "Ready"
       },
       {
-        "name": "comfyui",
-        "label": "ComfyUI",
-        "required": false,
+        "name": "comfy",
+        "label": "Image generation",
+        "required": true,
         "state": "DOWN",
-        "latencyMs": null,
-        "error": "Not answering right now.",
-        "checkedAt": "2026-11-24T09:00:00.000Z",
+        "statusCode": null,
+        "latencyMs": 5,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.442Z",
+        "availability": "unavailable",
+        "displayState": "DOWN",
+        "severity": "critical",
         "impact": "Images are unavailable."
       },
       {
-        "name": "gridcraft",
-        "label": "GridCraft / Excel",
+        "name": "n8n",
+        "label": "Automation engine",
+        "required": true,
+        "state": "DOWN",
+        "statusCode": null,
+        "latencyMs": 5,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.443Z",
+        "availability": "unavailable",
+        "displayState": "DOWN",
+        "severity": "critical",
+        "impact": "Workflows and scheduled automations are paused."
+      },
+      {
+        "name": "proxy",
+        "label": "Conversation compatibility",
+        "required": true,
+        "state": "DOWN",
+        "statusCode": null,
+        "latencyMs": 5,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.444Z",
+        "availability": "unavailable",
+        "displayState": "DOWN",
+        "severity": "critical",
+        "impact": "Apps that talk to Local AI through its compatible endpoint are cut off."
+      },
+      {
+        "name": "search",
+        "label": "Web research",
+        "required": true,
+        "state": "DOWN",
+        "statusCode": null,
+        "latencyMs": 6,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.445Z",
+        "availability": "unavailable",
+        "displayState": "DOWN",
+        "severity": "critical",
+        "impact": "Research and current facts are unavailable."
+      },
+      {
+        "name": "home",
+        "label": "Companion home",
         "required": false,
-        "state": "DEGRADED",
-        "latencyMs": null,
-        "checkedAt": "2026-11-24T09:00:00.000Z",
-        "impact": "Spreadsheets: Windows computer not answering."
+        "state": "DOWN",
+        "statusCode": null,
+        "latencyMs": 3,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.443Z",
+        "availability": "unavailable",
+        "displayState": "OPTIONAL_OFFLINE",
+        "severity": "info",
+        "impact": "Core appliance unaffected"
+      },
+      {
+        "name": "dsh",
+        "label": "Developer assistant",
+        "required": false,
+        "state": "DOWN",
+        "statusCode": null,
+        "latencyMs": 3,
+        "error": "fetch failed",
+        "checkedAt": "2026-11-25T04:51:11.443Z",
+        "availability": "unavailable",
+        "displayState": "OPTIONAL_OFFLINE",
+        "severity": "info",
+        "impact": "Core appliance unaffected"
       }
     ],
     "serviceSummary": {
-      "healthy": 0,
-      "degraded": 1,
-      "down": 2
+      "core": 5,
+      "optional": 2,
+      "coreUnhealthy": 4,
+      "optionalUnhealthy": 2
+    },
+    "gridcraft": null,
+    "artcraft": null,
+    "workshop": {
+      "online": true,
+      "board": "Waveshare_ESP32-S3-Touch-LCD-3.5",
+      "panel": "ST7796_320x480_FT6336",
+      "screen": 16,
+      "touchscreenConfigured": true,
+      "signIn": false,
+      "portalUrl": "http://10.0.0.28",
+      "printer": null,
+      "codeAccess": false,
+      "camera": {
+        "available": false,
+        "reason": "offline",
+        "endpoint": "/api/workshop/camera"
+      }
+    },
+    "watch": {
+      "checkedAt": null,
+      "findings": [],
+      "mac": null,
+      "hostDisks": [
+        {
+          "name": "data",
+          "label": "Local AI data",
+          "totalBytes": 494353338368,
+          "freeBytes": 53747200000
+        }
+      ],
+      "display": null
     }
   }
 }

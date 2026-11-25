@@ -1,31 +1,31 @@
 {
+  "as_of": "2026-11-25T04:51:11.584Z",
   "contract_version": 1,
-  "as_of": "2026-11-24T09:00:00.000Z",
   "sources": {
-    "appliance": {
+    "services": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:11.454Z",
+      "error": "fetch failed"
     },
     "gridcraft": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:11.446Z",
+      "error": "fetch failed"
     },
     "artcraft": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:11.446Z",
+      "error": "fetch failed"
     },
     "workshop": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:11.584Z",
+      "error": "fetch failed"
     },
     "watch": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:11.441Z",
+      "error": "fetch failed"
     }
   }
 }

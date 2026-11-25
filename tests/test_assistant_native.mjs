@@ -425,31 +425,43 @@ async function pages() {
   return { mod, draw, done: dom.uninstall };
 }
 
-test('status, all sources answering: Working, each service with its latency, nothing alarming', async () => {
+test('status, every source answering (Local AI\'s real source and service names): Working, each service with its latency, nothing alarming', async () => {
   const { mod, draw, done } = await pages();
   try {
-    const box = draw(mod.statusBody(live(normalise(contract('status_ok')))));
-    assert.match(text(box.querySelector('.ui-faceplate')), /Assistant status.*Working.*Read just now/);
-    assert.deepEqual(box.querySelectorAll('.ui-row__title').map(text).slice(0, 3), ['Ollama', 'ComfyUI', 'GridCraft / Excel']);
-    assert.match(text(box), /12 ms/);
+    const box = draw(mod.statusBody(live(contract('status_ok'))));
+    assert.match(text(box.querySelector('.ui-faceplate')), /Assistant status.*Working.*Read just now.*Required services5.*Required, not working0/);
+    assert.deepEqual(box.querySelectorAll('.ui-row__title').map(text).slice(0, 3), ['Intelligence', 'Image generation', 'Automation engine']);
+    assert.match(text(box), /17 ms/);
     assert.equal(box.querySelector('.ui-notice'), null);
   } finally { done(); }
 });
 
-test('status with a down service and failed sources: Local AI\'s impact and what to do, each source named, unknown is "not read yet"', async () => {
+test('status as captured from Local AI with Ollama up and the rest down: its impact and what to do, failed bridges with their errors, nothing called fine', async () => {
   const { mod, draw, done } = await pages();
   try {
     const box = draw(mod.statusBody(live(contract('status_partial'))));
     const t = text(box);
-    assert.match(t, /Degraded/);
-    assert.match(t, /Ollama.*Required.*Not answering right now\..*Chat, research and missions are unavailable\..*Start Ollama on the Windows host\./);
-    assert.match(t, /ComfyUI.*Images are unavailable\..*Start ComfyUI on the Windows host\./);
-    assert.match(t, /GridCraft \/ Excel.*Check that it is on and GridCraft is open, then choose Refresh\./);
-    const rows = Object.fromEntries(box.querySelectorAll('#view .ui-row, .ui-row').map((r) => [text(r.querySelector('.ui-row__title')), text(r)]));
+    assert.match(text(box.querySelector('.ui-faceplate')), /Down.*Required, not working4.*Optional, not working2/);
+    const rows = Object.fromEntries(box.querySelectorAll('.ui-row').map((r) => [text(r.querySelector('.ui-row__title')), text(r)]));
+    assert.match(rows.Intelligence, /Working/);
+    assert.match(rows['Image generation'], /Required.*fetch failed.*Images are unavailable\..*Start ComfyUI on the Windows host\..*Down/);
+    assert.match(rows['Automation engine'], /Workflows and scheduled automations are paused\..*Docker Desktop/);
+    assert.match(rows['Web research'], /Research and current facts are unavailable\./);
+    assert.match(rows['Companion home'], /Optional.*Core appliance unaffected.*Open the Local AI app on your Mac\./);
+    assert.match(rows['GridCraft / Excel'], /GridCraft bridge unavailable \(ENOTFOUND\).*Check that it is on and GridCraft is open, then choose Refresh\..*Isn't answering/);
+    assert.match(rows.ArtCraft, /Windows computer bridge unavailable.*Isn't answering/);
+    assert.match(rows['Workshop display'], /Read/);
+    assert.doesNotMatch(t, /Not read yet/);
+  } finally { done(); }
+});
+
+test('an unknown source is "Not read yet", not failed and not read', async () => {
+  const { mod, draw, done } = await pages();
+  try {
+    const d = contract('status_ok');
+    d.sources.artcraft = { state: 'unknown', checked_at: null };
+    const rows = Object.fromEntries(draw(mod.statusBody(live(d))).querySelectorAll('.ui-row').map((r) => [text(r.querySelector('.ui-row__title')), text(r)]));
     assert.match(rows.ArtCraft, /Not read yet/);
-    assert.match(rows['Workshop display'], /Status unavailable\..*Isn't answering/);
-    assert.match(rows.Watch, /Read/);
-    assert.match(text(box.querySelector('.ui-faceplate')), /Working|Degraded/);
   } finally { done(); }
 });
 
@@ -459,11 +471,11 @@ test('status with every source failed: Unknown, a notice for the services, never
     const box = draw(mod.statusBody(live(contract('status_all_failed'))));
     const plate = text(box.querySelector('.ui-faceplate'));
     assert.match(plate, /Unknown/);
-    assert.doesNotMatch(plate, /Working|ok/);
-    assert.match(text(box), /The Assistant isn't answering\. Its services couldn't be read\./);
+    assert.doesNotMatch(plate, /Working/);
+    assert.match(text(box), /Local AI isn't answering\. Its services couldn't be read\./);
     assert.equal(box.querySelectorAll('.ui-chip--ok').length, 0);
-    assert.ok(box.querySelectorAll('.ui-chip--bad').length >= 4, 'each failed source is a bad lamp with a word');
-    assert.doesNotMatch(text(box), /0 working|0 down/i);
+    assert.equal(box.querySelectorAll('.ui-chip--bad').length, 4, 'each failed source is a bad lamp with a word');
+    assert.doesNotMatch(text(box), /not working0|0 down/i);
   } finally { done(); }
 });
 
@@ -490,15 +502,15 @@ test('a mirror says it is the last answer, how old, and why; needs the PC; unrea
   } finally { done(); }
 });
 
-test('models: installed, loaded, default and the runtime; every row is text', async () => {
+test('models as captured: installed with size, loaded, default, the runtime, routing as text', async () => {
   const { mod, draw, done } = await pages();
   try {
     const data = contract('models_ok');
-    data.installed.push({ name: '<img src=x onerror=alert(1)>' });
+    data.installed.push({ name: '<img src=x onerror=alert(1)>', sizeBytes: 1e9 });
     const box = draw(mod.modelsBody(live(data)));
-    assert.match(text(box.querySelector('.ui-faceplate')), /Models.*Runtime ready.*3 installed models.*1 loaded now/);
-    assert.match(text(box), /llama3\.1:8b.*Default.*Loaded/);
-    assert.match(text(box), /qwen2\.5-coder:7b.*Not loaded/);
+    assert.match(text(box.querySelector('.ui-faceplate')), /Models.*Runtime ready.*2 installed models.*1 loaded now/);
+    assert.match(text(box), /qwen3:8b.*Default · 5\.2 GB.*Loaded/);
+    assert.match(text(box), /Mission steps.*Always on this PC/);
     assert.ok(text(box).includes('<img src=x onerror=alert(1)>'));
     assert.equal(box.querySelector('img'), null);
     const manage = box.querySelector('.ui-faceplate a');
@@ -507,7 +519,7 @@ test('models: installed, loaded, default and the runtime; every row is text', as
   } finally { done(); }
 });
 
-test('models with Ollama down: Unknown and why, never "0 installed", never an empty list', async () => {
+test('models as captured with Ollama unreachable (installed and loaded null): Unknown and why, never "0 installed", never an empty list', async () => {
   const { mod, draw, done } = await pages();
   try {
     const box = draw(mod.modelsBody(live(contract('models_ollama_down'))));
@@ -515,9 +527,9 @@ test('models with Ollama down: Unknown and why, never "0 installed", never an em
     assert.match(plate, /Unknown/);
     assert.doesNotMatch(plate, /\b0\b/);
     assert.match(plate, /Runtime not answering/);
-    assert.match(text(box), /Ollama isn't answering\. Ollama is not answering\./);
+    assert.match(text(box), /Ollama isn't answering\. fetch failed\./);
     assert.doesNotMatch(text(box), /No models are installed/);
-    assert.match(text(box.querySelector('#models-sources')), /Installed models.*Isn't answering/);
+    assert.match(text(box.querySelector('#models-sources')), /Installed models.*fetch failed.*Isn't answering/);
   } finally { done(); }
 });
 
@@ -550,12 +562,12 @@ test('the status and models pages load /api/ai/*, set the sources line and a fac
       assert.ok(Array.isArray(state.sources));
       assert.ok(state.facts.startsWith(mod.TITLES[key]));
       if (key === 'status') {
-        assert.deepEqual(state.sources.map((s) => [s.name, s.tone]), [['The Assistant', 'ok'], ['GridCraft / Excel', 'bad'], ['ArtCraft', 'unknown'], ['Workshop display', 'bad'], ['Watch', 'ok']]);
+        assert.deepEqual(state.sources.map((s) => [s.name, s.tone]), [['Local AI services', 'ok'], ['GridCraft / Excel', 'bad'], ['ArtCraft', 'bad'], ['Workshop display', 'ok'], ['Watch', 'ok']]);
       }
       const link = root.querySelector('a[href="/assistant"]');
       link.focus();
       await page.load(state);
-      assert.equal(document.activeElement, root.querySelector('a[href="/assistant"]') === link ? link : document.activeElement, 'a refresh with nothing changed keeps the page');
+      assert.equal(document.activeElement, link, 'a refresh with nothing changed keeps the page and its focus');
     }
   } finally { dom.uninstall(); }
 });

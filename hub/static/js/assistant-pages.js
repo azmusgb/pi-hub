@@ -19,15 +19,16 @@ export const PURPOSES = { status: kitRow("status").purpose || "", models: kitRow
 const WORDS = [
   [/ollama/i, "Chat, research and missions are unavailable.", "Start Ollama on the Windows host."],
   [/comfy/i, "Images are unavailable.", "Start ComfyUI on the Windows host."],
+  [/^(home|dsh)$/i, "Core appliance unaffected.", "Open the Local AI app on your Mac."],
   [/n8n/i, "Workflows and scheduled automations are paused.", "Start its container in Docker Desktop on the Windows host."],
-  [/searx/i, "Research and current facts are unavailable.", "Start its container in Docker Desktop on the Windows host."],
+  [/searx|^search$/i, "Research and current facts are unavailable.", "Start its container in Docker Desktop on the Windows host."],
   [/proxy/i, "Apps that talk to Local AI through its compatible endpoint are cut off.", "Start its container in Docker Desktop on the Windows host."],
   [/grid ?craft|excel/i, "Spreadsheets: Windows computer not answering.", "Check that it is on and GridCraft is open, then choose Refresh."],
   [/art ?craft/i, "Windows computer not answering.", ""],
   [/workshop/i, "Status unavailable.", ""],
 ];
 const wordsFor = (name) => WORDS.find(([re]) => re.test(String(name || ""))) || [null, "", ""];
-const SOURCE_LABELS = { appliance: "The Assistant", gridcraft: "GridCraft / Excel", artcraft: "ArtCraft", workshop: "Workshop display", watch: "Watch",
+const SOURCE_LABELS = { services: "Local AI services", gridcraft: "GridCraft / Excel", artcraft: "ArtCraft", workshop: "Workshop display", watch: "Watch",
   installed: "Installed models", loaded: "Loaded models", pulls: "Downloads", routing: "Routing" };
 const labelOf = (k) => SOURCE_LABELS[k] || `${String(k).charAt(0).toUpperCase()}${String(k).slice(1)}`;
 const SERVICE_TONE = { HEALTHY: ["ok", "Working"], DEGRADED: ["warn", "Degraded"], DOWN: ["bad", "Down"] };
@@ -87,29 +88,32 @@ export function statusBody(r) {
   const d = r.data;
   const note = banner(r);
   if (!d) return [note, bare(TITLES.status, r)];
-  const appliance = stateOf(d, "appliance");
+  const appliance = stateOf(d, "services");
   const [tone, word] = appliance === "ok" ? SERVICE_TONE[d.overall] || ["unknown", "Not reported"] : ["unknown", appliance === "failed" ? "Isn't answering" : "Not read yet"];
   const stale = r.state === "mirror";
   const summary = d.serviceSummary && typeof d.serviceSummary === "object" ? d.serviceSummary : null;
+  const n = (k) => (num(summary?.[k]) ? summary[k] : null);
   const plate = faceplate({ name: TITLES.status, lamp: stale ? ["unknown", "Last known"] : [tone, word], readout: appliance === "ok" ? word : "Unknown", size: "md",
     caption: stale ? `Read ${ageLabel(r.age)}` : "Read just now",
-    readings: [["Working", num(summary?.healthy) ? summary.healthy : null], ["Degraded", num(summary?.degraded) ? summary.degraded : null], ["Down", num(summary?.down) ? summary.down : null]] });
+    readings: [["Required services", n("core")], ["Required, not working", n("coreUnhealthy")], ["Optional services", n("optional")], ["Optional, not working", n("optionalUnhealthy")]] });
   const services = appliance === "ok"
     ? section("Services", serviceRows(d), { note: "Required services run the Assistant; optional ones add to it." })
-    : section("Services", h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `${sourceDown("The Assistant")}. Its services couldn't be read.`));
-  const others = Object.keys(d.sources).filter((k) => k !== "appliance");
+    : section("Services", h("p", { class: "ui-notice ui-notice--warn", role: "status" }, `${sourceDown("Local AI")}. Its services couldn't be read.`));
+  const others = Object.keys(d.sources).filter((k) => k !== "services");
   return [note, plate, services, others.length ? section("Other sources", sourceRows(d, others)) : null];
 }
 
 // ---- models ----
 
+const sourceError = (d, k) => (typeof d?.sources?.[k]?.error === "string" ? d.sources[k].error : "");
+const sizeText = (b) => (num(b) && b > 0 ? `${(b / 1e9).toFixed(1)} GB` : "");
 const nameOf = (m) => (typeof m === "string" ? m : typeof m?.name === "string" ? m.name : "");
 
 function listSection(title, d, key, rows, emptyText) {
   const state = stateOf(d, key);
   if (state !== "ok") {
     return section(title, h("p", { class: "ui-notice ui-notice--warn", role: "status" },
-      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.${d.runtimeError && (key === "installed" || key === "loaded") ? ` ${d.runtimeError}` : ""}` : "Not read yet."));
+      state === "failed" ? `${sourceDown(key === "installed" || key === "loaded" ? "Ollama" : "The Assistant")}.${(key === "installed" || key === "loaded") && (d.runtimeError || sourceError(d, key)) ? ` ${d.runtimeError || sourceError(d, key)}.` : ""}` : "Not read yet."));
   }
   return section(title, rows.length ? lampRows(rows) : h("p", { class: "ui-empty" }, emptyText));
 }
@@ -122,18 +126,23 @@ export function modelsBody(r) {
   const okOf = (k) => stateOf(d, k) === "ok";
   const installed = (Array.isArray(d.installed) ? d.installed : []).map(nameOf).filter(Boolean);
   const loaded = (Array.isArray(d.loaded) ? d.loaded : []).map(nameOf).filter(Boolean);
-  const runtime = d.runtimeAvailable === true ? ["ok", "Runtime ready"] : d.runtimeAvailable === false ? ["bad", "Runtime not answering"] : ["unknown", "Runtime not reported"];
+  // Local AI names no runtime flag: the installed-models source is the runtime answering (or not). An explicit flag wins.
+  const up = d.runtimeAvailable ?? (stateOf(d, "installed") === "ok" ? true : stateOf(d, "installed") === "failed" ? false : null);
+  const runtime = up === true ? ["ok", "Runtime ready"] : up === false ? ["bad", "Runtime not answering"] : ["unknown", "Runtime not reported"];
   const plate = faceplate({ name: TITLES.models, lamp: stale ? ["unknown", "Last known"] : runtime,
     readout: okOf("installed") ? String(installed.length) : "Unknown", unit: okOf("installed") ? `installed model${installed.length === 1 ? "" : "s"}` : "",
     size: "md", caption: [okOf("loaded") ? `${loaded.length} loaded now` : "Loaded models not read", stale ? `read ${ageLabel(r.age)}` : "read just now"].join(" · "),
-    readings: [["Default", typeof d.default === "string" ? d.default : null], ["Runtime", d.runtimeAvailable === false ? d.runtimeError || "Not answering" : null]],
+    readings: [["Default", typeof d.default === "string" ? d.default : null], ["Runtime", up === false ? d.runtimeError || sourceError(d, "installed") || "Not answering" : null]],
     actions: [h("a", { class: "ui-btn", href: `${ASSISTANT_URL}#models`, target: "_blank", rel: "noopener noreferrer" }, "Manage models on the PC ↗")] });
-  const rows = installed.map((n) => ({ title: n, detail: n === d.default ? "Default" : "", tone: loaded.includes(n) ? "ok" : "unknown", word: loaded.includes(n) ? "Loaded" : "Not loaded" }));
+  const sizes = Object.fromEntries((Array.isArray(d.installed) ? d.installed : []).map((m) => [nameOf(m), sizeText(m?.sizeBytes)]));
+  const rows = installed.map((n) => ({ title: n, detail: [n === d.default ? "Default" : "", sizes[n]].filter(Boolean).join(" · "), tone: loaded.includes(n) ? "ok" : "unknown", word: loaded.includes(n) ? "Loaded" : "Not loaded" }));
   const pulls = Array.isArray(d.pulls) ? d.pulls.length : null;
-  const routing = d.routing && typeof d.routing === "object" ? Object.entries(d.routing).filter(([, v]) => typeof v === "string") : [];
+  // Local AI's routing: a table of what runs where (label, where). Read as text; anything else is left out.
+  const table = Array.isArray(d.routing?.table) ? d.routing.table.filter((r) => typeof r?.label === "string") : [];
+  const routing = table.map((r) => [r.label, typeof r.where === "string" ? r.where : ""]);
   return [note, plate, listSection("Installed", d, "installed", rows, "No models are installed. Pull one on the PC."),
     stateOf(d, "pulls") === "ok" ? section("Downloads", h("p", { class: pulls ? "" : "ui-empty" }, pulls ? `${pulls} in progress.` : "Nothing is downloading.")) : listSection("Downloads", d, "pulls", [], ""),
-    routing.length && okOf("routing") ? section("Routing", lampRows(routing.map(([k, v]) => ({ title: labelOf(k), detail: v })))) : stateOf(d, "routing") === "ok" ? null : listSection("Routing", d, "routing", [], ""),
+    routing.length && okOf("routing") ? section("Routing", lampRows(routing.map(([k, v]) => ({ title: k, detail: v })))) : stateOf(d, "routing") === "ok" ? null : listSection("Routing", d, "routing", [], ""),
     section("Sources", sourceRows(d), { id: "models-sources" })];
 }
 

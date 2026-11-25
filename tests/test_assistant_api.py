@@ -180,20 +180,23 @@ def test_a_live_read_is_passed_with_fetched_at_and_labelled_live(la, which, path
 
 
 @pytest.mark.parametrize("name,sources", [
-    ("status_partial", {"appliance": "ok", "gridcraft": "failed", "artcraft": "unknown", "workshop": "failed", "watch": "ok"}),
-    ("status_all_failed", {k: "failed" for k in ("appliance", "gridcraft", "artcraft", "workshop", "watch")})])
+    ("status_partial", {"services": "ok", "gridcraft": "failed", "artcraft": "failed", "workshop": "ok", "watch": "ok"}),
+    ("status_all_failed", {k: "failed" for k in ("services", "gridcraft", "artcraft", "workshop", "watch")})])
 def test_failed_and_unknown_sources_reach_the_page_as_themselves(la, name, sources):
     la.routes[ai.STATUS] = (200, fx(name))
     d = get("/api/ai/status").json()["data"]
     assert {k: v["state"] for k, v in d["sources"].items()} == sources
-    assert [v.get("error") for v in d["sources"].values() if v["state"] == "failed"] == ["Not answering right now."] * list(sources.values()).count("failed")
+    errors = [v.get("error") for v in d["sources"].values() if v["state"] == "failed"]
+    assert len(errors) == list(sources.values()).count("failed") and all(errors), "a failed source says why (Local AI's own words)"
+    if name == "status_partial":
+        assert errors == ["GridCraft bridge unavailable (ENOTFOUND)", "Windows computer bridge unavailable (ENOTFOUND)"]
 
 
 def test_models_with_ollama_down_keeps_its_failed_sources_and_reason(la):
     la.routes[ai.MODELS] = (200, fx("models_ollama_down"))
     d = get("/api/ai/models").json()["data"]
-    assert d["sources"]["installed"]["state"] == "failed" and d["runtimeAvailable"] is False and d["runtimeError"]
-    assert d["installed"] == [] and d["installedCount"] == 0
+    assert d["sources"]["installed"] == {"state": "failed", "checked_at": d["sources"]["installed"]["checked_at"], "error": "fetch failed"}
+    assert d["installed"] is None and d["loaded"] is None, "Local AI sends null for a list it couldn't read, and so does the adapter"
 
 
 def test_an_unknown_source_state_is_unknown_never_ok(la):
@@ -265,7 +268,7 @@ def test_a_failed_read_answers_from_the_mirror_with_its_age(la):
     r = get("/api/ai/status").json()
     assert r["state"] == "mirror" and r["mirror"] is True and r["why"] == "unreachable"
     assert r["age"] == 600 and r["stored_at"] == int(Clock.t) - 600
-    assert r["data"]["sources"]["appliance"]["state"] == "ok"
+    assert r["data"]["sources"]["services"]["state"] == "ok"
 
 
 def test_only_status_and_models_are_stored_and_in_a_file_outside_the_database(la):
@@ -298,7 +301,7 @@ def test_a_read_where_no_source_answered_never_replaces_the_last_good_mirror(la)
     assert get("/api/ai/status").json()["state"] == "live"  # the live answer is shown as it is: all failed
     la.routes[ai.STATUS] = TimeoutError("x")
     kept = get("/api/ai/status").json()["data"]
-    assert kept["sources"]["appliance"]["state"] == "ok"
+    assert kept["sources"]["services"]["state"] == "ok"
 
 
 def test_the_mirror_is_written_when_it_changes_or_after_a_minute_and_not_every_read(la):
@@ -315,7 +318,7 @@ def test_the_mirror_is_written_when_it_changes_or_after_a_minute_and_not_every_r
     Clock.t += 10
     la.routes[ai.STATUS] = (200, fx("status_partial"))
     get("/api/ai/status")
-    assert json.loads(Path(ai.MIRROR_FILE).read_text())["status"]["body"]["overall"] == "DEGRADED"
+    assert json.loads(Path(ai.MIRROR_FILE).read_text())["status"]["body"]["overall"] == "DOWN"
     stamp = json.loads(Path(ai.MIRROR_FILE).read_text())["status"]["at"]
     Clock.t += 61
     get("/api/ai/status")

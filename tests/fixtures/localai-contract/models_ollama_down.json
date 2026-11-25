@@ -1,35 +1,91 @@
 {
+  "as_of": "2026-11-25T04:51:31.852Z",
   "contract_version": 1,
-  "as_of": "2026-11-24T09:00:00.000Z",
   "sources": {
     "installed": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:31.852Z",
+      "error": "fetch failed"
     },
     "loaded": {
       "state": "failed",
-      "checked_at": "2026-11-24T09:00:00.000Z",
-      "error": "Not answering right now."
+      "checked_at": "2026-11-25T04:51:31.852Z",
+      "error": "fetch failed"
     },
     "pulls": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:31.852Z"
     },
     "routing": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:31.852Z"
     }
   },
-  "installed": [],
-  "loaded": [],
-  "installedCount": 0,
-  "loadedCount": 0,
-  "runtimeAvailable": false,
-  "runtimeError": "Ollama is not answering.",
-  "default": "llama3.1:8b",
+  "default": "qwen3:8b",
+  "protectedModels": [
+    "qwen3:8b",
+    "qwen3:4b-instruct"
+  ],
+  "installed": null,
+  "loaded": null,
+  "defaultInstalled": null,
+  "defaultLoaded": null,
   "pulls": [],
   "routing": {
-    "chat": "llama3.1:8b"
+    "cloud": false,
+    "providers": {
+      "groq": {
+        "name": "Groq",
+        "key": false,
+        "today": 0,
+        "parkedUntil": null,
+        "lastError": null
+      },
+      "cerebras": {
+        "name": "Cerebras",
+        "key": false,
+        "today": 0,
+        "parkedUntil": null,
+        "lastError": null
+      }
+    },
+    "table": [
+      {
+        "kind": "quick",
+        "label": "Quick jobs: titles, intent, voice, image prompts",
+        "where": "Always on this PC",
+        "cloud": false
+      },
+      {
+        "kind": "chat",
+        "label": "Ask: on this PC unless you choose \"Use a bigger model\"",
+        "where": "On this PC, unless you tap \"Use a bigger model\" and it isn't private",
+        "cloud": true
+      },
+      {
+        "kind": "research",
+        "label": "Research about public topics",
+        "where": "A cloud model when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "plan",
+        "label": "Change planning and mission summaries",
+        "where": "A cloud model for Local AI's own code when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "code",
+        "label": "Code changes to Local AI's own code",
+        "where": "A cloud code model for Local AI's own code when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "mission",
+        "label": "Mission steps",
+        "where": "Always on this PC",
+        "cloud": false
+      }
+    ]
   }
 }

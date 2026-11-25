@@ -1,64 +1,158 @@
 {
+  "as_of": "2026-11-25T04:51:11.584Z",
   "contract_version": 1,
-  "as_of": "2026-11-24T09:00:00.000Z",
   "sources": {
-    "appliance": {
+    "services": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.454Z"
     },
     "gridcraft": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.446Z"
     },
     "artcraft": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.446Z"
     },
     "workshop": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.584Z"
     },
     "watch": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.441Z"
     }
-  },
-  "appliance": {
-    "name": "Local AI"
   },
   "overall": "HEALTHY",
   "services": [
     {
       "name": "ollama",
-      "label": "Ollama",
+      "label": "Intelligence",
       "required": true,
       "state": "HEALTHY",
-      "latencyMs": 12,
-      "checkedAt": "2026-11-24T09:00:00.000Z",
-      "impact": "Chat, research and missions."
+      "statusCode": 200,
+      "latencyMs": 17,
+      "checkedAt": "2026-11-25T04:51:11.453Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
     },
     {
-      "name": "comfyui",
-      "label": "ComfyUI",
-      "required": false,
+      "name": "comfy",
+      "label": "Image generation",
+      "required": true,
       "state": "HEALTHY",
-      "latencyMs": 12,
-      "checkedAt": "2026-11-24T09:00:00.000Z",
-      "impact": "Images."
+      "statusCode": 200,
+      "latencyMs": 5,
+      "checkedAt": "2026-11-25T04:51:11.442Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
     },
     {
-      "name": "gridcraft",
-      "label": "GridCraft / Excel",
+      "name": "n8n",
+      "label": "Automation engine",
+      "required": true,
+      "state": "HEALTHY",
+      "statusCode": 200,
+      "latencyMs": 5,
+      "checkedAt": "2026-11-25T04:51:11.443Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
+    },
+    {
+      "name": "proxy",
+      "label": "Conversation compatibility",
+      "required": true,
+      "state": "HEALTHY",
+      "statusCode": 200,
+      "latencyMs": 5,
+      "checkedAt": "2026-11-25T04:51:11.444Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
+    },
+    {
+      "name": "search",
+      "label": "Web research",
+      "required": true,
+      "state": "HEALTHY",
+      "statusCode": 200,
+      "latencyMs": 6,
+      "checkedAt": "2026-11-25T04:51:11.445Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
+    },
+    {
+      "name": "home",
+      "label": "Companion home",
       "required": false,
       "state": "HEALTHY",
-      "latencyMs": 12,
-      "checkedAt": "2026-11-24T09:00:00.000Z",
-      "impact": "Spreadsheets."
+      "statusCode": 200,
+      "latencyMs": 3,
+      "checkedAt": "2026-11-25T04:51:11.443Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
+    },
+    {
+      "name": "dsh",
+      "label": "Developer assistant",
+      "required": false,
+      "state": "HEALTHY",
+      "statusCode": 200,
+      "latencyMs": 3,
+      "checkedAt": "2026-11-25T04:51:11.443Z",
+      "availability": "available",
+      "displayState": "HEALTHY",
+      "severity": "ok",
+      "impact": "Ready"
     }
   ],
   "serviceSummary": {
-    "healthy": 3,
-    "degraded": 0,
-    "down": 0
+    "core": 5,
+    "optional": 2,
+    "coreUnhealthy": 0,
+    "optionalUnhealthy": 0
+  },
+  "gridcraft": null,
+  "artcraft": null,
+  "workshop": {
+    "online": true,
+    "board": "Waveshare_ESP32-S3-Touch-LCD-3.5",
+    "panel": "ST7796_320x480_FT6336",
+    "screen": 16,
+    "touchscreenConfigured": true,
+    "signIn": false,
+    "portalUrl": "http://10.0.0.28",
+    "printer": null,
+    "codeAccess": false,
+    "camera": {
+      "available": false,
+      "reason": "offline",
+      "endpoint": "/api/workshop/camera"
+    }
+  },
+  "watch": {
+    "checkedAt": null,
+    "findings": [],
+    "mac": null,
+    "hostDisks": [
+      {
+        "name": "data",
+        "label": "Local AI data",
+        "totalBytes": 494353338368,
+        "freeBytes": 53747200000
+      }
+    ],
+    "display": null
   }
 }

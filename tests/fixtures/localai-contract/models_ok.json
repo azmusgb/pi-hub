@@ -1,44 +1,124 @@
 {
+  "as_of": "2026-11-25T04:51:11.614Z",
   "contract_version": 1,
-  "as_of": "2026-11-24T09:00:00.000Z",
   "sources": {
     "installed": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.614Z"
     },
     "loaded": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.614Z"
     },
     "pulls": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.598Z"
     },
     "routing": {
       "state": "ok",
-      "checked_at": "2026-11-24T09:00:00.000Z"
+      "checked_at": "2026-11-25T04:51:11.598Z"
     }
   },
+  "default": "qwen3:8b",
+  "protectedModels": [
+    "qwen3:8b",
+    "qwen3:4b-instruct"
+  ],
   "installed": [
     {
-      "name": "llama3.1:8b"
-    },
-    {
-      "name": "qwen2.5-coder:7b"
+      "name": "qwen3:8b",
+      "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+      "sizeBytes": 5225388164,
+      "modifiedAt": "2026-11-10T23:23:15.674390894-05:00",
+      "details": {
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameterSize": "8.2B",
+        "quantizationLevel": "Q4_K_M"
+      }
     }
   ],
   "loaded": [
     {
-      "name": "llama3.1:8b"
+      "name": "qwen3:8b",
+      "model": "qwen3:8b",
+      "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+      "sizeBytes": 6194766806,
+      "sizeVramBytes": 6194766806,
+      "contextLength": 8192,
+      "expiresAt": "2026-11-25T00:21:06.654564-05:00",
+      "details": {
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameterSize": "8.2B",
+        "quantizationLevel": "Q4_K_M"
+      }
     }
   ],
-  "installedCount": 2,
-  "loadedCount": 1,
-  "runtimeAvailable": true,
-  "runtimeError": null,
-  "default": "llama3.1:8b",
+  "defaultInstalled": true,
+  "defaultLoaded": true,
   "pulls": [],
   "routing": {
-    "chat": "llama3.1:8b"
+    "cloud": false,
+    "providers": {
+      "groq": {
+        "name": "Groq",
+        "key": false,
+        "today": 0,
+        "parkedUntil": null,
+        "lastError": null
+      },
+      "cerebras": {
+        "name": "Cerebras",
+        "key": false,
+        "today": 0,
+        "parkedUntil": null,
+        "lastError": null
+      }
+    },
+    "table": [
+      {
+        "kind": "quick",
+        "label": "Quick jobs: titles, intent, voice, image prompts",
+        "where": "Always on this PC",
+        "cloud": false
+      },
+      {
+        "kind": "chat",
+        "label": "Ask: on this PC unless you choose \"Use a bigger model\"",
+        "where": "On this PC, unless you tap \"Use a bigger model\" and it isn't private",
+        "cloud": true
+      },
+      {
+        "kind": "research",
+        "label": "Research about public topics",
+        "where": "A cloud model when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "plan",
+        "label": "Change planning and mission summaries",
+        "where": "A cloud model for Local AI's own code when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "code",
+        "label": "Code changes to Local AI's own code",
+        "where": "A cloud code model for Local AI's own code when it isn't private, else this PC",
+        "cloud": true
+      },
+      {
+        "kind": "mission",
+        "label": "Mission steps",
+        "where": "Always on this PC",
+        "cloud": false
+      }
+    ]
   }
 }
