@@ -319,6 +319,8 @@ async def _json_body(request):
         raise HTTPException(415, "Send JSON.")
     try:
         data = json.loads(bytes(await lab_guard.read_capped(request, BODY_MAX)))
+    except HTTPException as e:
+        raise HTTPException(e.status_code, "That's too big." if e.status_code == 413 else e.detail)
     except ValueError:
         raise HTTPException(400, "That isn't JSON.")
     if not isinstance(data, dict):
