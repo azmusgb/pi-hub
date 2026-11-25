@@ -512,6 +512,14 @@ def test_a_503_with_local_ais_own_reason_on_submit_is_its_refusal_as_it_says_it(
 
 
 def test_a_400_for_an_unknown_model_names_what_is_installed(la):
+@pytest.mark.parametrize("answer", [(200, {"runId": RUN}), (201, {"runId": RUN}), (202, {"runId": "../x"}), (202, {})])
+def test_a_2xx_on_submit_this_page_does_not_know_says_a_task_may_exist(la, answer):
+    la.routes[ai.START] = answer
+    r = post("/api/ai/tasks", {"goal": "x"})
+    assert r.status_code == 502 and r.json()["state"] == "out_of_date" and "runId" not in r.json()
+    assert "doesn't know whether the task started" in r.json()["error"] and "Check Work before trying again" in r.json()["error"]
+
+
     la.routes[ai.START] = (400, {"error": "Unknown model", "code": "UNKNOWN_MODEL", "installed": ["a", "b"]})
     r = post("/api/ai/tasks", {"goal": "x"}).json()
     assert r["error"] == "Unknown model" and r["installed"] == ["a", "b"] and r["code"] == "UNKNOWN_MODEL"

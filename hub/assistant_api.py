@@ -394,8 +394,9 @@ def _submit(body):
         return say("unavailable", 503 if r.status == 503 else 502, error=_maybe(r.error(), "The Assistant answered with an error"))
     run_id, thread = r.data.get("runId"), r.data.get("threadId")
     if r.status != 202 or not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
-        return say("out_of_date", 502, error="The Assistant answered in a way this page doesn't know.")
-    return say("submitted", 202, runId=run_id, **({"threadId": _text(thread, 80)} if isinstance(thread, str) else {}))
+        # A 2xx that isn't the 202 this page knows may still have started a task: say so, never "nothing happened".
+        return _say("out_of_date", 502, error=_maybe("", "The Assistant answered in a way this page doesn't know"))
+    return _say("submitted", 202, runId=run_id, **({"threadId": _text(thread, 80)} if isinstance(thread, str) else {}))
 
 
 @router.get("/tasks/{run_id}")
