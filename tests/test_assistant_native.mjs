@@ -334,6 +334,18 @@ test('out of date, refused, unknown id and a bad address are each named, with no
   } finally { bad.done(); }
 });
 
+test('a run link with a malformed % escape is a bad address, drawn as one: mount does not throw and nothing is sent', async () => {
+  for (const id of ['%', 'run-%E0%A4%A', '%zz-run-1']) {
+    const p = await taskPage(adapter('running'), { id });
+    try {
+      await p.load();
+      assert.equal(p.calls.reads, 0);
+      assert.match(text(p.root), /isn't a task id/);
+      assert.match(text(p.root.querySelector('.ui-faceplate')), /Refused/);
+    } finally { p.done(); }
+  }
+});
+
 test('the status sentence is one polite live region that keeps its place while the rest redraws only when something changed', async () => {
   const replies = [adapter('queued'), adapter('queued'), adapter('running')];
   const p = await taskPage(() => (replies.length > 1 ? replies.shift() : replies[0]));

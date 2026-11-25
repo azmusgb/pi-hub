@@ -146,9 +146,14 @@ export function body(m, ctl, ui = {}) {
 
 // ---- the page ----
 
+// The id as the address gives it. A malformed % escape can't be decoded: it stays as written, which is no task id.
+function runIdOf(pathname) {
+  const id = RUN_PATH.exec(pathname)?.[1] || "";
+  try { return decodeURIComponent(id); } catch { return id; }
+}
+
 export function mount(state) {
-  const id = RUN_PATH.exec(location.pathname)?.[1] || "";
-  state.runId = decodeURIComponent(id);
+  state.runId = runIdOf(location.pathname);
   state.left = false;
   state.live = h("p", { class: "assistant-run__live visually-hidden", role: "status", "aria-live": "polite" });
   state.body = h("div", { class: "assistant-run__body" });
