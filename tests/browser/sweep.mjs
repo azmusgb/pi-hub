@@ -73,7 +73,9 @@ function check({ TARGET, SMALL }) {
   for (const el of document.body.querySelectorAll('*')) {
     const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     if (!own || !shown(el)) continue;
-    const size = parseFloat(getComputedStyle(el).fontSize);
+    // The kit's tab count over 99 keeps its full text ("99+") for assistive tech at font-size 0 and draws data-short
+    // ("9+") in ::after on a narrow bar: the text a person reads is the ::after, so that is what is measured.
+    const size = parseFloat(getComputedStyle(el, el.dataset.short ? '::after' : null).fontSize);
     if (size < SMALL - 0.05) add('small', el, `${Math.round(size * 10) / 10} px`);
   }
 
