@@ -143,8 +143,12 @@ def _bad(text):
     return any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in text)
 
 
-def _allowed(path, query):
-    if path not in FORWARD_PATHS and path != "/api/images/view":
+def _allowed(path, query, paths=None):
+    """`paths` is another caller's own allow-list (the Assistant adapter's six); without it, the display's."""
+    if paths is None:
+        if path not in FORWARD_PATHS and path != "/api/images/view":
+            return False
+    elif path not in paths:
         return False
     if any(x in path for x in ("..", "//", "?", "#", "%")) or _bad(path):
         return False
@@ -187,13 +191,16 @@ def call(path, *, method="GET", body=None, timeout=4, cap=ANSWER_MAX):
     return json.loads(raw)
 
 
-def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=ANSWER_MAX):
+def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=ANSWER_MAX, paths=None, methods=None,
+            headers=None):
     """Pass one display request through to Local AI with the hub key: (status, body, content type). Never more than
     `cap` bytes of answer: past it, 502. A 3xx is never followed (it comes back as its status).
-    fetch(method, url, headers, body, timeout) -> (status, body, content type) is injectable for tests."""
-    if not _allowed(path, query):
+    fetch(method, url, headers, body, timeout) -> (status, body, content type) is injectable for tests.
+    `paths` and `methods` replace the display's allow-list and its method table (hub/assistant_api.py passes its own
+    six); `headers` are added to the key's, never taken from a browser."""
+    if not _allowed(path, query, paths):
         return _err(403, "not forwarded")
-    if method != METHODS.get(path, "GET"):
+    if method != (METHODS if methods is None else methods).get(path, "GET"):
         return _err(405, "method not allowed")
     key = _key()
     if not key:
@@ -201,11 +208,11 @@ def forward(method, path, *, query="", body=None, timeout=10, fetch=None, cap=AN
     if not _tls_ok():
         return _err(502, "Local AI's address must be https with its CA certificate installed")
     url = f"{URL}{path}" + (f"?{query}" if query else "")
-    headers = {"X-LocalAI-Hub-Key": key}
+    sent = {"X-LocalAI-Hub-Key": key, **(headers or {})}
     if body is not None:
-        headers["Content-Type"] = "application/json"
+        sent["Content-Type"] = "application/json"
     try:
-        status, data, ctype = (fetch or (lambda *a: _send(*a, cap=cap)))(method, url, headers, body, timeout)
+        status, data, ctype = (fetch or (lambda *a: _send(*a, cap=cap)))(method, url, sent, body, timeout)
     except urllib.error.HTTPError as e:
         status, data, ctype = e.code, _read(e, cap), "application/json"
     except Exception:

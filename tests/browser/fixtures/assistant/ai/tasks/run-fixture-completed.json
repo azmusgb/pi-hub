@@ -1,0 +1,45 @@
+{
+  "state": "ok",
+  "fetched_at": 1000000,
+  "run": {
+    "id": "run-1790000000000-001a2b3",
+    "status": "completed",
+    "progress": 100,
+    "summary": "Three options, ranked.",
+    "error": null,
+    "cancellable": false,
+    "createdAt": "2026-11-24T09:00:00.000Z",
+    "startedAt": "2026-11-24T09:00:01.000Z",
+    "updatedAt": "2026-11-24T09:00:20.000Z",
+    "finishedAt": "2026-11-24T09:02:00.000Z",
+    "missionId": "mission-17900000-ab12",
+    "outcome": "complete"
+  },
+  "mission": {
+    "workers": [
+      {
+        "id": "w1",
+        "name": "Researcher",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w2",
+        "name": "Analyst",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w3",
+        "name": "Writer",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      }
+    ],
+    "answer": "Option A is cheapest.\n\nOption B is fastest. <b>not bold</b> <img src=x onerror=alert(1)>"
+  },
+  "mission_read": "ok"
+}

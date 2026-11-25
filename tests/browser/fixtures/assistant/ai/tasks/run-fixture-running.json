@@ -1,0 +1,59 @@
+{
+  "state": "ok",
+  "fetched_at": 1000000,
+  "run": {
+    "id": "run-1790000000000-001a2b3",
+    "status": "running",
+    "progress": 40,
+    "summary": "",
+    "error": null,
+    "cancellable": true,
+    "createdAt": "2026-11-24T09:00:00.000Z",
+    "startedAt": "2026-11-24T09:00:01.000Z",
+    "updatedAt": "2026-11-24T09:00:20.000Z",
+    "finishedAt": null,
+    "missionId": "mission-17900000-ab12",
+    "outcome": null
+  },
+  "mission": {
+    "workers": [
+      {
+        "id": "w1",
+        "name": "Researcher",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w2",
+        "name": "Analyst",
+        "state": "running",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w3",
+        "name": "Writer",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w4",
+        "name": "Reviewer",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w5",
+        "name": "Editor",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      }
+    ],
+    "answer": null
+  },
+  "mission_read": "ok"
+}

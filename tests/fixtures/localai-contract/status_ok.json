@@ -1,0 +1,63 @@
+{
+  "as_of": "2026-11-24T09:00:00.000Z",
+  "sources": {
+    "appliance": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "gridcraft": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "artcraft": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "workshop": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "watch": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    }
+  },
+  "appliance": {
+    "name": "Local AI"
+  },
+  "overall": "HEALTHY",
+  "services": [
+    {
+      "name": "ollama",
+      "label": "Ollama",
+      "required": true,
+      "state": "HEALTHY",
+      "latencyMs": 12,
+      "checkedAt": "2026-11-24T09:00:00.000Z",
+      "impact": "Chat, research and missions."
+    },
+    {
+      "name": "comfyui",
+      "label": "ComfyUI",
+      "required": false,
+      "state": "HEALTHY",
+      "latencyMs": 12,
+      "checkedAt": "2026-11-24T09:00:00.000Z",
+      "impact": "Images."
+    },
+    {
+      "name": "gridcraft",
+      "label": "GridCraft / Excel",
+      "required": false,
+      "state": "HEALTHY",
+      "latencyMs": 12,
+      "checkedAt": "2026-11-24T09:00:00.000Z",
+      "impact": "Spreadsheets."
+    }
+  ],
+  "serviceSummary": {
+    "healthy": 3,
+    "degraded": 0,
+    "down": 0
+  }
+}

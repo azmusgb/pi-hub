@@ -1,0 +1,43 @@
+{
+  "as_of": "2026-11-24T09:00:00.000Z",
+  "sources": {
+    "installed": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "loaded": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "pulls": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    },
+    "routing": {
+      "state": "ok",
+      "checked_at": "2026-11-24T09:00:00.000Z"
+    }
+  },
+  "installed": [
+    {
+      "name": "llama3.1:8b"
+    },
+    {
+      "name": "qwen2.5-coder:7b"
+    }
+  ],
+  "loaded": [
+    {
+      "name": "llama3.1:8b"
+    }
+  ],
+  "installedCount": 2,
+  "loadedCount": 1,
+  "runtimeAvailable": true,
+  "runtimeError": null,
+  "default": "llama3.1:8b",
+  "pulls": [],
+  "routing": {
+    "chat": "llama3.1:8b"
+  }
+}

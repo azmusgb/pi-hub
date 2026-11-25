@@ -1,0 +1,30 @@
+{
+  "as_of": "2026-11-24T09:00:00.000Z",
+  "sources": {
+    "appliance": {
+      "state": "failed",
+      "checked_at": "2026-11-24T09:00:00.000Z",
+      "error": "Not answering right now."
+    },
+    "gridcraft": {
+      "state": "failed",
+      "checked_at": "2026-11-24T09:00:00.000Z",
+      "error": "Not answering right now."
+    },
+    "artcraft": {
+      "state": "failed",
+      "checked_at": "2026-11-24T09:00:00.000Z",
+      "error": "Not answering right now."
+    },
+    "workshop": {
+      "state": "failed",
+      "checked_at": "2026-11-24T09:00:00.000Z",
+      "error": "Not answering right now."
+    },
+    "watch": {
+      "state": "failed",
+      "checked_at": "2026-11-24T09:00:00.000Z",
+      "error": "Not answering right now."
+    }
+  }
+}

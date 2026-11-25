@@ -1,0 +1,46 @@
+{
+  "mission": {
+    "id": "mission-17900000-ab12",
+    "status": "running",
+    "workers": [
+      {
+        "id": "w1",
+        "name": "Researcher",
+        "state": "complete",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w2",
+        "name": "Analyst",
+        "state": "running",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w3",
+        "name": "Writer",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w4",
+        "name": "Reviewer",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      },
+      {
+        "id": "w5",
+        "name": "Editor",
+        "state": "pending",
+        "model": "llama3.1:8b",
+        "error": null
+      }
+    ],
+    "timeline": [],
+    "toolEvents": [],
+    "answer": ""
+  }
+}
