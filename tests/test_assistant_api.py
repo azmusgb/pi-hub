@@ -68,6 +68,7 @@ def setup(monkeypatch, tmp_path):
     monkeypatch.setattr(ai, "_now", lambda: Clock.t)
     monkeypatch.setattr(ai, "_breaker", {"probe": 0.0, "ok": 0.0})
     monkeypatch.setattr(ai, "_inflight", {k: 0 for k in ai.INFLIGHT})
+    monkeypatch.setattr(ai, "_starts", {})
     pc = {"state": "on"}
     monkeypatch.setattr(records, "get", lambda id: {"state": pc["state"]} if id == "pc" and pc["state"] else None)
     la = LocalAI()
@@ -511,7 +512,6 @@ def test_a_503_with_local_ais_own_reason_on_submit_is_its_refusal_as_it_says_it(
     assert post("/api/ai/tasks", {"goal": "x"}).json()["error"] == "Models not checked"
 
 
-def test_a_400_for_an_unknown_model_names_what_is_installed(la):
 @pytest.mark.parametrize("answer", [(200, {"runId": RUN}), (201, {"runId": RUN}), (202, {"runId": "../x"}), (202, {})])
 def test_a_2xx_on_submit_this_page_does_not_know_says_a_task_may_exist(la, answer):
     la.routes[ai.START] = answer
@@ -520,6 +520,7 @@ def test_a_2xx_on_submit_this_page_does_not_know_says_a_task_may_exist(la, answe
     assert "doesn't know whether the task started" in r.json()["error"] and "Check Work before trying again" in r.json()["error"]
 
 
+def test_a_400_for_an_unknown_model_names_what_is_installed(la):
     la.routes[ai.START] = (400, {"error": "Unknown model", "code": "UNKNOWN_MODEL", "installed": ["a", "b"]})
     r = post("/api/ai/tasks", {"goal": "x"}).json()
     assert r["error"] == "Unknown model" and r["installed"] == ["a", "b"] and r["code"] == "UNKNOWN_MODEL"
@@ -536,6 +537,91 @@ def test_submit_over_its_in_flight_cap_is_busy_without_a_call(la, monkeypatch):
     monkeypatch.setattr(ai, "_inflight", {**{k: 0 for k in ai.INFLIGHT}, "submit": ai.INFLIGHT["submit"]})
     r = post("/api/ai/tasks", {"goal": "x"})
     assert r.status_code == 429 and r.json()["state"] == "busy" and la.calls == []
+
+
+# ---- one task for one ask: a double tap, or the same goal sent again at once, never starts a second ----
+
+def test_the_same_goal_again_within_ten_seconds_answers_with_the_first_task(la):
+    routes_ok(la)
+    a = post("/api/ai/tasks", {"goal": "Plan the week"})
+    Clock.t += 9
+    b = post("/api/ai/tasks", {"goal": "  Plan the week  "})
+    assert (b.status_code, b.json()["state"], b.json()["runId"]) == (202, "submitted", a.json()["runId"])
+    assert len(la.calls) == 1, "Local AI was asked once"
+    assert logged[-1][2:] == ("ai:task-start", "duplicate") and "Plan the week" not in json.dumps(logged)
+    Clock.t += 2  # 11 s after the first: the owner means it
+    assert post("/api/ai/tasks", {"goal": "Plan the week"}).status_code == 202 and len(la.calls) == 2
+
+
+def test_another_goal_project_or_session_starts_its_own_task(la, monkeypatch):
+    routes_ok(la)
+    post("/api/ai/tasks", {"goal": "Plan the week"})
+    post("/api/ai/tasks", {"goal": "Plan the month"})
+    post("/api/ai/tasks", {"goal": "Plan the week", "projectId": "proj-1"})
+    monkeypatch.setattr(auth, "session", lambda token, gate=False: {"role": "owner", "device": "ipad"} if token in ("owner-token", "owner-2") else None)
+    post("/api/ai/tasks", {"goal": "Plan the week"}, cookies={auth.COOKIE: "owner-2"})
+    assert len(la.calls) == 4 and all(logged[i][3] == "submitted" for i in range(4))
+
+
+def test_a_submit_that_started_nothing_is_not_remembered_and_keeps_no_goal(la):
+    la.routes[ai.START] = (400, {"error": "goal is required"})
+    assert post("/api/ai/tasks", {"goal": "Plan the week"}).json()["state"] == "refused"
+    assert ai._starts == {}
+    routes_ok(la)
+    assert post("/api/ai/tasks", {"goal": "Plan the week"}).json()["state"] == "submitted" and len(la.calls) == 2
+    assert "Plan the week" not in repr(ai._starts), "only a digest is kept, in memory, for ten seconds"
+    assert not Path(ai.MIRROR_FILE).exists()
+    Clock.t += 11
+    post("/api/ai/tasks", {"goal": "Something else"})
+    assert len(ai._starts) == 1, "an old entry is dropped"
+
+
+def test_an_identical_submit_while_the_first_is_in_flight_waits_for_it_and_answers_with_the_same_task(la):
+    import threading
+    arrived, release = threading.Event(), threading.Event()
+
+    def slow(method, query, body):
+        arrived.set()
+        assert release.wait(5)
+        return 202, fx("start_202")
+
+    la.routes[ai.START] = slow
+    out = []
+    first = threading.Thread(target=lambda: out.append(post("/api/ai/tasks", {"goal": "Plan the week"})))
+    first.start()
+    assert arrived.wait(5)
+    second = threading.Thread(target=lambda: out.append(post("/api/ai/tasks", {"goal": "Plan the week"})))
+    second.start()
+    second.join(0.3)
+    assert second.is_alive() and len(la.calls) == 1, "the double tap waits; it does not start a second task"
+    release.set()
+    first.join(5)
+    second.join(5)
+    assert [r.status_code for r in out] == [202, 202] and {r.json()["runId"] for r in out} == {RUN}
+    assert len(la.calls) == 1 and ai._inflight["submit"] == 0
+
+
+def test_an_identical_submit_behind_one_that_failed_gets_that_answer_and_starts_nothing(la):
+    import threading
+    arrived, release = threading.Event(), threading.Event()
+
+    def slow(method, query, body):
+        arrived.set()
+        assert release.wait(5)
+        return TimeoutError("slow")
+
+    la.routes[ai.START] = slow
+    out = []
+    threads = [threading.Thread(target=lambda: out.append(post("/api/ai/tasks", {"goal": "x"}))) for _ in range(2)]
+    threads[0].start()
+    assert arrived.wait(5)
+    threads[1].start()
+    threads[1].join(0.3)
+    release.set()
+    for t in threads:
+        t.join(5)
+    assert [r.json()["state"] for r in out] == ["unreachable", "unreachable"] and len(la.calls) == 1
+    assert ai._starts == {}
 
 
 # ---- follow ----

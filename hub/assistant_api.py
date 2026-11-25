@@ -9,10 +9,12 @@ pattern; the key and the owner flag are added here and a browser's copy of eithe
                    the off-site backup. While the PC sleeps they answer from it with its age.
   tasks            a Mission: submit, follow (the run and its mission), cancel. cache: none, so nothing about a task is
                    stored here, and a task's answer is never kept (D10). While the PC sleeps a submit is refused with
-                   "needs the PC" (D13) and following a task says `unreachable`, never `failed`.
+                   "needs the PC" (D13) and following a task says `unreachable`, never `failed`. The one thing held, in
+                   memory for ten seconds, is a digest of a submit and the id it got, so a double tap is one task.
 
 Every answer carries `fetched_at`. Local AI's text is passed as plain strings in JSON; the pages set it as text."""
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -59,6 +61,8 @@ FETCH = None  # tests only: fetch(method, url, headers, body, timeout) -> (statu
 _lock = threading.Lock()
 _inflight = {k: 0 for k in INFLIGHT}
 _breaker = {"probe": 0.0, "ok": 0.0}  # when the last probe went out, and when Local AI last answered
+SAME_START = 10      # seconds the same goal from the same session answers with the task its first submit started
+_starts = {}         # digest of (session, goal, project) -> {"done", "out", "at"}; in memory only, and never the goal
 
 
 def _json(data, status=200):
@@ -360,38 +364,72 @@ async def api_task_start(request: Request):
     cfg = _configured()
     if cfg:
         return _reply("refused", 503, error=cfg)
-    out = await asyncio.to_thread(_submit, body)
+    session = f"{device}\0{request.cookies.get(auth.COOKIE) or ''}\0{json.dumps(body, sort_keys=True)}"
+    out = await asyncio.to_thread(_submit_once, hashlib.sha256(session.encode()).hexdigest(), body)
     auth.log(role, device, "ai:task-start", out[0])
     return _json(out[1], out[2])
 
 
+def _say(state, status, **more):
+    """(outcome word for the log, reply body, status)."""
+    return state, {"state": state, "fetched_at": int(_now()), **more}, status
+
+
+BUSY_START = "A task is already being started. Try again in a moment."
+
+
+def _submit_once(key, body):
+    """_submit, once per identical ask: the same goal from the same session while the first is on its way, or within
+    SAME_START seconds of one that started a task, gets the first one's answer (logged as `duplicate`) and Local AI is
+    not asked again. A submit that started nothing is forgotten at once."""
+    with _lock:
+        now = _now()
+        for k in [k for k, e in _starts.items() if e["done"].is_set() and now - e["at"] >= SAME_START]:
+            del _starts[k]
+        first = _starts.get(key)
+        if first is None:
+            mine = _starts[key] = {"done": threading.Event(), "out": None, "at": now}
+    if first is not None:
+        first["done"].wait(TIMEOUT["submit"] + 2)
+        out = first["out"]
+        if out is None:
+            return _say("busy", 429, error=BUSY_START)
+        return ("duplicate" if out[0] == "submitted" else out[0], *out[1:])
+    try:
+        mine["out"] = _submit(body)
+    finally:
+        with _lock:
+            mine["at"] = _now()
+            if (mine["out"] or ("",))[0] != "submitted" and _starts.get(key) is mine:
+                del _starts[key]
+        mine["done"].set()
+    return mine["out"]
+
+
 def _submit(body):
     """(outcome word for the log, reply body, status): the goal is never logged."""
-    def say(state, status, **more):
-        return state, {"state": state, "fetched_at": int(_now()), **more}, status
-
     with _Slot("submit") as slot:
         if not slot:
-            return say("busy", 429, error="A task is already being started. Try again in a moment.")
+            return _say("busy", 429, error=BUSY_START)
         r = call("POST", START, body=body, timeout=TIMEOUT["submit"], cap=CAP["small"])
     if r.kind == "blocked":
-        return say("needs_pc", 503, error="Starting a task needs the PC.")
+        return _say("needs_pc", 503, error="Starting a task needs the PC.")
     if r.kind == "unreachable":
-        return say("unreachable", 503, error=UNSURE)
+        return _say("unreachable", 503, error=UNSURE)
     if r.kind == "http":
         if r.status == 400:
             installed = r.data.get("installed") if isinstance(r.data, dict) else None
-            return say("refused", 400, error=r.error() or "The Assistant didn't accept that task.",
+            return _say("refused", 400, error=r.error() or "The Assistant didn't accept that task.",
                        **({"code": _text(r.data.get("code"), 40), "installed": [_text(m, NAME_MAX) for m in installed[:50]]}
                           if isinstance(installed, list) else {}))
         if r.status in (404, 405):
-            return say("out_of_date", 502, error="The Assistant is older than this page needs.")
+            return _say("out_of_date", 502, error="The Assistant is older than this page needs.")
         if r.status in (401, 403):
-            return say("refused", 502, error=r.error() or "The Assistant refused Pi Hub's key.")
+            return _say("refused", 502, error=r.error() or "The Assistant refused Pi Hub's key.")
         if r.status == 503 and r.error():  # Local AI's own refusal (its models aren't checked yet): nothing started
-            return say("unavailable", 503, error=r.error())
+            return _say("unavailable", 503, error=r.error())
         # A 5xx, a 429 or anything else may have come after the run was made: never "nothing started".
-        return say("unavailable", 503 if r.status == 503 else 502, error=_maybe(r.error(), "The Assistant answered with an error"))
+        return _say("unavailable", 503 if r.status == 503 else 502, error=_maybe(r.error(), "The Assistant answered with an error"))
     run_id, thread = r.data.get("runId"), r.data.get("threadId")
     if r.status != 202 or not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
         # A 2xx that isn't the 202 this page knows may still have started a task: say so, never "nothing happened".
@@ -448,24 +486,21 @@ async def api_task_cancel(run_id: str, request: Request):
 
 
 def _cancel(run_id):
-    def say(state, status, **more):
-        return state, {"state": state, "fetched_at": int(_now()), **more}, status
-
     with _Slot("cancel") as slot:
         if not slot:
-            return say("busy", 429, error="A cancel is already on its way.")
+            return _say("busy", 429, error="A cancel is already on its way.")
         r = call("POST", CANCEL, body={"id": run_id}, timeout=TIMEOUT["cancel"], cap=CAP["small"])
     if r.kind == "blocked":
-        return say("needs_pc", 503, error="Cancelling needs the PC.")
+        return _say("needs_pc", 503, error="Cancelling needs the PC.")
     if r.kind == "unreachable":
-        return say("unreachable", 503, error="Pi Hub couldn't reach the Assistant. The task wasn't cancelled as far as it knows.")
+        return _say("unreachable", 503, error="Pi Hub couldn't reach the Assistant. The task wasn't cancelled as far as it knows.")
     if r.kind == "http":
         if r.status == 404:
-            return say("not_found", 404, error=r.error() or "The Assistant has no task with this id.")
+            return _say("not_found", 404, error=r.error() or "The Assistant has no task with this id.")
         if r.status == 409:
-            return say("not_cancellable", 409, error=r.error() or "This task can't be cancelled now.")
+            return _say("not_cancellable", 409, error=r.error() or "This task can't be cancelled now.")
         if r.status in (401, 403):
-            return say("refused", 502, error=r.error() or "The Assistant didn't cancel the task.")
-        return say("unavailable", 503 if r.status == 503 else 502,
+            return _say("refused", 502, error=r.error() or "The Assistant didn't cancel the task.")
+        return _say("unavailable", 503 if r.status == 503 else 502,
                    error="The Assistant answered with an error, so Pi Hub doesn't know whether the task was cancelled.")
-    return say("ok", 200, run=_run(r.data.get("item")))
+    return _say("ok", 200, run=_run(r.data.get("item")))
