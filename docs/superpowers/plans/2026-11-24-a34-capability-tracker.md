@@ -80,11 +80,11 @@ is "not read yet"; none of them is ever drawn as empty or healthy.
 | PR | What | Implemented | Verified | Merged | Deployed |
 |---|---|---|---|---|---|
 | appliance-ui #52 | kit 2.29.0 shared shell | yes | tests | yes (`9f5675e`) | n/a (kit) |
-| pi-hub #332 | kit sync 2.29.0 | yes | tests | no | no |
-| (this docs PR) | A34 Amendment 1 and this tracker | yes | n/a | no | n/a |
+| pi-hub #332 | kit sync 2.29.0 | yes | tests | yes (`8ed517f`, 25 Nov) | no |
+| pi-hub #333 | A34 Amendment 1 and this tracker | yes | n/a | yes (`cb362f0`, 25 Nov) | n/a |
 | pi-hub: shell adoption, Home | branch `feat-kit-shell` | in progress | none | no | no |
 | LocalAI: P1a reads and allow-list | to open | in progress | none | no | no |
 | pi-hub: adapter, status, models, task | to open | not started | none | no | no |
 | appliance-ui: registry rows | to open | not started | none | no | no |
 | LocalAI: phone-shell fix (`fix-mobile-shell`) | with before/after evidence | in progress | none | no | no |
-| LocalAI: kit sync to 2.29.0 and kit shell adoption | to open | not started | none | no | no |
+| LocalAI: kit sync (it serves 2.27.1) to 2.29.0 and kit shell adoption; P0 done-2 waits on it | to open | not started | none | no | no |
