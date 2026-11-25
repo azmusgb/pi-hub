@@ -113,7 +113,9 @@ function actions(m, ctl, ui) {
   const out = [cancelButton(m, ctl)];
   if (m.phase === "awaiting_approval") out.push(h("a", { class: "ui-btn ui-btn--primary", href: "/assistant?to=inbox", "data-link": true }, "Open Decisions"));
   if (m.phase === "failed") {
-    out.push(m.goal ? h("button", { class: "ui-btn ui-btn--primary", type: "button", dataset: { focus: "retry" }, onclick: () => ui.retry(m.goal) }, "Try again")
+    // While the retry is on its way the button stays where it is, disabled and saying so: a second tap sends nothing.
+    out.push(m.goal ? h("button", { class: "ui-btn ui-btn--primary", type: "button", dataset: { focus: "retry" }, onclick: () => ui.retry(m.goal),
+      ...(ui.starting ? { "aria-disabled": "true" } : {}) }, ui.starting ? "Starting…" : "Try again")
       : h("a", { class: "ui-btn ui-btn--primary", href: "/assistant", "data-link": true }, "Start a new task"));
   }
   if (["completed", "cancelled"].includes(m.phase)) out.push(h("a", { class: "ui-btn", href: "/assistant", "data-link": true }, "Start another task"));
@@ -168,10 +170,18 @@ export function mount(state) {
 
 async function retry(state, goal) {
   const r = await submitTask(post, goal);
-  if (r.ok) (state.goto || navigateSpa)(`/assistant/run/${r.runId}`);
-  else { state.model.note = r.error || "The Assistant couldn't start the task."; state.last = ""; draw(state); }
+  if (r.ok) { (state.goto || navigateSpa)(`/assistant/run/${r.runId}`); return; }
+  state.ui.starting = false;
+  state.model.note = r.error || "The Assistant couldn't start the task.";
+  state.last = "";
+  draw(state);
 }
+// One submit at a time: `starting` is the guard, and the button shows it (the page is left on success, so it stays so).
 
+  if (state.ui.starting) return;
+  state.ui.starting = true;
+  state.last = "";
+  draw(state);
 // Redraw when the signature changed. Focus: an element the owner was on (data-focus) is found again; if the phase changed
 // under their focus, it goes to the outcome or the status sentence; if focus was elsewhere (the rail), it is left alone.
 function draw(state) {

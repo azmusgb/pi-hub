@@ -28,7 +28,11 @@ async function taskPage(replies, { id = RUN, storage = store(), confirm = true, 
     return new Response(JSON.stringify(r?.__status ? r.body : r), { status, headers: { 'content-type': 'application/json' } });
   };
   globalThis.fetch = async (url, opts = {}) => {
-    if (opts.method === 'POST') { calls.posts.push([url, opts.body ? JSON.parse(opts.body) : null]); return answer(posts.length > 1 ? posts.shift() : posts[0]); }
+    if (opts.method === 'POST') {
+      calls.posts.push([url, opts.body ? JSON.parse(opts.body) : null]);
+      const next = posts.length > 1 ? posts.shift() : posts[0];
+      return answer(typeof next === 'function' ? await next() : next);  // a function is a reply that takes its time
+    }
     calls.reads++;
     return answer(typeof replies === 'function' ? replies() : replies);
   };
@@ -182,6 +186,61 @@ test('failed with no goal known here offers a new task instead of resubmitting n
     assert.equal(q.calls.goto, undefined);
     assert.match(text(q.root), /needs the PC/);
   } finally { q.done(); }
+});
+
+// A reply held until `release()`: what a slow submit looks like to the page.
+function held(reply) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  return { reply: async () => { await gate; return reply; }, release };
+}
+
+test('Try again sends once however often it is tapped: while it is on its way the button is disabled and says Starting', async () => {
+  const storage = store();
+  const { writeCurrent } = await import('../hub/static/js/assistant-task.js');
+  writeCurrent({ runId: RUN, goal: 'Again' }, storage);
+  const slow = held({ state: 'submitted', runId: 'run-second-12345' });
+  const p = await taskPage(adapter('failed'), { storage, posts: [slow.reply] });
+  const button = () => p.root.querySelector('button[data-focus="retry"]');
+  try {
+    await p.load();
+    assert.equal(button().hasAttribute('aria-disabled'), false);
+    button().dispatchEvent({ type: 'click' });
+    await flush();
+    assert.equal(button().getAttribute('aria-disabled'), 'true');
+    assert.equal(text(button()), 'Starting…');
+    button().dispatchEvent({ type: 'click' });
+    button().dispatchEvent({ type: 'click' });
+    await flush();
+    assert.equal(p.calls.posts.length, 1, 'a double tap is one task');
+    slow.release();
+    await flush(); await flush();
+    assert.equal(p.calls.posts.length, 1);
+    assert.equal(p.calls.goto, '/assistant/run/run-second-12345');
+  } finally { p.done(); }
+});
+
+test('a Try again that did not start a task gives the button back, with why', async () => {
+  const storage = store();
+  const { writeCurrent } = await import('../hub/static/js/assistant-task.js');
+  writeCurrent({ runId: RUN, goal: 'Again' }, storage);
+  const slow = held(refused(503, { state: 'needs_pc', error: 'Starting a task needs the PC.' }));
+  const p = await taskPage(adapter('failed'), { storage, posts: [slow.reply, { state: 'submitted', runId: 'run-third-123456' }] });
+  const button = () => p.root.querySelector('button[data-focus="retry"]');
+  try {
+    await p.load();
+    button().dispatchEvent({ type: 'click' });
+    await flush();
+    slow.release();
+    await flush(); await flush();
+    assert.equal(button().hasAttribute('aria-disabled'), false);
+    assert.equal(text(button()), 'Try again');
+    assert.match(text(p.root), /needs the PC/);
+    button().dispatchEvent({ type: 'click' });
+    await flush(); await flush();
+    assert.equal(p.calls.posts.length, 2, 'and it can be asked again');
+    assert.equal(p.calls.goto, '/assistant/run/run-third-123456');
+  } finally { p.done(); }
 });
 
 test('awaiting approval links to Decisions', async () => {
