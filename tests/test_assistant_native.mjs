@@ -89,6 +89,20 @@ test('running shows N of M steps from the workers, a meter from that count, the 
   } finally { p.done(); }
 });
 
+test('a step Local AI reports as error or blocked reads Failed or Skipped, never the raw word (real states from a restarted mission)', async () => {
+  const run = adapter('running');
+  run.mission.workers = [{ id: 'a', name: 'Router', state: 'complete', model: '', error: null },
+    { id: 'b', name: 'Docs', state: 'error', model: 'qwen3:8b', error: 'Local AI restarted for an update while this was running' },
+    { id: 'c', name: 'Coordinator', state: 'blocked', model: '', error: 'Local AI restarted for an update while this was running' }];
+  const p = await taskPage(run);
+  try {
+    await p.load();
+    const rows = p.root.querySelectorAll('#run-steps .ui-row').map((r) => text(r));
+    assert.match(rows[1], /Failed/); assert.doesNotMatch(rows[1], /\berror\b/);
+    assert.match(rows[2], /Skipped/); assert.doesNotMatch(rows[2], /\bblocked\b/);
+  } finally { p.done(); }
+});
+
 test('a task with no steps yet (queued) shows no meter and no count', async () => {
   const p = await taskPage(adapter('queued'));
   try {

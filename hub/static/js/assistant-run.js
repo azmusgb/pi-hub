@@ -21,7 +21,8 @@ const TONES = {
   cancelling: ["unknown", "Cancelling"], completed: ["ok", "Done"], failed: ["bad", "Failed"], cancelled: ["unknown", "Cancelled"],
   unreachable: ["unknown", "Can't reach it"], out_of_date: ["warn", "Out of date"], refused: ["bad", "Refused"], not_found: ["unknown", "Not found"],
 };
-const WORKER_TONE = { complete: ["ok", "Done"], running: ["ok", "Running"], pending: ["unknown", "Waiting"] };
+const WORKER_TONE = { complete: ["ok", "Done"], running: ["ok", "Running"], pending: ["unknown", "Waiting"],
+  error: ["bad", "Failed"], blocked: ["unknown", "Skipped"] };
 const isoSeconds = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? t / 1000 : null; };
 const text = (v, n) => { const s = String(v ?? ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 
