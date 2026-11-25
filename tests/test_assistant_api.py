@@ -409,7 +409,8 @@ def test_a_read_over_its_in_flight_cap_serves_the_mirror_or_says_busy(la, monkey
     r = get("/api/ai/status").json()
     assert r["state"] == "mirror" and r["why"] == "busy" and la.calls == []
     monkeypatch.setattr(ai, "MIRROR_FILE", ai.MIRROR_FILE + ".none")
-    assert get("/api/ai/status").json()["state"] == "unreachable"
+    r = get("/api/ai/status").json()
+    assert r["state"] == "busy" and r["why"] == "busy" and r["data"] is None and la.calls == []
 
 
 def test_the_slot_is_given_back_after_every_call(la):
