@@ -1,7 +1,7 @@
 // The records' shared helpers: labels and pages, the Needs you list merged from /api/needs and the records, and its
 // kit rendering. Home's control room (Now, Since you last looked) gave way to the dashboard (amendment A8,
 // home-dashboard.js); what it used and still matters lives here.
-import { duration, fix, h } from "./core.js";
+import { duration, fix, h, post } from "./core.js";
 import { runPrinterAction } from "./printer-actions.js";
 import { resolveLink } from "./sections.js";
 
@@ -171,6 +171,9 @@ export function mergeProblems(records = [], needs = null) {
       detail: item.detail || "",
       tone: item.tone === "bad" ? "bad" : "warn",
       kitTone: ["bad", "attention", "warn"].includes(item.tone) ? item.tone : "warn",
+      // A printer alert can be acknowledged, by the owner only: /api/needs carries `decisions` for the owner alone
+      // (home-decisions.js), so nobody else is drawn a button the hub would refuse.
+      ack: item.ack === true && Object.hasOwn(needs, "decisions"),
       about: item.about || "",
       record: item.record || "",
       since: item.since || byId.get(item.record)?.since || null,  // the record it stands for knows since when
@@ -211,7 +214,8 @@ export function problemItems(probs = []) {
     const iso = Number(p.since) > 0 ? new Date(p.since * 1000).toISOString() : undefined;
     if (p.kind === "need") {
       return { id: p.id, tone: p.kitTone || p.tone, title: p.title, detail: p.detail, link: p.link || undefined,
-        action: p.action || undefined, as_of: p.as_of || iso, area: p.source && p.source !== "Pi Hub" ? p.source : undefined };
+        action: p.action || undefined, as_of: p.as_of || iso, area: p.source && p.source !== "Pi Hub" ? p.source : undefined,
+        ack: p.ack || undefined };
     }
     const verb = PAGE_VERB[p.href];
     return { id: p.id, tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
@@ -251,9 +255,27 @@ function problemButtons(p, onReload) {
   return out;
 }
 
+// The owner's tap on a row's Acknowledge (kit 2.28: an item with `ack`, in a list given onAck). Resolves true only when
+// the hub says it acknowledged the alert, and then reads the list again; false for a refusal (not the owner, the
+// printer no longer lists it), an error or no answer, so the kit keeps the row and says "Not acknowledged".
+export async function ackNeed(id, reload, send = post) {
+  try {
+    if ((await send("/api/needs/ack", { id }))?.ok !== true) return false;
+  } catch {
+    return false;
+  }
+  setTimeout(() => reload?.(), 0);  // after the kit has taken the row out and moved the focus
+  return true;
+}
+
+// What every Needs you list here gives the kit. An older kit (before 2.28) ignores onAck and draws no button.
+export function needsOptions(reload) {
+  return { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub", onAck: (id) => ackNeed(id, reload) };
+}
+
 // The kit draws the list (one Needs you everywhere, A7 P2); same-origin links go through the SPA router.
 export function renderProblems(probs, onReload) {
-  const list = ApplianceNeeds.renderList(problemItems(probs), { resolve: resolveLink, here: new URL(location.href), self: "Pi Hub" });
+  const list = ApplianceNeeds.renderList(problemItems(probs), needsOptions(onReload));
   for (const a of list.querySelectorAll("a")) if (a.origin === location.origin) a.setAttribute("data-link", "");
   probs.forEach((p, i) => {
     const li = list.children[i], btns = problemButtons(p, onReload);

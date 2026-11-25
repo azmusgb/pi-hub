@@ -227,7 +227,9 @@ def _hub(recs, prev, now):
 
 def refresh(now=None, inputs=None):
     """One pass of the loop: read every source once, build and merge every record, store them; returns the
-    changes. The only caller of merge and store (events.run's thread), so records change in one place."""
+    changes. Called only from events.run's thread, and the only place every record is rebuilt. Two others store single
+    records between passes: releases.py (a deploy's own records) and POST /api/needs/ack (app.py), which merges and
+    stores the hms record alone after an acknowledgement."""
     from . import things
     now = time.time() if now is None else now
     if inputs is None:
