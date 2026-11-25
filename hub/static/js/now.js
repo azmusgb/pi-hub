@@ -1191,7 +1191,9 @@ export function mount(state) {
     state.homeMode = true;
     state.dash = h("div", { class: "home-dash" });
     mountDashboard(state, state.dash);
-    state.root.append(state.hero, state.dash);
+    // Needs you leads (it is the page's one primary action), then the Assistant link, Systems and Today; the summary
+    // line and the weather close the page.
+    state.root.append(state.dash, state.hero);
   }
 
   if (state._eyebrowTimer) clearInterval(state._eyebrowTimer);
@@ -1272,8 +1274,8 @@ export async function load(state) {
   if (slowDue) { state.slow = slow; state.slowAt = slow.pi && slow.backups && slow.workshop ? Date.now() : 0; }
   const records = Array.isArray(recs?.records) ? recs.records : null;
   renderDashboard(state, { today, records, needs, now: d, ...slow }, () => load(state));
-  // The badge counts the list Home shows; with no list (neither source answered) the shell's own count stands.
-  if (state.probs) setNeeds(problemsBadge(needs, state.probs));
+  // The Home badge counts the list Home shows. Needs you not answering is not "none": the badge says it couldn't check.
+  setNeeds(needs ? problemsBadge(needs, state.probs || []) : null);
   const probs = state.probs || [];
   state.facts = probs.length
     ? `${probs.length} problem${probs.length === 1 ? "" : "s"}: ${probs.map((p) => p.title).slice(0, 3).join("; ")}`
