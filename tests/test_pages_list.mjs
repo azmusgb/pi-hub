@@ -121,8 +121,7 @@ test('test_pages_areas: the rail and tab bar are the list\'s five areas, in orde
   assert.match(main, /setCurrentArea\(section\)/);
   // Five labels fit a 320 px bar at any text size (9.1 F6): the kit sizes a label from the window and wraps it, never cut.
   const css = read('hub/static/ui/shell.css');
-  assert.match(css, /\.ui-rail a\{[^}]*overflow-wrap:anywhere/);
-  assert.match(css, /\.ui-rail a\{[^}]*flex:1 1 0;min-width:0;[^}]*font-size:min\(var\(--ui-fs-2\),4\.6vw\)/);
+  assert.match(css, /\.ui-rail a\{flex:1 1 0;min-width:0;[^}]*font-size:min\(var\(--ui-fs-1\),3\.85cqi\);white-space:nowrap/);
   assert.doesNotMatch(css, /\.ui-rail a[^{]*\{[^}]*text-overflow/);
 });
 

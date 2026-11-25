@@ -35,7 +35,7 @@ for (const [width, height] of SIZES) {
     await page.focus('.ui-rail a[data-area="home"]');
     await page.keyboard.press('Tab');
     const afterTab = await page.evaluate(() => ({ inNav: !!document.activeElement?.closest('.ui-rail'), what: document.activeElement?.dataset?.area || document.activeElement?.className || document.activeElement?.tagName }));
-    if (afterTab.inNav) bad(`one Tab from the first link stays in the nav (on "${afterTab.what}"): the links are all tab stops, not one`);
+    if (afterTab.inNav) bad(`one Tab from the first link stays in the nav (on "${afterTab.what}"): the links are all tab stops, not one (needs kit 2.31.0 sync: roving tabindex)`);
 
     // The document scrolls; the head and the bar stay.
     await go('/system');
@@ -101,6 +101,98 @@ for (const [width, height] of SIZES) {
     }
     await ctx.close();
   }
+}
+
+// Nothing collides with the tab bar or the sticky head, at 320 to 430 px and at 200% text: a badge never meets the icon
+// or the label; a focused Ask link, Needs you action or field never intersects the bar or the head (boxes, not only
+// "inside the container").
+const hit = '(a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom';
+for (const width of [320, 360, 390, 430]) {
+  for (const colorScheme of ['light', 'dark']) {
+    for (const scale of ['100%', '200%']) {
+      const where = `${width}x844 ${colorScheme} text ${scale}`;
+      const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme, hasTouch: true, isMobile: true });
+      const page = await ctx.newPage();
+      for (const path of ['/', '/documents']) {
+        await page.goto(BASE + path, { waitUntil: 'load' });
+        await page.waitForSelector('.ui-rail a[data-area]');
+        await page.waitForTimeout(1800);
+        await page.evaluate((scale) => { document.documentElement.style.fontSize = scale; }, scale);
+        // The real badges (navigation.js): a count of two digits and the print dot, then 99+.
+        for (const needs of [{ count: 12 }, { count: 120 }, null]) {
+          await page.evaluate(async (needs) => { const nav = await import('/static/js/navigation.js'); nav.setNeeds(needs); }, needs);
+          const bad1 = await page.evaluate((hitSrc) => {
+            const hit = eval(hitSrc);
+            const out = [];
+            for (const b of document.querySelectorAll('.ui-rail-badge')) {
+              const tab = b.closest('a[data-area]'), r = b.getBoundingClientRect();
+              if (r.width === 0) continue;
+              if (hit(r, tab.querySelector('svg').getBoundingClientRect())) out.push(`${tab.dataset.area} badge "${b.textContent}" meets its icon`);
+              if (hit(r, tab.querySelector('.ui-rail-label').getBoundingClientRect())) out.push(`${tab.dataset.area} badge "${b.textContent}" meets its label`);
+            }
+            return out;
+          }, hit);
+          for (const m of bad1) problems.push(`${where} ${path}: ${m}`);
+        }
+        // Focus brings each into view; none ends under the bar or the head.
+        const sel = path === '/' ? ['[data-ask-assistant]', '.hd-needs a, .hd-needs button', '.hd-rack a'] : ['main input:not([type=hidden]):not([type=checkbox]):not([type=radio])'];
+        for (const q of sel) {
+          const els = page.locator(q);
+          const n = Math.min(await els.count(), 3);
+          for (let i = 0; i < n; i++) {
+            const el = els.nth(i);
+            if (!(await el.isVisible())) continue;
+            await el.focus();
+            await page.waitForTimeout(150);
+            const r = await page.evaluate(([hitSrc]) => {
+              const hit = eval(hitSrc), e = document.activeElement.getBoundingClientRect();
+              const bar = document.querySelector('.ui-rail').getBoundingClientRect(), head = document.querySelector('.ui-shell-head').getBoundingClientRect();
+              return { bar: hit(e, bar), head: hit(e, head), tall: e.height > innerHeight - bar.height - head.height };
+            }, [hit]);
+            if (r.tall) continue;
+            if (r.bar) problems.push(`${where} ${path}: focused ${q} #${i} is under the tab bar`);
+            if (r.head) problems.push(`${where} ${path}: focused ${q} #${i} is under the sticky head`);
+          }
+        }
+      }
+      await ctx.close();
+    }
+  }
+}
+
+// Page navigation semantics: the nav is a named landmark; the current link says so; a route change moves focus to the
+// page and updates the title and the heading; Back and Forward keep the current area right.
+for (const [width, height] of SIZES) {
+  const where = `${width}x${height} semantics`;
+  const page = await (await browser.newContext({ viewport: { width, height } })).newPage();
+  await page.goto(BASE + '/', { waitUntil: 'load' });
+  await page.waitForSelector('.ui-rail a[data-area]');
+  await page.waitForTimeout(1500);
+  const lm = await page.$$eval('nav[aria-label]', (n) => n.map((x) => x.getAttribute('aria-label')));
+  if (!lm.some((l) => l.trim())) problems.push(`${where}: no navigation landmark with a name`);
+  const cur = async () => page.$$eval('.ui-rail a[aria-current="page"]', (a) => a.map((x) => x.dataset.area).join());
+  if (await cur() !== 'home') problems.push(`${where}: Home is not marked current at /`);
+  const title0 = await page.title();
+  await page.click('.ui-rail a[data-area="workshop"]');
+  await page.waitForTimeout(1500);
+  const after = await page.evaluate(() => ({ path: location.pathname, title: document.title, h1: document.querySelector('#page-title').textContent, focus: document.activeElement?.id || document.activeElement?.tagName }));
+  if (after.path !== '/workshop') problems.push(`${where}: the Workshop link went to ${after.path}`);
+  if (after.title === title0 || !/Printer|Workshop/.test(after.title)) problems.push(`${where}: the title is "${after.title}" after the route change`);
+  if (!/Printer|Workshop/.test(after.h1)) problems.push(`${where}: the heading is "${after.h1}"`);
+  if (after.focus !== 'view') problems.push(`${where}: focus is on ${after.focus} after the route change, not the page`);
+  if (await cur() !== 'workshop') problems.push(`${where}: Workshop not current after the click (${await cur()})`);
+  await page.click('.ui-rail a[data-area="system"]');
+  await page.waitForTimeout(1200);
+  await page.goBack();
+  await page.waitForTimeout(1200);
+  if (await cur() !== 'workshop') problems.push(`${where}: after Back the current area is "${await cur()}", want workshop`);
+  await page.goBack();
+  await page.waitForTimeout(1200);
+  if (await cur() !== 'home') problems.push(`${where}: after Back twice the current area is "${await cur()}", want home`);
+  await page.goForward();
+  await page.waitForTimeout(1200);
+  if (await cur() !== 'workshop') problems.push(`${where}: after Forward the current area is "${await cur()}", want workshop`);
+  if (!/Printer|Workshop/.test(await page.title())) problems.push(`${where}: the title after Forward is "${await page.title()}"`);
 }
 await browser.close();
 console.log(problems.length ? problems.join('\n') : `Shell: keys, scrolling, keyboard inset, Assistant and 200% text pass at ${SIZES.map((s) => s.join('x')).join(' and ')}, light and dark.`);

@@ -128,13 +128,13 @@ test('the Home badge follows the needs count and says so when the read fails: no
 
     needs = needsAnswer(120);
     await t.nav.updateNavigation();
-    assert.equal(text(badge(t, 'home').querySelector('.ui-rail-badge-long')), '99+', 'the kit\'s word; "9+" for a tab too narrow for it');
-    assert.equal(text(badge(t, 'home').querySelector('.ui-rail-badge-short')), '9+');
+    assert.equal(text(badge(t, 'home')), '99+');
+    assert.equal(badge(t, 'home').dataset.short, '9+', 'the kit draws 9+ on a narrow bar');
 
     needs = undefined;  // the fake answers 503: the read failed
     await t.nav.updateNavigation();
     assert.equal(text(badge(t, 'home')), '?', 'unknown, not 120 and not none');
-    assert.equal(badge(t, 'home').querySelector('.ui-rail-badge-long'), null, 'not the count it had');
+    assert.notEqual(text(badge(t, 'home')), '99+', 'not the count it had');
     assert.equal(badge(t, 'home').getAttribute('aria-label'), "couldn't check what needs you");
     assert.equal(t.link('home').getAttribute('aria-label'), "Home, couldn't check what needs you");
     assert.equal(badge(t, 'system'), null, 'the other reads answered: their badges are theirs');

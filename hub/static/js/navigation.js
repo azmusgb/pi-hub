@@ -123,18 +123,6 @@ function badgeFor(id) {
   return null;
 }
 
-// "99+" and, for a tab too narrow to show it (app.css), "9+": still true, and the tab's name carries the full count.
-function shortenBadge(mark) {
-  const part = (cls, word) => {
-    const el = document.createElement("span");
-    el.className = cls;
-    el.textContent = word;
-    return el;
-  };
-
-  mark.replaceChildren(part("ui-rail-badge-long", "99+"), part("ui-rail-badge-short", "9+"));
-}
-
 function render() {
   const shell = globalThis.ApplianceShell;
   if (!nav || !shell) return;
@@ -151,7 +139,6 @@ function render() {
     if (badge && mark) {
       if (badge.text !== undefined) mark.textContent = badge.text;
       if (badge.dot) mark.dataset.dot = "";
-      if (mark.textContent === "99+") shortenBadge(mark);
       mark.setAttribute("aria-label", badge.say);
     }
 
