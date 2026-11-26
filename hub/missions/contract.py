@@ -14,6 +14,7 @@ PATH = Path(__file__).resolve().parents[2] / "docs" / "contracts" / "mission-eve
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 ISO = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?(Z|[+-]\d\d:\d\d)")
 CONTROL = re.compile(r"[\x00-\x09\x0b-\x1f\x7f]")  # control characters other than newline
+MAX_DEPTH = 32  # objects and lists inside one event; the deepest the contract needs is 5 (links in a body)
 SPECIAL = {"type", "body"}  # envelope fields checked by their own rules, not a grammar token
 
 
@@ -34,6 +35,19 @@ def _spec(spec):
     """(token, optional, nullable) from a field's grammar string such as 'text:80 (… null or absent when not seen)'.
     The prose after the token is documentation, except '(optional' and 'null or absent', which are rules."""
     return re.split(r"[ (]", spec.strip(), maxsplit=1)[0], "(optional" in spec, "null or absent" in spec
+
+
+def too_deep(value, limit=MAX_DEPTH):
+    """Whether `value` nests objects or lists more than `limit` deep. Iterative, so a hostile depth can't overflow
+    the stack before the recursive checks run."""
+    stack = [(value, 1)]
+    while stack:
+        item, depth = stack.pop()
+        children = item.values() if isinstance(item, dict) else item if isinstance(item, list) else ()
+        if children and depth > limit:
+            return True
+        stack.extend((child, depth + 1) for child in children)
+    return False
 
 
 def parse_at(value):
@@ -127,11 +141,13 @@ class Contract:
         return (header or "").strip() == str(self.version)
 
     def check(self, source, event, index):
-        """None for an event `source` may post, else raises Refused. Order: size, never-accepted names, type, unknown
+        """None for an event `source` may post, else raises Refused. Order: depth (before anything recursive), size, never-accepted names, type, unknown
         fields, then grammar, so the most specific code wins."""
         at = f"event {index}"
         if not isinstance(event, dict):
             raise Refused(400, "bad_batch", f"{at}: not an object")
+        if too_deep(event):
+            raise Refused(400, "bad_field", f"{at}: nested deeper than {MAX_DEPTH}")
         if len(json.dumps(event, separators=(",", ":"), ensure_ascii=False).encode()) > self.limits["event_bytes"]:
             raise Refused(413, "too_large", f"{at}: over {self.limits['event_bytes']} bytes")
         self._never_accepted(event, at)

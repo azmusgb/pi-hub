@@ -45,7 +45,7 @@ def _batch(source, raw):
         raise Refused(413, "too_large", f"the batch is over {MAX_BODY} bytes")
     try:
         events = json.loads(raw)
-    except ValueError:
+    except (ValueError, RecursionError):  # a body nested past the parser's stack is not JSON this hub reads
         raise Refused(400, "bad_json", "the body is not JSON")
     if not isinstance(events, list) or not 1 <= len(events) <= CURRENT.limits["batch_events"]:
         raise Refused(400, "bad_batch", f"not a list of 1 to {CURRENT.limits['batch_events']} events")

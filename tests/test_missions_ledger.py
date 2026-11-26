@@ -227,6 +227,23 @@ def test_unknown_field_and_bad_grammar_name_the_field_never_the_value():
     assert logged() == []
 
 
+def test_deeply_nested_json_is_refused_as_the_contract_says_never_a_500():
+    r = post("claude", [], raw=("[" * 199000 + "]" * 199000).encode())  # past the parser's stack
+    assert (r.status_code, r.json()["error"]) == (400, "bad_json")
+    x = []
+    for _ in range(1500):  # parses, but would overflow a recursive walk
+        x = [x]
+    deep = session("turn.finished", 0, x=x)
+    assert len(json.dumps(deep)) < 4096
+    r = post("claude", [deep])
+    assert (r.status_code, r.json()["error"]) == (400, "bad_field")
+    assert r.json()["detail"] == "event 0: nested deeper than 32"
+    for _ in range(8):
+        post("claude", [deep])
+    assert [i["id"] for i in needs_items()] == ["pi:missions:claude:refused"]  # keyed refusals, counted
+    assert logged() == []
+
+
 def test_wrong_or_missing_contract_header_is_409():
     event = session("session.attached", 0, cwd_name="pi-hub")
     for version in (None, "2", "0", ""):
