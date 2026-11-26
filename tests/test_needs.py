@@ -31,7 +31,7 @@ FEED = {"cards": [
 
 def test_needs_merges_the_three_sources():
     n = needs.build([], FEED, NOW, problems({"drive_state": "Not mounted"}, FINISHED))
-    assert n["count"] == len(n["items"]) == 4
+    assert len(n["items"]) == 4 and n["count"] == 3 and n["heads_up_count"] == 1
     local = [i for i in n["items"] if i["source"] == "Local AI"]
     assert {i["title"] for i in local} == {"Needs you", "Disk"}
     assert {i["title"]: i["link"] for i in local} == {"Needs you": "tool:assistant/#inbox", "Disk": "tool:assistant/#inbox"}
@@ -46,7 +46,7 @@ def test_needs_ignores_ok_cards_and_cleared_prints():
     feed = {"cards": [{"kind": "needs", "title": "All clear", "text": "Nothing needs you right now.", "tone": "ok", "count": 0}]}
     # the plate was cleared: Bambuddy says FINISH without awaiting_plate_clear, so the record is idle
     n = needs.build([], feed, NOW, problems(b=bud("FINISH", progress=100)))
-    assert n == {"count": 0, "items": [], "unread": []}
+    assert n == {"count": 0, "heads_up_count": 0, "items": [], "unread": []}
 
 
 def test_a_failed_print_needs_you():
@@ -76,7 +76,7 @@ def test_api_needs_answers_when_local_ai_is_off(monkeypatch):
 
 def test_the_hubs_own_live_issues_need_you_too():
     n = needs.build([], {"cards": []}, NOW, problems({"services": {"plex": False, "homebridge": True}}))
-    assert n["items"][0] == {"id": "pi:Movies", "source": "Pi Hub", "tone": "bad", "title": "Movies",
+    assert n["items"][0] == {"id": "pi:Movies", "source": "Pi Hub", "tone": "bad", "kind": "ask", "title": "Movies",
                              "detail": "The movie service has stopped", "link": "/media", "record": "plex"}
 
 
