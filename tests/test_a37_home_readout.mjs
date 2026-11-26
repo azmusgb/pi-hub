@@ -215,3 +215,22 @@ test("R7: askArea maps asks to their rail area by area, source, path or tool, an
   assert.equal(askArea({ kind: "ask", title: "No area" }), null);
   assert.equal(askArea({ kind: "heads_up", source: "Print lab", link: "/workshop" }), null);
 });
+
+test("A36 D2/D3 + A37 R3: attention records without an action or fix merge as heads_up (not asks) and carry no PAGE_VERB button", () => {
+  const h = withHead();
+  try {
+    const records = [
+      { id: "pi", state: "hot", severity: "attention", headline: "Running hot" },
+      { id: "internet", state: "slow", severity: "attention", headline: "Internet is slow" },
+    ];
+    renderDashboard(h.state, { today: null, records, needs: { count: 0, items: [], unread: [] }, now: {} }, () => {});
+    assert.equal(text(h.state.hd.needsCount), "", "passive attention records are not counted as asks");
+    assert.equal(problemsBadge({ count: 0, items: [], unread: [] }, h.state.probs).count, 0);
+    assert.equal(h.said()[0], "Nothing needs you.");
+    assert.equal(h.said()[1], "Raspberry Pi: Running hot.");
+    const box = h.state.hd.needs.querySelector("details.hd-heads-up");
+    assert.ok(box, "drawn inside collapsed Heads up");
+    assert.equal(box.querySelectorAll('.ui-need[data-kind="heads_up"]').length, 2);
+    assert.equal(box.querySelector(".ui-need__action"), null, "no PAGE_VERB button on heads_up record rows (A36 D3)");
+  } finally { h.done(); }
+});

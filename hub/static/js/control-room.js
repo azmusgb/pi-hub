@@ -152,6 +152,7 @@ export function recordTitle(r) {
 // A record left in this state on purpose is not a Need: it shows on its system's row with the way to undo it
 // (amendment A8 D2). The Home badge counts the same list, so the two agree (baseline 5.5).
 export const DELIBERATE = { adguard: ["paused"] };
+const RECORD_ASK_IDS = new Set(["backups", "local_ai", "pc_printing"]);
 
 // Merge Needs you items with any problem/attention records so nothing falls through the cracks.
 export function mergeProblems(records = [], needs = null) {
@@ -190,17 +191,21 @@ export function mergeProblems(records = [], needs = null) {
     if (!r || (r.severity !== "problem" && r.severity !== "attention")) continue;
     if (DELIBERATE[r.id]?.includes(r.state)) continue;
     if (coveredAbout.has(r.id)) continue;
+    const actions = actionNames(r.actions);
+    const fix = FIX_MAP[r.id] || null;
+    const isAsk = r.severity === "problem" || actions.length > 0 || Boolean(fix) || RECORD_ASK_IDS.has(r.id);
     out.push({
       kind: "record",
       id: `rec:${r.id}`,
       recordId: r.id,
+      itemKind: isAsk ? "ask" : "heads_up",
       title: recordTitle(r),
       detail: r.cause || "",
       tone: recordTone(r.severity),
       about: r.id,
       since: r.since || null,
-      actions: actionNames(r.actions),
-      fix: FIX_MAP[r.id] || null,
+      actions,
+      fix,
       href: recordPath(r.id),
     });
   }
@@ -221,8 +226,9 @@ export function problemItems(probs = []) {
         until: p.until || undefined, area: p.source && p.source !== "Pi Hub" ? p.source : undefined,
         ack: p.ack || undefined };
     }
-    const verb = PAGE_VERB[p.href];
-    return { id: p.id, kind: "ask", tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
+    const isHeadsUp = p.itemKind === "heads_up";
+    const verb = isHeadsUp ? null : PAGE_VERB[p.href];
+    return { id: p.id, kind: isHeadsUp ? "heads_up" : "ask", tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
       link: p.href || undefined, action: verb ? { key: verb, link: p.href } : undefined, as_of: iso };
   });
 }
