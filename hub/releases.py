@@ -101,13 +101,15 @@ def _newer_ok(target, newer):
                              and all(_hex(c) for c in newer))
 
 
-def _tests_ok(tests):
-    """`tests` is the release's test time: whole seconds and a worker count, each in range, nothing else. None is fine."""
+def _tests(tests):
+    """`tests` is the release's test time: whole seconds and a worker count, each in range, nothing else. What it adds
+    to the report: {"tests": …}, {} when there is none, or None when it isn't valid."""
     if tests is None:
-        return True
+        return {}
     if not isinstance(tests, dict) or not {"python_s", "workers"} <= tests.keys() <= TESTS.keys():
-        return False
-    return all(type(v) is int and TESTS[k][0] <= v <= TESTS[k][1] for k, v in tests.items())
+        return None
+    ok = all(type(v) is int and TESTS[k][0] <= v <= TESTS[k][1] for k, v in tests.items())
+    return {"tests": dict(tests)} if ok else None
 
 
 def valid(target, body, now):
@@ -146,14 +148,11 @@ def valid(target, body, now):
     if not isinstance(message, str) or len(message) > 200:
         return None
     out["message"] = message
-    if not _newer_ok(target, body.get("newer")):
+    tests = _tests(body.get("tests"))
+    if tests is None or not _newer_ok(target, body.get("newer")):
         return None
     out["newer"] = body.get("newer") or []
-    if not _tests_ok(body.get("tests")):
-        return None
-    if body.get("tests") is not None:
-        out["tests"] = dict(body["tests"])
-    return out
+    return {**out, **tests}
 
 
 def _state(running, head, detail):
