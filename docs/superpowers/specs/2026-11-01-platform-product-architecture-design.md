@@ -1195,3 +1195,12 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   states and urgent faults; weather, Pi heat, late-but-in-limit backups and similar conditions are Heads up, collapsed
   on Home, with since/until. A condition past its limit escalates to an ask with a named step. Navigation links never
   make an ask. Proposed 25 Nov 2026; approved when merged. Amends one-needs-you N2 and `count`, baseline section 6.
+- **A37. The page says its reading; Needs you and lists are rows on one grid**
+  (`2026-11-25-amendment-a37-spoken-readout.md`): a page with a reading opens with one or two sentences that state it,
+  written by the kit from a structured reading with stale, unavailable, unknown and loading as their own cases; the
+  static title and purpose line leave that page (the name stays for assistive tech and in the tab title). The faceplate
+  drops its big readout there and Home draws it only while something runs. Needs-you items lose their boxes, with
+  technical text behind "Details"; every lamp row shares one grid with the lamp by the name and an optional figure. The
+  accent only acts: meters fill with `text`, the nav count is a bare amber number of asks. Printer is the pilot, with
+  an owner go-or-stop gate before the restyle and Home. The design is appliance-ui's
+  `2026-11-25-spoken-readout-design.md`. Proposed 25 Nov 2026; approved when merged. Amends A7 P1, P2 and P3, A8 D3.
