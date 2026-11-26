@@ -3,7 +3,9 @@
 // 2026-11-05-a10-responsive, P4): the band reads its own width and type size. A11: where the band can't give an hour
 // 24 px with names beside, the day is a dial and the rack compact rows.
 import { clockTime, h } from "./core.js";
+import { printerPlate, sayHead } from "./page-parts.js";
 import { printerButtons } from "./printer-actions.js";
+import { jobTitle, printerReading } from "./printer-reading.js";
 import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { couldntCheck } from "./wording.js";
 import { decisionsState, drawDecisions } from "./home-decisions.js";
@@ -374,9 +376,7 @@ const dayOrTime = (ts, now) => {
   return d.toDateString() === n.toDateString() ? t(ts) : d.toLocaleDateString([], { day: "numeric", month: "short" });
 };
 const upFor = (hours) => (!Number.isFinite(hours) ? null : hours >= 48 ? `${Math.floor(hours / 24)} days` : `${Math.max(0, Math.round(hours))} h`);
-
-const PRINTER_WORD = { printing: "Printing", paused: "Paused", finished: "Finished", failed: "Failed", idle: "Ready",
-  offline: "Offline", unknown: "No status yet" };
+const PRINTER_WORD = { printing: "Printing", paused: "Paused", finished: "Finished", failed: "Failed", idle: "Ready", offline: "Offline", unknown: "No status yet" };
 const NET_WORD = {
   internet: { ok: "Fine", slow: "Slow", down: "Down" },
   adguard: { blocking: "On", paused: "Paused", not_answering: "Not answering" },
@@ -384,24 +384,70 @@ const NET_WORD = {
   local_ai: { ready: "Ready", busy: "Busy", no_models: "No models loaded", down: "Down" },
 };
 
-// The rack as plain data (pure, tested): each row's lamp, name, state in words, readings and link. A source that
-// didn't answer leaves its row in place, saying so; a row never shows an earlier answer as current (plan decision 8).
+// The printer card Home reads for its sentence and its plate (A37 R3, R4): /api/now's printer card, enriched by the
+// printer record when present (or built from the record alone when a test passes only records).
+export function homePrinterCard(d, records) {
+  const p = d?.printer && typeof d.printer === "object" ? d.printer : null;
+  const pr = (records || []).find((r) => r?.id === "printer") || null;
+  if (!p?.state && !pr?.state) return p;
+  const dt = pr?.detail || {};
+  const pct = typeof p?.percent === "number" ? p.percent : Number.isFinite(dt.progress) ? Math.round(dt.progress) : null;
+  const stale = Boolean(p?.stale || pr?.stale || p?.telemetry?.status === "stale");
+  const asOf = p?.as_of ?? pr?.as_of ?? null;
+  const tel = p?.telemetry || (pr ? { status: stale ? "stale" : "live", source: "Bambuddy", observed_at: Number.isFinite(asOf) ? new Date(asOf * 1000).toISOString() : "" } : undefined);
+  return {
+    ...p, state: p?.state || pr?.state, stale, as_of: asOf, percent: pct, progress: p?.progress ?? pct ?? 0,
+    job_name: p?.job_name ?? dt.job ?? "", layer_num: p?.layer_num ?? dt.layer ?? null, total_layers: p?.total_layers ?? dt.total_layers ?? null,
+    minutes_left: p?.minutes_left ?? dt.minutes_left ?? null, actions: Array.isArray(p?.actions) && p.actions.length ? p.actions : actionNames(pr?.actions),
+    telemetry: tel, lab: dt.lab?.experiment || dt.lab_experiment || dt.lab || "", labProject: dt.lab?.project || dt.lab_project || "",
+  };
+}
+
+// Home draws the printer plate only while a print runs or is held (A37 R4, Call 3); idle, the sentence says so.
+export function homePlateShown(card) {
+  return Boolean(card && (card.state === "printing" || card.state === "paused") && !card.stale && card.telemetry?.status !== "stale");
+}
+
+const conditionTitle = (p) => (p?.source === "Pi Hub" && typeof p.detail === "string" && p.detail.trim()
+  ? p.detail.split(". ")[0].trim() : typeof p?.title === "string" ? p.title.trim() : "");
+
+// What Home hands ApplianceSay.compose (A37 R2, R3): the asks count equals the ask rows Home drew; part unread names
+// the source that wasn't read; no asks with open decisions says how many decisions wait; bad conditions beat the
+// running print, which beats warn heads-up.
+export function homeReading(src = {}, { asks = null, headsUp = [], probs = null, decisions = undefined } = {}) {
+  const unread = [...(Array.isArray(src.needs?.unread) ? src.needs.unread : []),
+    ...(!src.needs && asks?.length ? ["Needs you"] : []), ...(src.needs && !src.records ? ["Pi Hub's records"] : [])];
+  const count = !src.needs && !asks?.length ? null : Array.isArray(asks) ? asks.length : null;
+  const bad = (probs || []).filter((p) => p?.tone === "bad").map((p) => ({ tone: "bad", title: conditionTitle(p) }));
+  const warn = (headsUp || []).filter((p) => p?.tone !== "bad").map((p) => ({ tone: "warn", title: conditionTitle(p) }));
+  const card = homePrinterCard(src.now, src.records);
+  return { page: "home", label: "Home", asks: count, unread, ...(decisions !== undefined ? { decisions } : {}),
+    conditions: [...bad, ...warn], printer: card?.state ? printerReading(card, { title: jobTitle }) : undefined };
+}
+
+export function sayHome(input, now = Date.now()) {
+  const kit = globalThis.ApplianceSay;
+  return kit ? sayHead(kit.compose(input, { now, ago: globalThis.ApplianceNeeds?.ago }), "now") : false;
+}
+
+// The rack as plain data (pure, tested): each row's lamp, name, state in words, one-line detail, optional figure and
+// link. While Home's plate shows the printer, the X2D row drops its figure (A37 R4, R6).
 export function rackRows(src) {
   const { now: d, records, pi, backups, workshop, nowTs } = src;
   const rec = (id) => (records || []).find((r) => r.id === id) || null;
+  const onPlate = src.plateShown ?? homePlateShown(homePrinterCard(d, records));
   const rows = [];
 
   // X2D, from the printer record (the same one Workshop reads)
   const pr = rec("printer");
   if (!records) {
-    rows.push({ id: "printer", name: "X2D", lamp: "unknown", state: sourceDown("Pi Hub's records"), readings: [], brief: "", href: "/workshop", link: "Open Workshop" });
+    const down = sourceDown("Pi Hub's records");
+    rows.push({ id: "printer", name: "X2D", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/workshop", link: "Open Workshop" });
   } else {
-    const m = pr ? printerNow(pr) : null;
-    const dt = pr?.detail || {};
-    const p = d?.printer || {};
-    const readings = [];
+    const m = pr ? printerNow(pr) : null, dt = pr?.detail || {}, p = d?.printer || {}, readings = [];
+    const doneNote = Number.isFinite(p.minutes_left) && p.minutes_left > 0 ? `done ${t(nowTs + p.minutes_left * 60)}` : "";
     if (m?.pct !== null && m?.pct !== undefined) {
-      readings.push({ kind: "ring", pct: m.pct, value: `${m.pct}%`, note: Number.isFinite(p.minutes_left) && p.minutes_left > 0 ? `done ${t(nowTs + p.minutes_left * 60)}` : "" });
+      readings.push({ kind: "ring", pct: m.pct, value: `${m.pct}%`, note: doneNote });
       if (Number.isFinite(dt.layer) && dt.layer > 0) readings.push({ label: "Layer", value: `${dt.layer}`, of: Number.isFinite(dt.total_layers) && dt.total_layers > 0 ? `/${dt.total_layers}` : "", meter: true });
     }
     if (Number.isFinite(p.nozzle_temp)) readings.push({ label: "Nozzle", value: `${Math.round(p.nozzle_temp)}°`, meter: true });
@@ -409,41 +455,49 @@ export function rackRows(src) {
     if (p.filament_type) readings.push({ label: "Filament", value: `${p.filament_type}`, swatch: /^[0-9a-f]{6}/i.test(p.filament_color || "") ? `#${p.filament_color.slice(0, 6)}` : null });
     if (Number.isFinite(p.ams_humidity)) readings.push({ label: "AMS humidity", value: `${Math.round(p.ams_humidity)}%` });
     const stale = pr?.stale;
-    rows.push({
-      id: "printer", name: "X2D",
-      lamp: !pr ? "unknown" : stale ? "warn" : m?.running ? "run" : lampOf(pr.severity),
-      state: !pr ? "No status yet" : stale ? `Last seen ${t(pr.as_of)}; ${sourceDown("Bambuddy")}` : (PRINTER_WORD[pr.state] || pr.headline || pr.state),
-      readings, brief: !stale && Number.isFinite(m?.pct) ? `${m.pct}%` : "", href: "/workshop", link: "Open Workshop",
-      printer: pr && !stale ? { actions: actionNames(pr.actions), state: pr.state, lab: m?.lab || "", labProject: m?.labProject || "" } : null,
-    });
+    const state = !pr ? "No status yet" : stale ? `Last seen ${t(pr.as_of)}; ${sourceDown("Bambuddy")}` : (PRINTER_WORD[pr.state] || pr.headline || pr.state);
+    const chip = !pr ? "No status yet" : stale ? "Last readings" : state;
+    const parts = [m?.running ? jobTitle(p.job_name || dt.job) : "",
+      Number.isFinite(dt.layer) && dt.layer > 0 ? `Layer ${dt.layer}${Number.isFinite(dt.total_layers) && dt.total_layers > 0 ? `/${dt.total_layers}` : ""}` : "",
+      Number.isFinite(p.nozzle_temp) ? `Nozzle ${Math.round(p.nozzle_temp)}°` : "", Number.isFinite(p.bed_temp) ? `Bed ${Math.round(p.bed_temp)}°` : "",
+      p.filament_type || "", Number.isFinite(p.ams_humidity) ? `AMS ${Math.round(p.ams_humidity)}%` : ""].filter(Boolean);
+    const figure = !onPlate && !stale && Number.isFinite(m?.pct) && m.pct > 0 ? { value: `${m.pct}%`, note: doneNote } : null;
+    rows.push({ id: "printer", name: "X2D", lamp: !pr ? "unknown" : stale ? "warn" : m?.running ? "run" : lampOf(pr.severity),
+      state, chip, detail: !pr ? "" : stale ? state : parts.join(", "), figure, readings,
+      brief: !stale && Number.isFinite(m?.pct) ? `${m.pct}%` : "", href: "/workshop", link: "Open Workshop",
+      printer: pr && !stale ? { actions: actionNames(pr.actions), state: pr.state, lab: m?.lab || "", labProject: m?.labProject || "" } : null });
   }
 
   // Raspberry Pi
-  const piRec = rec("pi");
-  const pd = d?.pi || {};
+  const piRec = rec("pi"), pd = d?.pi || {};
   {
     const readings = [];
     if (Number.isFinite(pd.temp)) readings.push({ kind: "temp", value: `${Math.round(pd.temp)}°`, temp: pd.temp });
-    if (Number.isFinite(pd.mem_total_gb) && Number.isFinite(pd.mem_free_gb)) readings.push({ label: "Memory", value: `${gb(pd.mem_total_gb - pd.mem_free_gb)} of ${gb(pd.mem_total_gb)} GB` });
+    const mem = Number.isFinite(pd.mem_total_gb) && Number.isFinite(pd.mem_free_gb) ? `${gb(pd.mem_total_gb - pd.mem_free_gb)} of ${gb(pd.mem_total_gb)} GB` : "";
+    if (mem) readings.push({ label: "Memory", value: mem });
     const sc = pi?.selfcheck;
     if (sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed)) readings.push({ label: "Self-check", value: `${sc.total - sc.failed} of ${sc.total}`, warn: sc.failed > 0 });
     else if (!pi) readings.push({ label: "Self-check", value: "Not answering", warn: true });
-    if (upFor(pd.uptime_h)) readings.push({ label: "Up", value: upFor(pd.uptime_h) });
+    const up = upFor(pd.uptime_h);
+    if (up) readings.push({ label: "Up", value: up });
     if (Number.isFinite(pd.updates)) readings.push({ label: "Updates", value: pd.updates ? `${pd.updates} waiting` : "Up to date" });
     const power = typeof pd.power === "string" && pd.power !== "Good" ? pd.power : "";
-    rows.push({ id: "pi", name: "Raspberry Pi", lamp: piRec ? lampOf(piRec.severity) : "unknown",
-      state: !records ? sourceDown("Pi Hub's records") : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine"),
-      readings, brief: Number.isFinite(pd.temp) ? `${Math.round(pd.temp)}°` : "", href: "/system", link: "Open System" });
+    const state = !records ? sourceDown("Pi Hub's records") : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
+    const detail = !records ? state : [mem ? `Memory ${mem}` : "",
+      sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed) ? `self-check ${sc.total - sc.failed} of ${sc.total}` : !pi ? "self-check not answering" : "",
+      up ? `up ${up}` : "", Number.isFinite(pd.updates) ? (pd.updates ? `${pd.updates} updates waiting` : "up to date") : ""].filter(Boolean).join(", ");
+    const temp = Number.isFinite(pd.temp) ? Math.round(pd.temp) : null;
+    rows.push({ id: "pi", name: "Raspberry Pi", lamp: piRec ? lampOf(piRec.severity) : "unknown", state, chip: !records ? "No answer" : state, detail,
+      figure: temp && temp > 0 ? { value: `${temp}°`, note: "slows at 80°" } : null, readings, brief: temp !== null ? `${temp}°` : "", href: "/system", link: "Open System" });
   }
 
   // Network
   if (!records) {
-    rows.push({ id: "network", name: "Network", lamp: "unknown", state: sourceDown("Pi Hub's records"), readings: [], brief: "", href: "/network", link: "Open Network" });
+    const down = sourceDown("Pi Hub's records");
+    rows.push({ id: "network", name: "Network", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/network", link: "Open Network" });
   } else {
-    const ids = ["internet", "adguard", "pc", "local_ai"];
-    const recs = ids.map(rec);
+    const ids = ["internet", "adguard", "pc", "local_ai"], recs = ids.map(rec), ag = rec("adguard");
     const label = { internet: "Internet", adguard: "Ad blocking", pc: "Windows PC", local_ai: "Local AI" };
-    const ag = rec("adguard");
     const readings = ids.map((id, i) => {
       const r = recs[i];
       if (!r) return null;
@@ -451,32 +505,28 @@ export function rackRows(src) {
       if (id === "adguard" && r.state === "paused" && Number.isFinite(r.since)) value = `Paused since ${dayOrTime(r.since, nowTs)}`;
       return { label: label[id], value, warn: recordTone(r.severity) !== "ok" };
     }).filter(Boolean);
-    const lamp = lampOf(worst(recs.filter(Boolean)));
-    const firstWarn = recs.find((r) => r && recordTone(r.severity) !== "ok");
-    rows.push({ id: "network", name: "Network", lamp, state: firstWarn ? (firstWarn.id === "adguard" && firstWarn.state === "paused" ? "Ad blocking paused" : `${label[firstWarn.id]}: ${NET_WORD[firstWarn.id][firstWarn.state] || firstWarn.state}`) : "Fine",
-      readings, brief: "", href: "/network", link: "Open Network",
-      action: ag && ag.state === "paused" ? { label: "Turn it on in AdGuard", href: resolveLink("tool:adguard") } : null });
+    const lamp = lampOf(worst(recs.filter(Boolean))), firstWarn = recs.find((r) => r && recordTone(r.severity) !== "ok");
+    const state = firstWarn ? (firstWarn.id === "adguard" && firstWarn.state === "paused" ? "Ad blocking paused" : `${label[firstWarn.id]}: ${NET_WORD[firstWarn.id][firstWarn.state] || firstWarn.state}`) : "Fine";
+    rows.push({ id: "network", name: "Network", lamp, state, chip: state, detail: readings.map((r) => `${r.label} ${r.value.toLowerCase()}`).join(", "), figure: null,
+      readings, brief: "", href: "/network", link: "Open Network", action: ag && ag.state === "paused" ? { label: "Turn it on in AdGuard", href: resolveLink("tool:adguard") } : null });
   }
 
   // Storage and backups
   {
-    const readings = [];
-    for (const s of Array.isArray(pi?.storage) ? pi.storage : []) {
-      if (!s?.mounted || !Number.isFinite(s.used_pct)) continue;
-      readings.push({ kind: "fill", label: s.name, pct: s.used_pct, value: `${gb(s.free_gb)} GB`, note: "free" });
-    }
-    for (const b of Array.isArray(backups?.repos) ? backups.repos : []) readings.push({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) });
+    const drives = (Array.isArray(pi?.storage) ? pi.storage : []).filter((s) => s?.mounted && Number.isFinite(s.used_pct));
+    const repos = Array.isArray(backups?.repos) ? backups.repos : [];
+    const readings = [...drives.map((s) => ({ kind: "fill", label: s.name, pct: s.used_pct, value: `${gb(s.free_gb)} GB`, note: "free" })),
+      ...repos.map((b) => ({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) }))];
     const recs = ["backups", "movies_drive", "movie_copy"].map(rec).filter(Boolean);
-    // Each part says when it didn't answer: the drives (the Pi's status), the backup times (Backrest, through the
-    // helper; it answers 200 with available false when the helper fails) and the records.
-    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"),
-      records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const bad = recs.find((r) => recordTone(r.severity) !== "ok");
+    const state = bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up";
+    const firstDrive = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
+    const freeGb = firstDrive ? gb(firstDrive.free_gb) : null;
+    const detail = [...drives.map((s) => `${s.name} ${Math.round(s.used_pct)}% full`), ...repos.map((b) => `${b.name} backup ${dayOrTime(b.last, nowTs)}`), ...down].join(", ");
     rows.push({ id: "storage", name: "Storage", lamp: bad ? lampOf(worst(recs)) : down.length ? "unknown" : lampOf(worst(recs)),
-      state: bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up",
-      readings, brief: (() => { const s = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
-        return s ? `${gb(s.free_gb)} GB free` : ""; })(),
-      href: "/drives", link: "Open Drives" });
+      state, chip: !bad && down.length ? "No answer" : state, detail, figure: freeGb && freeGb > 0 ? { value: String(freeGb), note: "GB free" } : null,
+      readings, brief: freeGb !== null ? `${freeGb} GB free` : "", href: "/drives", link: "Open Drives" });
   }
 
   // This week
@@ -485,7 +535,10 @@ export function rackRows(src) {
     const prints = Array.isArray(workshop?.prints) ? workshop.prints.filter((p) => Number.isFinite(p.seconds) && p.status !== "printing").slice(0, 8).reverse() : [];
     const readings = week ? [{ label: "Finished", value: String(week.finished), meter: true }, { label: "Printing time", value: `${Math.round(week.hours)} h`, meter: true }] : [];
     if (prints.length) readings.push({ kind: "bars", label: `Last ${prints.length} prints by length`, bars: prints.map((p) => ({ seconds: p.seconds, failed: p.status === "failed" || p.status === "cancelled", name: p.name, word: p.word })) });
-    rows.push({ id: "week", name: "This week", lamp: week ? "ok" : "unknown", state: week ? "At the printer" : sourceDown("Bambuddy"),
+    const state = week ? "At the printer" : sourceDown("Bambuddy");
+    rows.push({ id: "week", name: "This week", lamp: week ? "ok" : "unknown", state, chip: week ? "At the printer" : "No answer",
+      detail: week ? `${Math.round(week.hours)} h printing time` : state,
+      figure: week && Number.isFinite(week.finished) && week.finished > 0 ? { value: String(week.finished), note: "finished" } : null,
       readings, brief: week ? `${week.finished} finished` : "", href: "/workshop", link: "Open Workshop" });
   }
   return rows;
@@ -498,76 +551,21 @@ export function otherFine(records = []) {
 
 // ---- drawing ----
 
-function ring(pct) {
-  const C = 2 * Math.PI * 23;
-  const root = svg("svg", { class: "hd-ring", width: 56, height: 56, viewBox: "0 0 56 56", "aria-hidden": "true" });
-  svg("circle", { class: "hd-ring__track", cx: 28, cy: 28, r: 23, fill: "none", "stroke-width": 7 }, root);
-  svg("circle", { class: "hd-ring__fill", cx: 28, cy: 28, r: 23, fill: "none", "stroke-width": 7, "stroke-linecap": "round",
-    transform: "rotate(-90 28 28)", "stroke-dasharray": `${C * Math.max(0, Math.min(100, pct)) / 100} ${C}` }, root);
-  return root;
-}
-
-function reading(r) {
-  if (r.kind === "ring") {
-    // dt and dd straight inside the row's group, as a description list needs (axe dlitem)
-    return h("div", { class: "hd-rd" }, h("dt", { class: "hd-sr" }, "Progress"),
-      h("dd", { class: "hd-rd--hero" }, ring(r.pct),
-        h("span", {}, h("span", { class: "hd-meter hd-meter--big" }, r.value), r.note ? h("span", { class: "hd-rd__note" }, r.note) : null)));
-  }
-  if (r.kind === "temp") {
-    // 30 to 85 °C; the Pi slows itself down at 80
-    const pct = Math.max(0, Math.min(100, (r.temp - 30) / 55 * 100));
-    return h("div", { class: "hd-rd hd-rd--hero" },
-      h("dt", { class: "hd-sr" }, "Temperature"), h("dd", { class: "hd-meter hd-meter--big" }, r.value),
-      h("dd", { class: "hd-gauge", "aria-label": `${r.value} C. It slows itself down at 80 °C.` },
-        h("span", { class: "hd-gauge__lbl" }, h("span", {}, "30°"), h("span", {}, "slows at 80°")),
-        h("span", { class: "hd-gauge__bar" }, h("span", { class: "hd-gauge__hot" }), h("span", { class: "hd-gauge__fill", style: `width:${pct}%` }))));
-  }
-  if (r.kind === "fill") {
-    return h("div", { class: "hd-rd hd-gauge" },
-      h("dt", { class: "hd-gauge__lbl" }, h("span", {}, r.label), h("span", {}, h("b", {}, r.value), ` ${r.note}`)),
-      h("dd", {}, h("span", { class: "hd-gauge__bar", role: "img", "aria-label": `${r.label} ${Math.round(r.pct)}% full` },
-        h("span", { class: "hd-gauge__fill", style: `width:${Math.max(0, Math.min(100, r.pct))}%` }))));
-  }
-  if (r.kind === "bars") {
-    const max = Math.max(...r.bars.map((b) => b.seconds), 1);
-    const fails = r.bars.filter((b) => b.failed).length;
-    return h("div", { class: "hd-rd" }, h("dt", {}, r.label),
-      h("dd", {}, h("span", { class: "hd-bars", role: "img", "aria-label": `${r.bars.length - fails} finished, ${fails} failed or cancelled` },
-        ...r.bars.map((b) => h("span", { class: b.failed ? "hd-bars__bad" : "", style: `height:${Math.round(b.seconds / max * 100)}%`, title: `${b.name}: ${b.word}` })))));
-  }
-  return h("div", { class: "hd-rd" }, h("dt", {}, r.label),
-    h("dd", { class: [r.meter ? "hd-meter" : "", r.warn ? "hd-warn" : ""].filter(Boolean).join(" ") || null },
-      r.swatch ? h("span", { class: "hd-swatch", style: `background:${r.swatch}` }) : null, r.value, r.of ? h("span", { class: "hd-of" }, r.of) : null));
-}
-
-// A11 D5: where the dial is drawn, a row is lamp, name, state, one reading and its link; the row's actions stay.
-function rackRow(row, onReload, compact = false) {
-  const extra = [];
-  if (row.printer) {
-    const btns = row.printer.actions.length ? printerButtons({ actions: row.printer.actions, state: row.printer.state }, onReload) : null;
-    if (btns) extra.push(btns);
-    if (row.printer.lab) extra.push(h("a", { class: "action", href: printLabUrl(row.printer.lab, row.printer.labProject), "data-link": true }, `Open ${row.printer.lab} in Print lab`));
-  }
-  if (row.action?.href) extra.push(h("a", { class: "action", href: row.action.href, target: "_blank", rel: "noopener" }, row.action.label));
-  if (compact) {
-    return h("li", { class: "hd-unit hd-unit--compact", dataset: { lamp: row.lamp, row: row.id, noOverlap: ":scope > *" } },
-      h("p", { class: "hd-unit__name" }, h("span", { class: "hd-lamp", dataset: { lamp: row.lamp }, "aria-hidden": "true" }),
-        h("span", {}, row.name, h("small", {}, row.state))),
-      row.brief ? h("span", { class: "hd-unit__brief hd-meter" }, row.brief) : null,
-      h("a", { class: "hd-unit__go", href: row.href, "data-link": true }, row.link),
-      extra.length ? h("div", { class: "hd-unit__actions" }, ...extra) : null);
-  }
-  return h("li", { class: "hd-unit", dataset: { lamp: row.lamp, row: row.id, noOverlap: ":scope > *" } },
-    h("p", { class: "hd-unit__name" }, h("span", { class: "hd-lamp", dataset: { lamp: row.lamp }, "aria-hidden": "true" }),
-      h("span", {}, row.name, h("small", {}, row.state))),
-    h("dl", { class: "hd-unit__readings", dataset: { noOverlap: ":scope > *" } }, ...row.readings.map(reading)),
-    h("a", { class: "hd-unit__go", href: row.href, "data-link": true }, row.link),
-    extra.length ? h("div", { class: "hd-unit__actions" }, ...extra) : null);
+// A37 R6: every system row is drawn on the kit's .ui-rows.ui-rows--grid.
+function rackRow(row) {
+  const tone = row.lamp === "run" ? "ok" : row.lamp, fig = row.figure;
+  const chipCls = `ui-chip ui-chip--${tone}${row.lamp === "run" ? " ui-chip--live" : ""}`;
+  return h("li", { dataset: { lamp: row.lamp, row: row.id } },
+    h("a", { class: "ui-row", href: row.href, "data-link": true, dataset: { noOverlap: ":scope > *" } },
+      h("span", { class: "ui-row__name" }, h("span", { class: "ui-row__title" }, row.name), h("span", { class: chipCls }, row.chip || row.state)),
+      row.detail ? h("span", { class: "ui-row__detail" }, row.detail) : null,
+      fig ? h("span", { class: "ui-row__figure" }, fig.value, fig.note ? h("small", {}, fig.note) : null) : null));
 }
 
 function skeletonRows(n) {
-  return Array.from({ length: n }, () => h("li", { class: "hd-unit" }, h("span", { class: "ui-skeleton", style: "width:40%" }), h("span", { class: "ui-skeleton", style: "width:70%" })));
+  return Array.from({ length: n }, () => h("li", { class: "ui-row" },
+    h("span", { class: "ui-row__name" }, h("span", { class: "ui-skeleton", style: "width:7rem" })),
+    h("span", { class: "ui-row__detail" }, h("span", { class: "ui-skeleton", style: "width:70%" }))));
 }
 
 // ---- the page ----
@@ -583,7 +581,7 @@ export function mountDashboard(state, parent) {
   hd.decisions = h("div", { class: "hd-needs__decisions", hidden: true });  // A33: the owner's open questions
   hd.asked = decisionsState();
   hd.needsHeading = h("h2", { id: "hd-needs-h", tabindex: "-1" }, "Needs you");  // where focus goes when a group it was in goes
-  hd.rack = h("ul", { class: "hd-rack__units" }, ...skeletonRows(5));
+  hd.rack = h("ul", { class: "ui-rows ui-rows--grid" }, ...skeletonRows(5));
   hd.others = h("div", { class: "hd-others" });
   // One link to the Assistant on Home, a contextual one (main.js fills it with what is on screen and shows pc_off or
   // assistant_down while Local AI can't answer); the head's button is the persistent entry.
@@ -683,18 +681,24 @@ function drawDay(hd, at) {
   if (hd.lit) light(hd, hd.lit);
 }
 
-function renderRack(hd, rows, onReload) {
-  const compact = hd.root.dataset.day === "dial";
-  hd.rack.replaceChildren(...rows.map((r) => rackRow(r, onReload, compact)));
+const renderRack = (hd, rows) => hd.rack.replaceChildren(...rows.map((r) => rackRow(r)));
+
+function renderPlate(hd, card, onReload) {
+  if (!homePlateShown(card)) { hd.plate?.remove(); hd.plate = null; return false; }
+  const btns = card.actions?.length ? printerButtons({ actions: card.actions, state: card.state }, onReload) : null;
+  const lab = card.lab ? h("a", { class: "ui-btn ui-btn--ghost", href: printLabUrl(card.lab, card.labProject), "data-link": true }, `Open ${card.lab} in Print lab`) : null;
+  const next = printerPlate(card, { actions: [btns, lab].filter(Boolean) });
+  next.classList.add("hd-plate");
+  if (hd.plate?.parentNode === hd.root) hd.plate.replaceWith(next); else hd.root.prepend(next);
+  hd.plate = next;
+  return true;
 }
 
 // The Decisions group into its own slot (A33), left in place when it is the same node, so a refresh doesn't move a row
 // someone is answering. True when it shows open questions.
 function showDecisions(hd, needs, onReload) {
   hd.reload = onReload;
-  const node = drawDecisions(hd.asked, needs, onReload);
-  const shown = hd.decisions.firstChild;
-  const focused = shown?.contains(document.activeElement);
+  const node = drawDecisions(hd.asked, needs, onReload), shown = hd.decisions.firstChild, focused = shown?.contains(document.activeElement);
   // The last row answered: the kit leaves focus on the group's "Recorded: …" line. A read with nothing open keeps
   // that group, and focus with it, until focus moves on; the first read after that takes it away.
   if (!node && focused && !shown.querySelector(".ui-decision")) return false;
@@ -708,8 +712,7 @@ function showDecisions(hd, needs, onReload) {
 }
 
 // Focus that was inside a group that went, or was redrawn and not put back by position, goes to the Needs you heading,
-// never to the top of the page, and the heading is brought into view if it is off screen (at once: no smooth scroll,
-// so reduced motion is respected).
+// never to the top of the page, and the heading is brought into view if it is off screen.
 function rescueFocus(hd) {
   if (hd.decisionsHadFocus && !hd.root.contains(document.activeElement)) {
     hd.needsHeading.focus({ preventScroll: true });
@@ -746,6 +749,8 @@ export function renderDashboard(state, src, onReload) {
   }
 
   // Needs you (asks) and Heads up (conditions, A36 D6): ordered by tone; the badge counts asks only.
+  const card = homePrinterCard(src.now, src.records);
+  const plateShown = renderPlate(hd, card, onReload);
   {
     const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
@@ -755,6 +760,10 @@ export function renderDashboard(state, src, onReload) {
     hd.needsCount.textContent = asks?.length ? String(asks.length) : !src.needs ? "?" : "";
     const note = down.length ? h("p", { class: "hd-needs__down" }, `${down.join(". ")}. It will keep trying.`) : null;
     const asked = showDecisions(hd, src.needs, onReload);  // under the condition rows; never counted (A33)
+    const ownerDecisions = Object.hasOwn(src.needs || {}, "decisions")
+      ? (Array.isArray(src.needs.decisions?.open) ? (hd.asked.last?.length ?? 0) : null)
+      : (!src.needs && hd.asked.owner ? null : undefined);
+    sayHome(homeReading(src, { asks, headsUp, probs, decisions: ownerDecisions }));
     const headsOpen = !!hd.needs.querySelector(".hd-heads-up")?.open;  // a refresh keeps Heads up as the owner left it
     const headsSummary = `${headsUp.length} heads up: ${headsUp.map((p) => p.title).slice(0, 3).join(", ")}${headsUp.length > 3 ? "…" : ""}`;
     hd.needs.replaceChildren(...[
@@ -774,7 +783,7 @@ export function renderDashboard(state, src, onReload) {
   }
 
   // Systems
-  const rows = rackRows({ ...src, nowTs });
+  const rows = rackRows({ ...src, nowTs, plateShown });
   hd.rackArgs = [rows, onReload];
   renderRack(hd, rows, onReload);
   const fine = src.records ? otherFine(src.records) : [];

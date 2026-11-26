@@ -18,9 +18,12 @@
 .hd-meter { font-weight: 720; font-stretch: var(--ui-stretch-readout); letter-spacing: -.005em; line-height: .9; }
 .hd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .hd-head { display: flex; align-items: baseline; gap: .625rem; min-height: 1.875rem; }
+.hd-plate { grid-area: plate; }
+.hd:has(> .hd-plate) { grid-template-areas: "plate" "needs" "ask" "rack" "today"; }
 /* Two columns where Needs you gets about 22 rem and Systems about 36 rem (A10 D4), the day across both. */
 @container home (min-width: 59.5rem) {
   .hd { grid-template-columns: minmax(22rem, 2fr) minmax(36rem, 3fr); grid-template-areas: "needs rack" "ask rack" "today today"; grid-template-rows: auto 1fr auto; }
+  .hd:has(> .hd-plate) { grid-template-areas: "plate plate" "needs rack" "ask rack" "today today"; grid-template-rows: auto auto 1fr auto; }
 }
 
 /* Ask the Assistant: one line, the text and the link (main.js fills the link and shows it off while Local AI is down) */
@@ -138,94 +141,8 @@ p.hd-band__down { padding: var(--ui-s-3) 0; }
   cursor: pointer;
 }
 
-/* Systems: the rack */
-.hd-rack { grid-area: rack; display: grid; gap: var(--ui-s-3); min-width: 0; container: rack / inline-size; }
-.hd-rack__units {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  border: 1px solid var(--ui-line);
-  border-radius: var(--ui-r-3);
-  background: var(--ui-surface);
-  overflow: hidden;
-}
-.hd-unit {
-  display: grid;
-  grid-template-columns: 10.5rem minmax(0, 1fr) auto;
-  gap: var(--ui-s-4) var(--ui-s-5);
-  align-items: center;
-  padding: 1rem clamp(.875rem, 3cqi, 1.125rem);
-  border-top: 1px solid var(--ui-line);
-}
-.hd-unit:first-child { border-top: 0; }
-.hd-unit[data-lamp="warn"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-warn) 14%, transparent), transparent 40%); }
-.hd-unit[data-lamp="bad"] { background: linear-gradient(90deg, color-mix(in srgb, var(--ui-bad) 14%, transparent), transparent 40%); }
-.hd-unit__name { display: flex; align-items: center; gap: .625rem; font-weight: 700; font-size: var(--ui-fs-4); line-height: 1.2; }
-.hd-unit__name small { display: block; color: var(--ui-muted); font-weight: 500; font-size: var(--ui-fs-2); }
-.hd-lamp { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ui-unknown); }
-.hd-lamp[data-lamp="ok"] { background: var(--ui-ok); }
-.hd-lamp[data-lamp="warn"] { background: var(--ui-warn); }
-.hd-lamp[data-lamp="bad"] { background: var(--ui-bad); }
-.hd-lamp[data-lamp="run"] { background: var(--ui-accent); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hd-lamp:not([data-lamp="unknown"]) { box-shadow: 0 0 8px currentColor; }
-}
-:root[data-theme="dark"] .hd-lamp:not([data-lamp="unknown"]) { box-shadow: 0 0 8px currentColor; }
-.hd-lamp[data-lamp="ok"] { color: color-mix(in srgb, var(--ui-ok) 55%, transparent); }
-.hd-lamp[data-lamp="warn"] { color: color-mix(in srgb, var(--ui-warn) 55%, transparent); }
-.hd-lamp[data-lamp="bad"] { color: color-mix(in srgb, var(--ui-bad) 55%, transparent); }
-.hd-lamp[data-lamp="run"] { color: color-mix(in srgb, var(--ui-accent) 55%, transparent); }
-.hd-unit__go {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-size: var(--ui-fs-2);
-  color: var(--ui-accent-text);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.hd-unit__go:hover { text-decoration: underline; }
-.hd-unit__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--ui-s-2); }
-.hd-unit__readings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ui-s-3) 1.75rem; min-width: 0; }
-/* A11 D5: lamp, name and state; one reading; the link */
-.hd-unit--compact { grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--ui-s-2) var(--ui-s-4); padding-block: .625rem; }
-.hd-unit__brief { font-size: var(--ui-fs-5); }
-.hd-rd { display: grid; gap: .3125rem; min-width: 0; }
-.hd-rd dt { color: var(--ui-muted); font-size: var(--ui-fs-1); }
-.hd-rd dd { font-weight: 650; }
-.hd-rd dd.hd-meter { font-size: var(--ui-fs-6); font-weight: 700; }
-.hd-rd .hd-meter--big { font-size: clamp(2.75rem, 8cqi, 3.5rem); }
-.hd-rd dd.hd-warn { color: var(--ui-warn); }
-.hd-rd--hero { display: flex; align-items: center; gap: var(--ui-s-3); }
-.hd-rd--hero > span { display: grid; }
-.hd-rd__note { color: var(--ui-muted); font-size: var(--ui-fs-2); font-weight: 400; margin-top: var(--ui-s-1); }
-.hd-of { color: var(--ui-muted); font-weight: 500; }
-.hd-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--ui-line-2); }
-.hd-ring__track { stroke: var(--ui-surface-2); }
-.hd-ring__fill { stroke: var(--ui-accent); }
-.hd-gauge { display: grid; gap: .3125rem; width: 11.25rem; max-width: 100%; }
-.hd-gauge__bar { position: relative; display: block; height: 8px; border-radius: var(--ui-r-pill); background: var(--ui-surface-2); }
-.hd-gauge__fill { position: absolute; inset: 0 auto 0 0; border-radius: var(--ui-r-pill); background: var(--ui-accent); }
-.hd-gauge__hot {
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: 9%;
-  border-radius: 0 var(--ui-r-pill) var(--ui-r-pill) 0;
-  background: color-mix(in srgb, var(--ui-bad) 16%, transparent);
-  border-left: 2px solid var(--ui-bad);
-}
-.hd-gauge__lbl { display: flex; justify-content: space-between; gap: var(--ui-s-2); color: var(--ui-muted); font-size: var(--ui-fs-1); }
-.hd-gauge__lbl b { color: var(--ui-text); font-weight: 650; }
-.hd-bars { display: flex; align-items: flex-end; gap: 3px; height: 2.5rem; width: 8.75rem; max-width: 100%; }
-.hd-bars span { flex: 1; border-radius: 2px 2px 0 0; background: var(--ui-accent); min-height: 2px; }
-.hd-bars span.hd-bars__bad { background: var(--ui-bad); }
-/* A row under 34 rem: readings under the name (A10 D4) */
-@container rack (max-width: 34rem) {
-  .hd-unit:not(.hd-unit--compact) { grid-template-columns: 1fr auto; }
-  .hd-unit__readings { grid-column: 1 / -1; grid-row: 2; gap: var(--ui-s-3) 1.375rem; }
-  .hd-unit:not(.hd-unit--compact) .hd-unit__go { grid-column: 2; grid-row: 1; }
-}
+/* Systems: the rack (drawn with the kit's .ui-rows.ui-rows--grid, A37 R6) */
+.hd-rack { grid-area: rack; display: grid; gap: var(--ui-s-3); min-width: 0; }
 
 /* Everything else that is fine */
 .hd-others__summary {
