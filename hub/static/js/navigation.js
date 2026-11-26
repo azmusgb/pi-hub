@@ -132,15 +132,7 @@ function render() {
     const name = link.querySelector(".ui-rail-label")?.textContent || id;
     const badge = badgeFor(id);
 
-    shell.setBadge(nav, id, badge ? badge.count : 0);
-
-    const mark = link.querySelector(".ui-rail-badge");
-
-    if (badge && mark) {
-      if (badge.text !== undefined) mark.textContent = badge.text;
-      if (badge.dot) mark.dataset.dot = "";
-      mark.setAttribute("aria-label", badge.say);
-    }
+    shell.setBadge(nav, id, badge || 0);
 
     if (badge) {
       link.setAttribute("aria-label", `${name}, ${badge.say}`);

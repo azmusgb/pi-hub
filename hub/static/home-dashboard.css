@@ -129,6 +129,14 @@ p.hd-band__down { padding: var(--ui-s-3) 0; }
 .hd-needs__list { display: grid; gap: var(--ui-s-2); min-width: 0; }
 .hd-needs__decisions { margin-top: var(--ui-s-4); }  /* a group of its own, apart from the condition rows (A33) */
 .hd-needs__down { color: var(--ui-muted); font-size: var(--ui-fs-2); }
+.hd-heads-up__summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ui-muted);
+  font-size: var(--ui-fs-2);
+  cursor: pointer;
+}
 
 /* Systems: the rack */
 .hd-rack { grid-area: rack; display: grid; gap: var(--ui-s-3); min-width: 0; container: rack / inline-size; }

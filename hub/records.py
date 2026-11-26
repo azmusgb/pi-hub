@@ -53,6 +53,12 @@ LEVEL = {"ok": 0, "info": 1, "attention": 2, "problem": 3}
 STALE_AFTER = {"bambuddy": 90, "pi_status": 90, "netmon": 120, "camera": 90, "plex": 120, "homebridge": 120,
                "cups": 300, "adguard": 900, "backrest": 900, "weather": 3600, "hub": 90}
 
+# A36 D4: when a heads-up condition escalates to an ask with an action
+PI_THROTTLED_ASK_AFTER = 3600  # seconds throttled by heat
+PI_TEMP_ASK_AT = 80  # degrees C
+BACKUP_ASK_AFTER = 48 * 3600  # seconds since a machine's last backup
+PC_COPY_ASK_AFTER = 50 * 3600  # seconds since the PC last copied the Pi's backup
+
 # kinds whose change has to be seen on two checks in a row
 DEBOUNCED = {"workshop_display", "local_ai", "pi", "movies_drive", "internet", "adguard", "plex", "devices"}
 
