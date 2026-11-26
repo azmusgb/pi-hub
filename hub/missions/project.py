@@ -37,6 +37,11 @@ SESSION_FIELDS = ("model", "effort", "branch", "remote")
 ATTACH_FIELDS = ("workstream", "lineage", "start_source")
 LEVEL = {"claude": "observable", "localai": "full"}
 TASK_STATE = {"task.started": "active", "task.done": "done"}
+# What the owner route logs (source=owner, plan decision 10): a revision decided, an initiative's status set.
+REVISION_STATUS = {"revision.accepted": "accepted", "revision.rejected": "rejected"}
+# Pi Hub's mirror of the decisions table (plan decision 11). History only: decisions stay authoritative themselves,
+# so these events change no projection and a rebuild ignores them.
+MIRRORED = frozenset({"decision.asked", "decision.answered"})
 
 
 def empty(initiative):
@@ -101,6 +106,10 @@ def apply(state, event):
         return [("pending", event)]
     if etype == "plan.imported":
         return _revision(state, event)
+    if etype in MIRRORED:
+        return []
+    if etype in REVISION_STATUS or etype == "initiative.status":
+        return _owner(state, event)
     changes = []
     if etype in TASK_STATE:
         changes += _task(state, event)
@@ -110,6 +119,17 @@ def apply(state, event):
     if exec_id and not event["behind"]:
         changes += _execution(state, event, exec_id)
     return changes
+
+
+def _owner(state, event):
+    """An owner decision on a revision, or an initiative's status. The route checked the row first, so a row that
+    isn't there changes nothing here rather than making one."""
+    body, initiative = event["body"], event["initiative"]
+    if event["type"] == "initiative.status":
+        row = state["rows"]["mission_initiatives"].get((initiative,))
+        return [("put", "mission_initiatives", {**row, "status": body["status"]})] if row else []
+    row = state["rows"]["mission_revisions"].get((initiative, body["revision"]))
+    return [("put", "mission_revisions", {**row, "status": REVISION_STATUS[event["type"]]})] if row else []
 
 
 def apply_tool(row, event, behind):
