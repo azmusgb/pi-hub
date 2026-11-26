@@ -4,16 +4,20 @@
 #   - writes $CLAUDE_DIR/mission-config.json {"enabled": false, "drain": [...]} only when it is absent (decision 3);
 #   - prints the settings.json hook entries to add. It never edits settings.json.
 # Safe to run again: links already in place and an existing config are left alone.
+# Run it from the main pi-hub checkout: links into a worktree dangle once the worktree is removed, so a worktree is
+# refused unless --allow-worktree is given.
 #
-# Usage: scripts/install-claude-mission.sh [--dry-run]
+# Usage: scripts/install-claude-mission.sh [--dry-run] [--allow-worktree]
 # Env:   CLAUDE_DIR (default ~/.claude), PYTHON (default /opt/homebrew/bin/python3, else python3 on PATH; 3.10 or later)
 set -euo pipefail
 
 dry_run=0
+allow_worktree=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) dry_run=1 ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    --allow-worktree) allow_worktree=1 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -26,6 +30,15 @@ hook_dst="$claude_dir/hooks/mission-report.py"
 skill_dst="$claude_dir/skills/mission"
 config="$claude_dir/mission-config.json"
 home_mission="$here/.venv/bin/home-mission"
+
+case "$here" in
+  */.worktrees/*)
+    if [ "$allow_worktree" = 0 ]; then
+      echo "refusing: $here is in a worktree; the hook and skill links would dangle once it is removed." >&2
+      echo "Run this from the main pi-hub checkout (e.g. ~/dev/pi-hub/tools/home-mcp), or pass --allow-worktree." >&2
+      exit 1
+    fi ;;
+esac
 
 python="${PYTHON:-}"
 if [ -z "$python" ]; then
@@ -88,8 +101,8 @@ echo
 "$python" -I - "$python" "$hook_dst" <<'PY'
 import json, shlex, sys
 command = f"{shlex.quote(sys.argv[1])} -I {shlex.quote(sys.argv[2])}"
-events = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",
-          "SubagentStart", "SubagentStop", "Stop"]
+events = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+          "PermissionRequest", "SubagentStart", "SubagentStop", "Stop"]
 entry = {"type": "command", "command": command, "timeout": 3, "async": True}
 print(json.dumps({e: [{"hooks": [entry]}] for e in events}, indent=2))
 PY

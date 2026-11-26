@@ -6,12 +6,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import shutil
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "install-claude-mission.sh"
-EVENTS = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",
-          "SubagentStart", "SubagentStop", "Stop"]
+EVENTS = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+          "PermissionRequest", "SubagentStart", "SubagentStop", "Stop"]
 
 
 @pytest.fixture
@@ -22,9 +24,21 @@ def claude(tmp_path):
     return d
 
 
-def install(claude: Path, *args) -> subprocess.CompletedProcess:
+def install(claude: Path, *args, script: Path = SCRIPT, allow_worktree: bool = True) -> subprocess.CompletedProcess:
+    """Run the script. The repo's own tests usually run from a worktree, so they pass --allow-worktree unless a test
+    is about the refusal."""
     env = {**os.environ, "CLAUDE_DIR": str(claude), "PYTHON": sys.executable}
-    return subprocess.run(["bash", str(SCRIPT), *args], capture_output=True, text=True, env=env, timeout=30)
+    flags = ["--allow-worktree"] if allow_worktree else []
+    return subprocess.run(["bash", str(script), *flags, *args], capture_output=True, text=True, env=env, timeout=30)
+
+
+def copy_tool(dest: Path) -> Path:
+    """The files the script needs, copied under `dest`; returns the copy's script path."""
+    for rel in ("scripts/install-claude-mission.sh", "claude/hooks/mission-report.py", "claude/skills/mission/SKILL.md",
+                "claude/skills/mission/home-mission"):
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, dest / rel)
+    return dest / "scripts" / "install-claude-mission.sh"
 
 
 def printed_entries(out: str) -> dict:
@@ -86,3 +100,34 @@ def test_the_skill_runner_finds_home_mission_through_the_link(claude):
         assert r.returncode == 0 and "attach" in r.stdout
     else:
         assert r.returncode == 1 and "uv sync" in r.stderr
+
+
+def test_entries_include_post_tool_use_failure_with_the_same_command(claude):
+    entries = printed_entries(install(claude).stdout)
+    assert entries["PostToolUseFailure"] == entries["PostToolUse"]
+
+
+@pytest.mark.parametrize("args", [(), ("--dry-run",)])
+def test_refuses_from_a_worktree(claude, tmp_path, args):
+    script = copy_tool(tmp_path / ".worktrees" / "pi-hub" / "x" / "tools" / "home-mcp")
+    r = install(claude, *args, script=script, allow_worktree=False)
+    assert r.returncode == 1 and "worktree" in r.stderr
+    assert not (claude / "hooks").exists() and not (claude / "skills").exists()
+    assert not (claude / "mission-config.json").exists()
+
+
+def test_allow_worktree_flag_installs(claude, tmp_path):
+    script = copy_tool(tmp_path / ".worktrees" / "pi-hub" / "x" / "tools" / "home-mcp")
+    r = install(claude, script=script, allow_worktree=True)
+    assert r.returncode == 0, r.stderr
+    assert (claude / "hooks" / "mission-report.py").resolve() == script.parents[1] / "claude" / "hooks" / "mission-report.py"
+
+
+def test_rerun_from_main_checkout_after_a_refusal_is_clean(claude, tmp_path):
+    install(claude, script=copy_tool(tmp_path / ".worktrees" / "pi-hub" / "x" / "tools" / "home-mcp"),
+            allow_worktree=False)
+    main = copy_tool(tmp_path / "pi-hub" / "tools" / "home-mcp")
+    r = install(claude, script=main, allow_worktree=False)
+    assert r.returncode == 0, r.stderr
+    hook = claude / "hooks" / "mission-report.py"
+    assert hook.is_symlink() and hook.resolve() == (main.parents[1] / "claude" / "hooks" / "mission-report.py").resolve()
