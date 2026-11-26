@@ -73,6 +73,11 @@ test('not printing: the card\'s own line is kept under the nameplate, and the jo
     const idle = printerPlate({ state: 'idle', percent: null, detail: 'Ready for the next print.', telemetry: live() }, null);
     assert.equal(text(idle.querySelector('.ui-faceplate__job')), 'Bambuddy · checked 20s ago');
     assert.equal(text(idle.querySelector('.ws-detail')), 'Ready for the next print.');
+    // Found by the QA gate: a paused print with no Resume button (not the owner, or Bambuddy doesn't offer it) must
+    // still say where to resume it.
+    const paused = printerPlate(printing({ state: 'paused', detail: 'Resume it from the printer or Bambu Handy.', actions: [] }), null);
+    assert.equal(text(paused.querySelector('.ws-detail')), 'Resume it from the printer or Bambu Handy.');
+    assert.equal(printerPlate(printing(), null).querySelector('.ws-detail'), null, 'printing: the layer is a reading, not a line');
     const stale = printerPlate(printing({ stale: true, detail: 'Bambuddy not answering since 15:06; last read 12 min ago.', telemetry: { ...live(), status: 'stale' } }), null);
     assert.equal(stale.querySelector('.ws-detail'), null, 'the head already says the source stopped answering');
     assert.match(text(stale.querySelector('.ui-faceplate__job')), /last seen/);
@@ -90,7 +95,7 @@ test('the page: load() says the reading in the head, and a failed status keeps t
     const h1 = Object.assign(dom.document.createElement('h1'), { id: 'page-title', className: 'brand' });
     header.append(h1);
     dom.document.body.append(header);
-    parts.pageHead(h1, null, { label: 'Printer', says: true });
+    parts.pageHead(h1, null, { label: 'Printer', says: true, key: 'workshop' });
     const state = { root: dom.root() };
     ws.mount(state);
     assert.equal(h1.getAttribute('aria-busy'), 'true', 'loading until the first answer');
@@ -117,7 +122,7 @@ test('the page: a status that never answered says the printer isn\'t answering, 
     const ws = await import('../hub/static/js/workshop.js');
     const h1 = Object.assign(dom.document.createElement('h1'), { id: 'page-title', className: 'brand' });
     dom.document.body.append(h1);
-    parts.pageHead(h1, null, { label: 'Printer', says: true });
+    parts.pageHead(h1, null, { label: 'Printer', says: true, key: 'workshop' });
     const state = { root: dom.root() };
     ws.mount(state);
     ws.failed(state);

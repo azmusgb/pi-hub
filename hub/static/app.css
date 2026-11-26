@@ -226,6 +226,8 @@ html {
 .top--say .top-cmd-btn { margin-left: auto; grid-column: 2; }
 .top--say .top-assistant { grid-column: 3; }
 .ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip]) { top: 0; }
+/* A jump to a section lands under what is pinned, which here is the strip alone, not the head's measured height. */
+html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-top: calc(var(--ui-header-h) + var(--ui-s-2)); }
 /* A narrow top bar: the Assistant keeps its icon and its accessible name, and Search its word on less padding, so the
    title has the room for one line from 360 px ("Home & network", A10 plan decision 17; by the bar's own width, A10 D2). */
 @container top (max-width: 27.5rem) {

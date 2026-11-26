@@ -28,7 +28,7 @@ const printing = { label: 'Printer', sentences: ['The X2D is 45% through Clip.',
 test('a saying page: the h1 is ui-say, busy with a skeleton and the hidden name, and no purpose line', async () => {
   const { dom, parts, header, h1, sub } = await load();
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'The X2D and what it is printing', says: true });
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'The X2D and what it is printing', says: true, key: 'workshop' });
     assert.equal(h1.className, 'ui-say', 'the plain title\'s class is off, so its size does not fight the kit\'s');
     assert.equal(h1.getAttribute('aria-busy'), 'true');
     assert.equal(text(h1.querySelector('.ui-vh')), 'Printer:');
@@ -42,13 +42,13 @@ test('a saying page: the h1 is ui-say, busy with a skeleton and the hidden name,
 test('sayHead writes the sentences, keeps the name, and leaves the DOM alone when nothing changed', async () => {
   const { dom, parts, h1, sub } = await load();
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true });
-    assert.equal(parts.sayHead(printing, h1), true);
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true, key: 'workshop' });
+    assert.equal(parts.sayHead(printing, 'workshop', h1), true);
     assert.equal(h1.getAttribute('aria-busy'), null);
     assert.deepEqual(h1.querySelectorAll('.ui-say__s').map(text), printing.sentences);
     assert.equal(text(h1.querySelector('.ui-vh')), 'Printer:');
     const first = h1.querySelector('.ui-say__s');
-    assert.equal(parts.sayHead({ ...printing }, h1), false);
+    assert.equal(parts.sayHead({ ...printing }, 'workshop', h1), false);
     assert.equal(h1.querySelector('.ui-say__s'), first, 'the same nodes: a refresh with the same reading redraws nothing');
   } finally { done(dom); }
 });
@@ -56,8 +56,8 @@ test('sayHead writes the sentences, keeps the name, and leaves the DOM alone whe
 test('the next page gets the plain head back: no ui-say, data-say, aria-busy or sentence left behind', async () => {
   const { dom, parts, header, h1, sub } = await load();
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true });
-    parts.sayHead(printing, h1);
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true, key: 'workshop' });
+    parts.sayHead(printing, 'workshop', h1);
     parts.pageHead(h1, sub, { label: 'Health', purpose: 'The Pi and its services', says: false });
     assert.equal(h1.className, 'brand');
     assert.equal(text(h1), 'Health');
@@ -72,9 +72,9 @@ test('the next page gets the plain head back: no ui-say, data-say, aria-busy or 
 test('a late answer from the page just left does not write on the next page\'s head', async () => {
   const { dom, parts, h1, sub } = await load();
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true });
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true, key: 'workshop' });
     parts.pageHead(h1, sub, { label: 'Health', purpose: 'y', says: false });
-    assert.equal(parts.sayHead(printing, h1), false);
+    assert.equal(parts.sayHead(printing, 'workshop', h1), false);
     assert.equal(text(h1), 'Health');
   } finally { done(dom); }
 });
@@ -82,9 +82,9 @@ test('a late answer from the page just left does not write on the next page\'s h
 test('opening the same saying page again starts from loading, not from the last visit\'s sentence', async () => {
   const { dom, parts, h1, sub } = await load();
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true });
-    parts.sayHead(printing, h1);
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true });
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true, key: 'workshop' });
+    parts.sayHead(printing, 'workshop', h1);
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'x', says: true, key: 'workshop' });
     assert.equal(h1.getAttribute('aria-busy'), 'true');
     assert.equal(h1.querySelectorAll('.ui-say__s').length, 0);
   } finally { done(dom); }
@@ -93,12 +93,43 @@ test('opening the same saying page again starts from loading, not from the last 
 test('without the kit\'s say.js (an old cached shell) a saying page keeps its plain title and purpose', async () => {
   const { dom, parts, header, h1, sub } = await load({ kit: false });
   try {
-    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'The X2D and what it is printing', says: true });
+    parts.pageHead(h1, sub, { label: 'Printer', purpose: 'The X2D and what it is printing', says: true, key: 'workshop' });
     assert.equal(h1.className, 'brand');
     assert.equal(text(h1), 'Printer');
     assert.equal(sub.textContent, 'The X2D and what it is printing');
     assert.equal(header.classList.contains('top--say'), false);
-    assert.equal(parts.sayHead(printing, h1), false);
+    assert.equal(parts.sayHead(printing, 'workshop', h1), false);
     assert.equal(text(h1), 'Printer');
+  } finally { done(dom); }
+});
+
+// Found by the QA gate: with two saying pages, an answer from the page just left would be written under the next
+// page's name. The head remembers whose it is.
+test('a late answer from another saying page is not written on this one', async () => {
+  const { dom, parts, h1, sub } = await load();
+  try {
+    parts.pageHead(h1, sub, { label: 'Home', says: true, key: 'now' });
+    assert.equal(parts.sayHead(printing, 'workshop', h1), false);
+    assert.equal(h1.getAttribute('aria-busy'), 'true', 'still Home, still loading');
+    assert.equal(parts.sayHead({ sentences: ['Nothing needs you.'], loading: false }, 'now', h1), true);
+    assert.equal(text(h1.querySelector('.ui-vh')), 'Home:');
+  } finally { done(dom); }
+});
+
+// Found by the QA gate: <main aria-labelledby="page-title"> took the whole sentence as the landmark's name, changing
+// with every reading. The landmark is named by the page's name alone, on every page.
+test('the main landmark is named by the page\'s name, never by the sentence', async () => {
+  const { dom, parts, h1, sub } = await load();
+  try {
+    const main = Object.assign(dom.document.createElement('main'), { id: 'view' });
+    main.setAttribute('aria-labelledby', 'page-title');
+    dom.document.body.append(main);
+    parts.pageHead(h1, sub, { label: 'Printer', says: true, key: 'workshop', main });
+    assert.equal(main.getAttribute('aria-label'), 'Printer');
+    assert.equal(main.getAttribute('aria-labelledby'), null);
+    parts.sayHead(printing, 'workshop', h1);
+    assert.equal(main.getAttribute('aria-label'), 'Printer');
+    parts.pageHead(h1, sub, { label: 'Health', purpose: 'p', says: false, key: 'health', main });
+    assert.equal(main.getAttribute('aria-label'), 'Health');
   } finally { done(dom); }
 });

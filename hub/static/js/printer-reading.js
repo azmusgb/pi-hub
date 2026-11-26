@@ -24,6 +24,9 @@ function facts(card, title) {
 // `title`: how the page names a job (now.js jobTitle).
 export function printerReading(card, { failed = false, last = null, title = (name) => (typeof name === "string" ? name : "") } = {}) {
   if (failed) {
+    // A last card that was already stale keeps its own source and age: that source went quiet first, and Pi Hub
+    // was still answering when it said so.
+    if (last?.stale === true || last?.telemetry?.status === "stale") return printerReading(last, { title });
     const was = facts(last, title);
     return was ? { ...was, state: "stale", source: "Pi Hub" } : { state: "unavailable" };
   }
@@ -31,8 +34,11 @@ export function printerReading(card, { failed = false, last = null, title = (nam
   const tel = card?.telemetry?.status;
   if (tel === "offline") return { state: "unavailable" };
   const said = facts(card, title);
-  if (!said) return { state: "unknown" };
-  if (card.stale === true || tel === "stale") {
+  const stale = card?.stale === true || tel === "stale";
+  // Stale with no status (it was offline or unknown when its source went quiet): it has reported before, so not
+  // "hasn't reported yet"; nothing is known now.
+  if (!said) return { state: stale ? "unavailable" : "unknown" };
+  if (stale) {
     const source = typeof card.telemetry?.source === "string" ? card.telemetry.source : "";
     return { ...said, state: "stale", ...(source ? { source } : {}) };
   }

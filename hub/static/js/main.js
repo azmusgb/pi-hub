@@ -283,7 +283,7 @@ async function show(path, { focus = false } = {}) {
   // The head: the plain title and purpose, or, on a page that says its reading, the sentence (A37 R1). The wall keeps
   // its own head. `page.purpose`: the Assistant pages Pi Hub draws, which the list doesn't name as Pi Hub's yet.
   pageHead(document.getElementById("page-title"), document.getElementById("page-subtitle"),
-    { label: heading, purpose: page.purpose || purposeOf(path), says: page.mod.says === true && !wallMode });
+    { label: heading, purpose: page.purpose || purposeOf(path), says: page.mod.says === true && !wallMode, key: page.key, main: view });
   setCurrentArea(section);  // "" on an unknown address and "assistant" on the Assistant's pages: no area is marked
   for (const a of document.querySelectorAll(".top-assistant")) {
     if (section === "assistant") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");

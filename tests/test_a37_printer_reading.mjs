@@ -116,10 +116,22 @@ test('down: the hub did not answer, so the last card is said in the past tense w
   assert.deepEqual(say(r, AS_OF * 1000 + 12 * 60000), ['The X2D was 45% through Clip 12 min ago.', "Pi Hub hasn't answered since t0."]);
 });
 
-test('down with a last card that was already stale keeps that card\'s own age', () => {
+// Found by the QA gate: the hub answered seconds ago with a stale card; the party silent since that card's time is
+// Bambuddy. Blaming Pi Hub with Bambuddy's time states something the hub did not read.
+test('down with a last card that was already stale keeps that card\'s own source and age', () => {
   const r = printerReading(null, { failed: true, last: card({ stale: true, as_of: AS_OF - 300, telemetry: { status: 'stale', source: 'Bambuddy' } }) });
   assert.equal(r.state, 'stale');
   assert.equal(r.as_of, (AS_OF - 300) * 1000);
+  assert.equal(r.source, 'Bambuddy');
+  assert.deepEqual(say(r, AS_OF * 1000 + 19 * 60000), ['The X2D was 45% through Clip 24 min ago.', "Bambuddy hasn't answered since t-5."]);
+});
+
+// Found by the QA gate: a stale record whose last state was offline or unknown has reported before, so "hasn't
+// reported yet" is false; nothing is known and the source is quiet.
+test('a stale card with no status is unavailable, not "hasn\'t reported yet"', () => {
+  const r = printerReading({ state: 'none', stale: true, as_of: AS_OF, actions: [], telemetry: { status: 'stale', source: 'Bambuddy' } });
+  assert.deepEqual(r, { state: 'unavailable' });
+  assert.deepEqual(printerReading(null, { failed: true, last: { state: 'none', stale: true, telemetry: { status: 'stale' } } }), { state: 'unavailable' });
 });
 
 test('down with nothing read before, or only an unknown card, is unavailable', () => {

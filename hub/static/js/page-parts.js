@@ -11,7 +11,9 @@ const present = (v) => v !== null && v !== undefined && v !== "";
 // h1 as the kit's ui-say, busy until its first answer, with no purpose line; every other page gets its plain title and
 // purpose, and nothing of the page before. Without the kit's say.js (an old cached shell) a saying page is a plain one.
 const sayKit = (says) => says && typeof globalThis.ApplianceSay?.render === "function";
-export function pageHead(h1, sub, { label, purpose = "", says = false }) {
+// `key` is the page's own (the router's), so a late answer from another page can't write here; `main` is the page's
+// landmark, named by the page's name alone: labelled by the h1 it would take the whole sentence as its name.
+export function pageHead(h1, sub, { label, purpose = "", says = false, key = "", main = null }) {
   const saying = sayKit(says);
   // `brand` is the plain title's look (app.css sizes it by id and class); the sentence takes the kit's alone.
   h1.classList.remove("ui-say");
@@ -19,7 +21,9 @@ export function pageHead(h1, sub, { label, purpose = "", says = false }) {
   delete h1.dataset.say;
   h1.removeAttribute("aria-busy");
   h1.textContent = label;
-  h1.dataset.label = label;  // the page's name comes only from the page list (A22); sayHead puts it in the sentence
+  h1.dataset.label = label;
+  h1.dataset.page = key;
+  if (main) { main.removeAttribute("aria-labelledby"); main.setAttribute("aria-label", label); }  // the page's name comes only from the page list (A22); sayHead puts it in the sentence
   h1.closest("header")?.classList.toggle("top--say", saying);
   if (sub) sub.textContent = saying ? "" : purpose;
   if (!saying) return;
@@ -28,9 +32,9 @@ export function pageHead(h1, sub, { label, purpose = "", says = false }) {
 }
 
 // The page's sentence, from ApplianceSay.compose (its label is the router's, whatever the page passed). True when it wrote; false when nothing changed, or when the head is
-// no longer a saying page's (an answer that lands after the owner moved on).
-export function sayHead(composed, h1 = document.getElementById("page-title")) {
-  if (!h1?.classList.contains("ui-say") || !sayKit(true) || !composed) return false;
+// no longer this page's (an answer that lands after the owner moved on, to a plain page or another saying one).
+export function sayHead(composed, key, h1 = document.getElementById("page-title")) {
+  if (!h1?.classList.contains("ui-say") || h1.dataset.page !== key || !sayKit(true) || !composed) return false;
   return ApplianceSay.render(h1, { ...composed, label: h1.dataset.label || "" });
 }
 

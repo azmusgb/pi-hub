@@ -1692,9 +1692,10 @@ export function printerPlate(p, cam, { lastPrint = null, actions = null, aside =
     : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
   const job = jobTitle(p.job_name);
   // The page's sentence says the percentage and the estimate (A37 R4), so the plate has no readout and no caption. Not
-  // printing, the card's own line stays ("Ready for the next print."); stale, the sentence already names the source.
+  // printing, the card's own line stays ("Ready for the next print.", or where to resume a paused print when there
+  // is no button for it); printing, its line is the layer, a reading below; stale, the sentence names the source.
   const stale = tel.stale || p.stale;
-  const detail = !busy && !stale && p.detail ? p.detail : null;
+  const detail = p.state !== "printing" && !stale && p.detail ? p.detail : null;
   const t = p.telemetry || {};
   const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
   return faceplate({
@@ -2170,7 +2171,7 @@ export function workshopSources(printer, cam) {
 function say(reading) {
   const kit = globalThis.ApplianceSay;
   if (!kit) return;  // an old cached shell without say.js: the router left the plain title
-  sayHead(kit.compose({ page: "printer", reading }, { now: Date.now(), ago: globalThis.ApplianceNeeds?.ago }));
+  sayHead(kit.compose({ page: "printer", reading }, { now: Date.now(), ago: globalThis.ApplianceNeeds?.ago }), "workshop");
 }
 
 export async function load(state) {
