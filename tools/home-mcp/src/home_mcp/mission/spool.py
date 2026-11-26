@@ -144,8 +144,9 @@ def remove(ids, path: Path | None = None) -> int:
     path = path or spool_path()
     ids = set(ids)
     with locked(path):
+        lines = _raw_lines(path)
         kept, gone = [], 0
-        for raw in _raw_lines(path):
+        for raw in lines:
             entry = _parse(raw)
             if entry is None:
                 continue
@@ -153,7 +154,7 @@ def remove(ids, path: Path | None = None) -> int:
                 gone += 1
             else:
                 kept.append(raw if raw.endswith(b"\n") else raw + b"\n")
-        if gone or len(kept) != len(_raw_lines(path)):
+        if gone or len(kept) != len(lines):
             _replace(path, kept)
     return gone
 
