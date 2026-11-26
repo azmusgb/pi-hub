@@ -229,7 +229,7 @@ async def test_drain_stops_after_max_passes_and_releases_the_lock(on):
     fake = AppendingHub(posts_that_append=1000)
     r = await run(fake)
     assert r.status == "done" and len(fake.requests) == drain.MAX_PASSES
-    assert spool.status()["count"] == 1
+    assert spool.status()["count"] == 1 and r.kept == 1
     again = await run(FakeHub())
     assert again.status == "done" and spool.status()["count"] == 0  # not "busy": the lock was released
 

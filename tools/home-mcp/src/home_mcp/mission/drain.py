@@ -131,6 +131,7 @@ async def _drain_locked(client_factory, runner) -> DrainResult:
             entries = spool.read_all()
     if result.skipped:
         return _stopped(result, "no key for " + ", ".join(result.skipped))
+    result.kept = len(spool.read_all())  # non-zero when MAX_PASSES ran out: those wait for the next drain
     return result
 
 
