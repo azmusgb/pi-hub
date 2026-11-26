@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import movie_night, room_camera, room_looks, room_snapshots, bambuddy, lab_start, freshness, gate, actions, ask, auth, db, digest, events, filament, needs, paperless, printer_control, records, reminders, homecontrol, laundry, now, outside, plex, printing, recorder, sources, system, wifi, lab, lab_hold, lab_guard, quick, quick_layers, quick_monitor, quick_start, quick_worker, uploads, display_pairing, display_routes, devices, assistant_api, releases, notify_routes, decisions, systems, today, hms_ack, things
+from .missions import log as mission_log, routes as mission_routes
 
 STATIC = Path(__file__).parent / "static"
 LISTS = {"shopping": "Shopping", "todo": "To do", "notes": "Notes", "requests": "Movie requests"}
@@ -33,6 +34,7 @@ app.include_router(display_routes.router)
 app.include_router(assistant_api.router)
 app.include_router(notify_routes.router)
 app.include_router(decisions.router)
+app.include_router(mission_routes.router)
 sampler = sources.Sampler()
 
 if os.environ.get("HUB_NO_SAMPLER") != "1":
@@ -55,10 +57,13 @@ def fresh(data):
 def _keyed_source(request: Request):
     """Another system's phone notice (platform step 5) or a session on the Mac asking the owner (A33), carrying a key:
     True when it is that source's own key, verified (the post is exempt from the page check); the refusal when it isn't;
-    None when the request is neither (no key header, or another path: an answer to a decision never is one)."""
+    None when the request is neither (no key header, or another path: an answer to a decision never is one). A
+    mission source's events (A35 §7.4) are always this source-keyed kind, so a missing key is the contract's 401."""
+    path = request.url.path
+    if path.startswith(mission_routes.EVENTS):
+        return mission_routes.key_refusal(request, path[len(mission_routes.EVENTS):]) or True
     if "x-hub-deploy-key" not in request.headers and "x-hub-mac-key" not in request.headers:
         return None
-    path = request.url.path
     if path.startswith("/api/notify/"):
         if not notify_routes.key_ok(request, path[len("/api/notify/"):]):
             return JSONResponse({"detail": notify_routes.WRONG_KEY}, status_code=401)
@@ -237,7 +242,7 @@ async def api_release_report(target: str, request: Request):
 
 @app.get("/api/needs")
 def api_needs(request: Request):
-    data = needs.current()
+    data = mission_log.attach_needs(needs.current())  # A35: a source refused again and again
     try:
         owner = auth.who(request)[0] == "owner"
     except sqlite3.Error:  # who can't be told: decisions stay out, and the page says why
