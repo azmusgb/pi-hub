@@ -247,9 +247,9 @@ test("the dial: marks in time order for the keyboard, a down lane dashed and nam
   } finally { k.done(); }
 });
 
-// A11 D5: where the dial is drawn, the counts sit under it and the rack is compact rows: lamp, name, state, one
-// reading, the link (and a row's actions, which are not readings).
-test("Home draws the dial and compact rows where the band doesn't fit, and the band and full rack where it does", async () => {
+// A11 D5 + A37 R6: where the dial is drawn, the counts sit under it; the Systems rack is drawn on the kit's
+// .ui-rows.ui-rows--grid at every width (one link per row, with its lamp and optional figure).
+test("Home draws the dial where the band doesn't fit, and the Systems rack on ui-rows--grid at every width", async () => {
   const k = kitInstall();
   try {
     const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
@@ -266,13 +266,13 @@ test("Home draws the dial and compact rows where the band doesn't fit, and the b
     assert.equal(phone.querySelector(".hd").dataset.day, "dial");
     assert.ok(phone.querySelector(".hd-dial"));
     assert.equal(phone.querySelector(".hd-band__svg"), null);
-    assert.equal(phone.querySelectorAll(".hd-unit--compact").length, 5);
-    assert.equal(phone.querySelectorAll(".hd-unit__readings").length, 0, "one reading, not the full set");
-    assert.equal(text(phone.querySelector('[data-row="week"] .hd-unit__brief')), "4 finished");
+    assert.ok(phone.querySelector(".hd-rack ul.ui-rows.ui-rows--grid"));
+    assert.equal(phone.querySelectorAll(".hd-rack a.ui-row").length, 5);
+    assert.equal(text(phone.querySelector('[data-row="week"] .ui-row__figure')), "4finished");
     const wide = draw(1100);
     assert.equal(wide.querySelector(".hd").dataset.day, "band");
     assert.ok(wide.querySelector(".hd-band__svg"));
-    assert.equal(wide.querySelectorAll(".hd-unit--compact").length, 0);
+    assert.equal(wide.querySelectorAll(".hd-rack a.ui-row").length, 5);
   } finally { k.done(); }
 });
 
@@ -288,12 +288,12 @@ test("a resize between band and dial redraws the rack, keeps focus and the lit m
     renderDashboard(state, { today: d, records: [], needs: { count: 0, items: [], unread: [] }, now: {} }, () => {});
     assert.equal(parent.querySelector(".hd").dataset.day, "band");
     state.hd.lit = { lane: "pi", index: 0 };
-    const links = () => [...parent.querySelectorAll(".hd-unit__go")];
+    const links = () => [...parent.querySelectorAll(".hd-rack a.ui-row")];
     links()[2].focus();
     state.hd.plot.clientWidth = 390;  // rotated to a phone
     redrawBand(state);
     assert.equal(parent.querySelector(".hd").dataset.day, "dial");
-    assert.equal(parent.querySelectorAll(".hd-unit--compact").length, 5, "the rack follows");
+    assert.equal(parent.querySelectorAll(".hd-rack a.ui-row").length, 5, "the rack follows");
     assert.equal(document.activeElement, links()[2], "focus comes back to the same link");
     assert.ok(parent.querySelector(".hd-dial__mark").classList.contains("is-lit"), "the lit mark stays lit");
   } finally { k.done(); }
@@ -490,7 +490,7 @@ test("Home renders the band, Needs you and the rack, with no camera", async () =
       needs: { count: 0, items: [], unread: [] }, now: {}, pi: null, backups: null, workshop: null }, () => {});
     assert.ok(parent.querySelector(".hd-band"));
     assert.ok(parent.querySelector(".hd-needs"));
-    assert.equal(parent.querySelectorAll(".hd-unit").length, 5);
+    assert.equal(parent.querySelectorAll(".hd-rack .ui-row").length, 5);
     assert.equal(parent.querySelectorAll("img").length, 0, "no camera on Home (A8)");
     assert.equal(state.probs.length, 1);
     leaveDashboard(state);
@@ -601,7 +601,7 @@ test("a refresh puts keyboard focus back where it was", async () => {
     mountDashboard(state, parent);
     const src = { today: null, records: [], needs: { count: 0, unread: [], items: [] }, now: {} };
     renderDashboard(state, src, () => {});
-    const links = () => [...parent.querySelectorAll(".hd-unit__go")];
+    const links = () => [...parent.querySelectorAll(".hd-rack a.ui-row")];
     links()[2].focus();
     renderDashboard(state, src, () => {});
     assert.equal(document.activeElement, links()[2], "the Network row's link has focus again");

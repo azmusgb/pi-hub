@@ -154,10 +154,11 @@ test('Home shares its own read with the badge, and a read that failed there is "
   assert.match(read('hub/static/js/now.js'), /setNeeds\(needs \? problemsBadge\(needs, state\.probs \|\| \[\]\) : null\);/);
 });
 
-test('the Workshop dot, the System unread count and their failed reads', async () => {
+test('A37 R7: asks badge their own area and Home; System no longer counts unread alerts; Workshop shows its print dot when it has no asks', async () => {
   let printer = { state: 'printing', progress: 42 };
-  let alerts = { alerts: [{ ts: Math.floor(Date.now() / 1000) + 100 }, { ts: Math.floor(Date.now() / 1000) + 200 }] };
-  const t = await drawn({ '/api/needs': needsAnswer(0), '/api/alerts': () => alerts, '/api/now': () => ({ printer }) });
+  let needs = { count: 0, items: [], unread: [] };
+  const alerts = { alerts: [{ ts: Math.floor(Date.now() / 1000) + 100 }, { ts: Math.floor(Date.now() / 1000) + 200 }] };
+  const t = await drawn({ '/api/needs': () => needs, '/api/alerts': () => alerts, '/api/now': () => (printer ? { printer } : undefined) });
   try {
     await t.nav.updateNavigation();
     const dot = badge(t, 'workshop');
@@ -165,18 +166,34 @@ test('the Workshop dot, the System unread count and their failed reads', async (
     assert.ok(dot.dataset.dot !== undefined);
     assert.equal(dot.getAttribute('aria-label'), '3D print running, 42%');
     assert.equal(t.link('workshop').getAttribute('aria-label'), 'Workshop, 3D print running, 42%');
-    assert.equal(text(badge(t, 'system')), '2');
-    assert.equal(badge(t, 'system').getAttribute('aria-label'), '2 new alerts');
+    assert.equal(badge(t, 'system'), null, 'System stops counting unread alerts (A37 R7)');
 
+    needs = {
+      count: 3,
+      unread: [],
+      items: [
+        { id: 'w1', kind: 'ask', title: 'E-028: Fix the plan', source: 'Print lab', link: '/lab?p=hex&e=E-028', tone: 'warn' },
+        { id: 's1', kind: 'ask', title: 'Backups', source: 'Pi Hub', link: '/backups', tone: 'bad' },
+        { id: 'h1', kind: 'ask', title: 'General ask', tone: 'warn' },
+        { id: 'hu', kind: 'heads_up', title: 'Weather', detail: 'Wind advisory', link: '/weather', tone: 'warn' },
+      ],
+    };
+    await t.nav.updateNavigation();
+    assert.equal(text(badge(t, 'home')), '3', 'Home counts all three asks and ignores heads_up');
+    assert.equal(text(badge(t, 'workshop')), '1', 'Workshop ask count replaces the print dot');
+    assert.equal(badge(t, 'workshop').getAttribute('aria-label'), '1 needs you');
+    assert.equal(text(badge(t, 'system')), '1', 'Backups ask badges System');
+    assert.equal(badge(t, 'household'), null, 'Weather heads_up does not badge Household');
+
+    needs = { count: 0, items: [], unread: [] };
     printer = { state: 'idle' };
     await t.nav.updateNavigation();
     assert.equal(badge(t, 'workshop'), null);
 
-    alerts = undefined;
     printer = undefined;
     await t.nav.updateNavigation();
-    assert.equal(text(badge(t, 'system')), '?');
-    assert.equal(badge(t, 'system').getAttribute('aria-label'), "couldn't check the alerts");
+    assert.equal(text(badge(t, 'workshop')), '?');
+    assert.equal(badge(t, 'workshop').getAttribute('aria-label'), "couldn't check the printer");
   } finally { t.done(); }
 });
 
