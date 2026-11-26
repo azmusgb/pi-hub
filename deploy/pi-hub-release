@@ -69,7 +69,7 @@ if hexsha.fullmatch(head):
 # The test time as numbers (A35 decision 13), within the hub's ranges; a value not known or out of range leaves it out,
 # so the report itself stays valid.
 tests = {k: int(v) for k, v, top in (("python_s", python_s, 3600), ("js_s", js_s, 3600), ("workers", workers, 16))
-         if v.isdigit() and int(v) <= top}
+         if v.isascii() and v.isdigit() and int(v) <= top}
 if result == "deployed" and "python_s" in tests and tests.get("workers", 0) >= 1:
     body["tests"] = tests
 os.makedirs(inbox, exist_ok=True)
