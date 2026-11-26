@@ -1,7 +1,7 @@
 // Small device-local indicators. Nothing is uploaded or tracked across devices.
 import { api } from "./core.js";
-import { unreadCount } from "./experience.js";
-import { SITE } from "./site.js";
+import { SITE, sectionFor } from "./site.js";
+import { tool } from "../ui/tools.js";
 
 const ALERTS_SEEN_KEY = "hub-alerts-seen";
 
@@ -15,6 +15,32 @@ const ICONS = {
   system: [["rect", { x: 5, y: 5, width: 14, height: 14, rx: 2 }],
     ["path", { d: "M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" }]],
 };
+
+const AREA_IDS = new Set(SITE.areas.filter((a) => a.id !== "home").map((a) => a.id));
+const AREA_BY_LABEL = new Map([
+  ...SITE.areas.filter((a) => a.id !== "home").map((a) => [a.label.toLowerCase(), a.id]),
+  ["print lab", "workshop"],
+]);
+
+// Which non-Home area an ask belongs to (A37 R7): from its own area or source when named, else from its link's
+// address or tool. Null when it has none (or points to Home or the Assistant), so it badges Home alone.
+export function askArea(item) {
+  if (!item || typeof item !== "object" || item.kind === "heads_up") return null;
+  for (const raw of [item.area, item.source]) {
+    if (typeof raw !== "string") continue;
+    const key = raw.trim().toLowerCase();
+    if (AREA_IDS.has(key)) return key;
+    if (AREA_BY_LABEL.has(key)) return AREA_BY_LABEL.get(key);
+  }
+  const link = typeof item.link === "string" ? item.link.trim() : "";
+  if (link.startsWith("tool:")) {
+    const a = tool(link.slice(5))?.area;
+    return AREA_IDS.has(a) ? a : null;
+  }
+  const path = link.startsWith("/") ? link.split(/[?#]/)[0] : "";
+  const a = path ? sectionFor(path) : "";
+  return AREA_IDS.has(a) ? a : null;
+}
 
 function icon(areaId) {
   const parts = ICONS[areaId];
@@ -34,46 +60,13 @@ function icon(areaId) {
   return svg;
 }
 
-let seen = readSeenTimestamp();
 // What each badge reads. undefined: not asked yet (no badge); null: the read failed (a "?" badge, never a count that
 // may be out of date, never nothing); otherwise the answer.
-let alerts;       // /api/alerts: unread count is System's badge
 let print;        // /api/now: "" when nothing prints, else the words ("3D print running, 42%")
-let needs;        // /api/needs: its count is the Home tab's badge (one home, D7)
+let needs;        // /api/needs: asks badge Home and their own area (A36 D6, A37 R7)
 let pending = false;
 let nav = null;   // the kit's nav (ApplianceShell.build), drawn by mountNav
 let area = "";    // the area marked current; "" when the page is in none (the Assistant, an unknown address)
-
-function readSeenTimestamp() {
-  const now = Math.floor(Date.now() / 1000);
-
-  try {
-    const saved = Number(localStorage.getItem(ALERTS_SEEN_KEY));
-
-    if (Number.isFinite(saved) && saved >= 0) {
-      return saved;
-    }
-
-    localStorage.setItem(ALERTS_SEEN_KEY, String(now));
-  } catch {
-    // localStorage can be unavailable in private/restricted contexts.
-  }
-
-  return now;
-}
-
-function saveSeenTimestamp(value) {
-  try {
-    localStorage.setItem(ALERTS_SEEN_KEY, String(value));
-  } catch {
-    // Navigation indicators are non-critical. Ignore storage failures.
-  }
-}
-
-function toTimestamp(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
 
 function clampPercent(value) {
   const number = Number(value);
@@ -101,20 +94,23 @@ function printerStatus(printer) {
   return "";
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function askItems(n) {
+  return Array.isArray(n?.items) ? n.items.filter((i) => i && typeof i === "object" && i.kind !== "heads_up") : [];
+}
 
-// One area's badge: { count, say } for the kit's setBadge and the words that name it for assistive tech. `text` replaces
-// the number ("?" for a read that failed); `dot` shows a small dot with no number (a print running has no count).
+// One area's badge (A37 R7): asks only (System no longer counts unread alerts). An ask with an area badges that area
+// and Home; one without badges Home. When Workshop has no asks, a running or paused print shows its dot.
 function badgeFor(id) {
-  if (id === "home" && needs !== undefined) {
+  if (id === "home") {
+    if (needs === undefined) return null;
     if (needs === null) return { count: 1, text: "?", say: "couldn't check what needs you" };
-    const n = Number(needs.count) || 0;
+    const items = askItems(needs);
+    const n = Array.isArray(needs.items) && needs.items.length ? items.length : Number(needs.count) || 0;
     return n > 0 ? { count: n, say: `${n} need${n === 1 ? "s" : ""} you` } : null;
   }
-  if (id === "system" && alerts !== undefined) {
-    if (alerts === null) return { count: 1, text: "?", say: "couldn't check the alerts" };
-    const n = unreadCount(alerts, seen);
-    return n > 0 ? { count: n, say: plural(n, "new alert", "new alerts") } : null;
+  if (needs && typeof needs === "object") {
+    const n = askItems(needs).filter((i) => askArea(i) === id).length;
+    if (n > 0) return { count: n, say: `${n} need${n === 1 ? "s" : ""} you` };
   }
   if (id === "workshop" && print !== undefined) {
     if (print === null) return { count: 1, text: "?", say: "couldn't check the printer" };
@@ -164,20 +160,10 @@ export function setCurrentArea(id) {
 }
 
 export function markAlertsSeen(items) {
-  if (Array.isArray(items)) {
-    alerts = items;
-
-    const timestamps = items
-      .map((alert) => toTimestamp(alert?.ts))
-      .filter((timestamp) => timestamp !== null);
-
-    if (timestamps.length) {
-      seen = Math.max(seen, ...timestamps);
-      saveSeenTimestamp(seen);
-    }
-  }
-
-  render();
+  if (!Array.isArray(items)) return;
+  const ts = items.map((a) => Number(a?.ts)).filter(Number.isFinite);
+  if (!ts.length) return;
+  try { localStorage.setItem(ALERTS_SEEN_KEY, String(Math.max(...ts))); } catch {}
 }
 
 export async function updateNavigation() {
@@ -188,8 +174,7 @@ export async function updateNavigation() {
   pending = true;
 
   try {
-    const [alertsResult, nowResult, needsResult] = await Promise.allSettled([
-      api("/api/alerts"),
+    const [nowResult, needsResult] = await Promise.allSettled([
       api("/api/now"),
       api("/api/needs"),
     ]);
@@ -198,10 +183,6 @@ export async function updateNavigation() {
      * A read that failed is its own state: its badge becomes "?" until the next good answer. The count from the last
      * good read is not kept: it may no longer be true, and nothing at all would read as "nothing needs you".
      */
-    alerts = alertsResult.status === "fulfilled" && Array.isArray(alertsResult.value?.alerts)
-      ? alertsResult.value.alerts
-      : null;
-
     needs = needsResult.status === "fulfilled" && needsResult.value && typeof needsResult.value === "object"
       ? needsResult.value
       : null;

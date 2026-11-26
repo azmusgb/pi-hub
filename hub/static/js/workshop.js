@@ -3,7 +3,7 @@
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
 import { api, askFirst, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./now.js";
-import { faceplate, faceplateLoading, fillTabs, sayHead } from "./page-parts.js";
+import { faceplate, faceplateLoading, fillTabs, printerPlate as basePrinterPlate, sayHead } from "./page-parts.js";
 import { printerReading } from "./printer-reading.js";
 import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
@@ -1675,49 +1675,9 @@ function sampleHistogram(img, canvas) {
   }
 }
 
-const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
-const STATE_WORD = { printing: "Printing", paused: "Paused", error: "Needs a look", stopped: "Stopped", idle: "Idle", offline: "Offline" };
-
-// The printer as the faceplate (A7 P1), pure so it is tested without a page. A printer no source answers for is
-// unknown, never idle; a stale source keeps its last readings and says so. A heater with no target shows one number
-// (decision 6).
+// The printer as the faceplate (A7 P1, A37 R4), pure so it is tested without a page.
 export function printerPlate(p, cam, { lastPrint = null, actions = null, aside = null } = {}) {
-  p ||= {};
-  const tel = telemetryLabel(p);
-  const busy = p.state === "printing" || p.state === "paused";
-  // `percent` is null when the printer gave no number (`progress` says 0 then, which is not a reading).
-  const pct = typeof p.percent === "number" && Number.isFinite(p.percent) ? Math.max(0, Math.min(100, p.percent)) : null;
-  // Stale: the notice above the page says the source isn't answering; the lamp says only what these readings are.
-  const lamp = tel.stale || p.stale ? ["unknown", "Last readings"] : tel.state === "none" ? ["unknown", tel.label]
-    : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
-  const job = jobTitle(p.job_name);
-  // The page's sentence says the percentage and the estimate (A37 R4), so the plate has no readout and no caption. Not
-  // The card's own line stays only where it says what to do and the sentence doesn't: where to resume a paused
-  // print, what to check when the printer is offline. Idle and finished are the sentence's and the lamp's; printing,
-  // its line is the layer, a reading below; stale, the sentence names the source and the age.
-  const stale = tel.stale || p.stale;
-  const detail = !["printing", "idle", "stopped"].includes(p.state) && !stale && p.detail ? p.detail : null;
-  const t = p.telemetry || {};
-  const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
-  return faceplate({
-    name: "Bambu X2D", lamp,
-    plate: true,
-    // What is running, where the readings came from and how old they are, on the nameplate's line.
-    // Stale, the sentence gives the source and the age; saying them here again, in another format, was noise.
-    job: [busy ? job : "", ...(stale ? [] : [t.source || "Pi Hub", telemetryAge(t.observed_at)])].filter(Boolean).join(" · "),
-    readings: [["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
-      ["Bed", tempText(p.bed_temp, p.bed_target)], ["AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null],
-      ["Material", p.filament_type || null]],
-    extra: [
-      detail ? h("p", { class: "meta ws-detail" }, detail) : null,
-      // A meter is a current fraction: a stale reading's last percent is the sentence's, in the past tense.
-      busy && pct !== null && !stale ? h("span", { class: "ui-meter", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
-        h("i", { style: `width:${pct}%` })) : null,
-      lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
-    ],
-    actions: actions ? [actions] : [],
-    aside: aside ?? cameraAside(cam),
-  });
+  return basePrinterPlate(p, { lastPrint, actions, aside: aside ?? cameraAside(cam) });
 }
 
 // One row per print: outcome, length, the printer's error code with a help link, and the filament it used.

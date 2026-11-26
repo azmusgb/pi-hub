@@ -227,12 +227,13 @@ export function problemItems(probs = []) {
   });
 }
 
-// What the Home tab's badge counts: the asks in the Problems list (A36 D6: heads-up conditions stay out of the count).
+// What the Home tab's badge counts: the asks in the Problems list (A36 D6: heads-up conditions stay out of the count;
+// A37 R7: each ask carries its link and area so navigation.js can badge its area as well as Home).
 // `undefined` while Needs you hasn't been asked, so the badge waits instead of flashing a count that then changes.
 export function problemsBadge(needs, probs = []) {
   if (needs === undefined) return undefined;
-  const asks = probs.filter((p) => p?.itemKind !== "heads_up").length;
-  return { ...(needs || { items: [], unread: [] }), count: asks };
+  const asks = probs.filter((p) => p?.itemKind !== "heads_up");
+  return { ...(needs || { items: [], unread: [] }), count: asks.length, items: problemItems(asks) };
 }
 
 export function navigateSpa(href) {
