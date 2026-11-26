@@ -148,7 +148,7 @@ def _whats_running(item):
     said = item["detail"].rstrip(".")
     link = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's running on the Pi?", safe="")
     item["link"] = link
-    item["action"] = {"key": "see_usage", "link": link}
+    item["action"] = {"key": "see_running", "link": link}
     item["kind"] = "ask"
 
 

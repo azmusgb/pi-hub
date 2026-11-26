@@ -590,7 +590,7 @@ def test_a36_d4_pi_escalation_at_temperature_and_throttling_limits():
     assert n_61["count"] == 1 and n_61["heads_up_count"] == 0
     item_61 = n_61["items"][0]
     assert item_61["kind"] == "ask"
-    assert item_61["action"]["key"] == "see_usage"
+    assert item_61["action"]["key"] == "see_running"
     assert unquote(item_61["link"].split("context=", 1)[1]) == "Pi Hub › Pi 79 °C. Running hot at 79 °C. What's running on the Pi?"
 
     # 80 °C (even for 1 min, or with power "Good") -> ask at once
@@ -599,7 +599,7 @@ def test_a36_d4_pi_escalation_at_temperature_and_throttling_limits():
         detail={"temp": 80, "power": "Good"}), NOW - 60)
     n_80 = needs.build([], {"cards": []}, NOW, [rec_80])
     assert n_80["count"] == 1 and n_80["heads_up_count"] == 0
-    assert n_80["items"][0]["kind"] == "ask" and n_80["items"][0]["action"]["key"] == "see_usage"
+    assert n_80["items"][0]["kind"] == "ask" and n_80["items"][0]["action"]["key"] == "see_running"
 
     # Past throttling ("Slowed by heat earlier") at 72 °C for > 60 min stays heads_up
     rec_earlier = records.merge(None, records.make(
