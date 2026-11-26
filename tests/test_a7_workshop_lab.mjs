@@ -8,18 +8,21 @@ import { install, text } from './helpers/fake_dom.mjs';
 const chip = (p) => p.querySelector('.ui-faceplate__nameplate .ui-chip');
 const live = { status: 'live', source: 'Bambuddy', observed_at: new Date().toISOString() };
 
-test('Workshop: printing shows the percentage, the job, the progress bar and the camera beside it', async () => {
+test('Workshop: printing shows the job, the progress bar and the camera beside it; the head says the percentage (A37 R4)', async () => {
   const dom = install();
   try {
     const { printerPlate } = await import('../hub/static/js/workshop.js');
-    const p = printerPlate({ state: 'printing', progress: 42, left: '1 h 10 min', minutes_left: 70, job_name: 'RIFT_TILE.gcode.3mf',
+    const p = printerPlate({ state: 'printing', progress: 42, percent: 42, left: '1 h 10 min', minutes_left: 70, job_name: 'RIFT_TILE.gcode.3mf',
       layer_num: 12, total_layers: 300, nozzle_temp: 220, nozzle_target: 220, bed_temp: 60, bed_target: 0, telemetry: live },
     { ok: true, source: 'Pi' });
     assert.equal(chip(p).className, 'ui-chip ui-chip--ok ui-chip--live');
-    assert.equal(text(p.querySelector('.ui-readout')), '42 %');
-    assert.match(text(p.querySelector('.ui-faceplate__caption')), /^Done in about 1 h 10 min/);
+    // A37 R4: the page's sentence says the percentage and the estimate, so the plate has no readout or caption, and the
+    // job is on the nameplate's line, not a reading.
+    assert.equal(p.querySelector('.ui-readout'), null);
+    assert.equal(p.querySelector('.ui-faceplate__caption'), null);
+    assert.match(text(p.querySelector('.ui-faceplate__job')), /^Rift tile/);
     const dd = p.querySelectorAll('dd').map(text);
-    assert.ok(dd.includes('Rift tile') && dd.includes('12 / 300') && dd.includes('60°C'), 'a heater with no target shows one number');
+    assert.ok(!dd.includes('Rift tile') && dd.includes('12 / 300') && dd.includes('60°C'), 'a heater with no target shows one number');
     assert.ok(p.querySelector('[role="progressbar"]'));
     assert.ok(p.querySelector('.ui-faceplate__aside .cam-img'), 'the camera is the aside');
   } finally { dom.uninstall(); }
