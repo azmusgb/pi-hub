@@ -1,0 +1,1175 @@
+[
+ {
+  "event_id": "749e4928-23fe-5933-a906-98f10073d56d",
+  "type": "initiative.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "title": "A34: Pi Hub draws the Assistant; Local AI answers",
+   "intent": "Pi Hub draws the Assistant's tier 1 pages with the kit, reading Local AI through an allow-listed server-side adapter; Local AI answers. Stale and \"needs the PC\" are drawn states; tier 3 stays framed on Local AI's origin, and a frozen Local AI fallback covers Pi Hub being down.",
+   "status": "active",
+   "manifest": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/missions/a34.json",
+    "commit": "e9efd313f5d76c5f387998028875f463bb00e638"
+   },
+   "spec": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87"
+   }
+  }
+ },
+ {
+  "event_id": "66641654-ea20-5ebf-863b-8019f69d5bfa",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p0",
+   "n": 0,
+   "title": "P0 Headroom: release tests under 600 s; Local AI on the current kit"
+  }
+ },
+ {
+  "event_id": "3f5c6968-9123-5b65-8093-dbf3f99e94e9",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p0-done",
+   "criterion": "three releases in a row under 600 s; LocalAI on the current kit",
+   "evidence_kinds": [
+    "release",
+    "measurement"
+   ],
+   "stage": "a34:stage:p0"
+  }
+ },
+ {
+  "event_id": "70e8738f-3481-5497-8b6a-06daf1e54351",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p1",
+   "n": 1,
+   "title": "P1 Contract and auth"
+  }
+ },
+ {
+  "event_id": "de682a9f-9001-56af-9bd2-85d3425a4e6c",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p1-done",
+   "criterion": "contract tests green in both repos; each read checked live from the Pi with the key; a browser request with the flag and no key is refused",
+   "evidence_kinds": [
+    "test",
+    "live-check"
+   ],
+   "stage": "a34:stage:p1"
+  }
+ },
+ {
+  "event_id": "77f67f93-91f5-519e-8f98-9b5d31738cb9",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p2",
+   "n": 2,
+   "title": "P2 Adapter and last known"
+  }
+ },
+ {
+  "event_id": "7ea1957e-761d-5c37-bee4-d26afb5cadd7",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p2-done",
+   "criterion": "status page live; stale state seen live with the PC off; adapter refuses an unlisted path and a `key: never` path",
+   "evidence_kinds": [
+    "test",
+    "live-check"
+   ],
+   "stage": "a34:stage:p2"
+  }
+ },
+ {
+  "event_id": "e2033256-ef7e-5238-a94b-64fa2977f9a1",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p3",
+   "n": 3,
+   "title": "P3 One owner each"
+  }
+ },
+ {
+  "event_id": "29a2e957-014e-5fd3-aa91-2a844ac5f531",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p3-done",
+   "criterion": "each duplicate's Local AI copy is off, nothing still reads it (fallback and tier 3 checked), and its Pi Hub owner shows the same data live",
+   "evidence_kinds": [
+    "live-check",
+    "test"
+   ],
+   "stage": "a34:stage:p3"
+  }
+ },
+ {
+  "event_id": "1b5956cd-b736-5869-911a-ce862d343b66",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:a27-step-2",
+   "n": 4,
+   "title": "A27 step 2 (Local AI): Activity, Ask, two levels"
+  }
+ },
+ {
+  "event_id": "975713db-23b0-5de2-9dec-bb2e576267ff",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:a27-step-2-done",
+   "criterion": "before P4",
+   "evidence_kinds": [
+    "pr",
+    "release"
+   ],
+   "stage": "a34:stage:a27-step-2"
+  }
+ },
+ {
+  "event_id": "5f0c65d0-6188-5102-8bfe-c37165fd6902",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p4",
+   "n": 5,
+   "title": "P4 Tier 1 pages"
+  }
+ },
+ {
+  "event_id": "05f7f63a-0e86-5caf-a4a1-9ef767f59d7e",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p4-done",
+   "criterion": "the area works live with the PC on, shows stale or \"needs the PC\" with it off; width sweep, axe, keyboard, light/dark at 390/768/1366",
+   "evidence_kinds": [
+    "live-check",
+    "test",
+    "review"
+   ],
+   "stage": "a34:stage:p4"
+  }
+ },
+ {
+  "event_id": "6c4bdac6-45ad-5dbc-a3f5-12edaddb2e36",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p5",
+   "n": 6,
+   "title": "P5 Tier 2"
+  }
+ },
+ {
+  "event_id": "50917bf1-09bb-5950-b37c-951875a70d27",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p5-done",
+   "criterion": "a chat turn and a cancel work through the Pi; Pi stays within the measured budget",
+   "evidence_kinds": [
+    "live-check",
+    "measurement"
+   ],
+   "stage": "a34:stage:p5"
+  }
+ },
+ {
+  "event_id": "5d69c815-7736-5a2a-9653-4d7f3ea6dbd7",
+  "type": "stage.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:stage:p6",
+   "n": 7,
+   "title": "P6 Retire"
+  }
+ },
+ {
+  "event_id": "4ff29c86-bd43-5e86-9655-20404b10012c",
+  "type": "gate.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:gate:p6-done",
+   "criterion": "sprawl baseline down; fallback and tier 3 still work",
+   "evidence_kinds": [
+    "measurement",
+    "live-check"
+   ],
+   "stage": "a34:stage:p6"
+  }
+ },
+ {
+  "event_id": "fe67f8c0-b079-5d79-b262-95df48e418c6",
+  "type": "workstream.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:workstream:p0-tests",
+   "stage": "a34:stage:p0",
+   "title": "Pi Hub release tests under 600 s",
+   "repo": "azmusgb/pi-hub"
+  }
+ },
+ {
+  "event_id": "30f2151f-d235-5195-a8a5-645c4293a218",
+  "type": "workstream.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:workstream:p0-kit",
+   "stage": "a34:stage:p0",
+   "title": "Local AI on the current kit (A27 step 2a)",
+   "repo": "azmusgb/LocalAI",
+   "branch": "feat/a27-step-2a-kit-system-cards"
+  }
+ },
+ {
+  "event_id": "e980bdf4-d646-58d1-9122-5f24faeb8632",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-cheap-hashing",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Cheap hashing in tests (plan step 1)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "2d9ee643-3190-5124-ba13-d794a3db7f7c",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-release-tests-once",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Release tests build once (plan step 2)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "ed091f42-6f2f-5dd4-92ae-4ddde81ee0d2",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-waits-events",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Waits become events (plan step 3)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "359c88ba-7a04-521d-9fc9-3f2196b694eb",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-release-time",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Release reports its test time (plan step 4)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "15f32f09-5ee5-5d3e-9edf-b47875893f56",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-timing-followups",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Release test timing follow-ups from QA on #313",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "63dea198-febe-5006-aab1-5edb31872140",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-measure",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Measure: three consecutive Pi Hub releases under 600 s (plan step 6)",
+   "state": "active"
+  }
+ },
+ {
+  "event_id": "7d2d4871-cc3b-5656-84ef-8828ea430d1b",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-parallel-tests",
+   "workstream": "a34:workstream:p0-tests",
+   "title": "Release tests on 3 xdist workers (plan decision 7)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "8b6a4cbd-5081-50ca-8a09-ca3303d186f9",
+  "type": "task.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:task:p0-kit-sync",
+   "workstream": "a34:workstream:p0-kit",
+   "title": "Kit 2.27.1, System cards, Developer-tools cards (plan step 5)",
+   "state": "done"
+  }
+ },
+ {
+  "event_id": "0993ed1b-f3b0-5a7d-afe4-64ad4e602086",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p0",
+   "to": "a34:stage:p1",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "45185126-91c9-5ccf-a67a-1ca14de45819",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p1",
+   "to": "a34:stage:p2",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "0453c02a-49ca-5604-8a2a-9da10b8ca706",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p2",
+   "to": "a34:stage:p4",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "004a3140-7314-5d60-8c68-dd890ba9e4aa",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p3",
+   "to": "a34:stage:p4",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "79ebf98d-e6f1-5758-b463-8afbb5972cac",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:a27-step-2",
+   "to": "a34:stage:p4",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "4a7b4716-c60c-5153-9d19-2bb5f3e2c72b",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p4",
+   "to": "a34:stage:p5",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "5bc5ca0d-59c0-5c10-aa45-4e063a4682c6",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p4",
+   "to": "a34:stage:p6",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "9e8408e1-b134-55db-a397-c28406df2ad6",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:stage:p5",
+   "to": "a34:stage:p6",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "16025721-da35-5e14-addc-f1507b375fbf",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:task:p0-release-time",
+   "to": "a34:task:p0-measure",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "bc735af0-57c4-5a64-9626-36c6ac93d1b8",
+  "type": "dependency.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "from": "a34:task:p0-parallel-tests",
+   "to": "a34:task:p0-measure",
+   "kind": "blocks"
+  }
+ },
+ {
+  "event_id": "4e2b4f6c-c6ba-57a8-83ec-285009e74ffd",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d1",
+   "question": "How does Pi Hub get Local AI's data?",
+   "kind": "choice",
+   "options": [
+    "Server-side adapter on an allow-list",
+    "Browser proxy (breaks A4)",
+    "Keep everything framed"
+   ],
+   "recommended": "Server-side adapter on an allow-list",
+   "answer": "Server-side adapter on an allow-list; the browser never reaches Local AI through Pi Hub.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 214
+   }
+  }
+ },
+ {
+  "event_id": "37dcd65f-3e0f-5300-8447-38d45a24cc74",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d2",
+   "question": "Does chat move to Pi Hub?",
+   "kind": "choice",
+   "options": [
+    "Yes, in P5, after measuring the Pi",
+    "Chat stays framed"
+   ],
+   "recommended": "Yes, in P5, after measuring the Pi",
+   "answer": "Yes, in P5, after measuring the Pi.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 215
+   }
+  }
+ },
+ {
+  "event_id": "cf010f0a-6a43-5287-8366-c0877555cc4c",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d3",
+   "question": "Images?",
+   "kind": "choice",
+   "options": [
+    "Gallery and plain prompts in Pi Hub (P5)",
+    "All in Pi Hub",
+    "All framed"
+   ],
+   "recommended": "Gallery and plain prompts in Pi Hub (P5)",
+   "answer": "Gallery and plain prompts in Pi Hub (P5); generate-with-source and Fix a part stay framed until a 30 MB body is shown safe.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 216
+   }
+  }
+ },
+ {
+  "event_id": "7c696551-390a-5d54-a52f-1a32dbc5f56a",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d4",
+   "question": "Tier 3 (Agent World, tools, Atlas, Spreadsheets, Claude chat, code-running Improve actions)?",
+   "kind": "choice",
+   "options": [
+    "Stay framed on Local AI's origin",
+    "Redraw later under a new amendment"
+   ],
+   "recommended": "Stay framed on Local AI's origin",
+   "answer": "Stay framed on Local AI's origin.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 217
+   }
+  }
+ },
+ {
+  "event_id": "d3271b84-b9f2-5dc1-aa25-7c4ca3767de2",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d5",
+   "question": "Local AI sign-in after the move?",
+   "kind": "choice",
+   "options": [
+    "Hub key + owner flag on contract routes",
+    "Retire pairing"
+   ],
+   "recommended": "Hub key + owner flag on contract routes",
+   "answer": "Hub key + owner flag on contract routes; pairing kept for the fallback, tier 3 and Shortcuts.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 218
+   }
+  }
+ },
+ {
+  "event_id": "ddc3dd13-4a8a-52c2-a6d9-5a199eca601e",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d6",
+   "question": "Home location?",
+   "kind": "choice",
+   "options": [
+    "Pi Hub's existing place",
+    "Keep both"
+   ],
+   "recommended": "Pi Hub's existing place",
+   "answer": "Pi Hub's existing place; Local AI reads it, its setting retires.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 219
+   }
+  }
+ },
+ {
+  "event_id": "0edccca4-dfba-538c-8c6a-86013a093464",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d7",
+   "question": "\"Wake the PC\"?",
+   "kind": "choice",
+   "options": [
+    "Not in A34",
+    "Add here"
+   ],
+   "recommended": "Not in A34",
+   "answer": "Not in A34; a separate amendment if wanted.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 220
+   }
+  }
+ },
+ {
+  "event_id": "c02debc4-6208-5f68-a34b-fbb2143834f3",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d8",
+   "question": "Release test budget?",
+   "kind": "choice",
+   "options": [
+    "Under 600 s by fixing tests",
+    "Raise now"
+   ],
+   "recommended": "Under 600 s by fixing tests",
+   "answer": "Under 600 s by fixing tests; raise 900 s only if that fails, with the owner's yes.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 221
+   }
+  }
+ },
+ {
+  "event_id": "4b149868-9141-5105-829d-ef308c51dee2",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d9",
+   "question": "When Pi Hub is down?",
+   "kind": "choice",
+   "options": [
+    "Frozen standalone Local AI fallback",
+    "Assistant UI is down with Pi Hub"
+   ],
+   "recommended": "Frozen standalone Local AI fallback",
+   "answer": "Keep Local AI's Home, Work, Improve and Status as a frozen standalone fallback (baseline l.829 holds).",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 222
+   }
+  }
+ },
+ {
+  "event_id": "9412fb28-74cc-537a-929d-172dd1352678",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d10",
+   "question": "May private Assistant data be cached on the Pi?",
+   "kind": "choice",
+   "options": [
+    "Only titles, counts and states",
+    "Cache everything the pages show",
+    "Cache nothing"
+   ],
+   "recommended": "Only titles, counts and states",
+   "answer": "Only titles, counts and states (cache: owner); never memory, facts, conversations, knowledge text, run answers; the cache is left out of the off-site backup.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 223
+   }
+  }
+ },
+ {
+  "event_id": "d0abfcb8-867f-5d0f-8f90-0abe67e7d485",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d11",
+   "question": "Set LOCALAI_SIGN_IN=required?",
+   "kind": "choice",
+   "options": [
+    "Yes, at the end of P1",
+    "Stay in report mode"
+   ],
+   "recommended": "Yes, at the end of P1",
+   "answer": "Yes, at the end of P1 (closes LAN reads).",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 224
+   }
+  }
+ },
+ {
+  "event_id": "215f3f2e-12cc-518f-8eac-4a9c5b012a75",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d12",
+   "question": "Retire Local AI's Web Push?",
+   "kind": "choice",
+   "options": [
+    "After checking ntfy reaches each device",
+    "Keep Web Push",
+    "Retire at once"
+   ],
+   "recommended": "After checking ntfy reaches each device",
+   "answer": "After checking each device gets the same alerts by ntfy; until then both run.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 225
+   }
+  }
+ },
+ {
+  "event_id": "0f2544bf-c2a4-53bf-9629-7345855a40ab",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d13",
+   "question": "Writes while the PC sleeps?",
+   "kind": "choice",
+   "options": [
+    "Refuse with \"needs the PC\"",
+    "Queue on the Pi and replay"
+   ],
+   "recommended": "Refuse with \"needs the PC\"",
+   "answer": "Refuse with \"needs the PC\".",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 226
+   }
+  }
+ },
+ {
+  "event_id": "5ce11089-5864-5e30-93c5-eeb57cf588f3",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:d14",
+   "question": "Order relative to A27's build?",
+   "kind": "choice",
+   "options": [
+    "A27 step 2 (Local AI) before P4",
+    "Restate A34 in pre-A27 terms and go first"
+   ],
+   "recommended": "A27 step 2 (Local AI) before P4",
+   "answer": "A27 step 2 (Local AI) before P4.",
+   "answered_at": "2026-11-23T22:37:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 227
+   }
+  }
+ },
+ {
+  "event_id": "d1e2253e-486a-51f1-818f-78ecd403fd1e",
+  "type": "decision.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:decision:p0-parallel",
+   "question": "P0 plan decision 7: run the Pi's release tests in parallel with pytest-xdist?",
+   "kind": "yesno",
+   "answer": "Yes: pytest-xdist on 3 workers (python3-pytest-xdist installed on the Pi), after serial releases of 596, 589 and 628 s.",
+   "answered_at": "2026-11-24T13:05:00-05:00",
+   "answer_source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/plans/2026-11-23-a34-p0-headroom.md",
+    "commit": "aa575d5585e33b6618a11e00c931ea505baa5373",
+    "line": 99
+   }
+  }
+ },
+ {
+  "event_id": "307f3020-44e1-5621-a665-7d84acad595a",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:pi-spof",
+   "kind": "risk",
+   "title": "The Pi becomes a single point of failure for the Assistant",
+   "mitigation": "The fallback (D9); tier 3 stays on the PC.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "0176bf01-5f49-5bba-a02c-c2f76494c9a8",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:pi-headroom",
+   "kind": "risk",
+   "title": "The Pi runs out of headroom (tests, CPU, heat)",
+   "mitigation": "P0 first; per-phase test ceiling; P5 measured before built.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "1d41e5ae-6ca2-5d54-8e47-1e9ac2ea1270",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:key-widened",
+   "kind": "risk",
+   "title": "Pi Hub's key widened into code execution",
+   "mitigation": "key: never list with a failing test; code-running actions stay framed.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "4466c5ca-6425-5831-8cd7-725fd82c5e8b",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:owner-flag-spoofed",
+   "kind": "risk",
+   "title": "Owner flag spoofed",
+   "mitigation": "Ignored without the key; stripped by Caddy; Local AI sign-in required (D11).",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "fb4ebaa3-3aea-5ad9-b016-2f9e48e6199f",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:private-data",
+   "kind": "risk",
+   "title": "Private data on the Pi and in backups",
+   "mitigation": "cache flags, private reads none, cache outside the off-site backup (D10).",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "f463307d-6572-52d4-a69b-16757c4dbbae",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:contract-drift",
+   "kind": "risk",
+   "title": "Contract drift across separate deploys",
+   "mitigation": "Additive by default; versioned breaks served N and N-1; \"out of date\" state.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "27ec9147-7f64-54fe-8563-8bee69eec602",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:two-copies",
+   "kind": "risk",
+   "title": "Two copies disagree during migration",
+   "mitigation": "Each P3 row turns the Local AI copy off in the release that turns Pi Hub's on, after checking its readers.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "4be8ef20-ad78-57bb-9cd8-9d68b9707aac",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:stale-as-current",
+   "kind": "risk",
+   "title": "Stale data read as current",
+   "mitigation": "as_of on every read; stale is a drawn state.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "1c3c0bea-b602-5910-a0d8-ad5f659cfb95",
+  "type": "risk.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:risk:dead-pc",
+   "kind": "risk",
+   "title": "A dead PC slows Pi Hub",
+   "mitigation": "Breaker on the pc record, short timeouts, in-flight caps.",
+   "status": "open"
+  }
+ },
+ {
+  "event_id": "83d6bdab-0a3c-5936-8c82-303d7b2aed3a",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:spec",
+   "kind": "spec",
+   "summary": "A34 spec, approved by the owner's merge of #309 (4ef3c14) with D1-D14 as recommended.",
+   "source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87"
+   }
+  }
+ },
+ {
+  "event_id": "385fd12c-b5bb-5687-a763-136b457e5d10",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:baseline-listing",
+   "kind": "doc",
+   "summary": "A34 listed under the baseline's Amendments (#310).",
+   "pr": {
+    "repo": "azmusgb/pi-hub",
+    "pr": 310
+   }
+  }
+ },
+ {
+  "event_id": "ef5e4e1c-e36e-5a1a-8f16-272dea737453",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-plan",
+   "kind": "plan",
+   "summary": "P0 headroom plan, merged in #311: six steps, criteria mapped to evidence.",
+   "source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/plans/2026-11-23-a34-p0-headroom.md",
+    "commit": "166951a54c5efa1d5fed86e5963db8847d76b380"
+   },
+   "links": [
+    {
+     "entity": "a34:stage:p0",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "faa6b883-54f1-5b7c-a263-339653814307",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-tests-pr",
+   "kind": "pr",
+   "summary": "Plan steps 1-4 merged in #313: Mac pytest 205 s to 82 s; release says and records its test time. Pi time not yet seen (needs a deploy).",
+   "pr": {
+    "repo": "azmusgb/pi-hub",
+    "pr": 313
+   },
+   "links": [
+    {
+     "entity": "a34:task:p0-cheap-hashing",
+     "role": "supports"
+    },
+    {
+     "entity": "a34:task:p0-release-tests-once",
+     "role": "supports"
+    },
+    {
+     "entity": "a34:task:p0-waits-events",
+     "role": "supports"
+    },
+    {
+     "entity": "a34:task:p0-release-time",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "dfbee8a9-96c2-5410-9711-be50e30603a8",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-baseline-time",
+   "kind": "measurement",
+   "summary": "Before P0: release pytest 883 s of its 900 s limit on the Pi (23 Nov); 1,518 py + 684 js tests.",
+   "source": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/superpowers/specs/2026-11-23-amendment-a34-pi-hub-draws-the-assistant.md",
+    "commit": "5e41c07bf711ab97d012f26cb587350b33098c87",
+    "line": 74
+   },
+   "links": [
+    {
+     "entity": "a34:risk:pi-headroom",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "eaa1174a-d937-5498-8cbf-46146bb8e246",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-timing-pr",
+   "kind": "pr",
+   "summary": "QA follow-ups on #313, merged in #315: monotonic timing, no empty JS line, 600 s counts as over budget; live in fa4436a.",
+   "pr": {
+    "repo": "azmusgb/pi-hub",
+    "pr": 315
+   },
+   "links": [
+    {
+     "entity": "a34:task:p0-timing-followups",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "50ba5d60-0365-59f5-a28c-21e06cc59ea3",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-release-times",
+   "kind": "measurement",
+   "summary": "Pi Hub release test times on 24 Nov, serial: 596 s, 589 s (eacf9d1), 628 s (fa4436a), 640 s (5ebc34f; Pi 75-78 C, load ~9-11 during an X2D print). No run of three under 600 s.",
+   "pr": {
+    "repo": "azmusgb/pi-hub",
+    "pr": 327
+   },
+   "links": [
+    {
+     "entity": "a34:task:p0-measure",
+     "role": "supports"
+    },
+    {
+     "entity": "a34:gate:p0-done",
+     "role": "refutes"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "ae34fb76-d712-53b6-bce5-2c313c0bd5fa",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-parallel-pr",
+   "kind": "pr",
+   "summary": "#327: release tests on 3 xdist workers when xdist is installed. A trial of the branch on the Pi passed in 403 s during a print. Live in 5ebc34f; the first parallel release is the one after it.",
+   "pr": {
+    "repo": "azmusgb/pi-hub",
+    "pr": 327
+   },
+   "links": [
+    {
+     "entity": "a34:task:p0-parallel-tests",
+     "role": "supports"
+    },
+    {
+     "entity": "a34:decision:p0-parallel",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "9d179dc3-e667-523d-bf86-14a373ff4dd9",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-kit-live",
+   "kind": "live-check",
+   "summary": "LocalAI 9420dfd serves /ui/VERSION 2.27.1 on the PC, the same version as Pi Hub's kit (P0 Done 2), read 24 Nov.",
+   "pr": {
+    "repo": "azmusgb/LocalAI",
+    "pr": 620
+   },
+   "links": [
+    {
+     "entity": "a34:gate:p0-done",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "57b299e1-e702-5718-b13f-58b944a58799",
+  "type": "evidence.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "id": "a34:evidence:p0-kit-pr",
+   "kind": "pr",
+   "summary": "A27 step 2a, shipped 24 Nov as 9420dfd: kit 2.27.1, System as one card page, Developer tools as tool cards.",
+   "pr": {
+    "repo": "azmusgb/LocalAI",
+    "pr": 620
+   },
+   "links": [
+    {
+     "entity": "a34:task:p0-kit-sync",
+     "role": "supports"
+    }
+   ]
+  }
+ },
+ {
+  "event_id": "0de1c3d1-8cb9-59cd-b72d-213c22f98add",
+  "type": "plan.imported",
+  "at": "2026-11-25T18:00:00+00:00",
+  "initiative": "a34",
+  "body": {
+   "manifest": {
+    "repo": "azmusgb/pi-hub",
+    "path": "docs/missions/a34.json",
+    "commit": "e9efd313f5d76c5f387998028875f463bb00e638"
+   },
+   "entities": 71
+  }
+ }
+]
