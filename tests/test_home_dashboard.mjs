@@ -554,6 +554,45 @@ test("Needs you names a source the hub couldn't read, and never says nothing nee
   } finally { k.done(); }
 });
 
+// A36 D6 & D7: Home draws asks under Needs you (with the count and badge counting asks only) and collapses
+// heads-up conditions to one summary line ("2 heads up: Wind advisory, Raspberry Pi") that opens on tap.
+test("A36 D6/D7: Home counts asks only, collapses Heads up by default, and shows Nothing needs you when only heads up exist", async () => {
+  const k = kitInstall();
+  try {
+    const { mountDashboard, renderDashboard } = await import("../hub/static/js/home-dashboard.js");
+    const state = {}, parent = k.env.root();
+    mountDashboard(state, parent);
+    const items = [
+      { id: "pi:lab:hex:E-028", source: "Print lab", tone: "warn", kind: "ask", title: "E-028: Fix the plan",
+        detail: "Missing wall thickness.", more: "outer_wall_mm: required", link: "/lab?p=hex&e=E-028",
+        action: { key: "fix_plan", link: "/lab?p=hex&e=E-028" } },
+      { id: "pi:Weather", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Weather",
+        detail: "Wind advisory", until: "2026-11-25T18:00:00-05:00", link: "/weather", record: "weather" },
+      { id: "pi:Raspberry Pi", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Raspberry Pi",
+        detail: "Pi 72 °C. Slowed by heat earlier.", link: "/system", record: "pi" },
+    ];
+    const needs = { count: 1, heads_up_count: 2, unread: [], items };
+    renderDashboard(state, { today: null, records: [], needs }, () => {});
+    assert.equal(text(state.hd.needsCount), "1", "Needs you heading counts only the 1 ask");
+    assert.equal(problemsBadge(needs, state.probs).count, 1, "nav badge counts only asks");
+    const box = state.hd.needs.querySelector("details.hd-heads-up");
+    assert.ok(box, "Heads up disclosure is drawn");
+    assert.equal(box.open, false, "collapsed by default (A36 Call 1)");
+    assert.equal(text(box.querySelector("summary")), "2 heads up: Weather, Raspberry Pi");
+    assert.equal(box.querySelectorAll('.ui-need[data-kind="heads_up"]').length, 2);
+    // The ask row carries its Details disclosure for `more` (A37 R5)
+    assert.equal(text(state.hd.needs.querySelector(".ui-need__more")), "outer_wall_mm: required");
+
+    // No asks and 2 heads up: "Nothing needs you right now." still shows above the collapsed Heads up line (A36 D7)
+    const onlyHeadsUp = { count: 0, heads_up_count: 2, unread: [], items: items.slice(1) };
+    renderDashboard(state, { today: null, records: [], needs: onlyHeadsUp }, () => {});
+    assert.equal(text(state.hd.needsCount), "");
+    assert.equal(problemsBadge(onlyHeadsUp, state.probs).count, 0);
+    assert.match(text(state.hd.needs.querySelector(".ui-needs__empty")), /^Nothing needs you right now\.$/);
+    assert.ok(state.hd.needs.querySelector("details.hd-heads-up"));
+  } finally { k.done(); }
+});
+
 test("a refresh puts keyboard focus back where it was", async () => {
   const k = kitInstall();
   try {

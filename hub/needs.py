@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from urllib.parse import quote
 
+from . import records as records_mod
 from .now import issue_items
 from .things.printer import hms_title
 
@@ -20,6 +21,36 @@ BLIND_FIX = "tool:bambuddy/settings?tab=failure-detection"  # Bambuddy's own Fai
 # Inbox with the alerts a watch raises, runs in Work, disk in Assistant status.
 ASSISTANT_VIEW = {"needs": f"{ASSISTANT}/#inbox", "running": f"{ASSISTANT}/#work", "done": f"{ASSISTANT}/#work",
                   "disk": f"{ASSISTANT}/#status", "watch": f"{ASSISTANT}/#inbox"}
+# A36 D2: a Local AI card whose kind has an Assistant page to act on (approvals) is an ask; its other known card kinds
+# are heads up unless given their own action (watch-mac-disk). An unknown card kind fails loud as an ask.
+LOCAL_AI_HEADS_UP_KINDS = {"watch", "running", "done", "disk"}
+# A36 D2: hub record states where the owner has a step (clear the plate, fix a stopped service or unmounted drive, or
+# an N5 urgent printing fault). An unknown state or an unknown record kind is an ask (fail loud, not quiet).
+RECORD_ASK_STATES = {
+    "printer": {"paused", "finished", "failed"},
+    "obico": {"failure", "blind"},
+    "pc_printing": {"off_while_printing"},
+    "movies_drive": {"not_mounted", "missing"},
+    "plex": {"stopped"},
+    "devices": {"stopped", "signed_out"},
+    "paper_printer": {"problem"},
+    "mac_lab": {"mac_silent"},
+}
+RECORD_HEADS_UP_STATES = {
+    "printer": {"offline"},
+    "obico": {"warning"},
+    "camera": {"no_picture"},
+    "workshop_display": {"offline"},
+    "pc": {"off"},
+    "local_ai": {"no_models", "down"},
+    "pi": {"hot", "power"},
+    "movie_copy": {"behind"},
+    "internet": {"slow", "down"},
+    "adguard": {"not_answering", "paused"},
+    "backups": {"behind"},
+    "weather": {"warning"},
+    "hub": {"disagreement"},
+}
 HUB = "Pi Hub"
 LAB = "Print lab"
 LAB_EXP = re.compile(r"^E-\d{1,6}$")
@@ -87,12 +118,16 @@ def _lab_items(lab, now, printer_done):
                     else f"/lab?p={project}&e={eid}")
             if judge and n.get("due_at") is not None and not printer_done and not _due(n["due_at"], now):
                 continue  # not yet due (or an unreadable time): the verdict waits for the print
-            out.append({"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action],
-                        "title": f"{eid}: {'Ready to print' if ready else action}"[:80],
-                        "detail": _clip("Staged in Bambuddy and checked. Tick the plate and filament, then Start."
-                                        if ready else n.get("why"), 200),
-                        "link": link, "action": {"key": LAB_VERB[action], "link": link},
-                        "as_of": str(as_of or ""), "ts": now})
+            item = {"id": f"pi:lab:{project}:{eid}", "source": LAB, "tone": LAB_TONE[action], "kind": "ask",
+                    "title": f"{eid}: {'Ready to print' if ready else action}"[:80],
+                    "detail": _clip("Staged in Bambuddy and checked. Tick the plate and filament, then Start."
+                                    if ready else n.get("why"), 200),
+                    "link": link, "action": {"key": LAB_VERB[action], "link": link},
+                    "as_of": str(as_of or ""), "ts": now}
+            more = n.get("more")
+            if isinstance(more, str) and more.strip():
+                item["more"] = more.strip()
+            out.append(item)
     return out
 
 
@@ -104,6 +139,61 @@ def _whats_using_it(item):
     item["detail"] = said
     item["link"] = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's using the space?", safe="")
     item["action"] = {"key": "see_usage", "link": item["link"]}
+    item["kind"] = "ask"
+
+
+def _whats_running(item):
+    """A36 D4: Pi throttled > 60 min or >= 80 °C escalates from heads up to an ask with Local AI's #ask?context=
+    hand-off, as _whats_using_it."""
+    said = item["detail"].rstrip(".")
+    link = f"{ASSISTANT}/#ask?context=" + quote(f"Pi Hub › {said}. What's running on the Pi?", safe="")
+    item["link"] = link
+    item["action"] = {"key": "see_usage", "link": link}
+    item["kind"] = "ask"
+
+
+def _pi_escalated(rec, now):
+    if not rec or rec.get("stale"):
+        return False
+    detail = rec.get("detail") or {}
+    temp = detail.get("temp")
+    if isinstance(temp, (int, float)) and not isinstance(temp, bool) and temp >= records_mod.PI_TEMP_ASK_AT:
+        return True
+    since = rec.get("since")
+    return (detail.get("power") == "Slowed by heat" and isinstance(since, (int, float))
+            and not isinstance(since, bool) and now - since > records_mod.PI_THROTTLED_ASK_AFTER)
+
+
+def _backups_escalated(rec):
+    if not rec or rec.get("stale") or rec.get("state") != "behind":
+        return False
+    detail = rec.get("detail") or {}
+    for m in detail.get("machines") or ():
+        age = m.get("age") if isinstance(m, dict) else None
+        if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age > records_mod.BACKUP_ASK_AFTER):
+            return True
+    copy = detail.get("pc_copy")
+    if isinstance(copy, dict):
+        age = copy.get("age")
+        if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age >= records_mod.PC_COPY_ASK_AFTER):
+            return True
+    return False
+
+
+def _record_kind(key, rec):
+    """A36 D2: what is an ask vs heads up among the hub's records. An item whose class can't be told is an ask."""
+    if key == "source:bambuddy":
+        return "ask"
+    if key.startswith(("source:", "release:")):
+        return "heads_up"
+    if not rec or rec.get("stale"):
+        return "ask" if key in ("printer", "obico", "hms") else "heads_up" if key in RECORD_ASK_STATES or key in RECORD_HEADS_UP_STATES else "ask"
+    state = rec.get("state")
+    if state in RECORD_ASK_STATES.get(key, ()):
+        return "ask"
+    if state in RECORD_HEADS_UP_STATES.get(key, ()):
+        return "heads_up"
+    return "ask"
 
 
 def _matches(about, text):
@@ -120,6 +210,65 @@ def _one_row(items, about, ours):
     return [i for i in items if i is keep or i not in named]
 
 
+def _hms_items(errors, href, now, printing):
+    out = []
+    for e in errors:
+        sev = e.get("severity")
+        known = isinstance(sev, int) and not isinstance(sev, bool)
+        effect = HMS_EFFECT.get(sev) if known else None
+        if printing and sev in (1, 2):  # "It pauses the print." beside a print at 29% and running (24 Nov)
+            effect = None
+        # ack: the owner can acknowledge it (POST /api/needs/ack); the record then leaves it out
+        out.append({"id": f"pi:source:hms:{e['code']}", "source": HUB, "ack": True, "kind": "ask",
+                    "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
+                    "title": hms_title(e),
+                    "detail": f"{effect} Alert {e['code']}." if effect else f"Alert {e['code']}.",
+                    "link": href, "ts": now, "thing": "hms", "record": "hms"})
+    return out
+
+
+def _hub_item(key, i, rec, now):
+    id = "pi:" + key if key.startswith(("source:", "release:")) else "pi:" + i["what"]
+    item = {"id": id, "source": HUB, "tone": i["tone"], "kind": _record_kind(key, rec), "title": i["what"],
+            "detail": i["say"], "link": i["href"], "ts": now, "thing": key, "record": key}
+    if key == "obico" and rec.get("state") == "blind" and not rec.get("stale"):
+        # nothing watches the print: above "Worth a look", and the fix is in Bambuddy's settings (IMG_1047, 28 Oct)
+        item.update(tone="attention", kind="ask", title=rec["headline"], detail=rec.get("cause") or "", link=BLIND_FIX,
+                    action={"key": "open_bambuddy", "link": BLIND_FIX})
+    elif key == "pi" and _pi_escalated(rec, now):
+        _whats_running(item)
+    elif key == "backups" and _backups_escalated(rec):
+        item.update(kind="ask", action={"key": "open_backups", "link": "/backups"})
+    elif key == "weather":
+        until = (rec.get("detail") or {}).get("until")
+        if isinstance(until, str) and until.strip():
+            item["until"] = until.strip()
+    return item
+
+
+def _feed_items(feed, now, healthy):
+    if feed is None:
+        return [], ["Local AI"]
+    out = []
+    for c in feed.get("cards") or []:
+        tone = "warn" if c.get("tone") == "warning" else c.get("tone")
+        if str(c.get("id") or "").startswith(("judge-", "lab-")):  # the hub's copy is the source now
+            continue
+        if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
+            continue
+        ckind = c.get("kind")
+        item = {"id": f"localai:{c.get('id') or ckind or 'card'}", "source": "Local AI", "tone": tone,
+                "kind": "heads_up" if ckind in LOCAL_AI_HEADS_UP_KINDS else "ask",
+                "title": _clip(c.get("title", ""), 80), "detail": _clip(c.get("text", ""), 200),
+                "link": ASSISTANT_VIEW.get(ckind, ASSISTANT), "ts": now}
+        if c.get("id") == "watch-mac-disk":
+            _whats_using_it(item)
+        if "workshop_display" in healthy and ABOUT_WORKSHOP_DISPLAY.search(f'{item["title"]} {item["detail"]}'):
+            continue  # the hub is the display's connection (platform K2); its fresh OK record is the truth
+        out.append(item)
+    return out, []
+
+
 def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=frozenset(), printing=False):
     """`problems`: records.problems() (worst first, then oldest). `events` is no longer read: the printer record
     knows when the plate is cleared. `healthy`: ids of the hub's records that are OK and fresh; another source's item
@@ -131,46 +280,11 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
     for key, i in issue_items(list(problems)):
         errors = (by_id.get(key) or {}).get("detail", {}).get("errors") if key == "hms" else None
         if errors:  # one item per fault code, so each can be told apart and dismissed on its own
-            for e in errors:
-                sev = e.get("severity")
-                known = isinstance(sev, int) and not isinstance(sev, bool)
-                effect = HMS_EFFECT.get(sev) if known else None
-                if printing and sev in (1, 2):  # "It pauses the print." beside a print at 29% and running (24 Nov)
-                    effect = None
-                # ack: the owner can acknowledge it (POST /api/needs/ack); the record then leaves it out
-                items.append({"id": f"pi:source:hms:{e['code']}", "source": HUB, "ack": True,
-                              "tone": "bad" if known and sev in (1, 2) else "warn",  # as things/printer.py stops()
-                              "title": hms_title(e),
-                              "detail": f"{effect} Alert {e['code']}." if effect else f"Alert {e['code']}.",
-                              "link": i["href"], "ts": now, "thing": key, "record": key})
-            continue
-        id = "pi:" + key if key.startswith(("source:", "release:")) else "pi:" + i["what"]
-        item = {"id": id, "source": HUB, "tone": i["tone"], "title": i["what"],
-                "detail": i["say"], "link": i["href"], "ts": now, "thing": key, "record": key}
-        rec = by_id.get(key) or {}
-        if key == "obico" and rec.get("state") == "blind" and not rec.get("stale"):
-            # nothing watches the print: above "Worth a look", and the fix is in Bambuddy's settings (IMG_1047, 28 Oct)
-            item.update(tone="attention", title=rec["headline"], detail=rec.get("cause") or "", link=BLIND_FIX,
-                        action={"key": "open_bambuddy", "link": BLIND_FIX})
-        items.append(item)
-    unread = []
-    if feed is None:
-        unread.append("Local AI")
-    else:
-        for c in feed.get("cards") or []:
-            tone = "warn" if c.get("tone") == "warning" else c.get("tone")
-            if str(c.get("id") or "").startswith(("judge-", "lab-")):  # the hub's copy is the source now
-                continue
-            if tone not in ORDER or c.get("kind") == "home":  # home cards are the Pi's own issues coming back
-                continue
-            item = {"id": f"localai:{c.get('id') or c.get('kind') or 'card'}", "source": "Local AI", "tone": tone,
-                    "title": _clip(c.get("title", ""), 80), "detail": _clip(c.get("text", ""), 200),
-                    "link": ASSISTANT_VIEW.get(c.get("kind"), ASSISTANT), "ts": now}
-            if c.get("id") == "watch-mac-disk":
-                _whats_using_it(item)
-            if "workshop_display" in healthy and ABOUT_WORKSHOP_DISPLAY.search(f'{item["title"]} {item["detail"]}'):
-                continue  # the hub is the display's connection (platform K2); its fresh OK record is the truth
-            items.append(item)
+            items.extend(_hms_items(errors, i["href"], now, printing))
+        else:
+            items.append(_hub_item(key, i, by_id.get(key) or {}, now))
+    feed_items, unread = _feed_items(feed, now, healthy)
+    items.extend(feed_items)
     seen = {}
     for i in items:  # ids stay unique within a build (cards without their own id fall back to their kind)
         n = seen[i["id"]] = seen.get(i["id"], 0) + 1
@@ -188,10 +302,13 @@ def build(events, feed, now, problems=(), lab=(), printer_done=False, healthy=fr
     # After the folds: the lab's text says "printer"/"print", and must not be folded into the printer's row.
     items = sorted(items + _lab_items(lab, now, printer_done), key=lambda i: (ORDER[i["tone"]], -i["ts"]))
     for i in items:
-        if "action" not in i and i.get("link") in PAGE_VERB:
+        if i.get("kind") == "ask" and "action" not in i and i.get("link") in PAGE_VERB:
             i["action"] = {"key": PAGE_VERB[i["link"]], "link": i["link"]}
     drop = ("ts", "thing")
-    return {"count": len(items), "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
+    asks = sum(1 for i in items if i.get("kind") == "ask")
+    heads_up = sum(1 for i in items if i.get("kind") == "heads_up")
+    return {"count": asks, "heads_up_count": heads_up,
+            "items": [{k: v for k, v in i.items() if k not in drop} for i in items], "unread": unread}
 
 
 def current(recs=None, *, fetch=True):

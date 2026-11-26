@@ -85,7 +85,7 @@ class Refusals:
             for source in [s for s, r in self._raised.items() if now - r["last"] >= QUIET]:
                 del self._raised[source]
             raised = sorted(self._raised.items())
-        return [{"id": f"pi:missions:{source}:refused", "source": "Pi Hub", "tone": "attention",
+        return [{"id": f"pi:missions:{source}:refused", "source": "Pi Hub", "tone": "attention", "kind": "ask",
                  "title": "Mission reports refused",
                  "detail": (f"Pi Hub refused {r['count']} reports from {SOURCE_NAMES.get(source, source)}, the last "
                             f"at {time.strftime('%H:%M', time.localtime(r['last']))} ({r['code']}). Check its key "
