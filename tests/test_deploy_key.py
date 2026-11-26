@@ -46,7 +46,11 @@ def run(tmp_path):
     return go
 
 
-@pytest.mark.parametrize("name", ["localai", "mac"])
+SERVICE = {"mac": "pi-hub-deploy-key", "mission-claude": "pi-hub-mission-claude-key",
+           "mission-importer": "pi-hub-mission-importer-key"}  # the mission names are what home-mcp's drainer reads
+
+
+@pytest.mark.parametrize("name", ["localai", "mac", "mission-claude", "mission-importer"])
 def test_deploy_key_never_printed(run, name):
     r, calls = run(name)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -55,12 +59,14 @@ def test_deploy_key_never_printed(run, name):
     else:
         [line] = [stdin for k, (argv, stdin) in calls.items() if k.endswith("security")]
         key = line.rsplit(" ", 1)[1].strip()
+        assert line.startswith(f"add-generic-password -U -a pi-hub -s {SERVICE[name]} -w ")
     assert len(key) == 64 and all(c in "0123456789abcdef" for c in key)
     assert key not in r.stdout and key not in r.stderr
     for argv, _ in calls.values():
         assert key not in argv
     [hashed] = [stdin for (argv, stdin) in calls.values() if "deploy_keys" in argv and "mktemp" in argv]
     assert hashed.strip() == hashlib.sha256(key.encode()).hexdigest()
+    assert any(f"deploy_keys/{name}.sha256" in argv for argv, _ in calls.values())
     assert "was not shown" in r.stdout
 
 
