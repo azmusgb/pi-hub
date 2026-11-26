@@ -216,6 +216,23 @@ html {
   .top .clock { grid-column: 1 / -1; justify-self: start; }
   .top .top-cmd-btn { margin-left: 0; }
 }
+/* A page that says its reading (A37 R1, page-parts.js pageHead): Search and the Assistant in a row above, the sentence
+   under them at the page's width. The head scrolls with the page here: two sentences in the readout face would
+   otherwise hold a third of a phone's screen, so the area's strip sticks at the top instead. */
+.top.top--say { position: static; align-items: flex-start; }
+/* One set of rules for both of the head's layouts: the flex row reads order and flex-basis, the phone's grid (the
+   shell switch above) reads the grid lines; each ignores the other's. */
+.top--say .top-lead { order: 1; flex-basis: 100%; grid-column: 1 / -1; grid-row: 2; }
+.top--say .top-cmd-btn { margin-left: auto; grid-column: 2; }
+.top--say .top-assistant { grid-column: 3; }
+/* Pinned under the status bar in the installed app (the head carried that inset, and now scrolls away); a block of
+   the page's colour fills the inset so nothing shows through above the strip. */
+.ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip]) { top: env(safe-area-inset-top, 0px); }
+.ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip])::before {
+  content: ""; position: absolute; inset: auto 0 100%; height: env(safe-area-inset-top, 0px); background: var(--ui-bg);
+}
+/* A jump to a section lands under what is pinned, which here is the strip alone, not the head's measured height. */
+html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-top: calc(var(--ui-header-h) + var(--ui-s-2)); }
 /* A narrow top bar: the Assistant keeps its icon and its accessible name, and Search its word on less padding, so the
    title has the room for one line from 360 px ("Home & network", A10 plan decision 17; by the bar's own width, A10 D2). */
 @container top (max-width: 27.5rem) {

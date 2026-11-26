@@ -7,17 +7,51 @@ import { resolveLink } from "./sections.js";
 const lampChip = (lamp) => lamp ? h("span", { class: `ui-chip ui-chip--${lamp[0]}${lamp[2] ? " ui-chip--live" : ""}` }, lamp[1]) : null;
 const present = (v) => v !== null && v !== undefined && v !== "";
 
+// The page's head, set by the router for every page (A37 R1). A page that says its reading (`says`) gets the shell's
+// h1 as the kit's ui-say, busy until its first answer, with no purpose line; every other page gets its plain title and
+// purpose, and nothing of the page before. Without the kit's say.js (an old cached shell) a saying page is a plain one.
+const sayKit = (says) => says && typeof globalThis.ApplianceSay?.render === "function";
+// `key` is the page's own (the router's), so a late answer from another page can't write here; `main` is the page's
+// landmark, named by the page's name alone: labelled by the h1 it would take the whole sentence as its name.
+export function pageHead(h1, sub, { label, purpose = "", says = false, key = "", main = null }) {
+  const saying = sayKit(says);
+  // `brand` is the plain title's look (app.css sizes it by id and class); the sentence takes the kit's alone.
+  h1.classList.remove("ui-say");
+  h1.classList.toggle("brand", !saying);
+  delete h1.dataset.say;
+  h1.removeAttribute("aria-busy");
+  h1.textContent = label;
+  h1.dataset.label = label;
+  h1.dataset.page = key;
+  if (main) { main.removeAttribute("aria-labelledby"); main.setAttribute("aria-label", label); }  // the page's name comes only from the page list (A22); sayHead puts it in the sentence
+  h1.closest("header")?.classList.toggle("top--say", saying);
+  if (sub) sub.textContent = saying ? "" : purpose;
+  if (!saying) return;
+  h1.classList.add("ui-say");
+  ApplianceSay.render(h1, { label, sentences: [], loading: true });
+}
+
+// The page's sentence, from ApplianceSay.compose (its label is the router's, whatever the page passed). True when it wrote; false when nothing changed, or when the head is
+// no longer this page's (an answer that lands after the owner moved on, to a plain page or another saying one).
+export function sayHead(composed, key, h1 = document.getElementById("page-title")) {
+  if (!h1?.classList.contains("ui-say") || h1.dataset.page !== key || !sayKit(true) || !composed) return false;
+  return ApplianceSay.render(h1, { ...composed, label: h1.dataset.label || "" });
+}
+
 // `name` is drawn on the nameplate and names the section; a faceplate with no name to draw (Settings, A22 2.3) passes
 // `label` for the section alone. `lamp`: [tone, word, live?]; `readings`: [label, value] pairs, a missing value is left out; `actions`, `aside`: nodes.
-export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [] }) {
+// `plate` (A37 R4): on a page whose head says the reading, the faceplate has no readout or caption, and `job` (what is
+// running and how old the reading is) sits on the nameplate's line.
+export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [], plate = false, job = null }) {
   const rows = readings.filter(([, v]) => present(v));
   const acts = (actions || []).filter(Boolean);
-  return h("section", { class: aside ? "ui-faceplate ui-faceplate--aside" : "ui-faceplate", "aria-label": name || label },
+  return h("section", { class: ["ui-faceplate", aside ? "ui-faceplate--aside" : "", plate ? "ui-faceplate--plate" : ""].filter(Boolean).join(" "), "aria-label": name || label },
     h("div", { class: "ui-faceplate__main" },
-      h("div", { class: "ui-faceplate__nameplate" }, name ? h("span", {}, name) : null, lampChip(lamp)),
-      present(readout) ? h("p", { class: size ? `ui-readout ui-readout--${size}` : "ui-readout" }, String(readout),
+      h("div", { class: "ui-faceplate__nameplate" }, name ? h("span", {}, name) : null, lampChip(lamp),
+        plate && present(job) ? h("span", { class: "ui-faceplate__job" }, job) : null),
+      !plate && present(readout) ? h("p", { class: size ? `ui-readout ui-readout--${size}` : "ui-readout" }, String(readout),
         unit ? h("span", { class: "ui-readout__unit" }, ` ${unit}`) : null) : null,
-      present(caption) ? h("p", { class: "ui-faceplate__caption" }, caption) : null,
+      !plate && present(caption) ? h("p", { class: "ui-faceplate__caption" }, caption) : null,
       ...(extra || []).filter(Boolean),
       rows.length ? h("dl", { class: "ui-faceplate__readings" }, ...rows.map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, String(v))))) : null,
       acts.length ? h("div", { class: "ui-faceplate__actions" }, ...acts) : null),
@@ -25,10 +59,11 @@ export function faceplate({ name = "", label = "", lamp = null, readout = null, 
 }
 
 // While the first answer is on its way: the faceplate's shape in skeletons, busy, under the page's name.
-export function faceplateLoading(name) {
+// `plate` (A37 R4): no readout is coming, so no block stands in for one and the page doesn't jump when the answer lands.
+export function faceplateLoading(name, { plate = false } = {}) {
   const bar = (w, ht = "1em") => h("span", { class: "ui-skeleton", style: `width:${w};height:${ht}` });
-  return h("section", { class: "ui-faceplate", "aria-label": name, "aria-busy": "true" },
-    h("div", { class: "ui-faceplate__main" }, bar("30%"), bar("40%", "48px"), bar("70%"), bar("85%")));
+  return h("section", { class: plate ? "ui-faceplate ui-faceplate--plate" : "ui-faceplate", "aria-label": name, "aria-busy": "true" },
+    h("div", { class: "ui-faceplate__main" }, bar("30%"), plate ? null : bar("40%", "48px"), bar("70%"), bar("85%")));
 }
 
 // `lamp`: [tone, word], drawn beside the heading for a section that has a state of its own (Health's disks, updates).

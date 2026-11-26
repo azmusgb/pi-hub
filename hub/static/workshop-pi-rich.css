@@ -75,9 +75,11 @@
 /* The printer's faceplate with the camera as its aside (A7 P1): the kit puts them side by side where each gets about
    20 rem, stacked otherwise; the status always leads (A10 plan decision 17). */
 .ws-now .ui-faceplate { margin: 0; }
+/* The page's own lines in the plate (what to do, the last print) take the plate's whole width: beside the readings, in
+   the kit's two-column plate, they collapsed to a sliver at tablet widths. */
+.ws-now .ui-faceplate--plate :is(.ws-detail, .ws-last-print) { grid-column: 1 / -1; }
 .ws-cam { margin: 0; display: grid; gap: var(--ui-s-2); align-content: start; }
 .ws-cam-word { margin: 0; font-weight: 650; color: var(--ui-unknown); }
-.ws-now .line-bead { background: var(--ui-accent); }
 .ws-now .ui-faceplate .meta, .ws-cam figcaption { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 /* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
 .ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--ui-r-4); background: var(--ui-surface-2); }

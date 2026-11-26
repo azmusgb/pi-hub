@@ -27,6 +27,7 @@ import * as assistantPage from "./assistant.js";
 import { modelsPage, PURPOSES as READ_PURPOSES, statusPage, TITLES as READ_TITLES } from "./assistant-pages.js";
 import * as taskPage from "./assistant-run.js";
 import { pageStrip, revealCurrent } from "./system-strip.js";
+import { pageHead } from "./page-parts.js";
 import { renderSources } from "./sources.js";
 import { assistantHref, assistantButton, TOOLS } from "./sections.js";
 import { SITE, sectionFor } from "./site.js";
@@ -123,7 +124,8 @@ const updateSubtitle = () => {
   const el = document.getElementById("page-subtitle");
   if (el) {
     const path = location.pathname;
-    el.textContent = purposeOf(path);
+    // A page that says its reading has no purpose line (A37 R1); the router's pageHead() decides that.
+    el.textContent = document.getElementById("page-title")?.classList.contains("ui-say") ? "" : purposeOf(path);
   }
 };
 document.addEventListener("DOMContentLoaded", updateSubtitle);
@@ -278,9 +280,10 @@ async function show(path, { focus = false } = {}) {
   // Every page is headed by its own name (A22 2.3); the area is shown by position, and the browser tab reads "Page · Area".
   const { heading, title } = SITE.headingFor(path) || { heading: page.title, title: page.title };
   document.title = `${wallMode ? "Wall display" : title} · Pi Hub`;
-  document.getElementById("page-title").textContent = heading;
-  if (typeof updateSubtitle === "function") updateSubtitle();
-  if (page.purpose) document.getElementById("page-subtitle").textContent = page.purpose;  // the Assistant pages Pi Hub draws: the list doesn't name them as Pi Hub's yet
+  // The head: the plain title and purpose, or, on a page that says its reading, the sentence (A37 R1). The wall keeps
+  // its own head. `page.purpose`: the Assistant pages Pi Hub draws, which the list doesn't name as Pi Hub's yet.
+  pageHead(document.getElementById("page-title"), document.getElementById("page-subtitle"),
+    { label: heading, purpose: page.purpose || purposeOf(path), says: page.mod.says === true && !wallMode, key: page.key, main: view });
   setCurrentArea(section);  // "" on an unknown address and "assistant" on the Assistant's pages: no area is marked
   for (const a of document.querySelectorAll(".top-assistant")) {
     if (section === "assistant") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");

@@ -3,7 +3,8 @@
 // pairing is in Settings and its state, with the assistant's, on Health (W.1).
 import { api, askFirst, clockTime, duration, empty, ensure, h, settle, when, whoami } from "./core.js";
 import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./now.js";
-import { faceplate, faceplateLoading, fillTabs } from "./page-parts.js";
+import { faceplate, faceplateLoading, fillTabs, sayHead } from "./page-parts.js";
+import { printerReading } from "./printer-reading.js";
 import { printLabUrl, resolveLink, sourceDown, toolPath } from "./sections.js";
 import { firstFew, openInRow } from "./section-links.js";
 import { printErrorCode, printLabText, printSeconds, printWords, weekPill } from "./wording.js";
@@ -11,6 +12,8 @@ import { printerActionList, printerBusy, printerButtons, runPrinterAction } from
 import { mergeProblems, needsOptions, problemItems } from "./control-room.js";
 
 export const every = 15;
+// The page's head is its reading as a sentence (A37 R1): the router draws the head, say() below fills it.
+export const says = true;
 
 // The sections under "More in the workshop": native <details>, closed until this viewer opens one.
 export const MORE = [
@@ -47,7 +50,7 @@ export function mount(state) {
   // One line when Bambuddy is down, instead of the same sentence on every section that reads from it.
   state.sourceNotice = h("div", { role: "status" });
   // Loading: the faceplate's shape in skeletons (A7 P8), so nothing jumps when the first answer lands.
-  state.bandBox = h("div", { class: "ws-band" }, faceplateLoading("Bambu X2D"));
+  state.bandBox = h("div", { class: "ws-band" }, faceplateLoading("Bambu X2D", { plate: true }));
   const now = h("div", { class: "ws-now" }, state.bandBox);
   state.now = now;
   state.needs = section("needs", "Needs you here");
@@ -1682,28 +1685,34 @@ export function printerPlate(p, cam, { lastPrint = null, actions = null, aside =
   p ||= {};
   const tel = telemetryLabel(p);
   const busy = p.state === "printing" || p.state === "paused";
-  const pct = Number.isFinite(Number(p.progress)) ? Math.max(0, Math.min(100, Number(p.progress))) : null;
+  // `percent` is null when the printer gave no number (`progress` says 0 then, which is not a reading).
+  const pct = typeof p.percent === "number" && Number.isFinite(p.percent) ? Math.max(0, Math.min(100, p.percent)) : null;
   // Stale: the notice above the page says the source isn't answering; the lamp says only what these readings are.
   const lamp = tel.stale || p.stale ? ["unknown", "Last readings"] : tel.state === "none" ? ["unknown", tel.label]
     : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
   const job = jobTitle(p.job_name);
-  const finish = p.state === "printing" && Number.isFinite(p.minutes_left)
-    ? new Date(Date.now() + p.minutes_left * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-  const caption = p.state === "printing" && p.left ? `Done in about ${p.left}${finish ? `, around ${finish}` : ""}.` : p.detail || null;
+  // The page's sentence says the percentage and the estimate (A37 R4), so the plate has no readout and no caption. Not
+  // The card's own line stays only where it says what to do and the sentence doesn't: where to resume a paused
+  // print, what to check when the printer is offline. Idle and finished are the sentence's and the lamp's; printing,
+  // its line is the layer, a reading below; stale, the sentence names the source and the age.
+  const stale = tel.stale || p.stale;
+  const detail = !["printing", "idle", "stopped"].includes(p.state) && !stale && p.detail ? p.detail : null;
   const t = p.telemetry || {};
   const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
   return faceplate({
     name: "Bambu X2D", lamp,
-    // Idle or stopped, the lamp already says it: no readout repeats it, and the last job is the "Last print" line.
-    readout: busy && pct !== null ? String(pct) : null, unit: busy && pct !== null ? "%" : "",
-    caption,
-    readings: [["Print", busy ? job || null : null], ["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
+    plate: true,
+    // What is running, where the readings came from and how old they are, on the nameplate's line.
+    // Stale, the sentence gives the source and the age; saying them here again, in another format, was noise.
+    job: [busy ? job : "", ...(stale ? [] : [t.source || "Pi Hub", telemetryAge(t.observed_at)])].filter(Boolean).join(" · "),
+    readings: [["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
       ["Bed", tempText(p.bed_temp, p.bed_target)], ["AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null],
       ["Material", p.filament_type || null]],
     extra: [
-      busy && pct !== null ? h("div", { class: "line", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
-        h("div", { class: "line-track" }), h("div", { class: "line-bead", style: `width:${pct}%` })) : null,
-      h("p", { class: "meta ws-freshness", title: tel.why }, `${t.source || "Pi Hub"} · ${telemetryAge(t.observed_at, t.status === "stale")}`),
+      detail ? h("p", { class: "meta ws-detail" }, detail) : null,
+      // A meter is a current fraction: a stale reading's last percent is the sentence's, in the past tense.
+      busy && pct !== null && !stale ? h("span", { class: "ui-meter", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+        h("i", { style: `width:${pct}%` })) : null,
       lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
     ],
     actions: actions ? [actions] : [],
@@ -2161,6 +2170,13 @@ export function workshopSources(printer, cam) {
   return [bambuddy, cam?.ok ? { name: "Camera", tone: "ok" } : { name: "Camera", tone: "unknown", word: "unavailable" }];
 }
 
+// The head: the printer's reading as the kit's sentence. Pi Hub passes facts; the words are ApplianceSay's (A37 R2).
+function say(reading) {
+  const kit = globalThis.ApplianceSay;
+  if (!kit) return;  // an old cached shell without say.js: the router left the plain title
+  sayHead(kit.compose({ page: "printer", reading }, { now: Date.now(), ago: globalThis.ApplianceNeeds?.ago }), "workshop");
+}
+
 export async function load(state) {
   const started = Date.now();
   // Only the workshop status is required; the camera and Bambuddy's projects get 6 s each, and the role falls back to
@@ -2199,6 +2215,8 @@ export async function load(state) {
     buttons?.querySelectorAll("button").forEach((b, i) => { b.dataset.key = `printer-${listed[i]?.action}`; });
     state.bandBox.replaceChildren(printerPlate(shown, cam, { lastPrint: v.lastPrint, actions: buttons, aside: state.camBox }));
   });
+  state.card = d.printer;  // what failed() says in the past tense if the next read doesn't answer
+  say(printerReading(d.printer, { title: jobTitle }));
   state.facts = d.printer.headline;
   const notice = nextSourceNotice(state.notice, v.down, v.seen);
   state.notice = notice.state;
@@ -2206,7 +2224,13 @@ export async function load(state) {
   if (notice.changed) state.sourceNotice.replaceChildren(...(notice.text ? [h("p", {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
 
-  // Needs you here: only when something waits, never an empty section.
+  // Needs you here: only when something waits, never an empty section. While the plate needs clearing the head says
+  // "Clear the plate.", so the ask and its button come before the plate, on the first screen (A37 criterion 3).
+  const lead = v.needs.some((n) => n.kind === "clear");
+  if (lead !== !!state.needsLead) {
+    state.needsLead = lead;
+    state.root.insertBefore(state.needs, lead ? state.now : state.materials);
+  }
   state.needs.hidden = !v.needsShown;
   redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.alertsUnread, v.signIn, busy]), () =>
     state.needs.replaceChildren(state.needs.firstChild, ...(v.needsShown ? needsList(state, v).filter(Boolean) : [])));
@@ -2271,7 +2295,10 @@ export async function load(state) {
 export function failed(state) {
   stopLive(state, "", false);
   state.sigs = { ...(state.sigs || {}), band: null };
-  state.bandBox.replaceChildren(faceplate({ name: "Bambu X2D", lamp: ["unknown", "No answer"], readout: "—",
-    caption: "The hub's workshop status didn't answer. This page tries again in 15 seconds." }));
+  // The head keeps the last reading in the past tense, with Pi Hub as the source that went quiet; never the last
+  // live sentence, and never a number the hub didn't just read.
+  say(printerReading(null, { failed: true, last: state.card || null, title: jobTitle }));
+  state.bandBox.replaceChildren(faceplate({ name: "Bambu X2D", lamp: ["unknown", "No answer"], plate: true,
+    extra: [h("p", { class: "meta ws-detail" }, "The hub's workshop status didn't answer. This page tries again in 15 seconds.")] }));
 }
 
