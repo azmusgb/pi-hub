@@ -323,7 +323,7 @@ def test_test_failure_writes_a_failed_report(release, failure):
     run(failure)
     [r] = reports(root)
     assert (r['result'], r['message']) == ('failed', 'JavaScript tests failed; nothing changed.')
-    assert 'running' not in r
+    assert 'running' not in r and 'tests' not in r
 
 
 # A stopped run is not a failing test: the Pi was busy (a Plex transcode, 25 Nov 2026) and the record must say which.
@@ -510,12 +510,24 @@ def test_tests_run_on_three_workers_when_xdist_is_installed(release):
     assert call[-1] == 'tests'
 
 
+# A35 decision 13: the deployed report carries the test time as numbers, so later steps need not parse the message.
+# (Without xdist it says one worker: test_tests_run_in_one_process_without_xdist; a failed report has none.)
+def test_deployed_report_carries_its_test_time(release):
+    root, _, run = release
+    result = run(py=412, js=41, xdist=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    [r] = reports(root)
+    assert r['tests']['python_s'] in (412, 413) and r['tests']['js_s'] in (41, 42), r
+    assert r['tests']['workers'] == 3 and set(r['tests']) == {'python_s', 'js_s', 'workers'}
+
+
 def test_tests_run_in_one_process_without_xdist(release):
     root, _, run = release
     result = run(py=412, js=41)
     assert result.returncode == 0, result.stdout + result.stderr
     assert re.search(r'pi-hub: Tests passed in 41[23] s \(JS 4[12] s\)\n', result.stdout), result.stdout
     assert 'workers' not in result.stdout
+    assert reports(root)[0]['tests']['workers'] == 1
     call = _pytest_call(root)
     assert '-n' not in call and '--dist' not in call
     assert call[-5:] == ['pytest', '-q', '-p', 'no:cacheprovider', 'tests']

@@ -52,11 +52,11 @@ os.replace(path + ".tmp", path)
 PY
 }
 
-report() {  # result running message: this release's report for release:pi-hub; it never fails the release
-  python3 - "$INBOX" "$SHA" "$1" "$2" "$3" "$(git --git-dir="$REPO" rev-parse --verify -q refs/heads/main 2>/dev/null || true)" <<'PY' || say "couldn't write the release report"
+report() {  # result running message [python_s js_s workers]: this release's report for release:pi-hub; it never fails the release
+  python3 - "$INBOX" "$SHA" "$1" "$2" "$3" "$(git --git-dir="$REPO" rev-parse --verify -q refs/heads/main 2>/dev/null || true)" "${4:-}" "${5:-}" "${6:-}" <<'PY' || say "couldn't write the release report"
 import glob, json, os, re, sys, time
 from datetime import datetime, timezone
-inbox, commit, result, running, message, head = sys.argv[1:]
+inbox, commit, result, running, message, head, python_s, js_s, workers = sys.argv[1:]
 hexsha = re.compile(r"[0-9a-f]{7,40}")
 if result == "rolled-back" and not hexsha.fullmatch(running):
     result, running = "failed", ""  # the restored release has no commit name; the hub keeps what it knew
@@ -66,6 +66,12 @@ if running:
     body["running"] = running
 if hexsha.fullmatch(head):
     body["head"] = head
+# The test time as numbers (A35 decision 13), within the hub's ranges; a value not known or out of range leaves it out,
+# so the report itself stays valid.
+tests = {k: int(v) for k, v, top in (("python_s", python_s, 3600), ("js_s", js_s, 3600), ("workers", workers, 16))
+         if v.isdigit() and int(v) <= top}
+if result == "deployed" and "python_s" in tests and tests.get("workers", 0) >= 1:
+    body["tests"] = tests
 os.makedirs(inbox, exist_ok=True)
 name = os.path.join(inbox, f"pi-hub-{time.time_ns()}-{os.getpid()}.json")
 with open(name + ".tmp", "w") as f:
@@ -114,7 +120,8 @@ export TMPDIR="$TESTDB/tmp"
 # Each xdist worker moves HUB_DB into its own folder under $TESTDB (tests/conftest.py); one test file runs in one worker.
 PARALLEL=""
 ON=""
-if python3 -c 'import xdist' 2>/dev/null; then PARALLEL="-n $WORKERS --dist loadfile"; ON=" on $WORKERS workers"; fi
+TEST_WORKERS=1
+if python3 -c 'import xdist' 2>/dev/null; then PARALLEL="-n $WORKERS --dist loadfile"; ON=" on $WORKERS workers"; TEST_WORKERS=$WORKERS; fi
 rc=0
 # $SECONDS, not date: the Pi has no RTC, NTP can step the wall clock mid-run, and a bad date would abort under set -e.
 SECONDS=0
@@ -132,13 +139,15 @@ PY_SECONDS=$SECONDS
 say "$(tail -1 "$TESTDB/test.log")"
 js=0
 JS_PART=""
+JS_SECONDS=""
 # The JavaScript tests take 82 to 107 s on the Pi; with a Plex transcode running they passed 120 s and were stopped
 # (25 Nov 2026), and the release said only "failed". The limit has room for a busy Pi, and a stopped run says so.
 JS_LIMIT=240
 if compgen -G "$NEW.tmp/tests/*.mjs" >/dev/null; then
   SECONDS=0
   (cd "$NEW.tmp" && timeout "$JS_LIMIT" node --test tests/*.mjs > "$TESTDB/js.log" 2>&1) || js=$?
-  JS_PART=" (JS $SECONDS s)"
+  JS_SECONDS=$SECONDS
+  JS_PART=" (JS $JS_SECONDS s)"
 fi
 TESTED="Tests passed in $PY_SECONDS s$ON$JS_PART"
 if [ "$PY_SECONDS" -ge 600 ]; then TESTED="$TESTED, tests over budget (600 s)"; fi
@@ -283,7 +292,7 @@ fi
 if [ $ok = 1 ]; then
   say "$SHORT is live"
   record live "$TESTED; every page and API answered."
-  report deployed "" "$TESTED; every page and API answered."
+  report deployed "" "$TESTED; every page and API answered." "$PY_SECONDS" "$JS_SECONDS" "$TEST_WORKERS"
 else
   say "$SHORT failed its checks; switching back"
   cat /tmp/pi-hub-gate.json 2>/dev/null | python3 -c "import json,sys; [print('  failed:', c['name'], c['detail']) for c in json.load(sys.stdin)['checks'] if not c['ok']]" 2>/dev/null || true
