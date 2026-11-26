@@ -72,7 +72,12 @@ test('not printing: the card\'s own line is kept under the nameplate, and the jo
     const { printerPlate } = await import('../hub/static/js/workshop.js');
     const idle = printerPlate({ state: 'idle', percent: null, detail: 'Ready for the next print.', telemetry: live() }, null);
     assert.equal(text(idle.querySelector('.ui-faceplate__job')), 'Bambuddy · checked 20s ago');
-    assert.equal(text(idle.querySelector('.ws-detail')), 'Ready for the next print.');
+    // Found by the UI review: the sentence and the lamp already say idle and finished; a third line repeated them.
+    assert.equal(idle.querySelector('.ws-detail'), null);
+    const done = printerPlate({ state: 'stopped', percent: null, detail: 'Ready for the next one once the plate is clear.', telemetry: live() }, null);
+    assert.equal(done.querySelector('.ws-detail'), null);
+    const off = printerPlate({ state: 'none', percent: null, detail: 'Check that the printer is on and Bambuddy can reach it.', telemetry: { ...live(), status: 'offline' } }, null);
+    assert.equal(text(off.querySelector('.ws-detail')), 'Check that the printer is on and Bambuddy can reach it.', 'what to do is kept: the sentence does not say it');
     // Found by the QA gate: a paused print with no Resume button (not the owner, or Bambuddy doesn't offer it) must
     // still say where to resume it.
     const paused = printerPlate(printing({ state: 'paused', detail: 'Resume it from the printer or Bambu Handy.', actions: [] }), null);
@@ -80,7 +85,11 @@ test('not printing: the card\'s own line is kept under the nameplate, and the jo
     assert.equal(printerPlate(printing(), null).querySelector('.ws-detail'), null, 'printing: the layer is a reading, not a line');
     const stale = printerPlate(printing({ stale: true, detail: 'Bambuddy not answering since 15:06; last read 12 min ago.', telemetry: { ...live(), status: 'stale' } }), null);
     assert.equal(stale.querySelector('.ws-detail'), null, 'the head already says the source stopped answering');
-    assert.match(text(stale.querySelector('.ui-faceplate__job')), /last seen/);
+    // Found by the UI review: the sentence says the age and the source; the nameplate said both again in another format,
+    // and the meter drew the last percent as if it were a current fraction.
+    assert.equal(text(stale.querySelector('.ui-faceplate__job')), 'Clip');
+    assert.equal(stale.querySelector('.ui-meter'), null);
+    assert.equal(text(stale.querySelector('.ui-chip')), 'Last readings');
   } finally { dom.uninstall(); }
 });
 
@@ -128,6 +137,43 @@ test('the page: a status that never answered says the printer isn\'t answering, 
     ws.failed(state);
     assert.deepEqual(h1.querySelectorAll('.ui-say__s').map(text), ["The X2D isn't answering."]);
     assert.equal(h1.getAttribute('aria-busy'), null);
+    ws.leave(state);
+  } finally { delete globalThis.ApplianceSay; delete globalThis.ApplianceNeeds; dom.uninstall(); }
+});
+
+// Found by the UI review: the loading plate drew a 48 px block for a readout that no longer comes, so the page jumped.
+test('the loading plate has no readout-sized block', async () => {
+  const dom = install();
+  try {
+    const { faceplateLoading } = await import('../hub/static/js/page-parts.js');
+    const tall = (el) => el.querySelectorAll('.ui-skeleton').filter((b) => /height:48px/.test(b.style.cssText)).length;
+    assert.equal(tall(faceplateLoading('Bambu X2D', { plate: true })), 0);
+    assert.ok(faceplateLoading('Bambu X2D', { plate: true }).classList.contains('ui-faceplate--plate'));
+    assert.equal(tall(faceplateLoading('Internet')), 1, 'a page that has not moved keeps its shape');
+  } finally { dom.uninstall(); }
+});
+
+// Found by the UI review (A37 criterion 3): the head says "Clear the plate." but the button was under the plate and
+// the camera, off the first screen. The ask and its button now come before the plate while the plate ask is open.
+test('the page: while the plate needs clearing, Needs you here comes before the plate; afterwards it goes back', async () => {
+  const card = (over) => ({ state: 'stopped', progress: 100, percent: null, job_name: 'Clip.gcode.3mf', detail: '', since: Date.now() / 1000 - 600,
+    as_of: Date.now() / 1000 - 20, actions: ['clear'], telemetry: live(), ...over });
+  const body = (printer) => ({ printer, prints: [], prints_available: true, week: { finished: 0, hours: 0 }, spools: [], queue: [], ams_trays: [], lab: null, filament_month: {} });
+  const routes = { '/api/workshop': body(card()), '/api/me': { role: 'owner' } };
+  const dom = install({ fetch: routes });
+  try {
+    kits();
+    const ws = await import('../hub/static/js/workshop.js');
+    const state = { root: dom.root() };
+    ws.mount(state);
+    await ws.load(state);
+    const order = () => state.root.children.indexOf(state.needs) - state.root.children.indexOf(state.now);
+    assert.equal(state.needs.hidden, false);
+    assert.ok(state.needs.querySelector('[data-key="clear"]'), 'the Clear button is in the ask');
+    assert.ok(order() < 0, 'the ask is before the plate');
+    routes['/api/workshop'] = body(card({ state: 'idle', actions: [] }));
+    await ws.load(state);
+    assert.ok(order() > 0, 'with no plate ask the plate leads again');
     ws.leave(state);
   } finally { delete globalThis.ApplianceSay; delete globalThis.ApplianceNeeds; dom.uninstall(); }
 });

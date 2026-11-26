@@ -59,10 +59,11 @@ export function faceplate({ name = "", label = "", lamp = null, readout = null, 
 }
 
 // While the first answer is on its way: the faceplate's shape in skeletons, busy, under the page's name.
-export function faceplateLoading(name) {
+// `plate` (A37 R4): no readout is coming, so no block stands in for one and the page doesn't jump when the answer lands.
+export function faceplateLoading(name, { plate = false } = {}) {
   const bar = (w, ht = "1em") => h("span", { class: "ui-skeleton", style: `width:${w};height:${ht}` });
-  return h("section", { class: "ui-faceplate", "aria-label": name, "aria-busy": "true" },
-    h("div", { class: "ui-faceplate__main" }, bar("30%"), bar("40%", "48px"), bar("70%"), bar("85%")));
+  return h("section", { class: plate ? "ui-faceplate ui-faceplate--plate" : "ui-faceplate", "aria-label": name, "aria-busy": "true" },
+    h("div", { class: "ui-faceplate__main" }, bar("30%"), plate ? null : bar("40%", "48px"), bar("70%"), bar("85%")));
 }
 
 // `lamp`: [tone, word], drawn beside the heading for a section that has a state of its own (Health's disks, updates).

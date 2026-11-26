@@ -225,7 +225,12 @@ html {
 .top--say .top-lead { order: 1; flex-basis: 100%; grid-column: 1 / -1; grid-row: 2; }
 .top--say .top-cmd-btn { margin-left: auto; grid-column: 2; }
 .top--say .top-assistant { grid-column: 3; }
-.ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip]) { top: 0; }
+/* Pinned under the status bar in the installed app (the head carried that inset, and now scrolls away); the shadow
+   fills the inset with the page's colour so nothing shows through above the strip. */
+.ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip]) {
+  top: env(safe-area-inset-top, 0px);
+  box-shadow: 0 calc(-1 * env(safe-area-inset-top, 0px)) 0 var(--ui-bg);
+}
 /* A jump to a section lands under what is pinned, which here is the strip alone, not the head's measured height. */
 html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-top: calc(var(--ui-header-h) + var(--ui-s-2)); }
 /* A narrow top bar: the Assistant keeps its icon and its accessible name, and Search its word on less padding, so the

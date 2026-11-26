@@ -50,7 +50,7 @@ export function mount(state) {
   // One line when Bambuddy is down, instead of the same sentence on every section that reads from it.
   state.sourceNotice = h("div", { role: "status" });
   // Loading: the faceplate's shape in skeletons (A7 P8), so nothing jumps when the first answer lands.
-  state.bandBox = h("div", { class: "ws-band" }, faceplateLoading("Bambu X2D"));
+  state.bandBox = h("div", { class: "ws-band" }, faceplateLoading("Bambu X2D", { plate: true }));
   const now = h("div", { class: "ws-now" }, state.bandBox);
   state.now = now;
   state.needs = section("needs", "Needs you here");
@@ -1692,23 +1692,26 @@ export function printerPlate(p, cam, { lastPrint = null, actions = null, aside =
     : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
   const job = jobTitle(p.job_name);
   // The page's sentence says the percentage and the estimate (A37 R4), so the plate has no readout and no caption. Not
-  // printing, the card's own line stays ("Ready for the next print.", or where to resume a paused print when there
-  // is no button for it); printing, its line is the layer, a reading below; stale, the sentence names the source.
+  // The card's own line stays only where it says what to do and the sentence doesn't: where to resume a paused
+  // print, what to check when the printer is offline. Idle and finished are the sentence's and the lamp's; printing,
+  // its line is the layer, a reading below; stale, the sentence names the source and the age.
   const stale = tel.stale || p.stale;
-  const detail = p.state !== "printing" && !stale && p.detail ? p.detail : null;
+  const detail = !["printing", "idle", "stopped"].includes(p.state) && !stale && p.detail ? p.detail : null;
   const t = p.telemetry || {};
   const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
   return faceplate({
     name: "Bambu X2D", lamp,
     plate: true,
     // What is running, where the readings came from and how old they are, on the nameplate's line.
-    job: [busy ? job : "", t.source || "Pi Hub", telemetryAge(t.observed_at, t.status === "stale")].filter(Boolean).join(" · "),
+    // Stale, the sentence gives the source and the age; saying them here again, in another format, was noise.
+    job: [busy ? job : "", ...(stale ? [] : [t.source || "Pi Hub", telemetryAge(t.observed_at)])].filter(Boolean).join(" · "),
     readings: [["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
       ["Bed", tempText(p.bed_temp, p.bed_target)], ["AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null],
       ["Material", p.filament_type || null]],
     extra: [
       detail ? h("p", { class: "meta ws-detail" }, detail) : null,
-      busy && pct !== null ? h("span", { class: "ui-meter", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+      // A meter is a current fraction: a stale reading's last percent is the sentence's, in the past tense.
+      busy && pct !== null && !stale ? h("span", { class: "ui-meter", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
         h("i", { style: `width:${pct}%` })) : null,
       lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
     ],
@@ -2221,7 +2224,13 @@ export async function load(state) {
   if (notice.changed) state.sourceNotice.replaceChildren(...(notice.text ? [h("p", {
     class: `callout ${notice.state === "down" ? "callout--warn" : "callout--ok"} source-down` }, notice.text)] : []));
 
-  // Needs you here: only when something waits, never an empty section.
+  // Needs you here: only when something waits, never an empty section. While the plate needs clearing the head says
+  // "Clear the plate.", so the ask and its button come before the plate, on the first screen (A37 criterion 3).
+  const lead = v.needs.some((n) => n.kind === "clear");
+  if (lead !== !!state.needsLead) {
+    state.needsLead = lead;
+    state.root.insertBefore(state.needs, lead ? state.now : state.materials);
+  }
   state.needs.hidden = !v.needsShown;
   redraw(state, "needs", state.needs, JSON.stringify([v.needs, v.alertsUnread, v.signIn, busy]), () =>
     state.needs.replaceChildren(state.needs.firstChild, ...(v.needsShown ? needsList(state, v).filter(Boolean) : [])));

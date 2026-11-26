@@ -1,6 +1,6 @@
 // A37 step 2 browser check (plan 2026-11-25-a37-printer-pilot, criteria 2 and 3): Workshop > Printer says its reading.
-// At 390 x 844, 1024 x 1366 and 1440 x 900, light and dark, for a printing, a paused, an idle, a stale and an
-// unanswered printer: the h1 is the sentence and holds the page's name for a screen reader; no purpose line; the
+// At 390 x 844, 1024 x 1366 and 1440 x 900, light and dark, for a printing, a paused, an idle, a finished, a stale, an
+// offline and an unanswered printer: the h1 is the sentence and holds the page's name for a screen reader; no purpose line; the
 // sentence and the plate's action (phone) or the sentence and the plate's readings (tablet, laptop) are inside the first
 // screen; nothing overflows sideways; axe finds nothing serious or critical in the head and the plate. Once, keyboard
 // focus on the plate's button survives the page's own refresh. Screenshots go to out/ for a person to look at.
@@ -31,6 +31,9 @@ const CARDS = {
   idle: () => ({ ...base, state: 'idle', detail: 'Ready for the next print.', as_of: now() - 20, telemetry: tel('live') }),
   stale: () => ({ ...base, state: 'printing', progress: 45, percent: 45, job_name: 'Rift10_pair70.gcode.3mf', layer_num: 506, total_layers: 1306,
     stale: true, detail: 'Bambuddy not answering; last read 12 min ago.', as_of: now() - 720, telemetry: tel('stale', 720) }),
+  offline: () => ({ ...base, state: 'none', detail: 'Check that the printer is on and Bambuddy can reach it.', as_of: now() - 20, telemetry: tel('offline') }),
+  finished: () => ({ ...base, state: 'stopped', progress: 100, job_name: 'Rift10_pair70.gcode.3mf', since: now() - 600,
+    detail: 'Ready for the next one once the plate is clear.', as_of: now() - 20, actions: ['clear'], telemetry: tel('live') }),
   down: null,  // /api/workshop answers 500
 };
 const SAYS = {
@@ -38,9 +41,13 @@ const SAYS = {
   paused: [/^The X2D is paused at 45%\.$/],
   idle: [/^The X2D is idle\.$/],
   stale: [/^The X2D was 45% through Rift10 pair70 12 min ago\.$/, /^Bambuddy hasn't answered since /],
+  offline: [/^The X2D isn't answering\.$/],
+  finished: [/^The X2D finished Rift10 pair70 at /, /^Clear the plate\.$/],
   down: [/^The X2D isn't answering\.$/],
 };
-const workshop = (printer) => ({ printer, prints: [], prints_available: true, week: { finished: 0, hours: 0 }, display: { state: 'Online' },
+// An idle printer shows its last print as a line in the plate; with it the plate's text once collapsed at tablet widths.
+const LAST = { id: 7, name: 'Rift10_pair70', status: 'completed', started: Math.floor(Date.now() / 1000) - 7200, ended: Math.floor(Date.now() / 1000) - 600, seconds: 6600 };
+const workshop = (printer) => ({ printer, prints: printer.state === 'idle' ? [LAST] : [], prints_available: true, week: { finished: 0, hours: 0 }, display: { state: 'Online' },
   spools: [], queue: [], ams_trays: [], lab: null, filament_month: {}, ai: { state: 'Unknown', models: [] } });
 
 const problems = [];
@@ -81,6 +88,11 @@ for (const [width, height] of [[390, 844], [1024, 1366], [1440, 900]]) {
           nameplate: box(document.querySelector('.ws-now .ui-faceplate__nameplate')),
           action: box(document.querySelector('.ws-now .ui-faceplate__actions button')),
           meter: box(document.querySelector('.ws-now .ui-meter')),
+          clear: box(document.querySelector('.ws-needs [data-key="clear"], [data-key="clear"]')),
+          // The plate's own lines of text: each as wide as the plate's text column allows, never a sliver beside the readings.
+          lines: [...document.querySelectorAll('.ws-now .ui-faceplate__main > p')].map((p) => ({ w: p.getBoundingClientRect().width,
+            rows: Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)), text: p.textContent.slice(0, 30) })),
+          mainW: document.querySelector('.ws-now .ui-faceplate__main')?.getBoundingClientRect().width || 0,
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           title: document.title,
         };
@@ -96,19 +108,25 @@ for (const [width, height] of [[390, 844], [1024, 1366], [1440, 900]]) {
       if (seen.plates !== 1) bad(`${seen.plates} faceplates`);
       if (seen.readout) bad('the plate still has a readout');
       if (seen.overflow > 0) bad(`the page overflows sideways by ${seen.overflow}px`);
-      // A stale card that was printing keeps its last percent on the meter, under the "Last readings" lamp.
-      const running = ['printing', 'paused', 'stale'].includes(name);
-      if (running !== !!seen.meter) bad(seen.meter ? 'a meter with nothing running' : 'no meter for a print the card describes');
+      // A meter is a current fraction: a stale card's last percent is said in the sentence, under the "Last readings" lamp.
+      const running = ['printing', 'paused'].includes(name);
+      if (running !== !!seen.meter) bad(seen.meter ? 'a meter with no current fraction' : 'no meter while a print is running');
+      for (const l of seen.lines) if (l.w < seen.mainW * 0.6 || l.rows > 3) bad(`the plate's line "${l.text}" is ${Math.round(l.w)}px wide in ${Math.round(seen.mainW)}px, ${l.rows} rows`);
+      if (name === 'idle' && !seen.lines.some((l) => /^Last print/.test(l.text))) bad('the idle plate has no last-print line to check');
       if (name === 'stale' && seen.lamp !== 'Last readings') bad(`a stale plate's lamp says "${seen.lamp}"`);
       // First screen (criterion 3): the sentence, and on the phone the plate's action; wider, the plate's own readings.
       if (seen.h1.bottom > height) bad(`the sentence ends at ${Math.round(seen.h1.bottom)}px, below the first screen`);
-      if (!seen.nameplate || seen.nameplate.bottom > height) bad('the plate\'s nameplate is below the first screen');
+      // While the plate needs clearing the ask and its button lead; otherwise the plate does.
+      if (name === 'finished') {
+        if (!seen.clear) bad('no Clear the plate button for the owner');
+        else if (seen.clear.bottom > height) bad(`Clear the plate ends at ${Math.round(seen.clear.bottom)}px, below the first screen`);
+      } else if (!seen.nameplate || seen.nameplate.bottom > height) bad('the plate\'s nameplate is below the first screen');
       if (name === 'printing' || name === 'paused') {
         if (!seen.action) bad('the plate has no action for the owner');
         else if (seen.action.bottom > height) bad(`the plate's action ends at ${Math.round(seen.action.bottom)}px, below the first screen`);
         else if (seen.action.h < 44) bad(`the plate's action is ${Math.round(seen.action.h)}px tall`);
       }
-      if (width >= 1024 && seen.main && seen.main.bottom > height) bad(`the plate ends at ${Math.round(seen.main.bottom)}px, below the first screen`);
+      if (width >= 1024 && name !== 'finished' && seen.main && seen.main.bottom > height) bad(`the plate ends at ${Math.round(seen.main.bottom)}px, below the first screen`);
 
       const axe = await new AxeBuilder({ page }).include('header.top').include('.ws-now').analyze();
       for (const v of axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))) bad(`axe ${v.id} (${v.nodes.length}): ${v.nodes[0]?.target}`);
