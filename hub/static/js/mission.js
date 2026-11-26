@@ -16,7 +16,7 @@ import { POLL, SLUG, chip, clockOf, hhmm, hubNow, isCount, meter, notice, prov, 
 export const every = POLL;
 
 const TABS = [["overview", "Overview"], ["decisions", "Decisions"], ["evidence", "Evidence"]];
-const GROUPS = [["", "All"], ["sessions", "Sessions"], ["imports", "Imports"], ["owner", "You"], ["decisions", "Decisions"], ["github", "GitHub"]];
+const GROUPS = [["", "All events"], ["sessions", "Sessions"], ["imports", "Imports"], ["owner", "Owner"], ["decisions", "Decisions"], ["github", "GitHub"]];
 const PANEL = "mission-panel", TAB = "mission-tab-";
 const KEEP = new Set(["failed", "unavailable", "unreadable"]);  // a read that failed keeps the last good body, drawn as old
 const has = (b, ...keys) => b && keys.every((k) => Array.isArray(b[k]));
@@ -91,8 +91,9 @@ export function executionRow(ex, now, stale) {
 
 const eventProv = (ev, from) => (ev.source === "importer" ? prov("imported", { from }) : ev.source === "owner" ? prov("owner")
   : ev.source === "github" ? prov("trusted", { at: ev.at }) : prov("reported", { at: ev.at }));
+// A reported or checked label carries its own time; an import or an owner's tap has none, so the row says it.
 export const eventRow = (ev, from) => row(ev.text || typeWords(ev.type),
-  h("span", {}, `${stamp(ev.at)} · ${whereIs(ev.source)}${ev.late ? " · reported late" : ""} `, eventProv(ev, from)));
+  h("span", {}, `${ev.source === "importer" || ev.source === "owner" ? `${stamp(ev.at)} · ` : ""}${whereIs(ev.source)}${ev.late ? " · reported late" : ""} `, eventProv(ev, from)));
 
 const manifestFrom = (ov) => (ov.initiative.manifest ? `${ov.initiative.manifest.repo}@${String(ov.initiative.manifest.commit).slice(0, 7)}` : null);
 
@@ -189,7 +190,8 @@ function decisionsPanel(state, stale) {
 const TRUST = { trusted: "Trusted: read by Pi Hub", owner: "From you", reported: "Reported by sessions", imported: "Imported from a reviewed file" };
 
 export function evidenceRow(r) {
-  return row(r.summary || typeWords(r.kind), h("span", {}, `${typeWords(r.kind)} · ${stamp(r.observed_at)} `,
+  const timed = r.trust === "trusted" || r.trust === "reported";  // their label carries the time
+  return row(r.summary || typeWords(r.kind), h("span", {}, `${typeWords(r.kind)} · ${timed ? "" : `${stamp(r.observed_at)} · `}`,
     prov(r.trust, { from: r.provenance?.from, at: r.observed_at })));
 }
 
@@ -367,7 +369,7 @@ export function mount(state) {
   state.notice = h("div");
   state.plate = h("div", {}, faceplateLoading("Mission"));
   state.tabs = h("div", { class: "ui-tabs", role: "tablist", "aria-label": "Mission", hidden: true });
-  state.panel = h("section", { id: PANEL, role: "tabpanel", tabindex: "-1" }, skeleton());
+  state.panel = h("section", { id: PANEL, class: "ui-page", role: "tabpanel", tabindex: "-1" }, skeleton());
   state.root.append(h("nav", { class: "page-trail", "aria-label": "Breadcrumb" }, h("a", { href: "/missions", "data-link": true }, "Missions"),
     h("span", { "aria-hidden": "true" }, " / "), h("span", { "aria-current": "page" }, SLUG.test(id) ? id : "Mission")),
   state.notice, state.plate, state.tabs, state.panel);

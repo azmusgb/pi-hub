@@ -376,6 +376,9 @@ test('shownNow: a past statement never turns live, a tool counts its minutes, an
   const T = NOW;
   const turn = exec({ shown: 'Turn finished 09:30', state: 'turn_finished', live: false, since: iso(T - 660_000) });
   assert.deepEqual(shownNow(turn, T + 7_200_000), { label: 'Turn finished 09:30', state: 'turn_finished', live: false });
+  // The hub writes its own zone's HH:MM; the page writes the same instant in the browser's.
+  assert.equal(shownNow(exec({ shown: 'Turn finished 04:12', state: 'turn_finished', live: false, since: iso(T - 29 * 60_000) }), T).label, `Turn finished ${hhmm(T - 29 * 60_000)}`);
+  assert.equal(shownNow(exec({ shown: 'No report yet', state: 'unknown', live: false, since: null }), T).label, 'No report yet');
   const tool = exec({ shown: 'Running a tool for under 1 min', state: 'running_tool', live: true, since: iso(T) });
   assert.equal(shownNow(tool, T + 30_000).label, 'Running a tool for under 1 min');
   assert.equal(shownNow(tool, T + 9 * 60_000).label, 'Running a tool for 9 min');
@@ -386,6 +389,8 @@ test('shownNow: a past statement never turns live, a tool counts its minutes, an
   assert.deepEqual(shownNow(work, T + 1_000, true), { label: `Last known ${hhmm(T)} (Pi Hub isn't answering)`, state: 'unknown', live: false });
   assert.equal(shownNow(exec({ since: null }), T).live, false, 'a live claim with no time to count from is not one');
   assert.equal(stamp('nonsense'), '');
+  assert.equal(stamp('2026-11-23'), new Date(2026, 10, 23).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }), 'a date with no time is that day, not midnight UTC');
+  assert.doesNotMatch(stamp('2026-11-23'), /\d:\d\d/);
   assert.equal(hhmm(NaN), '');
 });
 
@@ -595,8 +600,8 @@ test('Evidence: by trust, then kind, each row with its provenance; the history b
   assert.match(text(rows[1]), /PR #315 opened.*Reported 09:40/);
   assert.match(text(rows[2]), new RegExp(`Plan imported.*Imported from ${FROM}`));
   assert.match(k.panel(), /Showing 3 of 3, by trust and then kind\./);
-  assert.deepEqual(k.root.querySelectorAll('.ui-chips button').map(text), ['All', 'Sessions', 'Imports', 'You', 'Decisions', 'GitHub']);
-  assert.equal(k.root.querySelector('.ui-chips [aria-pressed="true"]').textContent, 'All');
+  assert.deepEqual(k.root.querySelectorAll('.ui-chips button').map(text), ['All events', 'Sessions', 'Imports', 'Owner', 'Decisions', 'GitHub']);
+  assert.equal(k.root.querySelector('.ui-chips [aria-pressed="true"]').textContent, 'All events');
   const history = k.root.querySelectorAll('.ui-section')[1].querySelectorAll('.ui-row');
   assert.match(text(history[1]), new RegExp(`Revision proposed.*Import.*Imported from ${FROM}`));
 }));

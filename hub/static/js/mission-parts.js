@@ -41,12 +41,16 @@ const pad = (n) => String(n).padStart(2, "0");
 export const ms = (iso) => { const t = typeof iso === "string" ? Date.parse(iso) : NaN; return Number.isFinite(t) ? t : null; };
 export const hhmm = (t) => { const d = new Date(t); return Number.isNaN(d.getTime()) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 // A time in words for a row: HH:MM today, with the day before it on any other. "" when the hub sent none.
+const DATE = { weekday: "short", day: "numeric", month: "short" };
 export function stamp(iso, now = Date.now()) {
+  // A manifest's date with no time (an imported answer's) is that day wherever the page is read, not midnight UTC.
+  const day = typeof iso === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso) : null;
+  if (day) return new Date(+day[1], +day[2] - 1, +day[3]).toLocaleDateString([], DATE);
   const t = ms(iso);
   if (t === null) return "";
   const d = new Date(t), n = new Date(now);
   const today = d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
-  return today ? hhmm(t) : `${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, ${hhmm(t)}`;
+  return today ? hhmm(t) : `${d.toLocaleDateString([], DATE)}, ${hhmm(t)}`;
 }
 
 // The hub's clock as the page can know it: `as_of` when a read arrived, then counted on the page's own clock, so a
@@ -58,11 +62,13 @@ export const hubNow = (clock, now = Date.now()) => clock.asOf + (now - clock.loc
 // into "No report since HH:MM" once the window passes between polls. `stale` (the page can't reach the hub) turns every
 // live label into "Last known": a read this page can't renew is not "Live".
 export function shownNow(ex, now, stale = false) {
-  const base = { label: ex.shown, state: ex.state, live: ex.live === true };
   const since = ms(ex.since);
+  // The hub writes its own HH:MM in its label; the page writes every time in the browser's zone, from the same instant.
+  const said = since === null || typeof ex.shown !== "string" ? ex.shown : ex.shown.replace(/\b(?:[01]\d|2[0-3]):[0-5]\d\b/, hhmm(since));
+  const base = { label: said, state: ex.state, live: ex.live === true };
   if (!base.live) return base;
   if (stale) return { label: since === null ? "Not known" : `Last known ${hhmm(since)} (Pi Hub isn't answering)`, state: "unknown", live: false };
-  if (since === null) return { label: ex.shown, state: "unknown", live: false };  // a live claim with no time to count from isn't one
+  if (since === null) return { label: said, state: "unknown", live: false };  // a live claim with no time to count from isn't one
   if (ex.state === "running_tool") {
     const min = Math.max(0, Math.floor((now - since) / 60_000));
     return { ...base, label: min ? `Running a tool for ${min} min` : "Running a tool for under 1 min" };
