@@ -1,5 +1,6 @@
 """The decisions tool: the markers, the key, every failure as ok:false, and an empty list only for an empty 200."""
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -304,3 +305,22 @@ async def test_structured_row_on_legacy_route_does_not_fail_a33_rows():
     assert d["ok"] is True and d["version"] == 1 and "errors" not in d
     assert [r["id"] for r in d["open"]] == ["printer-spool", "spool-v2"]
     assert d["recently_answered"][0]["id"] == "deploy-window"
+
+
+async def test_a_captured_pi_hub_v2_answer_reads_with_no_bad_row():
+    """The cross-check with pi-hub (A35 M1b plan, H4): fixtures/decisions_v2.json is what pi-hub's GET
+    /api/decisions?v=2 answers (tests/test_decisions.py in pi-hub checks it still is). Every row reads, none is
+    dropped."""
+    with open(Path(__file__).parent / "fixtures" / "decisions_v2.json") as f:
+        captured = json.load(f)
+    d, _, _ = await run(Hub(httpx.Response(200, json=captured)))
+    assert d["ok"] is True and d["version"] == 2 and "errors" not in d
+    assert [r["id"] for r in d["open"]] == [r["id"] for r in captured["open"]]
+    assert [r["id"] for r in d["recently_answered"]] == [r["id"] for r in captured["answered"]]
+    rows = {r["id"]: r for r in d["open"] + d["recently_answered"]}
+    multi, yesno = rows["a34-which-rooms"], rows["a35-go-ahead"]
+    assert multi["kind"] == "multi" and multi["answer"] == ["Kitchen", "Office"] and multi["blocking"] is True
+    assert multi["initiative"] == "a34-home-audio" and multi["evidence"] == ["ev-1", "pr:pi-hub:346"]
+    assert inner(multi["context"]) == "Line one\nLine two" and inner(multi["rationale"]).startswith("The kitchen")
+    assert yesno["kind"] == "yesno" and [inner(o) for o in yesno["options"]] == ["Yes", "No"]
+    assert yesno["blocking"] is False and rows["a27-activity-shape"]["initiative"] is None
