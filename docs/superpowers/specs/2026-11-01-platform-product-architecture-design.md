@@ -1209,7 +1209,7 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   (`/assistant/work`), not `/assistant?to=…`, which stays as a redirect; 19 of those paths answer "Page not found"
   today. Pi Hub draws the title, the strip and the tabs for framed pages from the page list; Local AI, framed, draws no
   strip, tabs or title. The frame has no border; a page that reads as a document is content-tall and the page scrolls,
-  a page that fills the window keeps the frame as its scroller. Sign-in is Pi Hub's and never appears inside the frame;
-  Pi Hub's pages refuse to be framed. Four new origin-checked messages (`assistant-go`, `-size`, `-viewport`,
-  `-signin`). Steps 1-4, D1-D3 as recommended; A34 is unchanged. Proposed 25 Nov 2026; approved when merged. Amends A4
+  a page that fills the window keeps the frame as its scroller. Sign-in and the gate hand-off are Pi Hub's, done
+  before the frame and never inside it; Pi Hub's pages refuse to be framed. Four new origin-checked messages
+  (`assistant-go`, `-size`, `-viewport`, `-scroll`); Pi Hub draws its navigation only once Local AI says it dropped its own. Steps 1-4, D1-D3 as recommended; A34 is unchanged. Proposed 25 Nov 2026; approved when merged. Amends A4
   sections 5.2 and 5.6 and requirements 3, 7 and 8.

@@ -30,12 +30,12 @@ and a read of both apps' code found:
 | # | Found | Where |
 |---|---|---|
 | 1 | One frame on the whole site: `/assistant`. Every other Pi Hub page, and `/assistant/status` and `/assistant/models`, is drawn by Pi Hub with one title, one rail and no frame | `hub/static/js/assistant.js:96` |
-| 2 | Inside the frame Local AI draws **its own strip** of five areas, and under it **its own page tabs**, both below Pi Hub's head. That is A4 section 5.2 as written: a second navigation, inside a box | LocalAI `app/public/framed.js` `strip()` (`#uxFramedStrip`); `app.css:2720-2728` (`.ux-framed-strip`, `.ux-page-strip`) |
+| 2 | Inside the frame Local AI draws **its own strip** of five areas, and under it **its own page tabs**, both below Pi Hub's head. That is A4 section 5.2 as written: a second navigation, inside a box | LocalAI `app/public/framed.js` `strip()` (`#uxFramedStrip`); `app.css:2720-2721` (`.ux-framed-strip`), `1107-1125` and `2726-2728` (`.ux-page-strip` and its framed overrides) |
 | 3 | The frame is drawn as a box: a 1 px line, rounded corners and its own surface colour | `hub/static/app.css:238-241` |
-| 4 | The frame is the page's only scroller (A4 requirement 8), so Pi Hub's head stays still while the content moves under it, the phone's tap-to-top and toolbar collapse do nothing, and wide screens show a scrollbar inside the page | `app.css:246`; a4:85 |
+| 4 | The frame is the page's only scroller (A4 requirement 8), so Pi Hub's head stays still while the content moves under it, the phone's tap-to-top and toolbar collapse do nothing, and wide screens show a scrollbar inside the page | `hub/static/app.css:233-246`; a4:85 |
 | 5 | **19 Assistant addresses in the page list answer "Page not found"**, with no rail: `/assistant/chat`, `/image`, `/decisions`, `/work`, `/agent-world`, `/automations`, `/spreadsheets`, `/projects`, `/sources`, `/memory`, `/library`, `/changes`, `/signals`, `/claude-code`, `/atlas`, `/system`, `/tools`, `/settings`, `/audit-log`. The list gives each a path; Pi Hub serves only `/assistant`, two drawn pages and a task | `hub/app.py:1605-1612` (`SHELL_PATHS`, `ASSISTANT_PAGES`) |
 | 6 | The address of a framed page is `/assistant?to=<hash route>`, not the page's path, so the address bar, the palette and a shared link name a page two ways | a4:80-84; `assistant.js` `addressFor()` |
-| 7 | Signed out, the frame is sent to Pi Hub's own `/settings#group-people`, so Pi Hub's whole shell appears inside Pi Hub's shell. Pi Hub answers `X-Frame-Options: SAMEORIGIN`, which allows it | seen in the walk; `curl -I https://hub.rahe-home.duckdns.org/` |
+| 7 | Signed out, the frame is sent to Pi Hub's own `/settings#group-people`, so Pi Hub's whole shell appears inside Pi Hub's shell. The gate (Caddy `forward_auth` to `/api/gate`) redirects the framed request to Pi Hub's sign-in address, and Pi Hub's page then runs inside the frame. Signed in with a stale gate cookie, the same hop renews the cookie inside the frame and sends it back. Pi Hub answers `X-Frame-Options: SAMEORIGIN`, which allows both | seen in the walk; `hub/app.py:1100-1120`, `:122`; `hub/static/js/main.js:349-366` (`gateSignIn`) |
 
 What the walk did **not** see: the framed pages signed in (the agent does not enter the owner's password). Rows 2-4 are
 from the code and from the owner's own description; step 4 below is where they are checked on the owner's devices.
@@ -64,16 +64,28 @@ the meantime and after.
 - Pi Hub answers every `path` in the page list whose `system` is `assistant` (and that is not `built: false`) with the
   shell. A row marked `drawn: hub` is drawn by Pi Hub as today; any other row is a **framed page**: Pi Hub's head,
   strip and tabs, and under them the frame showing that row's `view`.
-- The address bar always shows the row's `path`. Moving between Assistant pages is an ordinary Pi Hub navigation (a
-  history step, like any two Pi Hub pages); the frame is kept, not reloaded: Pi Hub posts
-  `{type: "assistant-go", route}` to it.
-- A route inside a page that the list has no row for (a filter, an open item) rides as `?to=<route>` on that page's
-  path, written with `history.replaceState` as in A4. In-frame moves still add no history entries.
-- `/assistant?to=<route>` keeps working: it redirects to the row whose `view` the route names, else it opens
-  `/assistant` with the route as today. Needs-you links and the Versions page's Atlas link (a4:95-97) follow the same
-  rule and need no change of their own.
-- When Local AI posts a route that belongs to another row, Pi Hub moves the address, the title, the strip and the tabs
-  to that row (`replaceState`), so the navigation never disagrees with the content.
+- The address bar always shows the row's `path`.
+- **Path ↔ route.** A route is matched on its view, the text before `?`, as Local AI's router resolves it. All 22
+  Assistant rows with a `view` name a view Local AI has, and no two share one. Two rows are modes of Home and are
+  named here because the router rewrites them (LocalAI `router.js:7`, `INTENTS`): `/assistant/chat` is
+  `home?mode=ask` and `/assistant/image` is `home?mode=create`; plain `home` is `/assistant`. Nine views have no row
+  (`inProgress`, `shipped`, `research`, `workbench`, `repoTools`, `powershell`, `actions`, `automations`, `runs`); the
+  plan names the row each rides on, and a test fails when Local AI has a view the map does not place.
+- A route inside a page that has no row of its own (those nine, a filter, an open item) rides as `?to=<route>` on its
+  row's path, written with `history.replaceState` as in A4. In-frame moves still add no history entries.
+- **Moving between framed pages keeps the frame.** A link from one framed row to another is a hand-off like A4's
+  (`retarget()` in `assistant.js`, called from `main.js`): Pi Hub posts `{type: "assistant-go", route}`, moves the
+  address with one history step, and updates the title, strip and tabs. It does not remount the page, and it never
+  reloads for an out-of-date shell while the frame is open (A34's shell-update rule, pi-hub #308, stands for every
+  framed row). Local AI answers with its usual `assistant-route`; if none comes within the load timeout (10 s, as for a
+  new frame), the page says so under the navigation and offers "Try again".
+- Leaving for a page that is not framed removes the frame, as A4 requirement 6 says.
+- When Local AI posts a route that belongs to another framed row, Pi Hub moves the address, the title, the strip and
+  the tabs to that row (`replaceState`), so the navigation never disagrees with the content. A route that belongs to a
+  `drawn: hub` row (`status`, `models`, `run/<id>`) is not followed that way: Pi Hub opens its own page for that row as
+  an ordinary navigation.
+- `/assistant?to=<route>` keeps working: it redirects to the row the route maps to. Needs-you links and the Versions
+  page's Atlas link (a4:95-97) follow the same rule and need no change of their own.
 - An address that is not in the list stays "Page not found".
 
 ### 2. Pi Hub draws the navigation; Local AI, framed, draws none (amends A4 section 5.2 and requirement 3)
@@ -86,6 +98,14 @@ the meantime and after.
 - Navigation means anything that moves between rows of the page list. A page's own controls (filters, a stage picker,
   a composer) are content and stay in the frame.
 - One page, one title: Pi Hub's. The frame keeps its `title` attribute for assistive tech.
+- The strip is the one the page list gives (its `reach: strip` rows), so its names are the list's, not A4's five
+  ("Home, Work, Projects, Improve, System"). The plan shows the strip and each page's tabs as they will read.
+- "Start a task" (A34 Amendment 1, requirements 5 and 7) stays on `/assistant` only, where it is today, between the
+  tabs and the frame. Other framed rows do not show it.
+- **Pi Hub draws this navigation only for a Local AI that has dropped its own.** Local AI adds `nav: "hub"` to its
+  `assistant-route` posts when it was asked (section 5) and has hidden its strip, tabs and title. Until a frame's first
+  post says so, Pi Hub shows that frame as today: no strip or tabs of its own, the frame filling. Pi Hub may remember
+  the answer so later loads draw at once, and takes its navigation back down if a frame's first post lacks it.
 - When A34 later flips a row to `drawn: hub`, its address, title, strip and tabs do not change. Only what fills the
   space under them does.
 
@@ -100,22 +120,32 @@ the meantime and after.
   background token and no outer padding, so its content sits on Pi Hub's column and width cap (A10 D3).
 - Local AI posts `{type: "assistant-size", height}` when its content's height changes, or
   `{type: "assistant-size", fill: true}` for a view that fills the window. Until the first one arrives the frame fills,
-  as today, so an older Local AI still works.
+  as today, so an older Local AI still works. Content taller than 20 000 px is shown as a fill page.
 - **Overlays stay in view.** A dialog, sheet, menu or toast opened in a content-height frame appears inside the part
   of the window the owner can see, and focus stays reachable. The recommended way: Pi Hub posts
   `{type: "assistant-viewport", top, height}` (at most once a frame) on scroll and resize, and Local AI places its
   overlays within that band. The builder may choose another way that meets the sentence above.
-- A link to a place inside a framed page (a hash target, a restored scroll position) scrolls the page, not the frame.
+- A move to a place inside a content-height page (a hash target, an item brought into view) is the page's to scroll:
+  Local AI posts `{type: "assistant-scroll", top}`, the offset inside its content. A move to another framed page starts
+  at the top.
 
 ### 4. Sign-in is Pi Hub's, before the frame and never inside it (adds to A4)
 
-- Pi Hub creates the frame only for the signed-in owner. Anyone else sees Pi Hub's own sign-in state on that address
-  and no frame.
-- Framed, Local AI never navigates itself to a Pi Hub page. If its gate refuses a request it posts
-  `{type: "assistant-signin"}`; Pi Hub removes the frame and shows the same sign-in state.
-- Pi Hub's pages refuse to be framed by anything: `Content-Security-Policy: frame-ancestors 'none'` on its HTML
-  responses, after the builder confirms nothing frames a Pi Hub page on purpose (`/wall` and the Workshop display are
-  not frames). This is the backstop for finding 7 whatever sends the redirect.
+- Pi Hub creates the frame only when its own owner check passes (what `ensure("owner")` accepts today). Anyone else
+  sees Pi Hub's sign-in state on that address and no frame.
+- **The gate hand-off moves out of the frame.** Today a framed request without a fresh gate cookie is redirected to a
+  Pi Hub page, which renews it from inside the frame (`gateSignIn`). Instead, before creating the frame Pi Hub asks for
+  the hand-off address itself (`/api/gate/renew`, with the frame's address as `next`) and uses the answer as the
+  frame's first `src`. No Pi Hub page is ever loaded in the frame.
+- **A session that ends while the frame is open.** Local AI cannot see this (the gate is in front of it, and a refused
+  request is an opaque redirect), so Pi Hub does: it re-reads its own session when the window regains focus and on a
+  timer while a frame is open, and on sign-out removes the frame and shows the sign-in state.
+- A frame that does not answer is reported as down only after Pi Hub has re-read its own session; a missing session
+  shows sign-in, not "the PC didn't answer".
+- Only then do Pi Hub's pages refuse to be framed by anything: `Content-Security-Policy: frame-ancestors 'none'` on its
+  HTML responses (today `X-Frame-Options: SAMEORIGIN`, `hub/app.py:122`). Nothing frames a Pi Hub page on purpose (no
+  such frame in pi-hub, LocalAI or print-lab; `/wall` and the Workshop display are not frames). This is the backstop:
+  if the gate still redirects a frame to Pi Hub, the frame stays blank rather than drawing a second shell.
 
 ### 5. Messages
 
@@ -126,15 +156,15 @@ Each side ignores a type it does not know.
 | Type | From → to | Payload | Checked by the receiver |
 |---|---|---|---|
 | `assistant-context` | Pi Hub → Local AI | `context` | unchanged (A4) |
-| `assistant-route` | Local AI → Pi Hub | `route` | unchanged (A4) |
+| `assistant-route` | Local AI → Pi Hub | `route`, and now `nav: "hub"` when Local AI has dropped its navigation | as A4; the route is mapped through the page list, never used as an address |
 | `assistant-go` | Pi Hub → Local AI | `route` | a known view or `run/<id>`; anything else is ignored |
-| `assistant-size` | Local AI → Pi Hub | `height` (px) or `fill: true` | a finite number, clamped to a floor (the space under the navigation) and a ceiling the plan sets; applied at most once a frame |
+| `assistant-size` | Local AI → Pi Hub | `height` (px) or `fill: true` | a finite number, clamped to a floor (the space under the navigation) and 20 000 px; applied at most once a frame |
 | `assistant-viewport` | Pi Hub → Local AI | `top`, `height` (px) | finite numbers, clamped to the frame's own height |
-| `assistant-signin` | Local AI → Pi Hub | — | removes the frame; the owner's session is read from Pi Hub, never from the message |
+| `assistant-scroll` | Local AI → Pi Hub | `top` (px inside the frame) | a finite number within the frame's height; ignored on a fill page |
 
 Pi Hub asks for the new behaviour by adding `nav=hub` to the frame's first address. Local AI drops its strip, tabs and
-title only when framed by Pi Hub (requirement 3's test, unchanged) **and** asked. So neither deploy order shows two
-navigations or none.
+title only when framed by Pi Hub (requirement 3's test, unchanged) **and** asked, and says so in its route posts; Pi
+Hub draws its navigation only after hearing that (section 2). So neither deploy order shows two navigations or none.
 
 ## Steps
 
@@ -144,8 +174,8 @@ before is live.
 | Step | Repo | What | Done when |
 |---|---|---|---|
 | **1 Addresses** | pi-hub | Section 1: serve every Assistant path in the list, map path ↔ view, redirect `?to=`. No strip yet; Local AI is unchanged | a test walks the synced page list and every Assistant path answers with the shell and frames the right view; the 19 addresses above open live |
-| **2 Framed mode** | LocalAI | `nav=hub`: no strip, tabs or title; `assistant-go`; `assistant-size` with each view marked document or fill; overlays in view; `assistant-signin` | Local AI's tests cover each message, a wrong origin and a wrong source; without `nav=hub` the frame is as today |
-| **3 One page** | pi-hub (and appliance-ui only if the kit's strip cannot draw Assistant rows in Pi Hub; that is a kit release, named in the plan) | Sections 2-4: title, strip and tabs; `nav=hub`; no edge; content height; sign-in state; `frame-ancestors` | the acceptance below, by test where a test can see it |
+| **2 Framed mode** | LocalAI | `nav=hub`: no strip, tabs or title, and `nav: "hub"` in route posts; `assistant-go`; `assistant-size` with each view marked document or fill; `assistant-scroll`; overlays in view | Local AI's tests cover each message, a wrong origin and a wrong source; without `nav=hub` the frame is as today |
+| **3 One page** | pi-hub (and appliance-ui only if the kit's strip cannot draw Assistant rows in Pi Hub; that is a kit release, named in the plan) | Sections 2-4: title, strip and tabs once Local AI confirms; `nav=hub`; no edge; content height; the gate hand-off before the frame; the session re-read; `frame-ancestors` | the acceptance below, by test where a test can see it |
 | **4 Owner check** | — | The owner opens the Assistant on the iPhone, the iPad and the laptop, signed in | the owner says it reads as one page, or names what does not |
 
 Step 1 is worth shipping alone: it fixes 19 dead addresses and needs nothing from Local AI.
@@ -161,7 +191,7 @@ Step 1 is worth shipping alone: it fixes 19 dead addresses and needs nothing fro
 ## Fit with the baseline
 
 - **Separate origins hold.** The frame's `src` is still Local AI's origin; nothing is proxied; A34's adapter is
-  untouched. The four new messages carry a route, two sizes and a sign-in notice, no content.
+  untouched. The four new messages carry a route, two sizes and a scroll offset, no content.
 - **Ownership is unchanged.** Local AI owns the Assistant's content; Pi Hub owns the shell and, now, all navigation
   shown in it. The page list (appliance-ui) stays the one source for names, addresses, strips and tabs.
 - **A34 is unchanged and made smoother**: a row's flip to `drawn: hub` no longer changes what is round the content.
@@ -174,20 +204,22 @@ Step 1 is worth shipping alone: it fixes 19 dead addresses and needs nothing fro
 - **One of each.** On every Assistant address at 390, 1024 and 1440 px, light and dark: one page title, one strip, one
   row of tabs, one rail or tab bar; the framed document has no navigation landmark and no page title; no line, corner
   or change of background marks where the frame starts.
-- **Moving.** Home → Assistant → Work → Agent World → Printer, then Back four times: each step is one page, the address
-  bar shows that page's path, and the frame is loaded once.
+- **Moving.** Home → Assistant → Work → Agent World → Printer, then Back four times: each step is one page and the
+  address bar shows that page's path. Assistant → Work → Agent World loads the frame once and keeps text typed in a
+  composer; with a newer Pi Hub deployed meanwhile, those moves still do not reload.
 - **Reload and share.** Reloading any Assistant address, or opening it in a new tab, shows the same page.
 - **Scrolling.** A document page scrolls as one page (the head moves with it; on the iPhone a tap on the status bar
   returns to the top); a fill page keeps its composer on screen with the keyboard up. No page has two scrollbars.
 - **Overlays.** With a long document page scrolled to its end, a dialog opened from the last item is on screen and
   holds focus.
-- **Signed out.** Any Assistant address shows Pi Hub's sign-in and loads no frame; a session that ends while the frame
-  is open ends the same way. `curl -I` on a Pi Hub page shows `frame-ancestors 'none'`.
+- **Signed out.** Any Assistant address shows Pi Hub's sign-in and loads no frame; signing out in another tab removes
+  an open frame when this one regains focus. With the gate cookie cleared and the owner signed in, the Assistant opens
+  with no Pi Hub page ever loaded in the frame. `curl -I` on a Pi Hub page shows `frame-ancestors 'none'`.
 - **PC asleep.** Unchanged from A4, under the page's own title and navigation.
 - **Keyboard and assistive tech.** Tab order is rail, strip, tabs, frame, out again; the strip and tabs name the
   current page (`aria-current`); the frame has a title.
-- **Old and new together.** Pi Hub at step 3 against Local AI before step 2 shows today's page (Local AI's strip, a
-  frame that fills), not two strips.
+- **Old and new together.** Pi Hub at step 3 against Local AI before step 2 shows today's page: Local AI's strip, no
+  Pi Hub strip or tabs, a frame that fills.
 
 ## Acceptance (for this amendment)
 
@@ -201,7 +233,7 @@ Step 1 is worth shipping alone: it fixes 19 dead addresses and needs nothing fro
 | A content-height frame and its parent chase each other's size | height is taken from the framed content, never from the frame's own viewport; applied once a frame; clamped; a test drives a resize loop |
 | Overlays open off screen in a tall frame | section 3's rule, its acceptance line, and D2's alternative if it proves costly |
 | The iPhone keyboard in a fill page | fill pages keep A4's layout unchanged, which is live today |
-| A forged or stale message | origin and source checks both ways; numbers clamped; routes matched against the list; sign-in read from Pi Hub only |
+| A forged or stale message | origin and source checks both ways; numbers clamped; routes mapped through the list; the session is read from Pi Hub only, never from a message |
 | The two apps on different kit versions look different across the seam | both are on 2.31.3 today; `npm run drift` is run before step 3 ships, and step 3 waits if Local AI is behind |
 | The page list and Local AI's views drift | step 1's test walks the list; a row whose `view` Local AI does not know shows Pi Hub's "Page not found" under the navigation, not an empty frame |
 | Work spent on pages A34 will redraw | sections 1 and 2 on the Pi Hub side are permanent (addresses and navigation stay when a row flips); only Local AI's framed-mode work for tier-1 and tier-2 views is interim |
@@ -210,9 +242,9 @@ Step 1 is worth shipping alone: it fixes 19 dead addresses and needs nothing fro
 
 - Which Local AI views are documents and which fill (expected fill: chat, Agent World, Atlas, Spreadsheets; read each).
 - Whether the kit's strip and tabs draw Assistant rows inside Pi Hub as they stand (kit 2.31.3), or need a release.
-- What sends the signed-out redirect seen in finding 7 (the device-owner gate or Local AI's sign-in), and its fix
-  there, beyond the backstop in section 4.
-- The ceiling for `assistant-size`.
+- Whether Local AI's service worker serves the shell for an address with `?nav=hub` (no `ignoreSearch` handling was
+  found); if not, carry the flag another way that the first request can read.
+- How often Pi Hub re-reads its session while a frame is open.
 
 ## Out of scope (noted, not gated)
 
