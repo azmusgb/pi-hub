@@ -1204,3 +1204,12 @@ Changes to this baseline after it was frozen. Each one is reviewed on its own an
   accent only acts: meters fill with `text`, the nav count is a bare amber number of asks. Printer is the pilot, with
   an owner go-or-stop gate before the restyle and Home. The design is appliance-ui's
   `2026-11-25-spoken-readout-design.md`. Proposed 25 Nov 2026; approved when merged. Amends A7 P1, P2 and P3, A8 D3.
+- **A38. The Assistant reads as one page; Pi Hub draws its navigation, the frame has no chrome**
+  (`2026-11-25-amendment-a38-assistant-unnested.md`): every Assistant page in the page list opens at its own path
+  (`/assistant/work`), not `/assistant?to=…`, which stays as a redirect; 19 of those paths answer "Page not found"
+  today. Pi Hub draws the title, the strip and the tabs for framed pages from the page list; Local AI, framed, draws no
+  strip, tabs or title. The frame has no border; a page that reads as a document is content-tall and the page scrolls,
+  a page that fills the window keeps the frame as its scroller. Sign-in is Pi Hub's and never appears inside the frame;
+  Pi Hub's pages refuse to be framed. Four new origin-checked messages (`assistant-go`, `-size`, `-viewport`,
+  `-signin`). Steps 1-4, D1-D3 as recommended; A34 is unchanged. Proposed 25 Nov 2026; approved when merged. Amends A4
+  sections 5.2 and 5.6 and requirements 3, 7 and 8.
