@@ -7,6 +7,32 @@ import { resolveLink } from "./sections.js";
 const lampChip = (lamp) => lamp ? h("span", { class: `ui-chip ui-chip--${lamp[0]}${lamp[2] ? " ui-chip--live" : ""}` }, lamp[1]) : null;
 const present = (v) => v !== null && v !== undefined && v !== "";
 
+// The page's head, set by the router for every page (A37 R1). A page that says its reading (`says`) gets the shell's
+// h1 as the kit's ui-say, busy until its first answer, with no purpose line; every other page gets its plain title and
+// purpose, and nothing of the page before. Without the kit's say.js (an old cached shell) a saying page is a plain one.
+const sayKit = (says) => says && typeof globalThis.ApplianceSay?.render === "function";
+export function pageHead(h1, sub, { label, purpose = "", says = false }) {
+  const saying = sayKit(says);
+  // `brand` is the plain title's look (app.css sizes it by id and class); the sentence takes the kit's alone.
+  h1.classList.remove("ui-say");
+  h1.classList.toggle("brand", !saying);
+  delete h1.dataset.say;
+  h1.removeAttribute("aria-busy");
+  h1.textContent = label;
+  h1.closest("header")?.classList.toggle("top--say", saying);
+  if (sub) sub.textContent = saying ? "" : purpose;
+  if (!saying) return;
+  h1.classList.add("ui-say");
+  ApplianceSay.render(h1, { label, sentences: [], loading: true });
+}
+
+// The page's sentence, from ApplianceSay.compose. True when it wrote; false when nothing changed, or when the head is
+// no longer a saying page's (an answer that lands after the owner moved on).
+export function sayHead(composed, h1 = document.getElementById("page-title")) {
+  if (!h1?.classList.contains("ui-say") || !sayKit(true)) return false;
+  return ApplianceSay.render(h1, composed);
+}
+
 // `name` is drawn on the nameplate and names the section; a faceplate with no name to draw (Settings, A22 2.3) passes
 // `label` for the section alone. `lamp`: [tone, word, live?]; `readings`: [label, value] pairs, a missing value is left out; `actions`, `aside`: nodes.
 export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [] }) {
