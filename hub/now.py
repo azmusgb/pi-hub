@@ -7,7 +7,7 @@ for the morning digest, which does not read the records yet.
 """
 import time
 from datetime import datetime, timezone
-from .printer_telemetry import normalize_printer
+from .printer_telemetry import _number, normalize_printer
 from .records import SOURCE_NAMES
 
 
@@ -212,7 +212,8 @@ def printer_from(rec):
     """The printer card from the printer record, in the keys the page has always read."""
     if rec is None:
         return {"state": "none", "headline": "No status yet", "detail": "Bambuddy hasn't answered yet.",
-                "left": "", "minutes_left": None, "actions": [], "telemetry": _telemetry(None)}
+                "left": "", "minutes_left": None, "actions": [], "percent": None, "since": None,
+                "telemetry": _telemetry(None)}
     d = rec["detail"]
     stale = bool(rec.get("stale"))
     actions = [] if stale else [a["name"] for a in rec.get("actions") or []]
@@ -230,6 +231,9 @@ def printer_from(rec):
            "filament_type": d.get("filament_type"), "filament_color": d.get("filament_color"),
            "bambuddy_connected": rec["state"] != "offline" and not stale, "actions": actions,
            "as_of": rec.get("as_of"),  # when the record was last read: the page's "last seen" while it is stale
+           # A37 R2, for the page's sentence: the same reading as `progress`, or None when there is none (progress
+           # says 0 then), and when the record's state last changed (for a finished print, when it ended).
+           "percent": _number(pct), "since": _number(rec.get("since")),
            "telemetry": _telemetry(rec)}
     if d.get("lab") and state in ("printing", "paused"):
         res["lab"] = d["lab"]
