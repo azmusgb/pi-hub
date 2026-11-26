@@ -19,6 +19,7 @@ export function pageHead(h1, sub, { label, purpose = "", says = false }) {
   delete h1.dataset.say;
   h1.removeAttribute("aria-busy");
   h1.textContent = label;
+  h1.dataset.label = label;  // the page's name comes only from the page list (A22); sayHead puts it in the sentence
   h1.closest("header")?.classList.toggle("top--say", saying);
   if (sub) sub.textContent = saying ? "" : purpose;
   if (!saying) return;
@@ -26,24 +27,27 @@ export function pageHead(h1, sub, { label, purpose = "", says = false }) {
   ApplianceSay.render(h1, { label, sentences: [], loading: true });
 }
 
-// The page's sentence, from ApplianceSay.compose. True when it wrote; false when nothing changed, or when the head is
+// The page's sentence, from ApplianceSay.compose (its label is the router's, whatever the page passed). True when it wrote; false when nothing changed, or when the head is
 // no longer a saying page's (an answer that lands after the owner moved on).
 export function sayHead(composed, h1 = document.getElementById("page-title")) {
-  if (!h1?.classList.contains("ui-say") || !sayKit(true)) return false;
-  return ApplianceSay.render(h1, composed);
+  if (!h1?.classList.contains("ui-say") || !sayKit(true) || !composed) return false;
+  return ApplianceSay.render(h1, { ...composed, label: h1.dataset.label || "" });
 }
 
 // `name` is drawn on the nameplate and names the section; a faceplate with no name to draw (Settings, A22 2.3) passes
 // `label` for the section alone. `lamp`: [tone, word, live?]; `readings`: [label, value] pairs, a missing value is left out; `actions`, `aside`: nodes.
-export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [] }) {
+// `plate` (A37 R4): on a page whose head says the reading, the faceplate has no readout or caption, and `job` (what is
+// running and how old the reading is) sits on the nameplate's line.
+export function faceplate({ name = "", label = "", lamp = null, readout = null, unit = "", size = "", caption = null, readings = [], actions = [], aside = null, extra = [], plate = false, job = null }) {
   const rows = readings.filter(([, v]) => present(v));
   const acts = (actions || []).filter(Boolean);
-  return h("section", { class: aside ? "ui-faceplate ui-faceplate--aside" : "ui-faceplate", "aria-label": name || label },
+  return h("section", { class: ["ui-faceplate", aside ? "ui-faceplate--aside" : "", plate ? "ui-faceplate--plate" : ""].filter(Boolean).join(" "), "aria-label": name || label },
     h("div", { class: "ui-faceplate__main" },
-      h("div", { class: "ui-faceplate__nameplate" }, name ? h("span", {}, name) : null, lampChip(lamp)),
-      present(readout) ? h("p", { class: size ? `ui-readout ui-readout--${size}` : "ui-readout" }, String(readout),
+      h("div", { class: "ui-faceplate__nameplate" }, name ? h("span", {}, name) : null, lampChip(lamp),
+        plate && present(job) ? h("span", { class: "ui-faceplate__job" }, job) : null),
+      !plate && present(readout) ? h("p", { class: size ? `ui-readout ui-readout--${size}` : "ui-readout" }, String(readout),
         unit ? h("span", { class: "ui-readout__unit" }, ` ${unit}`) : null) : null,
-      present(caption) ? h("p", { class: "ui-faceplate__caption" }, caption) : null,
+      !plate && present(caption) ? h("p", { class: "ui-faceplate__caption" }, caption) : null,
       ...(extra || []).filter(Boolean),
       rows.length ? h("dl", { class: "ui-faceplate__readings" }, ...rows.map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, String(v))))) : null,
       acts.length ? h("div", { class: "ui-faceplate__actions" }, ...acts) : null),

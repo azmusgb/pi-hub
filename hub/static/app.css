@@ -220,13 +220,12 @@ html {
    under them at the page's width. The head scrolls with the page here: two sentences in the readout face would
    otherwise hold a third of a phone's screen, so the area's strip sticks at the top instead. */
 .top.top--say { position: static; align-items: flex-start; }
-.top--say .top-lead { order: 1; flex-basis: 100%; }
-.top--say .top-cmd-btn { margin-left: auto; }
+/* One set of rules for both of the head's layouts: the flex row reads order and flex-basis, the phone's grid (the
+   shell switch above) reads the grid lines; each ignores the other's. */
+.top--say .top-lead { order: 1; flex-basis: 100%; grid-column: 1 / -1; grid-row: 2; }
+.top--say .top-cmd-btn { margin-left: auto; grid-column: 2; }
+.top--say .top-assistant { grid-column: 3; }
 .ui-shell:has(.top--say) :is(.ui-strip, [data-ui-shell-strip]) { top: 0; }
-@media (max-width: 860px) {
-  .top--say .top-lead { grid-column: 1 / -1; grid-row: 2; }
-  .top--say .top-cmd-btn { grid-column: 2; }
-}
 /* A narrow top bar: the Assistant keeps its icon and its accessible name, and Search its word on less padding, so the
    title has the room for one line from 360 px ("Home & network", A10 plan decision 17; by the bar's own width, A10 D2). */
 @container top (max-width: 27.5rem) {

@@ -77,7 +77,6 @@
 .ws-now .ui-faceplate { margin: 0; }
 .ws-cam { margin: 0; display: grid; gap: var(--ui-s-2); align-content: start; }
 .ws-cam-word { margin: 0; font-weight: 650; color: var(--ui-unknown); }
-.ws-now .line-bead { background: var(--ui-accent); }
 .ws-now .ui-faceplate .meta, .ws-cam figcaption { margin: 0; font-size: var(--ui-fs-2); color: var(--ui-muted); }
 /* The camera is 16:9 and at most ~40% of the screen high, so the next section stays in view. */
 .ws-cam-placeholder { width: 100%; aspect-ratio: 16 / 9; border-radius: var(--ui-r-4); background: var(--ui-surface-2); }
