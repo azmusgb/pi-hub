@@ -199,3 +199,59 @@ async def test_decisions_hub_key_default_behaviour_is_unchanged(monkeypatch):
 
     assert await decisions.hub_key(keychain) == ("deploy-key", None)
     assert calls == [(["security", "find-generic-password", "-s", "pi-hub-deploy-key", "-w"], 5.0)]
+
+
+class AppendingHub(FakeHub):
+    """A hub that, while answering, sees a hook append `per_post` more events: the drain-on-idle gap."""
+
+    def __init__(self, *responses, posts_that_append: int = 1, source: str = "claude"):
+        super().__init__(*responses)
+        self.left = posts_that_append
+        self.source = source
+
+    def __call__(self, request):
+        if self.left:
+            self.left -= 1
+            spool.append(sized_event(99), self.source)
+        return super().__call__(request)
+
+
+async def test_drain_posts_events_appended_during_a_pass(on):
+    fill(2)
+    fake = AppendingHub()
+    r = await run(fake)
+    assert (r.status, r.posted, spool.status()["count"]) == ("done", 3, 0)
+    assert len(fake.requests) == 2
+
+
+async def test_drain_stops_after_max_passes_and_releases_the_lock(on):
+    fill(1)
+    fake = AppendingHub(posts_that_append=1000)
+    r = await run(fake)
+    assert r.status == "done" and len(fake.requests) == drain.MAX_PASSES
+    assert spool.status()["count"] == 1
+    again = await run(FakeHub())
+    assert again.status == "done" and spool.status()["count"] == 0  # not "busy": the lock was released
+
+
+async def test_a_missing_key_skips_only_that_source(on, monkeypatch):
+    spool.append(sized_event(1), "importer")  # no HOME_MISSION_KEY_IMPORTER, and the Keychain says no
+    fill(2)
+
+    async def keychain(argv, timeout=30):
+        return shell.Run(44, "", "item not found")
+
+    fake = FakeHub()
+    r = await run(fake, keychain)
+    assert (r.status, r.posted, r.skipped) == ("stopped", 2, ["importer"])
+    assert spool.status()["by_source"] == {"importer": 1}
+    assert [q.url.path for q in fake.requests] == ["/api/missions/events/claude"]
+    assert "no key for source importer" in log_text() and "importer" in r.detail
+
+
+async def test_a_5xx_on_a_later_pass_reports_what_was_posted(on):
+    fill(1)
+    fake = AppendingHub(httpx.Response(200), httpx.Response(503))
+    r = await run(fake)
+    assert (r.status, r.posted, r.kept) == ("stopped", 1, 1)
+    assert "503" in r.detail

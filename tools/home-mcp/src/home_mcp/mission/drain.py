@@ -4,7 +4,7 @@ or when the hub refuses them for what they are (a 4xx that isn't about the calle
 import fcntl
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import httpx
@@ -15,6 +15,7 @@ from .local import config_path, enabled, lock_path, log_path  # noqa: F401 (conf
 from .validate import load_contract
 
 BATCH = 50
+MAX_PASSES = 5  # events a hook appends during a pass go in the next one; a flood can't hold the lock past this
 KEY_TIMEOUT = 2.0  # the Keychain can prompt; a hook must never wait on it
 LATE_AFTER_S = 60  # an event older than this when posted is marked late (§6.2: spooled events keep their `at`)
 # 4xx codes that say something is wrong with the caller's setup, not with the events: keep the spool and stop.
@@ -48,6 +49,7 @@ class DrainResult:
     posted: int = 0
     dropped: int = 0
     kept: int = 0
+    skipped: list[str] = field(default_factory=list)  # sources left in the spool because they have no key
 
 
 def key_names(source: str) -> tuple[str, str]:
@@ -107,46 +109,68 @@ async def drain(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clien
 
 
 async def _drain_locked(client_factory, runner) -> DrainResult:
+    """Passes over the spool until one moves nothing (so events a hook appended during a pass, such as a session's
+    last ones, are not left for a firing that may never come), at most MAX_PASSES."""
     entries = spool.read_all()
     if not entries:
         return DrainResult("empty", "the spool is empty")
     result = DrainResult("done")
     known = load_contract()["sources"]
-    by_source: dict[str, list[dict]] = {}
+    keys: dict[str, str] = {}
+    async with client_factory() as client:
+        if client.base_url.scheme != "https":  # never put a key on the wire in clear
+            log("drain: stopped, the hub URL is not https")
+            return _stopped(result, "HOME_MCP_HUB_URL isn't https, so keys aren't sent")
+        for _ in range(MAX_PASSES):
+            moved_before = result.posted + result.dropped
+            stop = await _pass(client, runner, entries, known, keys, result)
+            if stop:
+                return _stopped(result, stop)
+            if result.posted + result.dropped == moved_before:
+                break
+            entries = spool.read_all()
+    if result.skipped:
+        return _stopped(result, "no key for " + ", ".join(result.skipped))
+    return result
+
+
+async def _pass(client, runner, entries: list[dict], known, keys: dict[str, str], result: DrainResult) -> str | None:
+    """One pass over `entries`: the reason to stop the whole drain, or None. A source with no key is skipped (and
+    not asked for again in later passes); the other sources still post."""
     unknown = [e["event"]["event_id"] for e in entries if e["source"] not in known]
     if unknown:  # a line for a source the contract doesn't have can never be sent
         spool.remove(unknown)
         result.dropped += len(unknown)
         log(f"drain: dropped {len(unknown)} events for an unknown source")
+    by_source: dict[str, list[dict]] = {}
     for e in entries:
-        if e["source"] in known:
+        if e["source"] in known and e["source"] not in result.skipped:
             by_source.setdefault(e["source"], []).append(e["event"])
-    async with client_factory() as client:
-        if client.base_url.scheme != "https":  # never put a key on the wire in clear
-            log("drain: stopped, the hub URL is not https")
-            return _stopped(result, "HOME_MCP_HUB_URL isn't https, so keys aren't sent")
-        for source, events in by_source.items():
+    for source, events in by_source.items():
+        if source not in keys:
             key, why = await source_key(source, runner)
             if key is None:
-                log(f"drain: stopped, no key for source {source} ({why})")
-                return _stopped(result, f"no key for {source}: {why}")
-            now = datetime.now(timezone.utc)
-            for i in range(0, len(events), BATCH):
-                batch = events[i:i + BATCH]
-                out = await post_batch(client, source, key, [_late(e, now) for e in batch])
-                ids = [e["event_id"] for e in batch]
-                if out.kind == "ok":
-                    spool.remove(ids)
-                    result.posted += len(ids)
-                elif out.kind == "drop":
-                    spool.remove(ids)
-                    result.dropped += len(ids)
-                    log(f"drain: hub refused {len(ids)} {source} events with HTTP {out.code}, dropped")
-                else:
-                    reason = f"HTTP {out.code}" if out.code else out.detail
-                    log(f"drain: stopped, {reason}, kept the spool")
-                    return _stopped(result, reason)
-    return result
+                log(f"drain: skipped, no key for source {source} ({why})")
+                result.skipped.append(source)
+                continue
+            keys[source] = key
+        now = datetime.now(timezone.utc)
+        for i in range(0, len(events), BATCH):
+            batch = events[i:i + BATCH]
+            out = await post_batch(client, source, keys[source], [_late(e, now) for e in batch])
+            ids = [e["event_id"] for e in batch]
+            if out.kind == "ok":
+                spool.remove(ids)
+                result.posted += len(ids)
+            elif out.kind == "drop":
+                spool.remove(ids)
+                result.dropped += len(ids)
+                log(f"drain: hub refused {len(ids)} {source} events with HTTP {out.code}, dropped")
+            else:
+                reason = f"HTTP {out.code}" if out.code else out.detail
+                log(f"drain: stopped, {reason}, kept the spool")
+                return reason
+    return None
 
 
 def _stopped(result: DrainResult, reason: str) -> DrainResult:

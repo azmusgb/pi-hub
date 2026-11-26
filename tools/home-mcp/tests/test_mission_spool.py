@@ -89,3 +89,12 @@ def test_a_missing_spool_reads_as_empty(tmp_path):
     path = tmp_path / "none" / "s.jsonl"
     assert spool.read_all(path) == [] and spool.remove(["x"], path=path) == 0
     assert spool.status(path)["count"] == 0
+
+
+def test_remove_rewrites_when_only_torn_lines_go(tmp_path):
+    path = tmp_path / "spool.jsonl"
+    spool.append({"type": "gap", "at": "2026-11-24T10:00:00+00:00", "initiative": "a34", "body": {}}, "claude", path)
+    with open(path, "ab") as f:
+        f.write(b'{"event": {"torn')
+    assert spool.remove([], path) == 0
+    assert len(path.read_bytes().splitlines()) == 1 and spool.status(path)["corrupt"] == 0
