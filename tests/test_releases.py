@@ -103,6 +103,37 @@ def test_invalid_body_is_refused(change):
     assert releases.valid("pi-hub", {**report(), **change}, T) is None
 
 
+# A35 decision 13: a report may carry its test time; anything else in it, or out of range, makes the report invalid.
+@pytest.mark.parametrize("tests", [
+    {"python_s": 0, "js_s": 0, "workers": 1}, {"python_s": 3600, "js_s": 3600, "workers": 16},
+    {"python_s": 412, "workers": 3},
+])
+def test_release_tests_field_valid_and_bounded(tests):
+    assert releases.valid("pi-hub", report(tests=tests), T)["tests"] == tests
+    r = put(tests=tests)
+    assert r["detail"]["last"]["tests"] == tests
+
+
+@pytest.mark.parametrize("tests", [
+    {"python_s": -1, "workers": 3}, {"python_s": 3601, "workers": 3}, {"python_s": 412, "js_s": 3601, "workers": 3},
+    {"python_s": 412, "workers": 0}, {"python_s": 412, "workers": 17}, {"python_s": 412.5, "workers": 3},
+    {"python_s": "412", "workers": 3}, {"python_s": True, "workers": 3}, {"python_s": 412, "workers": True},
+    {"python_s": 412, "js_s": None, "workers": 3}, {"workers": 3}, {"python_s": 412},
+    {"python_s": 412, "workers": 3, "extra": 1}, {}, [412, 41, 3], "412 s",
+])
+def test_release_tests_field_out_of_bounds_is_refused(tests):
+    assert releases.valid("pi-hub", report(tests=tests), T) is None
+
+
+def test_report_without_tests_still_valid():
+    r = releases.valid("pi-hub", report(), T)
+    assert r is not None and "tests" not in r
+    assert "tests" not in put()["detail"]["last"]
+    # a later report without the field does not keep the earlier one's
+    put(commit=B, at=T + 5, tests={"python_s": 412, "js_s": 41, "workers": 3})
+    assert "tests" not in put(commit=C, at=T + 9)["detail"]["last"]
+
+
 def test_unknown_target_is_refused():
     assert releases.valid("toaster", report(), T) is None
 

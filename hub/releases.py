@@ -37,6 +37,8 @@ KEY_FOR = {"localai": "localai", "mac-watch": "mac", "x2d-bridge-mac": "mac", "p
 KEY_DIR = os.environ.get("HUB_DEPLOY_KEY_DIR", "/etc/pi-hub/secrets/deploy_keys")
 MAX_BODY = 4096
 NEWER_MAX = 200  # commits after the published one that a firmware report may list
+# A35 decision 13: a report's test time, {key: (low, high)}; js_s may be left out (a release with no JavaScript tests)
+TESTS = {"python_s": (0, 3600), "js_s": (0, 3600), "workers": (1, 16)}
 PROBE_LAG = 180  # seconds the same probe mismatch must last before it is drift (a deploy and its probe lag each other)
 
 for _t, _label in TARGETS.items():
@@ -99,6 +101,15 @@ def _newer_ok(target, newer):
                              and all(_hex(c) for c in newer))
 
 
+def _tests_ok(tests):
+    """`tests` is the release's test time: whole seconds and a worker count, each in range, nothing else. None is fine."""
+    if tests is None:
+        return True
+    if not isinstance(tests, dict) or not {"python_s", "workers"} <= tests.keys() <= TESTS.keys():
+        return False
+    return all(type(v) is int and TESTS[k][0] <= v <= TESTS[k][1] for k, v in tests.items())
+
+
 def valid(target, body, now):
     """A normalised report, or None. `commit` is the commit the deploy was about; `running` is what runs after it
     (required for rolled-back; for failed, None means unchanged)."""
@@ -138,6 +149,10 @@ def valid(target, body, now):
     if not _newer_ok(target, body.get("newer")):
         return None
     out["newer"] = body.get("newer") or []
+    if not _tests_ok(body.get("tests")):
+        return None
+    if body.get("tests") is not None:
+        out["tests"] = dict(body["tests"])
     return out
 
 
@@ -231,7 +246,7 @@ def put(target, report, now):
             detail["newer"] = report.get("newer") or []
         detail.update(target=target, label=TARGETS[target], commit=running, mechanism=report["mechanism"],
                       head=report.get("head"),
-                      last={k: report[k] for k in ("commit", "result", "at", "message")})
+                      last={k: report[k] for k in ("commit", "result", "at", "message", "tests") if k in report})
         detail.pop("drift_from", None)  # a deploy says what runs now; the next probe checks it again
         detail.pop("mismatch", None)
         rec = _build(target, detail, prev, now, report["mechanism"])
