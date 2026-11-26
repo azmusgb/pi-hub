@@ -439,6 +439,15 @@ def test_a_ledger_that_cannot_be_read_is_503_never_an_empty_answer(monkeypatch):
         assert get(path).status_code == 503, path
 
 
+def test_a_stored_row_with_no_object_data_is_503_not_an_empty_row():
+    import_a34()
+    for bad in ("NULL", "'null'", "'[]'"):
+        db.run(f"UPDATE mission_entities SET data = {bad} WHERE id IN (SELECT id FROM mission_entities LIMIT 1)")
+        codes = {get(path).status_code for path in ("/api/missions/a34", "/api/missions/a34?view=decisions",
+                                                      "/api/missions/a34?view=evidence")}
+        assert 503 in codes, bad
+
+
 def test_decisions_that_cannot_be_read_are_unavailable_not_zero(monkeypatch):
     import_a34()
 

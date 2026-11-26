@@ -17,7 +17,7 @@ import sqlite3
 import zlib
 
 from .. import decisions, records
-from . import project, shown
+from . import shown
 
 TRUST_ORDER = ("trusted", "owner", "reported", "imported")
 GROUPS = {  # event history filters (§10.1) as SQL, so a page of history is one query
@@ -38,6 +38,14 @@ def _json(text):
         return json.loads(text) if text is not None else None
     except (TypeError, ValueError) as e:
         raise Unreadable("a stored row can't be read") from e
+
+
+def _obj(text):
+    """A stored row's data as an object: a NULL, "null" or non-object value is an unreadable row, never an empty one."""
+    d = _json(text)
+    if not isinstance(d, dict):
+        raise Unreadable("a stored row can't be read")
+    return d
 
 
 def _rows(c, sql, *args):
@@ -115,7 +123,7 @@ def _imported_decisions(c, initiative, rev, manifest):
                     "AND kind = 'decision'", initiative, rev)
     out = []
     for r in rows:
-        d = _json(r["data"])
+        d = _obj(r["data"])
         out.append({"id": r["id"], "kind": d.get("kind"), "question": d.get("question"),
                     "options": d.get("options") or [], "recommended": d.get("recommended"),
                     "answer": d.get("answer"), "answered_at": d.get("answered_at"),
@@ -152,7 +160,7 @@ def executions(c, initiative, now):
     pc = _pc_on(rows)
     out = []
     for r in rows:
-        data = _json(r["data"]) or {}
+        data = _obj(r["data"]) or {}
         s = shown.shown(r, now, pc)
         out.append({"id": r["id"], "source": r["source"], "level": r["level"], "title": r["title"],
                     "tasks": data.get("tasks", []), "model": data.get("model"), "branch": data.get("branch"),
@@ -243,11 +251,11 @@ def _proposed(c, initiative, revs, manifest):
 def _stages(entities, manifest):
     gates = [e for e in entities if e["kind"] == "gate"]
     out = []
-    for e in sorted((e for e in entities if e["kind"] == "stage"), key=lambda e: (_json(e["data"]).get("n", 0), e["id"])):
-        d = _json(e["data"])
+    for e in sorted((e for e in entities if e["kind"] == "stage"), key=lambda e: (_obj(e["data"]).get("n", 0), e["id"])):
+        d = _obj(e["data"])
         out.append({"id": e["id"], "n": d.get("n"), "title": d.get("title"), "status": e["state"],
-                    "gates": [{"id": g["id"], "criterion": _json(g["data"]).get("criterion"), "verdict": g["state"]}
-                              for g in gates if _json(g["data"]).get("stage") == e["id"]],
+                    "gates": [{"id": g["id"], "criterion": _obj(g["data"]).get("criterion"), "verdict": g["state"]}
+                              for g in gates if _obj(g["data"]).get("stage") == e["id"]],
                     "provenance": imported(manifest)})
     return out
 
@@ -305,7 +313,7 @@ def decisions_view(c, initiative, now, offset=0, limit=PAGE):
 
 
 def _evidence_row(r, manifest):
-    data = _json(r["data"]) or {}
+    data = _obj(r["data"]) or {}
     prov = imported(manifest, r["source"]) if r["trust"] == "imported" else reported(r["source"], r["observed_at"])
     return {"id": r["id"], "kind": r["kind"], "trust": r["trust"], "source": r["source"], "summary": r["summary"],
             "observed_at": r["observed_at"], "data": data, "provenance": prov}
