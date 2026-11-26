@@ -39,7 +39,7 @@ test('test_pages_routes: main.js draws exactly the list\'s Pi Hub pages, each wi
   }
   // A row a later step builds draws nothing: no route, no strip entry, no ⌘K row, no Site map row.
   const later = HUB.filter((p) => p.built === false);
-  assert.deepEqual(later.map((p) => p.id).sort(), ['lab-designs', 'lab-tools']);
+  assert.deepEqual(later.map((p) => p.id).sort(), ['lab-designs', 'lab-tools', 'mission', 'missions']);
   for (const p of later) {
     assert.equal(SITE.page(p.id), null, p.id);
     assert.ok(!goResults('').some((r) => r.label.endsWith(p.label)), `${p.id} is not in ⌘K`);

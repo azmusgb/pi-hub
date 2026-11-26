@@ -222,8 +222,12 @@ def weather(w):
     alerts = [a for a in (_get(w, "alerts") or []) if isinstance(a, dict)]
     if alerts:
         first = alerts[0]
+        detail = {"alerts": len(alerts), "temp": temp}
+        until = first.get("ends") or first.get("expires")
+        if isinstance(until, str) and until.strip():
+            detail["until"] = until.strip()
         return _rec("weather", "warning", first.get("headline") or first.get("event") or "Weather alert",
-                    detail={"alerts": len(alerts), "temp": temp})
+                    detail=detail)
     days = _get(w, "days") or []
     high = days[0].get("high") if days and isinstance(days[0], dict) else None
     headline = f"{temp}° {now.get('sky') or ''}".strip()

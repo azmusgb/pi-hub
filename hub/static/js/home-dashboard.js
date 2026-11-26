@@ -737,8 +737,7 @@ export function renderDashboard(state, src, onReload) {
     hd.day = src.today;
     hd.drawnWidth = 0;
     redrawBand(state);
-    hd.counts.replaceChildren(...countItems(src.today.counts).map((c) =>
-      h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), tallyLabel(c))));
+    hd.counts.replaceChildren(...countItems(src.today.counts).map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), tallyLabel(c))));
   } else {
     hd.day = null;
     hd.drawnWidth = 0;
@@ -746,33 +745,31 @@ export function renderDashboard(state, src, onReload) {
     hd.counts.replaceChildren(...countItems().map((c) => h("li", {}, h("b", { class: `hd-meter hd-k-${c.kind}` }, c.value), tallyLabel(c))));
   }
 
-  // Needs you: the same merged list as before, ordered by tone; the badge counts it (baseline 5.5). With neither of
-  // its sources answering there is no list (state.probs null: the badge is left alone); with one, the list says which
-  // part is missing, and never "Nothing needs you". The same when Needs you answered without one of its own sources
-  // (`unread`): what it has is listed, with the source it couldn't check named under it, as on the wall.
+  // Needs you (asks) and Heads up (conditions, A36 D6): ordered by tone; the badge counts asks only.
   {
-    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"),
-      src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
-    // No count is known when neither source answered: "?", never an empty count that reads as none.
-    hd.needsCount.textContent = probs?.length ? String(probs.length) : !src.needs ? "?" : "";
+    const asks = probs ? probs.filter((p) => p.itemKind !== "heads_up") : null;
+    const headsUp = probs ? probs.filter((p) => p.itemKind === "heads_up") : [];
+    hd.needsCount.textContent = asks?.length ? String(asks.length) : !src.needs ? "?" : "";
     const note = down.length ? h("p", { class: "hd-needs__down" }, `${down.join(". ")}. It will keep trying.`) : null;
     const asked = showDecisions(hd, src.needs, onReload);  // under the condition rows; never counted (A33)
+    const headsOpen = !!hd.needs.querySelector(".hd-heads-up")?.open;  // a refresh keeps Heads up as the owner left it
+    const headsSummary = `${headsUp.length} heads up: ${headsUp.map((p) => p.title).slice(0, 3).join(", ")}${headsUp.length > 3 ? "…" : ""}`;
     hd.needs.replaceChildren(...[
-      probs?.length ? renderProblems(probs, onReload) : null,
-      note || (probs?.length || asked ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
+      asks?.length ? renderProblems(asks, onReload) : null,
+      note || (asks?.length || asked ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
+      headsUp.length ? h("details", { class: "hd-heads-up", open: headsOpen || null }, h("summary", { class: "hd-heads-up__summary" }, headsSummary), renderProblems(headsUp, onReload)) : null,
     ].filter(Boolean));
-    (probs || []).forEach((p, i) => {
-      const li = hd.needs.querySelector(".ui-needs")?.children?.[i];
-      const target = hd.day ? needMark(p, hd.day) : null;
+    const lis = new Map([...hd.needs.querySelectorAll(".ui-need")].map((el) => [el.dataset?.key, el]));
+    (probs || []).forEach((p) => {
+      const li = lis.get(p.id), target = hd.day ? needMark(p, hd.day) : null;
       if (!li || !target) return;
       const on = () => light(hd, target), off = () => light(hd, null);
-      li.addEventListener("mouseenter", on);
-      li.addEventListener("mouseleave", off);
-      li.addEventListener("focusin", on);
-      li.addEventListener("focusout", off);
-      li.addEventListener("click", (e) => { if (!e.target?.closest?.("a,button")) light(hd, hd.lit === target ? null : target); });
+      for (const ev of ["mouseenter", "focusin"]) li.addEventListener(ev, on);
+      for (const ev of ["mouseleave", "focusout"]) li.addEventListener(ev, off);
+      li.addEventListener("click", (e) => { if (!e.target?.closest?.("a,button,summary")) light(hd, hd.lit === target ? null : target); });
     });
   }
 

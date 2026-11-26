@@ -167,8 +167,10 @@ export function mergeProblems(records = [], needs = null) {
     out.push({
       kind: "need",
       id: item.id || item.title,
+      itemKind: item.kind === "heads_up" ? "heads_up" : "ask",
       title: item.title || "Needs attention",
       detail: item.detail || "",
+      more: typeof item.more === "string" ? item.more : "",
       tone: item.tone === "bad" ? "bad" : "warn",
       kitTone: ["bad", "attention", "warn"].includes(item.tone) ? item.tone : "warn",
       // A printer alert can be acknowledged, by the owner only: /api/needs carries `decisions` for the owner alone
@@ -178,6 +180,7 @@ export function mergeProblems(records = [], needs = null) {
       record: item.record || "",
       since: item.since || byId.get(item.record)?.since || null,  // the record it stands for knows since when
       as_of: typeof item.as_of === "string" ? item.as_of : "",
+      until: typeof item.until === "string" ? item.until : "",
       source: item.source || "",
       action: item.action && typeof item.action.key === "string" ? item.action : null,
       link: typeof item.link === "string" ? item.link : "",
@@ -213,21 +216,23 @@ export function problemItems(probs = []) {
   return probs.map((p) => {
     const iso = Number(p.since) > 0 ? new Date(p.since * 1000).toISOString() : undefined;
     if (p.kind === "need") {
-      return { id: p.id, tone: p.kitTone || p.tone, title: p.title, detail: p.detail, link: p.link || undefined,
-        action: p.action || undefined, as_of: p.as_of || iso, area: p.source && p.source !== "Pi Hub" ? p.source : undefined,
+      return { id: p.id, kind: p.itemKind || "ask", tone: p.kitTone || p.tone, title: p.title, detail: p.detail,
+        more: p.more || undefined, link: p.link || undefined, action: p.action || undefined, as_of: p.as_of || iso,
+        until: p.until || undefined, area: p.source && p.source !== "Pi Hub" ? p.source : undefined,
         ack: p.ack || undefined };
     }
     const verb = PAGE_VERB[p.href];
-    return { id: p.id, tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
+    return { id: p.id, kind: "ask", tone: p.tone === "bad" ? "bad" : "attention", title: p.title, detail: p.detail,
       link: p.href || undefined, action: verb ? { key: verb, link: p.href } : undefined, as_of: iso };
   });
 }
 
-// What the Home tab's badge counts: the whole Problems list. `undefined` while Needs you hasn't been asked, so the badge
-// waits instead of flashing a count that then changes.
+// What the Home tab's badge counts: the asks in the Problems list (A36 D6: heads-up conditions stay out of the count).
+// `undefined` while Needs you hasn't been asked, so the badge waits instead of flashing a count that then changes.
 export function problemsBadge(needs, probs = []) {
   if (needs === undefined) return undefined;
-  return { ...(needs || { items: [], unread: [] }), count: probs.length };
+  const asks = probs.filter((p) => p?.itemKind !== "heads_up").length;
+  return { ...(needs || { items: [], unread: [] }), count: asks };
 }
 
 export function navigateSpa(href) {
