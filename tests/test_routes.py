@@ -93,3 +93,13 @@ def test_a_page_not_built_yet_and_a_page_the_server_writes_are_not_shell_paths()
         assert path not in hub_app.SHELL_PATHS
         assert client().get(path).status_code == 404
     assert "/privacy" not in hub_app.SHELL_PATHS and client().get("/privacy").status_code == 200
+
+
+def test_a_mission_is_a_shell_path_by_pattern_and_only_for_an_id_the_ledger_takes():
+    # /missions/<initiative> is the kit's templated address (A35 M1b H7): one page for every id, matched as a pattern.
+    c = client()
+    for path in ("/missions", "/missions/a34", "/missions/pi-hub-2"):
+        r = c.get(path)
+        assert r.status_code == 200 and 'id="view"' in r.text, path
+    for path in ("/missions/", "/missions/A34", "/missions/a", "/missions/a_b", "/missions/a34/extra", "/missions/" + "a" * 41):
+        assert c.get(path).status_code == 404, path
