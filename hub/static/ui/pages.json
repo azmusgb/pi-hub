@@ -375,6 +375,34 @@
    ]
   },
   {
+   "id": "missions",
+   "system": "hub",
+   "area": "system",
+   "label": "Missions",
+   "purpose": "Initiatives: their stages, decisions and evidence",
+   "path": "/missions",
+   "role": "detail",
+   "parent": "versions",
+   "reach": [
+    "card:versions",
+    "palette",
+    "map"
+   ]
+  },
+  {
+   "id": "mission",
+   "system": "hub",
+   "area": "system",
+   "label": "Mission",
+   "purpose": "One initiative: where it stands, what it needs from you, and its evidence",
+   "path": "/missions/<initiative>",
+   "role": "detail",
+   "parent": "versions",
+   "reach": [
+    "card:missions"
+   ]
+  },
+  {
    "id": "alerts",
    "system": "hub",
    "area": "system",
