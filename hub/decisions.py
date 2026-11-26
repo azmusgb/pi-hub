@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from . import auth, db, releases
+from .missions import mirror
 from .notify_routes import CLICK_HOSTS, _click, _line
 
 router = APIRouter(prefix="/api/decisions")
@@ -276,6 +277,8 @@ def add(source, d, now=None):
     ready()
     now = int(now or time.time())
     fields = _stored(d)
+    if d["initiative"]:
+        mirror.ready()  # the mission tables, before the transaction that writes to them
     with db.transaction() as c:
         if d["supersedes"]:
             old = c.execute("SELECT answered_at FROM decisions WHERE id = ?", (d["supersedes"],)).fetchone()
@@ -289,6 +292,8 @@ def add(source, d, now=None):
             c.execute(f"INSERT INTO decisions (id, source, {', '.join(STORED)}, created_at) "
                       f"VALUES ({', '.join('?' * (len(STORED) + 3))})", (d["id"], source, *fields, now))
         c.execute(TRIM, (KEEP_ANSWERED,))
+        if d["initiative"]:
+            mirror.asked(c, d, again, now)
     return get(d["id"]), "asked again" if again else "added"
 
 
@@ -323,9 +328,19 @@ def answer(did, value, role, device, now=None):
     # The write names the question and options the answer was checked against, so a session asking again in between
     # (add() updates them in place) leaves the row open rather than storing an answer to a question no longer asked.
     # A row with a status (A35) is marked answered with it; an A33 row has none and keeps none.
-    if db.run("UPDATE decisions SET answer = ?, answered_at = ?, status = CASE WHEN status IS NULL THEN NULL ELSE "
-              "'answered' END WHERE id = ? AND answered_at IS NULL AND kind = ? AND question = ? AND options = ?",
-              text, int(now or time.time()), did, row["kind"], row["question"], json.dumps(row["options"])).rowcount:
+    now = int(now or time.time())
+    sql = ("UPDATE decisions SET answer = ?, answered_at = ?, status = CASE WHEN status IS NULL THEN NULL ELSE "
+           "'answered' END WHERE id = ? AND answered_at IS NULL AND kind = ? AND question = ? AND options = ?")
+    args = (text, now, did, row["kind"], row["question"], json.dumps(row["options"]))
+    if row.get("initiative"):  # an initiative's answer and its mirrored event are one write (A35 decision 11)
+        mirror.ready()
+        with db.transaction() as c:
+            done = c.execute(sql, args).rowcount
+            if done:
+                mirror.answered(c, row, now)
+    else:
+        done = db.run(sql, *args).rowcount
+    if done:
         auth.log(role, device, f"decision:{did}", "answered")
         db.run(TRIM, KEEP_ANSWERED)
         return get(did), True
@@ -339,15 +354,15 @@ def answer(did, value, role, device, now=None):
     raise Answered(row)
 
 
-def open_and_recent(answered=NEEDS_ANSWERED, where="1", columns=COLUMNS):
+def open_and_recent(answered=NEEDS_ANSWERED, where="1", columns=COLUMNS, args=()):
     """{"open": oldest first, "answered": newest first, at most `answered` (-1: every one)}, of the rows `where`
-    selects. Raises Unreadable when the table can't be read."""
+    selects (with `args` for its ? marks). Raises Unreadable when the table can't be read."""
     try:
         ready()
         opened = db.rows(f"SELECT {columns} FROM decisions WHERE answered_at IS NULL AND {where} "
-                         "ORDER BY created_at, rowid")
+                         "ORDER BY created_at, rowid", *args)
         done = db.rows(f"SELECT {columns} FROM decisions WHERE answered_at IS NOT NULL AND {where} "
-                       "ORDER BY answered_at DESC, rowid DESC LIMIT ?", answered)
+                       "ORDER BY answered_at DESC, rowid DESC LIMIT ?", *args, answered)
         return {"open": [_shape(r) for r in opened], "answered": [_shape(r) for r in done]}
     except sqlite3.Error as e:
         raise Unreadable(str(e)) from e
