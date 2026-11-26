@@ -2,6 +2,8 @@
 # Makes a deploy key for a deploy off the Pi (platform step 3) and puts it where it is used, without ever showing it:
 #   deploy/deploy-key.sh localai   # the PC's Safe Deploy reads C:\LocalAI\stack\pi-hub-deploy.key
 #   deploy/deploy-key.sh mac       # the Mac's agents read the login Keychain, service pi-hub-deploy-key
+#   deploy/deploy-key.sh mission-claude    # A35 §7.4: the Mac's mission sources, each its own key, read by home-mcp's
+#   deploy/deploy-key.sh mission-importer  # drainer from the login Keychain, service pi-hub-<name>-key
 # Run from the Mac. Add --rotate to replace a key that exists. The key lives only in this shell's memory and reaches the
 # PC and the Keychain on stdin: never in output, process arguments or logs. The Pi keeps only its SHA-256, readable by
 # the hub (root:pi-hub 0640), in /etc/pi-hub/secrets/deploy_keys/<name>.sha256.
@@ -14,8 +16,9 @@ PC=${DEPLOY_KEY_PC:-windows}
 DIR=/etc/pi-hub/secrets/deploy_keys
 PC_FILE='C:\LocalAI\stack\pi-hub-deploy.key'
 case "$NAME" in
-  localai|mac) ;;
-  *) echo "Usage: $0 localai|mac [--rotate]" >&2; exit 2 ;;
+  localai|mac) SERVICE=pi-hub-deploy-key ;;
+  mission-claude|mission-importer) SERVICE="pi-hub-$NAME-key" ;;
+  *) echo "Usage: $0 localai|mac|mission-claude|mission-importer [--rotate]" >&2; exit 2 ;;
 esac
 
 rc=0
@@ -52,9 +55,9 @@ PSEOF
   WHERE="on the PC at $PC_FILE"
 else
   # security's interactive mode reads its command from stdin, so the key is never one of its arguments.
-  printf 'add-generic-password -U -a pi-hub -s pi-hub-deploy-key -w %s\n' "$KEY" | security -i >/dev/null ||
+  printf 'add-generic-password -U -a pi-hub -s %s -w %s\n' "$SERVICE" "$KEY" | security -i >/dev/null ||
     { echo "Couldn't save the key in the Keychain." >&2; exit 1; }
-  WHERE="in this Mac's login Keychain (service pi-hub-deploy-key)"
+  WHERE="in this Mac's login Keychain (service $SERVICE)"
 fi
 unset KEY
 
