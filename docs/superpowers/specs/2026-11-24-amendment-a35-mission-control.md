@@ -731,11 +731,11 @@ Each phase is its own plan and PRs, gated by the repo's engineer agent, ui-ux-re
 |---|---|---|---|---|
 | **M0 Spikes** | ~/.claude (throwaway) | (1) Hook behaviour in bypass mode: which of SessionStart sources, UserPromptSubmit, PreToolUse, PostToolUse, Stop (sync), SubagentStop, Notification and PermissionRequest fire, with what fields (model?), and whether a hook can add context. (2) The GitHub `owner-authorized` status with branch protection on a scratch repo | this spec merged | findings written into this spec as a dated addendum; contract v1 frozen from them |
 | **M1a Mac side** | ~/.claude, home-mcp | `mission-report.py`, `/mission attach` and `/mission task` skills, spool; manifest format `docs/missions/<id>.json` and the A34 manifest (a reviewed PR); importer for manifests and print-lab; home-mcp `decisions` v2 (wraps every text field) **before** any structured decision is written | M0 | the A34 manifest validates; spool replay idempotent (test); home-mcp reads A33 and v2 rows |
-| **M1b Pi side** | pi-hub, appliance-ui | keys; `mission_events`, projections, change-sets, rebuild; owner route; A33 columns (additive) with `?v=2` read; Pi GitHub reader; release test field; `/missions/<id>` Overview, Decisions (`choice`, `text`, `multi`, `yesno`), Evidence; kit: decision kinds, Imported/Reported states | A34 P0 accepted; M1a | A34 shown from its manifest, accepted by one owner tap; one attached session shows each §7.5 state honestly, including "No report since" with the Mac asleep; a decision answered on the phone is read back via home-mcp; rebuild = live; PC off: page fully readable |
+| **M1b Pi side** | pi-hub, appliance-ui | keys; `mission_events`, projections, change-sets, rebuild; owner route; A33 columns (additive) with `?v=2` read; Pi GitHub reader; release test field; `/missions/<id>` Overview, Decisions (`choice`, `text`, `multi`, `yesno`), Evidence; kit: decision kinds, Imported/Reported states | M1a (A34 P0 waived 25 Nov, §22) | A34 shown from its manifest, accepted by one owner tap; one attached session shows each §7.5 state honestly, including "No report since" with the Mac asleep; a decision answered on the phone is read back via home-mcp; rebuild = live; PC off: page fully readable |
 | **M2 Decisions** | pi-hub, appliance-ui | all kinds and answers (§9.2), digest check, immutability, supersession, derived flags; ntfy for blocking decisions | M1b | §17 items 4-5 |
 | **M3 Plan and work** | pi-hub, appliance-ui | Plan and Work tabs; revisions with Compare; owner gate verdicts; trusted verification; derived review independence; progress dimensions; inspector sheet (kit) | M2 | a manifest change shows as a proposed revision with its diff; a task becomes verified only from trusted evidence |
 | **M4 Providers and control** | LocalAI, pi-hub | Local AI missions report (Full) with cancel through Command states; Local AI CI summary; advisory Claude direction (if M0 allows); D2 GitHub authorization if M0 passed and the owner says yes | M3, A34 P2 | a Local AI mission started for a task appears, finishes and links evidence; a cancel goes through every Command state; refused while the PC sleeps |
-| **M5 World** | LocalAI | world view from the ledger, read server to server by Local AI with its key (§10.4), using Main Street's engine; retire the City renderer (`ui.js:1157-2164`), its decoration and browser-side replay; replace #619's demo. Sequenced with A34 P6, which also edits `ui.js` (whichever lands second rebases) | M3; the owner's yes after two weeks of use (D6) | every world element traceable to a ledger id; reduced-motion parity; budgets held; City code deleted |
+| **M5 World** | LocalAI | world view from the ledger, read server to server by Local AI with its key (§10.4), using Main Street's engine; retire the City renderer (`ui.js:1157-2164`), its decoration and browser-side replay; replace #619's demo. Sequenced with A34 P6, which also edits `ui.js` (whichever lands second rebases) | M3 (D6 re-answered 25 Nov: build now, §22) | every world element traceable to a ledger id; reduced-motion parity; budgets held; City code deleted |
 | **M6 Learning** | LocalAI, pi-hub | Learning page and research quarter (§12) | M4 | one opportunity goes from finding to experiment to trusted outcome |
 
 **Migration**
@@ -758,7 +758,7 @@ is the merge of this PR.
 | D3 | How do sessions join an initiative? | **Explicitly, with `/mission attach`; re-attached by cwd after `/clear` or a resume** | inferred from branch or spec path |
 | D4 | Pause a Claude session from the page? | **No in v1.** Denying every tool call makes the model retry, and a hook can't pause an idle session. Direction stays advisory | pause by deny, with a local cache |
 | D5 | Ledger in Pi Hub's backups, including C1 off-site? | **Yes.** It holds plan data, titles and states, not private Assistant data | exclude from off-site |
-| D6 | World view | **Build M5 only after two weeks of M1-M3 use and your yes; retire the City renderer then** | build now; drop the world view |
+| D6 | World view | **Re-answered 25 Nov: build now**, right after M3, and retire the City renderer then (§22). Was: build only after two weeks of M1-M3 use and your yes | drop the world view |
 | D7 | Widen A33's limits for initiative decisions (8 options, 2000-character context, 32 KB body)? | **Yes.** Rows of A33 shape keep their limits | keep 4 options |
 | D8 | Event retention for closed initiatives | **1 year, then compact to projections, change-sets, decisions, gates and evidence refs** | keep forever |
 | D9 | What may the Claude hook send? | **Model, branch, remote, PR, subagent start, turn and tool lifecycle, labels; never prompts, outputs, tool inputs or thinking** | labels only |
@@ -912,3 +912,23 @@ reaches GitHub, so **D2's authorize path stays off** and is raised as D11. M1-M3
 
 **Housekeeping:** `azmusgb/a35-m0-scratch` is private again and is safe to delete. Deleting it needs the
 `delete_repo` scope, which only the owner can add.
+
+## 22. Addendum: gates waived (25 Nov 2026)
+
+The owner asked for A35 to be built in full, M1b to M5, and waived two gates:
+
+- **M1b no longer waits for A34 P0 to be accepted.** M1b can start while P0's test work is still open. The A34
+  manifest's P0 rows stay as imported and reported until their gate is met. Nothing marks P0 accepted early.
+- **D6 is re-answered as "build now".** M5 follows M3 directly, without the two weeks of M1-M3 use. Everything else
+  in M5 is unchanged: the "Done when" column, the §10.4 semantics, its "Never" column as M5's test list, and the City
+  renderer's retirement in the same milestone.
+
+The design study for M5's world view is LocalAI `docs/superpowers/specs/assets/2026-11-25-agent-world-m5-world-view.html`
+(LocalAI #642). It proposes four differences from §10.4, which M5's plan settles:
+- hazard tape on a blocked task's floor;
+- reported-done floors drawn dark;
+- an HTML district ruler;
+- the inspector as the M3 kit sheet.
+
+Every other gate stands. Each phase still has its own plan and PRs, gated by the engineer agent, ui-ux-reviewer and
+qa-release, and nothing merges without the owner's say-so.
