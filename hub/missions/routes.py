@@ -17,9 +17,11 @@ EVENTS = "/api/missions/events/"
 MAX_BODY = 2 * CURRENT.limits["batch_events"] * CURRENT.limits["event_bytes"]  # room for the client's whitespace
 
 
-def refusal(source, refused):
-    """The contract's error response for `refused`, counted against `source` (plan decision 7)."""
-    log.REFUSALS.note(source, refused.code, log.clock())
+def refusal(source, refused, count=True):
+    """The contract's error response for `refused`, counted against `source` (plan decision 7) when `count`: only a
+    request that carried the source's own key is counted, so a caller without one can't raise the owner's item."""
+    if count:
+        log.REFUSALS.note(source, refused.code, log.clock())
     print(f"missions: refused {refused.code} from {source}: {refused.detail}", file=sys.stderr, flush=True)
     headers = {"Cache-Control": "no-store"}
     if refused.retry_after:
@@ -34,7 +36,7 @@ def key_refusal(request, source):
     if source not in CURRENT.sources or source not in keys.KEYS:
         return JSONResponse({"error": "unknown_source", "detail": "There is no such source."}, status_code=404)
     if not keys.key_ok(request, source):
-        return refusal(source, Refused(401, "bad_key", "the source's key is missing or wrong"))
+        return refusal(source, Refused(401, "bad_key", "the source's key is missing or wrong"), count=False)
     return None
 
 

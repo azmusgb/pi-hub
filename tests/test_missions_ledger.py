@@ -276,6 +276,21 @@ def test_rate_limit_429_with_retry_after_and_refusals_raise_one_needs_item():
     assert needs_items() == []
 
 
+def test_bad_key_refusals_never_raise_the_needs_item():
+    event = [session("turn.finished", 0)]
+    for key in ("wrong", KEY["mission-importer"], ""):
+        for _ in range(10):
+            assert post("claude", event, key=key).status_code == 401
+    for _ in range(10):  # no key at all, from another site
+        r = client.post("/api/missions/events/claude", json=event,
+                        headers={"X-Mission-Contract": "1", "Origin": "https://evil.example"})
+        assert r.status_code == 401
+    assert needs_items() == []
+    for _ in range(10):  # the same number with the source's own key does raise it
+        post("claude", [], raw=b"{")
+    assert [i["id"] for i in needs_items()] == ["pi:missions:claude:refused"]
+
+
 # ---- revisions and rebuild ----
 
 def revisions():
