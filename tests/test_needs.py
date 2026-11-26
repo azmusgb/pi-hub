@@ -484,3 +484,155 @@ def test_stored_needs_marks_a_need_staged_only_while_its_build_can_print(monkeyp
            "p", "{}", json.dumps(ix), "t1")
     [(_, _, got)] = lab.stored_needs()
     assert got == [{"id": "E-1", "staged": True}, {"id": "E-2", "staged": True}, {"id": "E-3"}, {"id": "E-4"}, "junk"]
+
+
+# ---- Amendment A36 P2 (Needs you vs Heads up) & A37 R5 (lab more) ----
+
+def test_a36_d2_kinds_and_counts():
+    # Today's three items from the spec (wind advisory, Pi 72 °C with past throttling, E-028 Fix the plan):
+    # 1 ask (E-028) and 2 heads up (weather, Pi warm).
+    w = {"now": {"temp": 55, "sky": "Windy"}, "days": [{"high": 60}],
+         "alerts": [{"headline": "Wind advisory", "ends": "2026-11-25T18:00:00-05:00"}]}
+    probs = problems({"pi_temp": 72, "pi_power": "Slowed by heat earlier"}, weather=w)
+    lab = _lab(_need("E-028", "Fix the plan", urgency=3))
+    n = needs.build([], {"cards": []}, NOW, probs, lab=lab)
+    assert n["count"] == 1 and n["heads_up_count"] == 2
+    by_id = {i["id"]: i for i in n["items"]}
+    assert by_id["pi:lab:hex-tile:E-028"]["kind"] == "ask"
+    assert by_id["pi:Weather"]["kind"] == "heads_up"
+    assert by_id["pi:Weather"]["until"] == "2026-11-25T18:00:00-05:00"
+    assert "action" not in by_id["pi:Weather"]
+    assert by_id["pi:Raspberry Pi"]["kind"] == "heads_up"
+    assert "action" not in by_id["pi:Raspberry Pi"]
+
+
+def test_a36_d2_each_source_builds_with_stated_kind():
+    # Asks: HMS alerts, Obico failure and blind, printer failed/finished/paused, PC off while printing,
+    # owner-fixable hub states (movies_drive, plex, devices, paper_printer, mac_lab), Local AI approvals & watch-mac-disk.
+    obico_fail = {"enabled": True, "per_printer": {"1": {"class": "failure", "error": None}}}
+    b = {**FAILED, "hms": [{"code": "0500_0200", "severity": 2, "module": 5}]}
+    feed = {"cards": [
+        {"kind": "needs", "id": "needs-1", "title": "Needs you", "text": "Approve.", "tone": "attention"},
+        {"kind": "watch", "id": "watch-mac-disk", "title": "Worth a look", "text": "Mac disk is 95% full", "tone": "warning"},
+        {"kind": "watch", "id": "watch-disk", "title": "Disk", "text": "C: is 92% full.", "tone": "warning"},
+        {"kind": "running", "id": "run-1", "title": "Running", "text": "Indexing.", "tone": "warn"},
+        {"kind": "done", "id": "done-1", "title": "Done", "text": "Finished.", "tone": "warn"},
+        {"kind": "disk", "id": "disk-1", "title": "PC disk", "text": "80% full.", "tone": "warn"},
+    ]}
+    probs = problems({"drive_state": "Not mounted", "services": {"plex": False, "homebridge": False}},
+                     b=b, obico=obico_fail, paper={"state": "Paused"})
+    n = needs.build([], feed, NOW, probs, lab=_lab(_need("E-001", "Judge the print")))
+    kinds = {i["id"]: i["kind"] for i in n["items"]}
+    assert kinds["pi:lab:hex-tile:E-001"] == "ask"
+    assert kinds["pi:source:hms:0500_0200"] == "ask"
+    assert kinds["pi:Failure detection"] == "ask"
+    assert kinds["pi:Bambu X2D"] == "ask"
+    assert kinds["pi:Movies drive"] == "ask"
+    assert kinds["pi:Movies"] == "ask"
+    assert kinds["pi:Smart-home controls"] == "ask"
+    assert kinds["pi:Document printer"] == "ask"
+    assert kinds["localai:needs-1"] == "ask"
+    assert kinds["localai:watch-mac-disk"] == "ask"
+    assert kinds["localai:watch-disk"] == "heads_up"
+    assert kinds["localai:run-1"] == "heads_up"
+    assert kinds["localai:done-1"] == "heads_up"
+    assert kinds["localai:disk-1"] == "heads_up"
+    assert n["count"] == 10 and n["heads_up_count"] == 4
+
+
+def test_a36_d2_and_d3_conditions_are_heads_up_and_navigation_is_not_an_action():
+    # Conditions: internet down/slow, adguard paused/not_answering, camera no_picture, workshop_display offline,
+    # movie_copy behind, obico warning, release drift/failed, non-printing quiet source.
+    # PAGE_VERB (/workshop, /network) stays as the row's link on heads_up items, never an action button (D3).
+    obico_warn = {"enabled": True, "per_printer": {"1": {"class": "warning", "score": 0.4}}}
+    probs = problems({"display_state": "Offline", "mirror": {"last_ok": NOW - 4 * 86400}},
+                     b=bud("RUNNING", progress=20), obico=obico_warn,
+                     netmon={"status": "bad", "win_ok": False},
+                     adguard={"ok": False, "message": "down"},
+                     camera={"ok": False, "reason": "printer_unreachable"})
+    n = needs.build([], {"cards": []}, NOW, probs)
+    assert n["count"] == 0 and n["heads_up_count"] == len(n["items"])
+    for item in n["items"]:
+        assert item["kind"] == "heads_up", item
+        assert "action" not in item, f"heads-up item {item['id']} must not carry a PAGE_VERB action button"
+    by_id = {i["id"]: i for i in n["items"]}
+    assert by_id["pi:Internet"]["link"] == "/network"
+    assert by_id["pi:Failure detection"]["link"] == "/workshop"
+
+
+def test_a36_unknown_class_fails_loud_as_an_ask():
+    # An unknown record kind, an unknown record state, or an unknown Local AI card kind is an ask.
+    unknown_rec = records.merge(None, records.make("mystery_box", "broken", "Mystery box broke", "hub"), NOW)
+    unknown_state = records.merge(None, records.make("internet", "unknown", "No reading", "netmon"), NOW)
+    feed = {"cards": [{"kind": "future_kind", "id": "f-1", "title": "New card", "text": "Check.", "tone": "warn"}]}
+    n = needs.build([], feed, NOW, [unknown_rec, unknown_state])
+    kinds = {i["id"]: i["kind"] for i in n["items"]}
+    assert kinds == {"pi:mystery_box": "ask", "pi:Internet": "ask", "localai:f-1": "ask"}
+    assert n["count"] == 3 and n["heads_up_count"] == 0
+    # Internet as an ask gets PAGE_VERB's open_network action
+    by_id = {i["id"]: i for i in n["items"]}
+    assert by_id["pi:Internet"]["action"] == {"key": "open_network", "link": "/network"}
+
+
+def test_a36_d4_pi_escalation_at_temperature_and_throttling_limits():
+    from urllib.parse import unquote
+    # 79 °C and throttled for 59 min -> heads_up
+    rec_79 = records.merge(None, records.make(
+        "pi", "hot", "Pi 79 °C", "pi_status", cause="Running hot at 79 °C.",
+        detail={"temp": 79, "power": "Slowed by heat"}), NOW - 59 * 60)
+    n_59 = needs.build([], {"cards": []}, NOW, [rec_79])
+    assert n_59["count"] == 0 and n_59["heads_up_count"] == 1
+    assert n_59["items"][0]["kind"] == "heads_up" and "action" not in n_59["items"][0]
+
+    # 79 °C and throttled for 61 min -> ask with Local AI hand-off
+    rec_61 = dict(rec_79, since=NOW - 61 * 60)
+    n_61 = needs.build([], {"cards": []}, NOW, [rec_61])
+    assert n_61["count"] == 1 and n_61["heads_up_count"] == 0
+    item_61 = n_61["items"][0]
+    assert item_61["kind"] == "ask"
+    assert item_61["action"]["key"] == "see_usage"
+    assert unquote(item_61["link"].split("context=", 1)[1]) == "Pi Hub › Pi 79 °C. Running hot at 79 °C. What's running on the Pi?"
+
+    # 80 °C (even for 1 min, or with power "Good") -> ask at once
+    rec_80 = records.merge(None, records.make(
+        "pi", "hot", "Pi 80 °C", "pi_status", cause="Running hot at 80 °C.",
+        detail={"temp": 80, "power": "Good"}), NOW - 60)
+    n_80 = needs.build([], {"cards": []}, NOW, [rec_80])
+    assert n_80["count"] == 1 and n_80["heads_up_count"] == 0
+    assert n_80["items"][0]["kind"] == "ask" and n_80["items"][0]["action"]["key"] == "see_usage"
+
+    # Past throttling ("Slowed by heat earlier") at 72 °C for > 60 min stays heads_up
+    rec_earlier = records.merge(None, records.make(
+        "pi", "power", "Pi 72 °C", "pi_status", cause="Slowed by heat earlier; 72 °C now.",
+        detail={"temp": 72, "power": "Slowed by heat earlier"}), NOW - 120 * 60)
+    n_earlier = needs.build([], {"cards": []}, NOW, [rec_earlier])
+    assert n_earlier["count"] == 0 and n_earlier["heads_up_count"] == 1
+    assert n_earlier["items"][0]["kind"] == "heads_up"
+
+
+def test_a36_d4_backups_escalation_at_allowed_age():
+    # A slow or late backup within its allowed age (<= 48 h) is heads up; past its allowed age (> 48 h, or never) is an ask.
+    within = records.merge(None, records.make(
+        "backups", "behind", "The Mac backup is late", "backrest",
+        detail={"machines": [{"name": "Mac", "last": NOW - 40 * 3600, "age": 40 * 3600}],
+                "pc_copy": {"last": NOW - 3 * 3600, "age": 3 * 3600}}), NOW)
+    n_within = needs.build([], {"cards": []}, NOW, [within])
+    assert n_within["count"] == 0 and n_within["heads_up_count"] == 1
+    assert n_within["items"][0]["kind"] == "heads_up" and "action" not in n_within["items"][0]
+
+    past = problems(backups={"ok": True, "ages": {"pi": NOW - 3600, "mac": NOW - 3 * 86400}},
+                    pc_copy={"ts": NOW - 3600, "name": "x"})
+    n_past = needs.build([], {"cards": []}, NOW, past)
+    by_id = {i["id"]: i for i in n_past["items"]}
+    assert by_id["pi:Backups"]["kind"] == "ask"
+    assert by_id["pi:Backups"]["action"] == {"key": "open_backups", "link": "/backups"}
+
+
+def test_a37_r5_lab_more_passes_through_when_present():
+    lab = _lab(_need("E-001", "Fix the plan", "Plan check failed.", urgency=3, more="  missing dimension: outer_wall_mm  "),
+               _need("E-002", "Judge the print", "Look at the face.", more="   "),
+               _need("E-003", "Approve or drop"))
+    got = {i["id"][-5:]: i for i in _labitems(needs.build([], None, NOW, lab=lab))}
+    assert got["E-001"]["more"] == "missing dimension: outer_wall_mm"
+    assert "more" not in got["E-002"]
+    assert "more" not in got["E-003"]
