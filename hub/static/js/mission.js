@@ -8,10 +8,9 @@
 // reported rows, each with where it came from; and actions that are disabled say why. Counts are shown with their
 // denominators and the kit's meter only for "n of m": no percentage is ever written as text.
 import { askFirst, h, post, toast } from "./core.js";
-import { ageLabel } from "./freshness.js";
 import { decisionsState, drawDecisions } from "./home-decisions.js";
 import { faceplate, faceplateLoading, fillTabs, section } from "./page-parts.js";
-import { POLL, SLUG, chip, clockOf, hhmm, hubNow, isCount, meter, notice, prov, readView, shownNow, stamp, statusOf, typeWords, whereIs, words } from "./mission-parts.js";
+import { POLL, SLUG, agePart, chip, clockOf, hhmm, hubNow, isCount, meter, notice, prov, readView, shownNow, stamp, statusOf, kindWords, typeWords, whereIs, withMark, words } from "./mission-parts.js";
 
 export const every = POLL;
 
@@ -56,22 +55,26 @@ const DONE = ["done", "verified", "reviewed", "accepted"];
 
 // ---- Overview ----
 
-export function progress(ov, rev, answer) {
-  const c = ov.counts, from = rev?.provenance?.from;
-  const plan = (what) => [prov("imported", { from }), ` ${what}`];
+// "1 trusted · 6 reported of 16"; when none of the parts could be read, only the total, and it says so.
+const evidenceLine = (e) => {
+  const by = parts([[e.trusted, "trusted"], [e.owner, "from you"], [e.reported, "reported"], [e.imported, "imported"]]);
+  return by ? `${by} of ${e.of}` : `${e.of} in all; the breakdown couldn't be read`;
+};
+
+export function progress(ov, answer) {
+  const c = ov.counts;
   const g = c.gates, t = c.tasks, d = c.decisions, e = c.evidence, r = c.risks;
   const stage = ov.stages.find((s) => s.status === "active");
   const state = t?.by_state || {};
   const done = DONE.reduce((n, k) => n + (isCount(state[k]) ? state[k] : 0), 0);
   const rows = [
-    row("Stage", ov.stages.length ? (stage ? `P${stage.n} ${stage.title}` : "No stage is active") : "No stages in this plan",
-      stage ? h("span", {}, prov("imported", { from: stage.provenance?.from })) : null),
-    isCount(g?.met) && isCount(g?.of) ? row("Gates", g.of ? `${g.met} of ${g.of} met` : "No gates in this plan", meter(g.met, g.of, `${g.met} of ${g.of} gates met`), h("span", {}, ...plan(rev ? `Plan, revision ${rev.n}` : "Plan"))) : row("Gates", "Couldn't be read"),
+    row("Stage", ov.stages.length ? (stage ? `P${stage.n} ${stage.title}` : "No stage is active") : "No stages in this plan"),
+    isCount(g?.met) && isCount(g?.of) ? row("Gates", g.of ? `${g.met} of ${g.of} met` : "No gates in this plan", meter(g.met, g.of, `${g.met} of ${g.of} gates met`)) : row("Gates", "Couldn't be read"),
     isCount(t?.of) ? row("Tasks", t.of ? `${parts([[state.active || 0, "active"], [state.blocked || 0, "blocked"], [done, "done"]]) || "None started"} of ${t.of} tasks` : "No tasks in this plan",
       meter(done, t.of, `${done} of ${t.of} tasks done`), isCount(t.reported) && t.reported ? `${t.reported} with a state a session reported` : null) : row("Tasks", "Couldn't be read"),
     d?.state === "ok" && isCount(d.open) ? rowWith(row("Decisions", d.open + d.answered ? `${d.open} open${d.blocking ? ` (${d.blocking} blocking)` : ""} · ${d.answered} answered` : "No decisions yet"),
       d.open ? h("button", { class: "ui-btn", type: "button", onclick: answer }, "Answer them") : null) : row("Decisions", "Couldn't be read"),
-    isCount(e?.of) ? row("Evidence", e.of ? `${parts([[e.trusted, "trusted"], [e.owner, "from you"], [e.reported, "reported"], [e.imported, "imported"]])} of ${e.of}` : "No evidence yet") : row("Evidence", "Couldn't be read"),
+    isCount(e?.of) ? row("Evidence", e.of ? evidenceLine(e) : "No evidence yet") : row("Evidence", "Couldn't be read"),
     isCount(r?.of) ? row("Risks", r.of ? `${parts([[r.open, "open"], [r.mitigated, "mitigated"]]) || "None open"} of ${r.of}` : "No risks in this plan") : row("Risks", "Couldn't be read"),
   ];
   return rows;
@@ -89,24 +92,22 @@ export function executionRow(ex, now, stale) {
   return rowWith(row(ex.title || "A session", meta, h("span", {}, `${s.label} `, mark)), chip([tone, word], s.live));
 }
 
-const eventProv = (ev, from) => (ev.source === "importer" ? prov("imported", { from }) : ev.source === "owner" ? prov("owner")
+const eventProv = (ev) => (ev.source === "owner" ? prov("owner")
   : ev.source === "github" ? prov("trusted", { at: ev.at }) : prov("reported", { at: ev.at }));
 // A reported or checked label carries its own time; an import or an owner's tap has none, so the row says it.
-export const eventRow = (ev, from) => row(ev.text || typeWords(ev.type),
-  h("span", {}, `${ev.source === "importer" || ev.source === "owner" ? `${stamp(ev.at)} · ` : ""}${whereIs(ev.source)}${ev.late ? " · reported late" : ""} `, eventProv(ev, from)));
-
-const manifestFrom = (ov) => (ov.initiative.manifest ? `${ov.initiative.manifest.repo}@${String(ov.initiative.manifest.commit).slice(0, 7)}` : null);
+// The plan says once where it came from, so an import's own row says only when.
+export const eventRow = (ev) => row(ev.text || typeWords(ev.type), h("span", {}, ...(ev.source === "importer" ? [`${stamp(ev.at)} · ${whereIs(ev.source)}`]
+  : ev.source === "owner" ? withMark(stamp(ev.at), eventProv(ev)) : withMark(`${whereIs(ev.source)}${ev.late ? " · reported late" : ""}`, eventProv(ev)))));
 
 function overviewNodes(state, ov, stale, now) {
-  const rev = ov.revision, from = manifestFrom(ov);
   const waiting = ov.proposed.slice(1);
   return [
-    section("Where it stands", h("ul", { class: "ui-rows" }, ...progress(ov, rev, () => select(state, "decisions")))),
+    section("Where it stands", h("ul", { class: "ui-rows" }, ...progress(ov, () => select(state, "decisions")))),
     waiting.length ? section("Revisions waiting", h("ul", { class: "ui-rows" }, ...waiting.map((p) => rowWith(row(`Revision ${p.n}`, "Decide the earlier revision first."),
       h("button", { class: "ui-btn", type: "button", disabled: true }, `Accept revision ${p.n}`))))) : null,
     section("Executions", ov.executions.length ? h("ul", { class: "ui-rows" }, ...ov.executions.map((ex) => executionRow(ex, now, stale)))
       : empty("No session or run is attached to this mission."), { note: "A session says what it is doing; Pi Hub marks it live only while it keeps reporting." }),
-    section("Recent", ov.events.length ? h("ul", { class: "ui-rows" }, ...ov.events.map((ev) => eventRow(ev, from))) : empty("Nothing has happened on this mission yet.")),
+    section("Recent", ov.events.length ? h("ul", { class: "ui-rows" }, ...ov.events.map((ev) => eventRow(ev))) : empty("Nothing has happened on this mission yet.")),
   ];
 }
 
@@ -132,7 +133,7 @@ export function plateOf(state, ov, stale, now) {
   return faceplate({
     name: i.title, lamp: stale ? ["unknown", `Last known: ${word}`] : [tone, word], readout: gates ? `${gates.met} of ${gates.of}` : null, unit: "gates met", size: "md",
     caption: rev ? `Revision ${rev.n}, ${rev.status}${rev.status === "proposed" ? ": imported, not accepted yet" : ""}. ${stale ? "Last read" : "As of"} ${asOf}.` : "No plan has been imported yet.",
-    extra: [prov("imported", { from: (rev?.provenance || i.provenance)?.from }), why ? h("p", { class: "ui-faceplate__caption", role: "status" }, why) : null],
+    extra: [rev ? prov("imported", { from: rev.provenance?.from }) : null, why ? h("p", { class: "ui-faceplate__caption", role: "status" }, why) : null],
     actions: buttons,
   });
 }
@@ -161,8 +162,9 @@ async function decide(state, n, verb, trigger) {
 const answerText = (a) => (Array.isArray(a) ? a.join(", ") : a == null || a === "" ? "No answer recorded" : String(a));
 export function answeredRow(d) {
   const p = d.provenance || {};
-  return row(d.question || "A decision", `Answered: ${answerText(d.answer)}`,
-    h("span", {}, `${stamp(d.when)} `, prov(p.trust || "unavailable", { from: p.from, at: p.at || d.when })));
+  // An imported answer is the plan's (said once on the plate); a live one says who recorded it.
+  return row(d.question || "A decision", `Answered: ${answerText(d.answer)}${p.trust === "imported" ? " · from the imported plan" : ""}`,
+    h("span", {}, ...(p.trust === "imported" ? [stamp(d.when)] : withMark(stamp(d.when), prov(p.trust || "unavailable", { at: p.at || d.when })))));
 }
 
 function decisionsPanel(state, stale) {
@@ -189,10 +191,11 @@ function decisionsPanel(state, stale) {
 
 const TRUST = { trusted: "Trusted: read by Pi Hub", owner: "From you", reported: "Reported by sessions", imported: "Imported from a reviewed file" };
 
+// Its trust and kind are the headings above it. A checked or reported row carries its time in its mark; an imported one
+// (the plan's source is said once on the plate) and an owner's say when.
 export function evidenceRow(r) {
-  const timed = r.trust === "trusted" || r.trust === "reported";  // their label carries the time
-  return row(r.summary || typeWords(r.kind), h("span", {}, `${typeWords(r.kind)} · ${timed ? "" : `${stamp(r.observed_at)} · `}`,
-    prov(r.trust, { from: r.provenance?.from, at: r.observed_at })));
+  const mark = r.trust === "trusted" || r.trust === "reported" ? prov(r.trust, { at: r.observed_at }) : r.trust === "owner" ? prov("owner") : null;
+  return row(r.summary || kindWords(r.kind), h("span", {}, ...(mark ? (r.trust === "owner" ? withMark(stamp(r.observed_at), mark) : [mark]) : [stamp(r.observed_at)])));
 }
 
 function evidencePanel(state) {
@@ -200,15 +203,16 @@ function evidencePanel(state) {
   if (!v?.body) return paint(state.panel, [v?.fail ? failure(state, "evidence") : skeleton()], `e:${v?.fail || ""}`);
   const { evidence: e, events: ev } = v.body;
   const groups = Object.keys(TRUST).map((t) => [t, e.rows.filter((r) => r.trust === t)]).filter(([, rows]) => rows.length);
-  const kinds = (rows) => h("ul", { class: "ui-rows" }, ...rows.map(evidenceRow));
+  const kinds = (rows) => [...new Set(rows.map((r) => r.kind))].map((k) => h("div", {}, h("h4", {}, kindWords(k)),
+    h("ul", { class: "ui-rows" }, ...rows.filter((r) => r.kind === k).map(evidenceRow))));
   paint(state.panel, [
     v.fail ? notice("warn", "Couldn't refresh the evidence. This is the last read.") : null,
     section("Evidence", e.total ? [note(`Showing ${e.rows.length} of ${e.total}, by trust and then kind.`),
-      ...groups.map(([t, rows]) => h("div", {}, h("h3", {}, TRUST[t]), kinds(rows))), e.next != null ? more(state, "evidence", "Show more evidence") : null]
+      ...groups.map(([t, rows]) => h("div", {}, h("h3", {}, TRUST[t]), ...kinds(rows))), e.next != null ? more(state, "evidence", "Show more evidence") : null]
       : empty("No evidence has been recorded for this mission yet.")),
     section("History", [h("ul", { class: "ui-chips", "aria-label": "Show events from" }, ...GROUPS.map(([key, label]) =>
       h("li", {}, h("button", { type: "button", "aria-pressed": String(state.group === key), onclick: () => group(state, key) }, label)))),
-    ev.rows.length ? h("ul", { class: "ui-rows" }, ...ev.rows.map((x) => eventRow(x, manifestFrom(state.views.overview.body)))) : empty(state.group ? "No events in this group." : "No events yet."),
+    ev.rows.length ? h("ul", { class: "ui-rows" }, ...ev.rows.map((x) => eventRow(x))) : empty(state.group ? "No events in this group." : "No events yet."),
     ev.next_before != null ? more(state, "history", "Show earlier events") : null]),
   ], `${state.group}:${e.next}:${ev.next_before}:${state.more || ""}`);
 }
@@ -302,14 +306,14 @@ export function sourcesOf(state, ov) {
 function drawNotice(state, ov, now) {
   const f = state.fail, bad = ov ? ov.sources.filter((s) => s.state !== "ok").map((s) => SOURCE[s.name] || s.name) : [];
   paint(state.notice, [
-    ov && f ? notice("warn", `Couldn't refresh: ${words(f.state)} This is what Pi Hub last said, as of ${hhmm(state.clock.asOf)} (${ageLabel((now - state.clock.local) / 1000)}).`) : null,
+    ov && f ? notice("warn", `Couldn't refresh: ${words(f.state)} This is what Pi Hub last said, as of ${hhmm(state.clock.asOf)}${agePart((now - state.clock.local) / 1000)}.`) : null,
     ...bad.map((n) => notice("warn", `${n} isn't answering. What it adds to this page isn't current.`)),
   ]);
 }
 
 function failure(state, tab) {
   const why = tab ? state.views[tab]?.fail : state.fail?.state, back = h("a", { href: "/missions", "data-link": true }, "Open Missions");
-  return notice("bad", h("strong", {}, tab === "decisions" ? "Decisions can't be read" : tab === "evidence" ? "Evidence can't be read" : "This mission can't be read"), ` ${words(why)} `,
+  return notice("bad", h("strong", {}, tab === "decisions" ? "Decisions can't be read." : tab === "evidence" ? "Evidence can't be read." : "This mission can't be read."), ` ${words(why)} `,
     why === "missing" ? back : why === "refused" ? h("a", { href: "/settings#group-people", "data-link": true }, "Open Settings")
       : h("button", { class: "ui-btn", type: "button", onclick: () => { if (tab) delete state.views[tab]; load(state); } }, "Try again"));
 }
@@ -329,7 +333,9 @@ export function draw(state, now = Date.now()) {
   drawNotice(state, ov, now);
   if (!ov) {
     if (state.fail) {
-      state.plate.replaceChildren(faceplate({ name: "Mission", lamp: ["unknown", "Not read"], caption: "This mission couldn't be read just now." }));
+      // The notice below says it, once; there is no plate of "Not read" beside it.
+      state.plate.replaceChildren();
+      state.sources = [{ name: "Ledger", tone: "bad", word: "can't be read" }];
       state.tabs.hidden = true;
       paint(state.panel, [failure(state)], `o:${state.fail.state}`);
     }

@@ -345,9 +345,10 @@ test('Overview: recent events say who and when, with a source label each, and te
   assert.equal(rows.length, 5);
   assert.match(text(rows[0]), /<img src=x onerror=alert\(1\)>/);
   assert.equal(k.root.querySelectorAll('img').length, 0);
-  assert.match(text(rows[1]), /Revision accepted.*You.*Recorded by you/);
-  assert.match(text(rows[2]), new RegExp(`Import.*Imported from ${FROM}`));
-  assert.match(text(rows[3]), /GitHub.*Checked/);
+  assert.match(text(rows[1]), /Revision accepted.*Recorded by you/);
+  assert.match(text(rows[2]), /Revision proposed.*Import/);
+  assert.doesNotMatch(text(rows[2]), /Imported from/, 'the plan says where it came from once');
+  assert.match(text(rows[3]), /GitHub · .*Checked/);
   assert.match(text(rows[4]), /Claude Code · reported late.*Reported/);
 }));
 
@@ -507,7 +508,8 @@ test('Decisions: the open ones through the kit\'s group, then the answered ones 
   const answered = k.root.querySelectorAll('.mission-answered .ui-row');
   assert.equal(answered.length, 2);
   assert.match(text(answered[0]), /Where does Activity live\?.*Answered: System.*Recorded by you/);
-  assert.match(text(answered[1]), new RegExp(`Pick the stage order.*Answered: P0, P1.*Imported from ${FROM}`));
+  assert.match(text(answered[1]), /Pick the stage order.*Answered: P0, P1.*from the imported plan/);
+  assert.doesNotMatch(text(answered[1]), /Imported from azmusgb/);
   assert.match(k.panel(), /Answered \(2\)/);
 }));
 
@@ -596,14 +598,15 @@ test('Evidence: by trust, then kind, each row with its provenance; the history b
   const heads = k.root.querySelectorAll('#mission-panel h3').map(text);
   assert.deepEqual(heads, ['Trusted: read by Pi Hub', 'Reported by sessions', 'Imported from a reviewed file']);
   const rows = k.root.querySelectorAll('.ui-section')[0].querySelectorAll('.ui-row');
-  assert.match(text(rows[0]), /Release 653dc50 is live.*Release.*Checked 09:40/);
+  assert.match(text(rows[0]), /Release 653dc50 is live.*Checked 09:40/);
   assert.match(text(rows[1]), /PR #315 opened.*Reported 09:40/);
-  assert.match(text(rows[2]), new RegExp(`Plan imported.*Imported from ${FROM}`));
+  assert.doesNotMatch(text(rows[2]), /Imported from/);
   assert.match(k.panel(), /Showing 3 of 3, by trust and then kind\./);
   assert.deepEqual(k.root.querySelectorAll('.ui-chips button').map(text), ['All events', 'Sessions', 'Imports', 'Owner', 'Decisions', 'GitHub']);
   assert.equal(k.root.querySelector('.ui-chips [aria-pressed="true"]').textContent, 'All events');
   const history = k.root.querySelectorAll('.ui-section')[1].querySelectorAll('.ui-row');
-  assert.match(text(history[1]), new RegExp(`Revision proposed.*Import.*Imported from ${FROM}`));
+  assert.match(text(history[1]), /Revision proposed.*Import/);
+  assert.doesNotMatch(text(history[1]), /Imported from/);
 }));
 
 test('Evidence: no evidence is said, and is not an error', () => withPage(hub({ evidence: evidence({ evidence: { rows: [], total: 0, next: null }, events: { rows: [], next_before: null, group: null } }) }), { search: '?tab=evidence' }, async (k) => {
@@ -737,3 +740,76 @@ test('Versions opens Missions from a card named and described by the page list',
     assert.match(text(card), new RegExp(SITE.page('missions').purpose));
   } finally { dom.uninstall(); }
 });
+
+
+// ---- the H7 gate notes (qa-release, ui-ux-reviewer) ----
+
+test('a mission with no plan is not labelled Imported, in the list or on its plate', async () => {
+  await withPage(hub({ list: list({ missions: [{ id: 'b1', title: 'B1', status: 'proposed', revision: null, decisions: { state: 'ok', open: 0, blocking: 0, answered: 0 }, provenance: { trust: 'imported', source: 'importer', from: null } }] }) }),
+    { path: '/missions', page: 'missions.js' }, async (k) => {
+      await k.load();
+      assert.doesNotMatch(k.all(), /Imported/);
+      assert.equal(k.root.querySelectorAll('.ui-prov').length, 0);
+    });
+  await withPage(hub({ overview: overview({ revision: null, proposed: [], initiative: { ...overview().initiative, manifest: null } }) }), {}, async (k) => {
+    await k.load();
+    assert.doesNotMatch(text(k.root.querySelector('.ui-faceplate')), /Imported/);
+    assert.equal(k.root.querySelectorAll('.ui-faceplate .ui-prov').length, 0);
+    assert.match(text(k.root.querySelector('.ui-faceplate')), /No plan has been imported yet\./);
+  });
+});
+
+test('the plan\'s source is said once on Overview (the plate); rows say only what differs from it', () => withPage(hub(), {}, async (k) => {
+  await k.load();
+  assert.equal((k.all().match(/Imported from/g) || []).length, 1);
+  assert.match(text(k.root.querySelector('.ui-faceplate')), new RegExp(`Imported from ${FROM}`));
+  assert.doesNotMatch(k.panel(), /Plan, revision/);
+  const gates = k.root.querySelectorAll('.ui-row--lamp').find((r) => text(r.querySelector('.ui-row__title')) === 'Gates');
+  assert.deepEqual(gates.querySelectorAll('.ui-row__detail').map((d) => d.querySelector('.ui-meter') ? 'meter' : text(d)), ['0 of 7 met', 'meter'], 'the meter sits under its figure');
+}));
+
+test('Evidence: kinds are words, grouped under their trust, and Overview\'s evidence line with no breakdown says so', async () => {
+  await withPage(hub({ evidence: evidence({ evidence: { rows: [ev('e2', 'reported', 'doc', 'A note'), ev('e1', 'reported', 'pr', 'PR #315 opened'), ev('e3', 'reported', 'pr', 'PR #316 opened')], total: 3, next: null } }) }), { search: '?tab=evidence' }, async (k) => {
+    await k.load();
+    const kinds = k.root.querySelectorAll('#mission-panel h4').map(text);
+    assert.deepEqual(kinds, ['Document', 'Pull request'], 'one heading per kind, under the trust heading');
+    assert.doesNotMatch(k.panel(), /\bPr\b|\bDoc\b/);
+  });
+  await withPage(hub({ overview: overview({ counts: { ...overview().counts, evidence: { of: 5 } } }) }), {}, async (k) => {
+    await k.load();
+    assert.match(k.panel(), /Evidence.*5 in all; the breakdown couldn't be read/);
+    assert.doesNotMatch(k.panel(), /Evidence.* of 5/);
+  });
+});
+
+test('an unreadable mission draws the Sources line, one statement, and a full stop before the reason', async () => {
+  await withPage(hub({ overview: fail(503) }), {}, async (k) => {
+    await k.load();
+    assert.deepEqual(k.state.sources, [{ name: 'Ledger', tone: 'bad', word: "can't be read" }]);
+    assert.match(k.all(), /This mission can't be read\. The ledger can't be read\./);
+    assert.equal(k.root.querySelectorAll('.ui-faceplate').length, 0, 'no "Not read" plate beside the notice that says it');
+  });
+  await withPage(hub({ list: fail(503) }), { path: '/missions', page: 'missions.js' }, async (k) => {
+    await k.load();
+    assert.match(k.all(), /Missions can't be read\. The ledger can't be read\./);
+    assert.equal(k.root.querySelectorAll('.ui-faceplate').length, 0);
+  });
+});
+
+test('the stale notice leaves the age out under a minute and gives it after', () => {
+  let down = false;
+  return withPage(hub({ changes: () => (down ? fail(503) : changes()) }), {}, async (k) => {
+    await k.load();
+    down = true;
+    await k.load();
+    assert.match(k.all(), /as of 09:41\)?\./);
+    assert.doesNotMatch(k.all(), /second/);
+    k.mod.draw(k.state, k.state.clock.local + 150_000);
+    assert.match(k.all(), /as of 09:41 \(2 minutes ago\)\./);
+  });
+});
+
+test('event rows keep their source and their mark apart', () => withPage(hub(), {}, async (k) => {
+  await k.load();
+  assert.match(k.all(), /Claude Code · Reported \d\d:\d\d/);
+}));

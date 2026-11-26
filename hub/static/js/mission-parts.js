@@ -3,6 +3,7 @@
 // count with its denominator). Nothing here makes up a number: a read that failed or can't be told is its own state,
 // never 0, empty or idle, and a freshness claim is only made while the page can still stand behind it.
 import { api, h } from "./core.js";
+import { ageLabel } from "./freshness.js";
 
 export const CONTRACT = 1;         // the `version` the hub's bodies carry (hub/missions/views.py head())
 export const WINDOW_MS = 120_000;  // a session is live this long after its last report (§7.5; hub/missions/shown.py WINDOW)
@@ -81,6 +82,14 @@ export function shownNow(ex, now, stale = false) {
 
 const WHERE = { claude: "Claude Code", localai: "Local AI", importer: "Import", owner: "You", github: "GitHub" };
 export const whereIs = (source) => WHERE[source] || String(source || "A source");
+// Seconds as "(n minutes ago)" for a notice, and nothing under a minute: "1 second ago" says nothing a page that just
+// failed can use.
+export const agePart = (seconds) => (seconds < 60 ? "" : ` (${ageLabel(seconds)})`);
+// An evidence row's kind in words (the hub's kinds are short codes).
+const KINDS = { pr: "Pull request", doc: "Document", release: "Release", check: "Check", commit: "Commit", test: "Test run", review: "Review", note: "Note", issue: "Issue" };
+export const kindWords = (k) => KINDS[k] || typeWords(k);
+// A label, then its mark, kept apart.
+export const withMark = (text, mark) => (text ? [`${text} · `, mark] : [mark]);
 export const typeWords = (t) => { const s = String(t || "").replace(/[._]/g, " ").trim(); return s ? s[0].toUpperCase() + s.slice(1) : "An event"; };
 
 // Where a fact came from, as the kit's one label (ApplianceNeeds.provenance). `trust`: imported, trusted (read by Pi

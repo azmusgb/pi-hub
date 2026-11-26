@@ -3,9 +3,8 @@
 // time; the last rows with how old they are when a refresh fails; "No missions yet" only when the ledger said so;
 // "Missions can't be read" when it can't (not the owner, the ledger down, the hub silent, a newer contract).
 import { h } from "./core.js";
-import { ageLabel } from "./freshness.js";
 import { faceplate, faceplateLoading, section } from "./page-parts.js";
-import { POLL, SLUG, chip, clockOf, hhmm, hubNow, isCount, notice, prov, readView, statusOf, words } from "./mission-parts.js";
+import { POLL, SLUG, agePart, chip, clockOf, hhmm, hubNow, isCount, notice, prov, readView, statusOf, words } from "./mission-parts.js";
 
 export const every = POLL;
 
@@ -25,7 +24,7 @@ function rowEl(m) {
   const to = SLUG.test(m.id) ? `/missions/${m.id}` : null;
   const body = [
     h("span", { class: "ui-row__name" }, h("span", { class: "ui-row__title" }, m.title), chip(statusOf(m.status))),
-    h("span", { class: "ui-row__detail" }, prov("imported", { from: (rev?.provenance || m.provenance)?.from }), ` · ${[plan, decisions].filter(Boolean).join(" · ")}`),
+    h("span", { class: "ui-row__detail" }, ...(rev ? [prov("imported", { from: rev.provenance?.from }), " · "] : []), [plan, decisions].filter(Boolean).join(" · ")),
     open ? h("span", { class: "ui-row__figure" }, String(open), h("small", {}, open === 1 ? "open decision" : "open decisions")) : null,
   ];
   return h("li", {}, to ? h("a", { class: "ui-row", href: to, "data-link": true }, ...body) : h("div", { class: "ui-row" }, ...body));
@@ -34,7 +33,6 @@ function rowEl(m) {
 // The page's one panel. A decisions table that couldn't be read is said, never counted as nothing waiting.
 export function listPlate(rows) {
   const caption = "Each mission is a plan imported from a reviewed file, with what sessions report against it.";
-  if (!rows) return faceplate({ name: "Missions", lamp: ["unknown", "Not read"], caption: "Missions couldn't be read just now." });
   if (!rows.length) return faceplate({ name: "Missions", lamp: ["unknown", "None yet"], caption: "A plan imported with home-mission import appears here." });
   const open = rows.reduce((n, m) => n + (openOf(m) || 0), 0), unread = rows.filter((m) => openOf(m) === null).length;
   const lamp = unread ? ["unknown", "Decisions not read"] : open ? ["warn", `${open} decision${open === 1 ? "" : "s"} open`] : ["ok", "Nothing waiting for you"];
@@ -52,12 +50,13 @@ function draw(state) {
   const { body, fail } = state;
   const rows = body && (!fail || KEEP.has(fail.state)) ? body.missions : null;
   const asOf = state.clock ? hhmm(state.clock.asOf) : "";
-  state.plate.replaceChildren(listPlate(rows));
-  state.notice.replaceChildren(...(rows && fail ? [notice("warn", `Couldn't refresh. This is what Pi Hub last said, as of ${asOf} (${ageLabel((hubNow(state.clock) - state.clock.asOf) / 1000)}).`)] : []));
+  // With nothing to read there is no plate: the notice below says it, once.
+  state.plate.replaceChildren(...(rows ? [listPlate(rows)] : []));
+  state.notice.replaceChildren(...(rows && fail ? [notice("warn", `Couldn't refresh. This is what Pi Hub last said, as of ${asOf}${agePart((hubNow(state.clock) - state.clock.asOf) / 1000)}.`)] : []));
   if (rows?.length) state.list.replaceChildren(section("Missions", h("ul", { class: "ui-rows ui-rows--grid" }, ...rows.map(rowEl))));
   else if (rows) state.list.replaceChildren(h("p", { class: "ui-empty" }, "No missions yet"));
   else {
-    state.list.replaceChildren(section("Missions", notice("bad", h("strong", {}, "Missions can't be read"), ` ${words(fail.state)} `,
+    state.list.replaceChildren(section("Missions", notice("bad", h("strong", {}, "Missions can't be read."), ` ${words(fail.state)} `,
       fail.state === "refused" ? h("a", { href: "/settings#group-people", "data-link": true }, "Open Settings")
         : h("button", { class: "ui-btn", type: "button", onclick: () => load(state) }, "Try again"))));
   }
