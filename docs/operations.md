@@ -309,6 +309,24 @@ their rotation, every failure message with its next action, backup, rollback (`H
 [`docs/quick-print.md`](quick-print.md). It is accepted only when the owner-attended print (plan P10) is recorded here as
 "Accepted <date>" with its evidence.
 
+## Spoken readout (A37) step 2, the Printer pilot: merged, live and runtime verified, not yet accepted
+
+Amendment A37, plan `docs/superpowers/plans/2026-11-25-a37-printer-pilot.md`. Workshop > Printer says its reading in the
+head, and the faceplate is the plate.
+
+- **Merged:** PR A #352 (`affbe94`, the card's `percent` and `since`) and PR B #355 (`a75771f`, the page).
+- **Deployed:** both are in release `54d0b0b`, live since 26 Nov 2026 21:35.
+- **Runtime verified 27 Nov 2026 00:10** (plan B5), read-only and signed out against the live hub while the X2D was
+  printing, at 390 x 844, 1024 x 1366 and 1440 x 900: the head said "The X2D is 41% through Rift10 pair70 clean x2d with
+  hbs. About 12 h 8 min left, done around 12:15 PM."; the h1's name began "Printer:"; no purpose line; the plate had its
+  lamp, job line and meter and no readout; nothing overflowed sideways; no page errors. The live card carried `percent`
+  41.0. The read is written in full on #355.
+- **Not seen live:** the owner's Pause button (signed out), a paused, finished, stale or offline printer (those are in
+  `tests/browser/printer-say.mjs` only), a real iPhone or iPad, the installed app, VoiceOver.
+- **Not yet accepted.** The gate is the owner's: use the live page on the phone, the iPad and the laptop through at
+  least one print and one idle spell, then say go or stop. Stop reverts #355 alone. It is recorded here as
+  "Accepted <date>" or "Stopped <date>" with what the owner said.
+
 ## One site (A22)
 
 Amendment A22 (`docs/superpowers/specs/2026-11-11-amendment-a22-one-site.md`) is built as baseline steps 11 to 16.
