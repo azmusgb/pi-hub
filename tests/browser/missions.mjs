@@ -59,6 +59,26 @@ for (const [width, height] of WIDTHS) {
   }
 }
 
+// 1b. The breadcrumb is a row of the page's grid: from its box to the plate under it is the grid's row gap and nothing
+// more (kit audit of 26 Nov, row 4: its own bottom margin was added to the gap, and so was the empty notice's row).
+for (const [width, height] of [[390, 844], [1366, 900]]) {
+  const { ctx, page } = await newPage(width, height, 'light');
+  await visit(page, '/missions/a34', `trail ${width}`);
+  const m = await page.evaluate(() => {
+    const trail = document.querySelector('#view .page > .page-trail');
+    if (!trail) return null;
+    let next = trail.nextElementSibling;
+    // The first sibling that is drawn: an empty slot (the notice with nothing to say) must not hold a row of its own.
+    while (next && !next.getBoundingClientRect().height) next = next.nextElementSibling;
+    if (!next) return null;
+    return { gap: next.getBoundingClientRect().top - trail.getBoundingClientRect().bottom, rowGap: parseFloat(getComputedStyle(trail.parentElement).rowGap) };
+  });
+  if (!m) problems.push(`trail ${width}: no breadcrumb with a drawn sibling under it in .page`);
+  else if (!(m.rowGap > 0) || Math.abs(m.gap - m.rowGap) > 0.5) problems.push(`trail ${width}: ${m.gap.toFixed(1)} px from the breadcrumb to what follows; the page's row gap is ${m.rowGap.toFixed(1)} px`);
+  else console.log(`trail ${width}: ${m.gap.toFixed(1)} px from the breadcrumb to what follows, the page's row gap`);
+  await ctx.close();
+}
+
 // 2. Keyboard only: reach Accept, record it, then the tabs.
 {
   const { ctx, page } = await newPage(1366, 900, 'light');
