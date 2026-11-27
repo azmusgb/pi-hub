@@ -4,6 +4,7 @@
 import { labFetch, watchRequests } from "./lab-net.js";
 import { attachLabStore } from "./lab-store.js";
 import { isStale } from "./lab-refresh.js";
+import { phrase } from "./sections.js";
 
 const list = (v) => (Array.isArray(v) ? v : []);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -180,9 +181,10 @@ export function faceplateModel(ix) {
   return { run: ownRun, experiment, question, reference: productionState(ix), needs, next };
 }
 
-// Each need's verb (the kit's phrase words, A7 P2): never "Open" alone.
-const NEED_VERB = { "Judge the print": "Judge it", "Approve or drop": "Approve or drop",
-  "Send it to the printer": "Send it to the printer", "Fix the plan": "Fix the plan" };
+// Each need's verb (A7 P2): never "Open" alone. The keys are print-lab's actions as its index sends them; the values
+// are keys in the kit's phrase table, whose words are read when the faceplate is drawn.
+const NEED_VERB = { "Judge the print": "judge_it", "Approve or drop": "approve",
+  "Send it to the printer": "send", "Fix the plan": "fix_plan" };
 const EXP_WORD = { planned: "Planned", built: "Built", build_failed: "Build failed", ready: "Ready to print",
   needs_approval: "Needs your approval", approved: "Approved", printing: "Printing", answered: "Answered", abandoned: "Abandoned" };
 const clock = (iso) => {
@@ -229,7 +231,7 @@ export function labFaceplateHtml(ix, { stale = false, syncedAt = null } = {}) {
     ["Production", production],
   ].filter(([, v]) => v);
   const id = esc(experiment.id);
-  const verb = next && NEED_VERB[next.action];
+  const verb = next && Object.hasOwn(NEED_VERB, next.action) && phrase(NEED_VERB[next.action]);
   const action = !verb ? ""
     : next.action === "Judge the print" && list(experiment.criteria).length
       ? `<button type="button" class="ui-btn ui-btn--primary lab-record-verdict" data-exp="${id}">${esc(verb)}</button>`
