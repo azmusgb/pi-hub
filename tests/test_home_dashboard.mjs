@@ -459,6 +459,18 @@ test("the Pi row says when its record or its self-check didn't answer", () => {
   assert.deepEqual(r.readings.find((x) => x.label === "Self-check"), { label: "Self-check", value: "Not answering", warn: true });
 });
 
+test("a stale paused print's Needs you row is worded as its last reading, and stays an ask", () => {
+  const rec = { id: "printer", state: "paused", severity: "attention", headline: "Bambu X2D: paused", stale: true,
+    cause: "Bambuddy not answering since 14:00; last read 12 min ago." };
+  const [row] = mergeProblems([rec], null);
+  assert.equal(row.itemKind, "ask");
+  assert.doesNotMatch(row.title, /: paused$/);
+  assert.match(row.title, /^Bambu X2D was paused when last read$/);
+  assert.match(row.detail, /last read 12 min ago/);
+  const [fresh] = mergeProblems([{ ...rec, stale: false }], null);
+  assert.equal(fresh.title, "Bambu X2D: paused", "a fresh reading keeps the present tense");
+});
+
 test("a stale printer record says when it was last seen and offers no buttons", () => {
   const rows = rackRows({ now: { printer: {} }, nowTs: START + 3600,
     records: [{ id: "printer", state: "printing", severity: "ok", stale: true, as_of: START + 60, actions: [{ name: "pause" }] }] });

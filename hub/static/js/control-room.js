@@ -146,6 +146,11 @@ export function printerNow(r, nowMs = Date.now()) {
 export function recordTitle(r) {
   const label = RECORD_LABELS[r.id] || r.id;
   const said = r.headline || r.state || "";
+  // A held or running print whose source went quiet is its last reading, not the present (DESIGN.md Honest states):
+  // "was paused", never "paused". Its detail says how long ago.
+  if (r.id === "printer" && r.stale && (r.state === "paused" || r.state === "printing")) {
+    return `${label} was ${r.state} when last read`;
+  }
   return said.toLowerCase().startsWith(label.toLowerCase()) ? said : `${label}: ${said}`;
 }
 
