@@ -10,7 +10,7 @@ import { bandFits, bandLayout, countItems, dialHit, dialLayout, dialWords, markW
   from "../hub/static/js/home-dashboard.js";
 import * as controlRoom from "../hub/static/js/control-room.js";
 
-const { mergeProblems, problemsBadge } = controlRoom;
+const { mergeProblems, problemsBadge, recordTone } = controlRoom;
 const START = 1_793_854_800;  // a local midnight; the day's own bounds are what the band uses
 const day = (over = {}) => ({
   day: "2026-11-05", start: START, end: START + 86_400, now: START + 15.5 * 3600,
@@ -469,6 +469,27 @@ test("the Pi row says when its record or its self-check didn't answer", () => {
   assert.equal(pi({ records: null, pi: {} }).state, "Pi Hub's record list isn't answering");
   const r = pi({ records: [{ id: "pi", state: "ok", severity: "ok" }], pi: null });
   assert.deepEqual(r.readings.find((x) => x.label === "Self-check"), { label: "Self-check", value: "Not answering", warn: true });
+});
+
+test("an unread record's words say Not reported, never Fine or Backed up; a worse one beside it still wins", () => {
+  const row = (records, id, src = {}) => rackRows({ now: {}, nowTs: START + 3600, records, pi: { storage: [] }, backups: { available: true, repos: [] }, ...src }).find((r) => r.id === id);
+  for (const sev of [undefined, "fine"]) {
+    const pi = row([{ id: "pi", state: "ok", severity: sev }], "pi");
+    assert.deepEqual([pi.lamp, pi.state, pi.chip], ["unknown", "Not reported", "Not reported"], `pi ${sev}`);
+    const net = row([{ id: "internet", state: "ok", severity: "ok" }, { id: "pc", state: "on", severity: sev }], "network");
+    assert.deepEqual([net.lamp, net.state, net.chip], ["unknown", "Not reported", "Not reported"], `network ${sev}`);
+    const st = row([{ id: "backups", state: "ok", severity: sev }], "storage");
+    assert.deepEqual([st.lamp, st.state, st.chip], ["unknown", "Not reported", "Not reported"], `storage ${sev}`);
+  }
+  assert.equal(row([{ id: "pi", state: "ok", severity: "ok" }], "pi").state, "Fine");
+  assert.equal(row([{ id: "backups", state: "ok", severity: "ok" }], "storage").state, "Backed up");
+  const net = row([{ id: "internet", state: "down", severity: "problem" }, { id: "pc", state: "on" }], "network");
+  assert.deepEqual([net.lamp, net.state], ["bad", "Internet: Down"], "the worse network record wins over the unread one");
+  const st = row([{ id: "backups", state: "ok" }, { id: "movies_drive", state: "x", severity: "attention", headline: "Movies drive missing" }], "storage");
+  assert.deepEqual([st.lamp, st.state, st.chip], ["warn", "Movies drive missing", "Movies drive missing"], "the worse storage record wins");
+  assert.equal(recordTone("fine"), "unknown");
+  assert.equal(recordTone(undefined), "unknown");
+  assert.equal(recordTone("ok"), "ok");
 });
 
 test("a stale paused print's Needs you row is worded as its last reading, and stays an ask", () => {

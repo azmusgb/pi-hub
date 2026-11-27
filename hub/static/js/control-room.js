@@ -84,7 +84,7 @@ const FIX_MAP = {
 export function recordTone(severity) {
   if (severity === "problem" || severity === "bad") return "bad";
   if (severity === "attention" || severity === "warn") return "warn";
-  return "ok";
+  return severity === "ok" ? "ok" : "unknown"; // missing or unrecognised is unread, never fine
 }
 
 // Which records belong in NOW (active or unusual) vs the collapsed "All else OK" line.
