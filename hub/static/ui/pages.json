@@ -387,8 +387,7 @@
     "card:versions",
     "palette",
     "map"
-   ],
-   "built": false
+   ]
   },
   {
    "id": "mission",
@@ -401,8 +400,7 @@
    "parent": "versions",
    "reach": [
     "card:missions"
-   ],
-   "built": false
+   ]
   },
   {
    "id": "alerts",

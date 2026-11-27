@@ -1,0 +1,114 @@
+{
+ "version": 1,
+ "as_of": "2026-11-26T09:41:00+00:00",
+ "seq": 31,
+ "view": "evidence",
+ "evidence": {
+  "rows": [
+   {
+    "id": "e1",
+    "kind": "release",
+    "trust": "trusted",
+    "source": "github",
+    "summary": "Release 653dc50 is live; the tests took 880 s",
+    "observed_at": "2026-11-26T09:36:00+00:00",
+    "data": {},
+    "provenance": {
+     "trust": "reported",
+     "source": "github",
+     "at": "2026-11-26T09:36:00+00:00"
+    }
+   },
+   {
+    "id": "e2",
+    "kind": "pr",
+    "trust": "reported",
+    "source": "github",
+    "summary": "PR #315 opened: speed up the release tests",
+    "observed_at": "2026-11-26T09:12:00+00:00",
+    "data": {},
+    "provenance": {
+     "trust": "reported",
+     "source": "github",
+     "at": "2026-11-26T09:12:00+00:00"
+    }
+   },
+   {
+    "id": "e3",
+    "kind": "doc",
+    "trust": "imported",
+    "source": "importer",
+    "summary": "The A34 plan, 41 rows, from the manifest",
+    "observed_at": "2026-11-26T08:41:00+00:00",
+    "data": {},
+    "provenance": {
+     "trust": "imported",
+     "source": "importer",
+     "from": "azmusgb/pi-hub@4ef3c14"
+    }
+   },
+   {
+    "id": "e4",
+    "kind": "pr",
+    "trust": "imported",
+    "source": "importer",
+    "summary": "PR #301 merged: header fix",
+    "observed_at": "2026-11-26T08:40:00+00:00",
+    "data": {},
+    "provenance": {
+     "trust": "imported",
+     "source": "importer",
+     "from": "azmusgb/pi-hub@4ef3c14"
+    }
+   }
+  ],
+  "total": 4,
+  "next": null
+ },
+ "events": {
+  "rows": [
+   {
+    "seq": 31,
+    "at": "2026-11-26T09:40:00+00:00",
+    "received_at": "2026-11-26T09:40:00+00:00",
+    "source": "claude",
+    "type": "task.started",
+    "entity": null,
+    "late": false,
+    "text": "Started the release test timing fix"
+   },
+   {
+    "seq": 30,
+    "at": "2026-11-26T09:12:00+00:00",
+    "received_at": "2026-11-26T09:12:00+00:00",
+    "source": "claude",
+    "type": "session.attached",
+    "entity": null,
+    "late": false,
+    "text": "Claude Code attached to a34"
+   },
+   {
+    "seq": 29,
+    "at": "2026-11-26T08:41:00+00:00",
+    "received_at": "2026-11-26T08:41:00+00:00",
+    "source": "importer",
+    "type": "revision.proposed",
+    "entity": null,
+    "late": false,
+    "text": null
+   },
+   {
+    "seq": 28,
+    "at": "2026-11-26T08:40:00+00:00",
+    "received_at": "2026-11-26T08:40:00+00:00",
+    "source": "importer",
+    "type": "initiative.imported",
+    "entity": null,
+    "late": false,
+    "text": "A34 imported from azmusgb/pi-hub@4ef3c14"
+   }
+  ],
+  "next_before": null,
+  "group": null
+ }
+}

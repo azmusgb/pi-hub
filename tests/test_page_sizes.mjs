@@ -368,7 +368,10 @@ test('the Site map page shows a link to every route and every registry tool', as
     mount({ root });
     const links = root.querySelectorAll('a').map((a) => a.getAttribute('href'));
     assert.ok(ROUTES.pages.length > 10 && TOOLS.length > 5, 'the lists the map is drawn from are not empty');
-    for (const p of ROUTES.pages) assert.ok(links.includes(p), `page ${p}`);
+    // A templated address (`/missions/<initiative>`) has no ⌘K or Site map row of its own (kit 2.33): its rows are the
+    // pages that link to it.
+    for (const p of ROUTES.pages.filter((x) => !x.includes('<'))) assert.ok(links.includes(p), `page ${p}`);
+    assert.ok(!links.some((l) => l.includes('<')), 'no row for a templated address');
     for (const t of TOOLS.filter((x) => !x.boundary)) assert.ok(links.includes(toolUrl(t.id)), `tool ${t.id}`);
     const body = text(root);
     for (const t of TOOLS.filter((x) => x.boundary)) assert.ok(body.includes(t.name), `machine-facing ${t.id} is named`);

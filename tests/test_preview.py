@@ -99,6 +99,20 @@ def test_a_fixture_answers_before_the_hub_and_cannot_escape_its_folder(hub):
     assert _Upstream.seen and code in (200, 404)  # forwarded, not read from outside the fixture
 
 
+def test_a_fixture_can_answer_one_body_per_view(hub, tmp_path):
+    fixture = tmp_path / "fixture"
+    (fixture / "missions").mkdir()
+    (fixture / "missions" / "a34.json").write_text('{"view": "overview"}')
+    (fixture / "missions" / "a34--decisions.json").write_text('{"view": "decisions"}')
+    assert json.loads(_call(hub + "/api/missions/a34")[1]) == {"view": "overview"}
+    assert json.loads(_call(hub + "/api/missions/a34?view=overview")[1]) == {"view": "overview"}
+    assert json.loads(_call(hub + "/api/missions/a34?view=decisions&limit=25")[1]) == {"view": "decisions"}
+    assert _Upstream.seen == []
+    # a view that isn't a plain word never names a file: it falls back to the route's own
+    assert json.loads(_call(hub + "/api/missions/a34?view=..%2Fa34")[1]) == {"view": "overview"}
+    assert _Upstream.seen == []
+
+
 def test_static_files_page_routes_and_the_stream(hub):
     assert _call(hub + "/static/js/app.js") == (200, b"export {};")
     assert _call(hub + "/workshop")[1].startswith(b"<!doctype html><title>shell")

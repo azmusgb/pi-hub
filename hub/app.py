@@ -1617,8 +1617,16 @@ ASSISTANT_PAGES = frozenset({"/assistant/status", "/assistant/models"})
 ASSISTANT_RUN = re.compile(r"/assistant/run/" + assistant_api.RUN_ID.pattern)
 
 
+def _is_mission_path(path: str) -> bool:
+    """/missions/<initiative>: the kit's templated address (pages.json `mission`), matched as a pattern, its id as the
+    ledger takes it (hub/missions/contract.py slug)."""
+    head, _, slug = path.rpartition("/")
+    return head == "/missions" and mission_routes.CURRENT.valid_slug(slug)
+
+
 def _is_shell_path(path: str) -> bool:
-    return path in SHELL_PATHS or path in ASSISTANT_PAGES or bool(ASSISTANT_RUN.fullmatch(path))
+    return (path in SHELL_PATHS or path in ASSISTANT_PAGES or bool(ASSISTANT_RUN.fullmatch(path))
+            or _is_mission_path(path))
 
 
 SHELL_PATHS = _shell_paths()
