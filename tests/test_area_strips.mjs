@@ -17,7 +17,7 @@ const hrefs = (key) => strip(key).items.map((i) => i.href);
 const stripItems = (path) => SITE.stripFor(path)?.items ?? null;
 const heading = (path) => { const { heading: h, title } = SITE.headingFor(path); return { heading: h, title }; };
 // The pages main.js draws, read from its source (importing it would start the app).
-const drawn = () => [...read('hub/static/js/main.js').matchAll(/^  "(\/[a-z]*)": \["[a-z-]+", [A-Za-z]+\],$/gm)].map((m) => m[1]);
+const drawn = () => [...read('hub/static/js/main.js').matchAll(/^  "(\/[a-z]*(?:\/<[a-z]+>)?)": \["[a-z-]+", [A-Za-z]+\],$/gm)].map((m) => m[1]);
 
 test('each area has its strip, with the approved names in the approved order', () => {
   assert.deepEqual(AREAS.map((a) => a.id), ['workshop', 'household', 'network', 'system']);
@@ -34,9 +34,12 @@ test('every strip page belongs to the area of its strip', () => {
   for (const { id } of AREAS) for (const href of hrefs(id)) assert.equal(sectionFor(href), id, href);
 });
 
-test('no page is hidden: every page is on a strip, except Home, the wall and the Assistant (level 0, A4)', () => {
+test('no page is hidden: every page is on a strip, except Home, the wall, the Assistant (level 0, A4) and a detail opened from a card', () => {
   const on = new Set(AREAS.flatMap((a) => hrefs(a.id)));
-  assert.deepEqual(drawn().filter((p) => !on.has(p)).sort(), ['/', '/assistant', '/wall']);
+  // A detail is reached from a card on its parent (kit 2.26: Versions' Missions card and its rows), never from a strip.
+  const details = SITE.rows.filter((p) => p.role === 'detail').map((p) => p.path);
+  assert.deepEqual(details, ['/missions', '/missions/<initiative>']);
+  assert.deepEqual(drawn().filter((p) => !on.has(p)).sort(), ['/', '/assistant', '/wall', ...details].sort());
 });
 
 test('the strip marks the current page and nothing else, on every strip page', () => {
@@ -188,7 +191,8 @@ test('the Site map lists every page and every registry tool, built from the page
   const { siteMap } = await import('../hub/static/js/map.js');
   const map = siteMap();
   const links = map.flatMap((g) => g.pages.map((p) => p.href));
-  for (const p of drawn()) assert.ok(links.includes(p), `page ${p}`);
+  // A templated address has no Site map row (kit 2.33): the page that links to it is its way in.
+  for (const p of drawn().filter((x) => !x.includes('<'))) assert.ok(links.includes(p), `page ${p}`);
   const listed = map.flatMap((g) => g.tools.map((t) => t.id));
   for (const t of TOOLS) assert.ok(listed.includes(t.id), `tool ${t.id}`);
   for (const g of map) for (const p of g.pages) assert.ok(p.label && !p.label.startsWith('/'), `${p.href} has a name`);

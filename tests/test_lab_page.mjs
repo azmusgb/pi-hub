@@ -459,3 +459,18 @@ test('holdLine says what the start is waiting for, with the bed when known', () 
     'Waiting for the bed to cool (now 41 °C; it needs under 35). E-027 starts by itself, and gives up after 45 minutes.');
   assert.match(holdLine({ experiment: 'E-027', bed: null }), /^Waiting for the bed to cool\. E-027 starts by itself, and gives up after 45 minutes\.$/);
 });
+
+// appliance-ui kit audit row 8: "Nothing needs you right now." is the kit's line (ui/needs.js renderList). The section
+// is hidden with nothing waiting, so the page draws no empty line there at all, and lab.js keeps no copy of the words.
+test('nothing waiting: the hidden Needs you here section holds its heading alone, and lab.js keeps no copy of the kit\'s empty line', async () => {
+  await import('./helpers/kit.mjs');
+  const kitEmpty = globalThis.ApplianceNeeds.renderList([], { doc: { createElement: () => ({}) } }).textContent;
+  assert.ok(kitEmpty && kitEmpty.length > 10, 'the kit draws an empty line');
+  const src = readFileSync(new URL('../hub/static/js/lab.js', import.meta.url), 'utf8');
+  assert.ok(!src.includes(kitEmpty), "lab.js holds its own copy of the kit's empty line");
+  const ix = fresh();
+  ix.needs = [];
+  const html = page(ix);
+  assert.match(html, /id="lab-sec-needs" aria-labelledby="lab-needs-title" hidden><h2 id="lab-needs-title">Needs you here<\/h2><\/section>/);
+  assert.ok(!html.includes(kitEmpty), 'no empty line inside a section nobody sees');
+});

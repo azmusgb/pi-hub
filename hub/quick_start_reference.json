@@ -248,5 +248,11 @@
  ],
  "machine_start_sha256": "a715013449774619f4c61b43589fb120deec67367774914d9a4bafadb344b92e",
  "block_lines": 404,
- "source": "hex-tile_E-022_BLD-022-01 (known-good X2D build), Bambu Studio 02.09.01.70"
+ "source": "hex-tile_E-022_BLD-022-01 (known-good X2D build), Bambu Studio 02.09.01.70",
+ "also_known_good": [
+  {
+   "machine_start_sha256": "df2b485509d89231a5b823468ad1ff1991a0ba7fa4313640e41b1f4df336661c",
+   "source": "owner's head_sled_baseplate project profile, start block dated 2026/10/20, Bambu Studio 02.09.01.70"
+  }
+ ]
 }

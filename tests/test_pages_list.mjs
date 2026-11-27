@@ -18,10 +18,12 @@ const main = read('hub/static/js/main.js');
 const html = read('hub/static/index.html');
 // The Pi Hub rows a person can open today, and the ones a later step builds.
 const HUB = PAGES.filter((p) => p.system === 'hub');
+// A templated address (`/missions/<initiative>`, kit 2.33) has no ⌘K or Site map row of its own: the pages that link to it are its way in.
+const templated = (p) => p.path.includes('<');
 const BUILT = HUB.filter((p) => p.built !== false);
 const plain = (path) => path.split('#')[0];
 // main.js's route table, read from its source (importing it would start the app): address -> [key, module].
-const ROUTES = new Map([...main.matchAll(/^  "(\/[a-z]*)": \["([a-z-]+)", ([A-Za-z]+)\],$/gm)].map((m) => [m[1], [m[2], m[3]]]));
+const ROUTES = new Map([...main.matchAll(/^  "(\/[a-z]*(?:\/<[a-z]+>)?)": \["([a-z-]+)", ([A-Za-z]+)\],$/gm)].map((m) => [m[1], [m[2], m[3]]]));
 const heading = (site, path) => { const { heading: h, title } = site.headingFor(path); return { heading: h, title }; };
 
 test('test_pages_routes: main.js draws exactly the list\'s Pi Hub pages, each with a module in the shell', () => {
@@ -37,7 +39,7 @@ test('test_pages_routes: main.js draws exactly the list\'s Pi Hub pages, each wi
   }
   // A row a later step builds draws nothing: no route, no strip entry, no ⌘K row, no Site map row.
   const later = HUB.filter((p) => p.built === false);
-  assert.deepEqual(later.map((p) => p.id).sort(), ['lab-designs', 'lab-tools', 'mission', 'missions']);
+  assert.deepEqual(later.map((p) => p.id).sort(), ['lab-designs', 'lab-tools']);
   for (const p of later) {
     assert.equal(SITE.page(p.id), null, p.id);
     assert.ok(!goResults('').some((r) => r.label.endsWith(p.label)), `${p.id} is not in ⌘K`);
@@ -74,6 +76,11 @@ test('test_pages_reach: every page is reached the ways the list says, and no oth
   const footer = html.match(/<footer[\s\S]*?<\/footer>/)[0];
   for (const p of BUILT) {
     const name = SITE.fullLabel(p);
+    if (templated(p)) {
+      assert.ok(!p.reach.includes('palette') && !p.reach.includes('map'), `${p.id}: a templated address is reached by a card`);
+      assert.equal(go.filter((r) => r.href === p.path).length + map.filter((r) => r.href === p.path).length, 0, `${p.id} has no ⌘K or Site map row`);
+      continue;
+    }
     assert.ok(p.reach.includes('palette') && p.reach.includes('map'), `${p.id}: every Pi Hub page is in ⌘K and on the Site map`);
     assert.equal(go.filter((r) => r.href === p.path && r.label === name).length, 1, `${p.id} in ⌘K once`);
     assert.equal(map.filter((r) => r.href === p.path && r.label === name).length, 1, `${p.id} on the Site map once`);
@@ -86,8 +93,8 @@ test('test_pages_reach: every page is reached the ways the list says, and no oth
     if (p.reach.includes('foot')) assert.ok(footer.includes(`href="${p.path}"`), `${p.id} is linked in the footer`);
     if (p.reach.includes('tabs')) assert.ok(SITE.page(p.parent), `${p.id} has a parent page`);
   }
-  assert.equal(go.length, BUILT.length, '⌘K has no page the list does not');
-  assert.equal(map.length, BUILT.length, 'the Site map has no page the list does not');
+  assert.equal(go.length, BUILT.filter((p) => !templated(p)).length, '⌘K has no page the list does not');
+  assert.equal(map.length, BUILT.filter((p) => !templated(p)).length, 'the Site map has no page the list does not');
   // A page with no strip is Home, the Wall display or the Privacy note, and nothing else.
   const loose = BUILT.filter((p) => !p.parent && !p.reach.includes('strip')).map((p) => p.id);
   assert.deepEqual(loose.sort(), ['home', 'privacy', 'wall']);
@@ -154,7 +161,7 @@ test('the Site map check (3.5): every row is generated, every page and tool is o
   assert.deepEqual(map.slice(0, 5).map((g) => [g.title, g.path]), AREAS.map((a) => [a.label, SITE.page(a.landing).path]));
   for (const a of AREAS) {
     const g = map.find((x) => x.key === a.id);
-    assert.deepEqual(g.pages.map((p) => p.label), BUILT.filter((p) => p.area === a.id).map((p) => SITE.fullLabel(p)), `${a.id}: the list's pages in the list's order`);
+    assert.deepEqual(g.pages.map((p) => p.label), BUILT.filter((p) => p.area === a.id && !templated(p)).map((p) => SITE.fullLabel(p)), `${a.id}: the list's pages in the list's order`);
   }
   const listed = map.flatMap((g) => g.tools.map((t) => t.id));
   assert.deepEqual([...listed].sort(), TOOLS.map((t) => t.id).sort(), 'every tool once');

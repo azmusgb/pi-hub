@@ -69,5 +69,6 @@ export const retiredTools = (tools = TOOLS) => tools.filter((t) => t.retired);
 // marked); "" for an address the list doesn't have (the page not found: no entry is marked).
 export function sectionFor(path) {
   if (path === "/assistant" || path.startsWith("/assistant/")) return "assistant";  // the Assistant's pages Pi Hub draws: the head's button marks them
+  if (/^\/missions\/[a-z0-9][a-z0-9-]{1,39}$/.test(path)) return SITE.areaOf("/missions/<initiative>");  // one mission: the page list's templated row
   return SITE.areaOf(path) || "";
 }

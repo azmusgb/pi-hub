@@ -1,0 +1,80 @@
+{
+ "version": 1,
+ "as_of": "2026-11-26T09:41:00+00:00",
+ "seq": 31,
+ "view": "list",
+ "missions": [
+  {
+   "id": "a34",
+   "title": "A34: Pi Hub draws the Assistant",
+   "status": "proposed",
+   "revision": {
+    "n": 1,
+    "status": "proposed",
+    "at": "2026-11-26T08:41:00+00:00",
+    "summary": "Imported plan",
+    "proposer": "importer",
+    "requires_approval": false,
+    "provenance": {
+     "trust": "imported",
+     "source": "importer",
+     "from": "azmusgb/pi-hub@4ef3c14"
+    }
+   },
+   "decisions": {
+    "state": "ok",
+    "open": 2,
+    "blocking": 1,
+    "answered": 14
+   },
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "m1b-ledger",
+   "title": "Mission Control M1b: the ledger, its keys and the first Mission Control pages, with a title long enough to wrap at 320 pixels",
+   "status": "active",
+   "revision": {
+    "n": 1,
+    "status": "accepted",
+    "at": "2026-11-26T08:41:00+00:00",
+    "summary": "Imported plan",
+    "proposer": "importer",
+    "requires_approval": false,
+    "provenance": {
+     "trust": "imported",
+     "source": "importer",
+     "from": "azmusgb/pi-hub@4ef3c14"
+    }
+   },
+   "decisions": {
+    "state": "ok",
+    "open": 0,
+    "blocking": 0,
+    "answered": 3
+   },
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "b2",
+   "title": "Unread decisions",
+   "status": "paused",
+   "revision": null,
+   "decisions": {
+    "state": "unavailable"
+   },
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": null
+   }
+  }
+ ]
+}

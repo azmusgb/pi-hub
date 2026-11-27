@@ -44,7 +44,9 @@ test('on a phone the page strips, Search, Restart, the theme link and the Site m
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
   // The rail's links are the kit's (ui-rail): 44 px at every width, so no rule of ours.
-  assert.match(readFileSync(new URL('../hub/static/ui/shell.css', import.meta.url), 'utf8'), /\.ui-rail a\{[^}]*min-height:44px/);
+  // Since kit 2.36 that 44 px is the kit's one touch-target token.
+  assert.match(readFileSync(new URL('../hub/static/ui/shell.css', import.meta.url), 'utf8'), /\.ui-rail a\{[^}]*min-height:var\(--ui-target\)/);
+  assert.match(readFileSync(new URL('../hub/static/ui/tokens.css', import.meta.url), 'utf8'), /--ui-target:44px;/);
 });
 
 test("Home's disclosures and the rack's kit row links are at least 44 px targets everywhere", () => {
@@ -64,4 +66,13 @@ test('.timeline and the pill .meter each have one owner', () => {
 test('the camera view fits the visible screen, not 100vh', () => {
   const block = css('home.css').match(/\.cam-modal \{[\s\S]*?\.cam-modal-img \{[\s\S]*?\}/)[0];
   assert.doesNotMatch(block, /100vh|100vw/);
+});
+
+test('a breadcrumb inside the page grid adds no margin to the row gap; one above the page keeps its own', () => {
+  // Kit audit of 26 Nov, row 4. Measured in a browser by tests/browser/missions.mjs (1b).
+  const enhance = css('enhance.css');
+  assert.match(enhance, /^\.page > \.page-trail \{ margin: 0; \}$/m);
+  assert.match(enhance, /^\.page-trail \{[^}]*margin: 0 0 var\(--ui-s-4\);/m, 'main.js draws its trail above .page, outside the grid');
+  assert.match(css('pages.css'), /^\.page \{ display: grid; gap: /m);
+  assert.match(css('pages.css'), /^\.page-mission > div:empty \{ display: none; \}$/m, 'the empty notice slot holds no row between the trail and the plate');
 });
