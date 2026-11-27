@@ -15,7 +15,7 @@ import { pageHead } from "../hub/static/js/page-parts.js";
 import { homePlateShown, homeReading, mountDashboard, rackRows, renderDashboard } from "../hub/static/js/home-dashboard.js";
 import * as nowPage from "../hub/static/js/now.js";
 import { askArea } from "../hub/static/js/navigation.js";
-import { RECORD_ASK_STATES, RECORD_HEADS_UP_STATES, mergeProblems, problemsBadge } from "../hub/static/js/control-room.js";
+import { BACKUP_ASK_AFTER, PC_COPY_ASK_AFTER, RECORD_ASK_STATES, RECORD_HEADS_UP_STATES, mergeProblems, problemsBadge } from "../hub/static/js/control-room.js";
 
 const sayMod = { exports: {} };
 new Function("module", readFileSync(new URL("../hub/static/ui/say.js", import.meta.url), "utf8"))(sayMod);
@@ -279,6 +279,51 @@ test("the client's record tables are the server's: they fail when hub/needs.py c
   const flat = (t) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, [...v].sort()]));
   assert.deepEqual(flat(RECORD_ASK_STATES), parse("RECORD_ASK_STATES"));
   assert.deepEqual(flat(RECORD_HEADS_UP_STATES), parse("RECORD_HEADS_UP_STATES"));
+
+  // The backups escalation (_backups_escalated): the two thresholds, and which comparison each one uses.
+  const rec = readFileSync(new URL("../hub/records.py", import.meta.url), "utf8");
+  const secs = (name) => { const m = rec.match(new RegExp(`^${name} = (\\d+) \\* 3600\\b`, "m")); return m ? Number(m[1]) * 3600 : null; };
+  assert.equal(BACKUP_ASK_AFTER, secs("BACKUP_ASK_AFTER"));
+  assert.equal(PC_COPY_ASK_AFTER, secs("PC_COPY_ASK_AFTER"));
+  const esc = py.match(/^def _backups_escalated\(rec\):\n([\s\S]*?)^def /m)[1].replace(/\s+/g, " ").trim();
+  assert.equal(esc, [
+    'if not rec or rec.get("stale") or rec.get("state") != "behind": return False',
+    'detail = rec.get("detail") or {}',
+    'for m in detail.get("machines") or (): age = m.get("age") if isinstance(m, dict) else None',
+    'if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age > records_mod.BACKUP_ASK_AFTER): return True',
+    'copy = detail.get("pc_copy")',
+    'if isinstance(copy, dict): age = copy.get("age")',
+    'if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age >= records_mod.PC_COPY_ASK_AFTER): return True',
+    "return False",
+  ].join(" "), "hub/needs.py _backups_escalated changed: mirror it in control-room.js backupsEscalated");
+  assert.match(py, /elif key == "backups" and _backups_escalated\(rec\):\n\s+item\.update\(kind="ask"/, "_hub_item still escalates backups to an ask");
+});
+
+test("backups behind escalates to an ask in the client as the server does: a stale machine, a stale PC copy, a missing age", () => {
+  const behind = (detail, extra = {}) => ({ id: "backups", state: "behind", severity: "attention", headline: "Backups are behind", detail, ...extra });
+  const kind = (r) => mergeProblems([r], null)[0].itemKind;
+  const old = BACKUP_ASK_AFTER + 1;
+  assert.equal(kind(behind({ machines: [{ age: 3600 }] })), "heads_up", "a recent backup is a heads-up");
+  assert.equal(kind(behind({})), "heads_up", "no machines and no PC copy named: nothing to escalate");
+  assert.equal(kind(behind({ machines: [{ age: BACKUP_ASK_AFTER }] })), "heads_up", "a machine at exactly the limit is not past it");
+  assert.equal(kind(behind({ machines: [{ age: 3600 }, { age: old }] })), "ask", "one machine past the limit");
+  assert.equal(kind(behind({ machines: [{ age: null }] })), "ask", "a machine with no age");
+  assert.equal(kind(behind({ machines: [{}] })), "ask", "a machine with no age key");
+  assert.equal(kind(behind({ pc_copy: { age: PC_COPY_ASK_AFTER - 1 } })), "heads_up");
+  assert.equal(kind(behind({ pc_copy: { age: PC_COPY_ASK_AFTER } })), "ask", "the PC copy limit is inclusive");
+  assert.equal(kind(behind({ pc_copy: { age: null } })), "ask", "a PC copy with no age");
+  assert.equal(kind(behind({ machines: [{ age: old }] }, { stale: true })), "heads_up", "a stale record stays a heads-up, as on the server");
+  assert.equal(kind({ ...behind({ machines: [{ age: old }] }), state: "ok" }), "ask", "a state outside both tables still fails loud");
+
+  const h = withHead();
+  try {
+    for (const detail of [{ machines: [{ age: 30 * 24 * 3600 }] }, { machines: [{ age: null }] }]) {
+      renderDashboard(h.state, { today: null, records: [behind(detail)], needs: null, now: {} }, () => {});
+      assert.equal(problemsBadge(null, h.state.probs).count, 1, "the badge counts it");
+      assert.equal(h.said()[0], "One thing needs you.");
+      assert.ok(h.said().every((l) => !/Nothing needs you\./.test(l)), "the sentence never says Nothing needs you");
+    }
+  } finally { h.done(); }
 });
 
 // Finding 2 (PR 363 review): a held or silent printer is in Home's sentence, and a printer that went stale gets a

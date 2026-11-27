@@ -182,7 +182,29 @@ export const RECORD_HEADS_UP_STATES = {
   hub: ["disagreement"],
 };
 
-// hub/needs.py _record_kind, for a record the client classifies itself.
+// hub/records.py BACKUP_ASK_AFTER and PC_COPY_ASK_AFTER (seconds), copied; the drift test fails when they change.
+export const BACKUP_ASK_AFTER = 48 * 3600;
+export const PC_COPY_ASK_AFTER = 50 * 3600;
+const isAge = (n) => typeof n === "number" && !Number.isNaN(n);
+
+// hub/needs.py _backups_escalated: "behind" is an ask once a machine's last backup is older than BACKUP_ASK_AFTER, the
+// PC's copy of the Pi's backup is BACKUP... PC_COPY_ASK_AFTER old or older, or an age is missing (unknown fails loud).
+function backupsEscalated(rec) {
+  if (rec?.stale || rec?.state !== "behind") return false;
+  const d = rec.detail || {};
+  for (const m of Array.isArray(d.machines) ? d.machines : []) {
+    const age = m && typeof m === "object" ? m.age : null;
+    if (age === null || age === undefined || (isAge(age) && age > BACKUP_ASK_AFTER)) return true;
+  }
+  const copy = d.pc_copy;
+  if (copy && typeof copy === "object" && !Array.isArray(copy)) {
+    const age = copy.age;
+    if (age === null || age === undefined || (isAge(age) && age >= PC_COPY_ASK_AFTER)) return true;
+  }
+  return false;
+}
+
+// hub/needs.py _record_kind (and the backups escalation in _hub_item), for a record the client classifies itself.
 export function recordKind(id, rec) {
   if (id === "source:bambuddy") return "ask";
   if (String(id).startsWith("source:") || String(id).startsWith("release:")) return "heads_up";
@@ -190,6 +212,7 @@ export function recordKind(id, rec) {
     return ["printer", "obico", "hms"].includes(id) ? "ask" : id in RECORD_ASK_STATES || id in RECORD_HEADS_UP_STATES ? "heads_up" : "ask";
   }
   if (RECORD_ASK_STATES[id]?.includes(rec.state)) return "ask";
+  if (id === "backups" && backupsEscalated(rec)) return "ask";
   return RECORD_HEADS_UP_STATES[id]?.includes(rec.state) ? "heads_up" : "ask";
 }
 
