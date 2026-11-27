@@ -444,7 +444,7 @@ test("a stale printer record says when it was last seen and offers no buttons", 
   const rows = rackRows({ now: { printer: {} }, nowTs: START + 3600,
     records: [{ id: "printer", state: "printing", severity: "ok", stale: true, as_of: START + 60, actions: [{ name: "pause" }] }] });
   const pr = rows.find((r) => r.id === "printer");
-  assert.equal(pr.lamp, "warn");
+  assert.equal(pr.lamp, "unknown", "a stale reading is never drawn as live, ok or a warning the printer itself gave");
   assert.match(pr.state, /^Last seen .*Bambuddy isn't answering/);
   assert.equal(pr.printer, null);
 });
