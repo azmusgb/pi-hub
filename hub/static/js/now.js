@@ -7,12 +7,16 @@ import { plainInternet, tileState, workshopDisplayLabel } from "./wording.js";
 import { resolveLink, toolUrl } from "./sections.js";
 import { setNeeds } from "./navigation.js";
 import { problemsBadge } from "./control-room.js";
-import { decisionsUnread, leaveDashboard, mountDashboard, renderDashboard } from "./home-dashboard.js";
+import { decisionsUnread, leaveDashboard, mountDashboard, renderDashboard, sayHome } from "./home-dashboard.js";
+import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./printer-reading.js";
 import { PRINTER_ACTIONS, kioskBadge, printerBusy, runPrinterAction } from "./printer-actions.js";
 import { clockParts, deskLab, nextHours, printing, shopLight, upcoming, wallFitSteps, wallLayout, wallNeeds,
   WALL_VIEWS, DEFAULT_CUSTOM_CONFIG, HERO_OPTIONS, SIDE_OPTIONS, getWallView, getWallCustomConfig, resolveWallPanes } from "./wall.js";
 
+export { jobTitle, telemetryAge, telemetryLabel, tempText };
 export const every = 15;
+// Home's head is its reading as a sentence (A37 R1, R3): main.js turns it on for Home and off for /wall.
+export const says = true;
 
 const finishAt = (m) => Number.isFinite(m) ? new Date(Date.now() + m * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
 // The wall's headline: the finish time, with the day when it isn't today ("Tomorrow 3:10 AM").
@@ -40,10 +44,10 @@ function eyebrowLabel(now = new Date()) {
 
 function isWallMode() {
   return (
-    window.location.pathname === "/wall" ||
-    new URLSearchParams(window.location.search).has("wall") ||
-    document.body.classList.contains("wall") ||
-    document.documentElement.dataset.wall === "1"
+    window.location?.pathname === "/wall" ||
+    new URLSearchParams(window.location?.search || "").has("wall") ||
+    document.body?.classList?.contains("wall") ||
+    document.documentElement?.dataset?.wall === "1"
   );
 }
 
@@ -73,68 +77,11 @@ export function networkPanel(net, { links = true } = {}) {
       h("a", { class: "tool-link", href: `${toolUrl("status")}status/home`, target: "_blank", rel: "noopener" }, "Open Uptime Kuma ↗")) : null);
 }
 
-// How old the readings are: "checked …" while the source answers, "last seen …" once it has stopped.
-export function telemetryAge(iso, stale = false) {
-  const word = stale ? "last seen" : "checked";
-  const parsed = Date.parse(iso || "");
-  const ms = Date.now() - parsed;
-  if (!Number.isFinite(parsed) || !Number.isFinite(ms) || ms < 0) return stale ? "last seen a while ago" : "checked now";
-  const sec = Math.floor(ms / 1000);
-  if (sec < 10) return stale ? "last seen just now" : "checked now";
-  if (sec < 60) return `${word} ${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${word} ${min}m ago`;
-  return `${word} ${Math.floor(min / 60)}h ago`;
-}
-
-// A temperature and its target. The printer reports a target of 0 when that heater is off: that is no target, so one
-// number (A7 decision 6), not "27°C / 0°C".
-export function tempText(now, target) {
-  if (now === null || now === undefined || now === "") return null;
-  return `${now}°C${target ? ` / ${target}°C` : ""}`;
-}
-
 function printerMetric(label, value) {
   if (value === null || value === undefined || value === "") return null;
   return h("div", { class: "printer-metric" },
     h("span", { class: "printer-metric__label" }, label),
     h("strong", { class: "printer-metric__value" }, String(value)));
-}
-
-// A file name as a title: no extension, and "RIFT_MARKED_10IN_SINGLE" as "Rift marked 10in single". Mixed-case names
-// are kept as they were written.
-export function jobTitle(name) {
-  // A print started from the printer's own storage names its file by path ("/data/Metadata/plate 1"): the name is the
-  // last part, said like a name (A7 P5: no paths in page text).
-  const raw = String(name || "");
-  const path = /[\\/]/.test(raw);
-  const base = raw.split(/[\\/]/).pop().replace(/\.(gcode\.3mf|3mf|gcode)$/i, "").trim();
-  if (!base) return "";
-  const spaced = base.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
-  if (path && spaced === spaced.toLowerCase()) return spaced[0].toUpperCase() + spaced.slice(1);
-  if (spaced !== spaced.toUpperCase()) return spaced;
-  const lower = spaced.toLowerCase();
-  return lower[0].toUpperCase() + lower.slice(1);
-}
-
-// The readings' source, as a chip. "Offline" only when a source answered and said so (Bambuddy with connected: false);
-// no source answering says nothing about the printer, so that is "No answer" in the neutral colour (spec section 9).
-export function telemetryLabel(p) {
-  const telemetry = p?.telemetry || {};
-  // The source stopped answering (a stale record): the readings shown are its last, so "No answer", whatever they say.
-  if (telemetry.status === "stale") {
-    return { state: "none", label: "No answer", why: `${telemetry.source || "The printer's source"} isn't answering; these are its last readings.`, stale: true };
-  }
-  const reported = telemetry.status === "offline" && telemetry.source && telemetry.source !== "No source";
-  let state = ["live", "degraded"].includes(telemetry.status) ? telemetry.status : reported ? "offline" : "none";
-  // A printer that is printing or paused is physically there, whatever the telemetry says.
-  if (state !== "live" && state !== "degraded" && (p?.state === "printing" || p?.state === "paused")) state = "degraded";
-  // "Fallback" said nothing (iPad, 1 Nov): degraded means Bambuddy isn't connected and the Pi's status is read instead.
-  const label = state === "live" ? "Live" : state === "degraded" ? "Backup readings" : state === "offline" ? "Offline" : "No answer";
-  const why = state === "degraded"
-    ? "Bambuddy isn't connected to the printer, so these readings come from the Pi's status service and update less often."
-    : state === "none" ? "No source has answered with the printer's state." : telemetry.source || "Printer telemetry";
-  return { state, label, why };
 }
 
 function telemetryBadge(p) {
@@ -1288,6 +1235,7 @@ export function failed(state) {
   state.summary.dataset.tone = "bad";
   state.summary.hidden = false;  // Home may have hidden an empty line
   if (state.hero) state.hero.hidden = false;
+  if (!isWallMode()) sayHome({ page: "home", label: "Home", asks: null });
   decisionsUnread(state);  // the owner's decisions shown stay, marked not current (A33)
 }
 

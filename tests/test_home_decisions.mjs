@@ -281,11 +281,11 @@ test("answering the last decision by keyboard: the next read keeps the group whi
     assert.equal(k.group(), node, "kept while focus is in it");
     assert.ok(node.contains(document.activeElement), "focus stays where the kit put it");
     assert.equal(text(node.querySelector(".ui-decisions__status")), "Recorded: Yes");
-    k.state.hd.root.querySelector(".hd-unit__go").focus();  // the owner moves on
+    k.state.hd.root.querySelector(".hd-rack a.ui-row").focus();  // the owner moves on
     k.draw(owner([]));
     assert.equal(k.group(), null, "the first read after focus left drops it");
     assert.equal(k.state.hd.decisions.hidden, true);
-    assert.equal(document.activeElement, k.state.hd.root.querySelector(".hd-unit__go"), "focus is left alone");
+    assert.equal(document.activeElement, k.state.hd.root.querySelector(".hd-rack a.ui-row"), "focus is left alone");
   } finally { k.done(); }
 });
 

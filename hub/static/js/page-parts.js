@@ -2,6 +2,7 @@
 // skeleton, sections (a heading and rows, no card), lamp-right rows and "Needs you here". Pages build from these so
 // every page reads the same.
 import { api, h } from "./core.js";
+import { jobTitle, telemetryAge, telemetryLabel, tempText } from "./printer-reading.js";
 import { resolveLink } from "./sections.js";
 
 const lampChip = (lamp) => lamp ? h("span", { class: `ui-chip ui-chip--${lamp[0]}${lamp[2] ? " ui-chip--live" : ""}` }, lamp[1]) : null;
@@ -64,6 +65,42 @@ export function faceplateLoading(name, { plate = false } = {}) {
   const bar = (w, ht = "1em") => h("span", { class: "ui-skeleton", style: `width:${w};height:${ht}` });
   return h("section", { class: plate ? "ui-faceplate ui-faceplate--plate" : "ui-faceplate", "aria-label": name, "aria-busy": "true" },
     h("div", { class: "ui-faceplate__main" }, bar("30%"), plate ? null : bar("40%", "48px"), bar("70%"), bar("85%")));
+}
+
+const STATE_LAMP = { printing: "ok", paused: "warn", error: "bad", stopped: "ok", idle: "ok", offline: "bad" };
+const STATE_WORD = { printing: "Printing", paused: "Paused", error: "Needs a look", stopped: "Stopped", idle: "Idle", offline: "Offline" };
+
+// The printer as the plate (A37 R4), shared by Workshop (with its camera aside) and Home (while a print runs or is held,
+// with no aside). A printer no source answers for is unknown, never idle; a stale source keeps its last readings and says
+// so. A heater with no target shows one number (A7 decision 6).
+export function printerPlate(p, { lastPrint = null, actions = null, aside = null } = {}) {
+  p ||= {};
+  const tel = telemetryLabel(p);
+  const busy = p.state === "printing" || p.state === "paused";
+  const pct = typeof p.percent === "number" && Number.isFinite(p.percent) ? Math.max(0, Math.min(100, p.percent)) : null;
+  const lamp = tel.stale || p.stale ? ["unknown", "Last readings"] : tel.state === "none" ? ["unknown", tel.label]
+    : STATE_LAMP[p.state] ? [STATE_LAMP[p.state], STATE_WORD[p.state], p.state === "printing"] : ["unknown", "No status"];
+  const job = jobTitle(p.job_name);
+  const stale = tel.stale || p.stale;
+  const detail = !["printing", "idle", "stopped"].includes(p.state) && !stale && p.detail ? p.detail : null;
+  const t = p.telemetry || {};
+  const layer = busy && p.layer_num != null ? `${p.layer_num}${p.total_layers ? ` / ${p.total_layers}` : ""}` : null;
+  return faceplate({
+    name: "Bambu X2D", lamp,
+    plate: true,
+    job: [busy ? job : "", ...(stale ? [] : [t.source || "Pi Hub", telemetryAge(t.observed_at)])].filter(Boolean).join(" · "),
+    readings: [["Layer", layer], ["Nozzle", tempText(p.nozzle_temp, p.nozzle_target)],
+      ["Bed", tempText(p.bed_temp, p.bed_target)], ["AMS", p.ams_humidity != null ? `${p.ams_humidity}% RH` : null],
+      ["Material", p.filament_type || null]],
+    extra: [
+      detail ? h("p", { class: "meta ws-detail" }, detail) : null,
+      busy && pct !== null && !stale ? h("span", { class: "ui-meter", role: "progressbar", "aria-label": "Print progress", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct },
+        h("i", { style: `width:${pct}%` })) : null,
+      lastPrint ? h("p", { class: "meta ws-last-print" }, lastPrint) : null,
+    ],
+    actions: [].concat(actions || []).filter(Boolean),
+    aside,
+  });
 }
 
 // `lamp`: [tone, word], drawn beside the heading for a section that has a state of its own (Health's disks, updates).

@@ -1,5 +1,5 @@
 {
-  "kit": "2.29.0",
+  "kit": "2.34.1",
   "files": {
     "hub/static/ambient.css": {
       "colour": 22,
@@ -29,10 +29,8 @@
       "name": 4
     },
     "hub/static/home-dashboard.css": {
-      "type": 4,
-      "space": 19,
-      "radius": 2,
-      "shadow": 2,
+      "type": 3,
+      "space": 10,
       "motion": 1
     },
     "hub/static/home.css": {
