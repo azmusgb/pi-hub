@@ -13,6 +13,8 @@ body.wall .shell { display: block; }
 .page > *, .stack > *, .cards > * { min-width: 0; }
 .page.offline { opacity: 1; }
 .page > .cards { margin: 0; }
+/* The mission's notice slot is empty until a source is stale or down; empty, it must not hold a row (and a second gap). */
+.page-mission > div:empty { display: none; }
 .stack { display: grid; gap: var(--ui-s-5); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .empty { color: var(--ui-muted); margin: 0.2rem 0; }

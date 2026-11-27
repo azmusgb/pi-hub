@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { PHRASES } from "./helpers/kit.mjs";
 import {
   faceplateModel,
   labFaceplateHtml,
@@ -116,6 +117,17 @@ assert(!/0 of 180 min|0 of 80 g/.test(unknownHtml.replace(/Unknown of/g, "")), "
 assert(controlHtml.includes('<a class="ui-btn ui-btn--primary" href="#lab-E-025" data-lab-open="E-025">Judge it</a>'));
 const judgeable = labFaceplateHtml({ ...ix, experiments: [{ ...exp, criteria: [{ id: "c1" }] }] });
 assert(judgeable.includes('<button type="button" class="ui-btn ui-btn--primary lab-record-verdict" data-exp="E-025">Judge it</button>'));
+// The verb's words are the kit's (ui/needs.js PHRASES), read when the faceplate is drawn: lab-v2.js keeps no copy.
+const kitJudge = PHRASES.judge_it;
+PHRASES.judge_it = "Kit says judge";
+try {
+  assert(labFaceplateHtml(ix).includes('data-lab-open="E-025">Kit says judge</a>'), "the verb follows the kit's phrase table");
+} finally { PHRASES.judge_it = kitJudge; }
+for (const [action, key] of [["Approve or drop", "approve"], ["Send it to the printer", "send"], ["Fix the plan", "fix_plan"]]) {
+  const html = labFaceplateHtml({ ...ix, runs: [], needs: [{ id: "E-025", action }] });
+  assert(html.includes(`data-lab-open="E-025">${PHRASES[key]}</a>`), `${action} is the kit's ${key}`);
+}
+assert(!readFileSync(new URL("../hub/static/js/lab-v2.js", import.meta.url), "utf8").includes(PHRASES.judge_it), "lab-v2.js holds its own copy of judge_it");
 // A stale mirror never shows a print as live: it says what it last saw, and when (A7 finding 4).
 const staleHtml = labFaceplateHtml({ ...ix, needs: [] }, { stale: true, syncedAt: "2026-10-29T22:41:00+00:00" });
 assert.match(staleHtml, /<span class="ui-chip ui-chip--unknown">Printing, as of [^<]+<\/span>/);

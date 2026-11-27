@@ -1,0 +1,257 @@
+{
+ "version": 1,
+ "as_of": "2026-11-26T09:41:00+00:00",
+ "seq": 31,
+ "view": "overview",
+ "initiative": {
+  "id": "a34",
+  "title": "A34: Pi Hub draws the Assistant",
+  "intent": "",
+  "status": "proposed",
+  "manifest": {
+   "repo": "azmusgb/pi-hub",
+   "path": "docs/missions/a34.json",
+   "commit": "4ef3c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "provenance": {
+   "trust": "imported",
+   "source": "importer",
+   "from": "azmusgb/pi-hub@4ef3c14"
+  }
+ },
+ "revision": {
+  "n": 1,
+  "status": "proposed",
+  "at": "2026-11-26T08:41:00+00:00",
+  "summary": "Imported plan",
+  "proposer": "importer",
+  "requires_approval": false,
+  "provenance": {
+   "trust": "imported",
+   "source": "importer",
+   "from": "azmusgb/pi-hub@4ef3c14"
+  }
+ },
+ "proposed": [
+  {
+   "n": 1,
+   "status": "proposed",
+   "at": "2026-11-26T08:41:00+00:00",
+   "summary": "Imported plan",
+   "proposer": "importer",
+   "requires_approval": false,
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   },
+   "changes": {
+    "add": 41
+   },
+   "declared": 41,
+   "seen": 41
+  }
+ ],
+ "stages": [
+  {
+   "id": "a34:stage:p0",
+   "n": 0,
+   "title": "Headroom",
+   "status": "active",
+   "gates": [],
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "a34:stage:p1",
+   "n": 1,
+   "title": "Assistant pages",
+   "status": "planned",
+   "gates": [],
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "a34:stage:p2",
+   "n": 2,
+   "title": "Mission Control",
+   "status": "planned",
+   "gates": [],
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "a34:stage:p3",
+   "n": 3,
+   "title": "Display",
+   "status": "planned",
+   "gates": [],
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  }
+ ],
+ "counts": {
+  "tasks": {
+   "by_state": {
+    "planned": 21,
+    "active": 2
+   },
+   "of": 23,
+   "reported": 0
+  },
+  "gates": {
+   "met": 0,
+   "of": 7
+  },
+  "decisions": {
+   "state": "ok",
+   "open": 2,
+   "blocking": 1,
+   "answered": 14
+  },
+  "evidence": {
+   "trusted": 1,
+   "owner": 0,
+   "reported": 6,
+   "imported": 9,
+   "of": 16
+  },
+  "risks": {
+   "open": 1,
+   "mitigated": 0,
+   "of": 1
+  }
+ },
+ "executions": [
+  {
+   "id": "x1",
+   "source": "claude",
+   "level": "hook",
+   "title": "pi-hub fix/release-test-timing",
+   "tasks": [],
+   "model": "Opus 5.5",
+   "branch": "fix/release-test-timing",
+   "workstream": null,
+   "started_at": "2026-11-26T09:11:00+00:00",
+   "tool": null,
+   "shown": "Working",
+   "state": "working",
+   "live": true,
+   "since": "2026-11-26T09:40:40+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "claude",
+    "at": "2026-11-26T09:40:40+00:00"
+   }
+  },
+  {
+   "id": "x2",
+   "source": "localai",
+   "level": "full",
+   "title": "Local AI: draft the Assistant pages",
+   "tasks": [],
+   "model": null,
+   "branch": null,
+   "workstream": null,
+   "started_at": "2026-11-26T07:41:00+00:00",
+   "tool": null,
+   "shown": "Last known 08:58 (PC asleep)",
+   "state": "running",
+   "live": false,
+   "since": "2026-11-26T08:58:00+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "localai",
+    "at": "2026-11-26T08:58:00+00:00"
+   }
+  },
+  {
+   "id": "x3",
+   "source": "claude",
+   "level": "hook",
+   "title": "pi-hub docs/a34-notes",
+   "tasks": [],
+   "model": "Opus 5.5",
+   "branch": "docs/a34-notes",
+   "workstream": null,
+   "started_at": "2026-11-26T06:41:00+00:00",
+   "tool": null,
+   "shown": "Turn finished 09:12",
+   "state": "turn_finished",
+   "live": false,
+   "since": "2026-11-26T09:12:00+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "claude",
+    "at": "2026-11-26T09:12:00+00:00"
+   }
+  }
+ ],
+ "events": [
+  {
+   "seq": 31,
+   "at": "2026-11-26T09:40:00+00:00",
+   "received_at": "2026-11-26T09:40:00+00:00",
+   "source": "claude",
+   "type": "task.started",
+   "entity": null,
+   "late": false,
+   "text": "Started the release test timing fix"
+  },
+  {
+   "seq": 30,
+   "at": "2026-11-26T09:12:00+00:00",
+   "received_at": "2026-11-26T09:12:00+00:00",
+   "source": "claude",
+   "type": "session.attached",
+   "entity": null,
+   "late": false,
+   "text": "Claude Code attached to a34"
+  },
+  {
+   "seq": 29,
+   "at": "2026-11-26T08:41:00+00:00",
+   "received_at": "2026-11-26T08:41:00+00:00",
+   "source": "importer",
+   "type": "revision.proposed",
+   "entity": null,
+   "late": false,
+   "text": null
+  },
+  {
+   "seq": 28,
+   "at": "2026-11-26T08:40:00+00:00",
+   "received_at": "2026-11-26T08:40:00+00:00",
+   "source": "importer",
+   "type": "initiative.imported",
+   "entity": null,
+   "late": false,
+   "text": "A34 imported from azmusgb/pi-hub@4ef3c14"
+  }
+ ],
+ "sources": [
+  {
+   "name": "ledger",
+   "state": "ok",
+   "as_of": "2026-11-26T09:41:00+00:00"
+  },
+  {
+   "name": "manifest",
+   "state": "ok",
+   "repo": "azmusgb/pi-hub",
+   "commit": "4ef3c14aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+ ]
+}
