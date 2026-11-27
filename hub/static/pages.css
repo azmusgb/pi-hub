@@ -402,7 +402,7 @@ details.ui-section > summary > h2 { display: inline; margin: 0; }
 details.ui-section:not([open]) { gap: 0; }
 /* A section with a state of its own: the heading and its lamp on one line, the lamp at the end (A7 P3). */
 .ui-section__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ui-s-2); }
-.ui-section__head > h2 { margin: 0; font: 650 var(--ui-fs-5)/1.2 var(--ui-font); font-stretch: var(--ui-stretch-heading); color: var(--ui-text); }
+.ui-section__head > h2 { margin: 0; font: 700 var(--ui-fs-5)/1.2 var(--ui-font); font-stretch: var(--ui-stretch-heading); color: var(--ui-text); }
 /* Under More the item's summary already names it: the heading stays for screen readers, the lamp stays in view. */
 .more-list-body > .ui-section > h2, .more-list-body > .ui-section > .ui-section__head > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .more-list-body > .ui-section > .ui-section__head { justify-content: flex-end; }
@@ -410,7 +410,7 @@ details.ui-section:not([open]) { gap: 0; }
 
 /* Settings (A7 P1): each setting is a section; its state chip sits beside the heading. */
 .setting__head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
-.setting__head > h2 { margin: 0; font: inherit; font-size: var(--ui-fs-5); font-weight: 650; }
+.setting__head > h2 { margin: 0; font: inherit; font-size: var(--ui-fs-5); font-weight: 700; }
 
 /* The Assistant's pages Pi Hub draws (A34 P2, P2n): a task, the status and the models. Text from the Assistant keeps its
    line breaks and wraps, so a long answer, error or id never runs off the page. */
