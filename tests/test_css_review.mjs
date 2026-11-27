@@ -63,3 +63,12 @@ test('the camera view fits the visible screen, not 100vh', () => {
   const block = css('home.css').match(/\.cam-modal \{[\s\S]*?\.cam-modal-img \{[\s\S]*?\}/)[0];
   assert.doesNotMatch(block, /100vh|100vw/);
 });
+
+test('a breadcrumb inside the page grid adds no margin to the row gap; one above the page keeps its own', () => {
+  // Kit audit of 26 Nov, row 4. Measured in a browser by tests/browser/missions.mjs (1b).
+  const enhance = css('enhance.css');
+  assert.match(enhance, /^\.page > \.page-trail \{ margin: 0; \}$/m);
+  assert.match(enhance, /^\.page-trail \{[^}]*margin: 0 0 var\(--ui-s-4\);/m, 'main.js draws its trail above .page, outside the grid');
+  assert.match(css('pages.css'), /^\.page \{ display: grid; gap: /m);
+  assert.match(css('pages.css'), /^\.page-mission > div:empty \{ display: none; \}$/m, 'the empty notice slot holds no row between the trail and the plate');
+});

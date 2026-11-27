@@ -333,6 +333,8 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .help-topic .action { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: var(--ui-s-2); }
 /* Keep the task prominent; use dividers for supporting information. */
 .page-trail { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 var(--ui-s-4); color: var(--ui-muted); font-size: var(--ui-fs-3); }
+/* Inside the page's grid the row gap is the space under the trail; the margin is for a trail above the page (main.js). */
+.page > .page-trail { margin: 0; }
 .page-trail a { display: inline-flex; align-items: center; min-height: 44px; }
 .help-topic { background: transparent; border: 0; border-bottom: 1px solid var(--ui-line-2); border-radius: 0; padding: 0; }
 .more a { background: transparent; border: 0; border-bottom: 1px solid var(--ui-line); border-radius: 0; padding: .875rem 0; }
