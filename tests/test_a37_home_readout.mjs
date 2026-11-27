@@ -332,3 +332,12 @@ test("records down while /api/now answers: no plate, and the X2D row and sentenc
     assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's record list wasn't read."]);
   } finally { h.done(); }
 });
+
+// Review of the Systems rack's printer row: the lamp follows the plate chip, and a stale reading is never live.
+test("X2D row lamp: a paused print is warn, not live", () => {
+  const rec = (over) => ({ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 }, ...over });
+  const row = (records, printer) => rackRows({ now: { printer }, records: [records], nowTs: AS_OF, plateShown: false }).find((r) => r.id === "printer");
+  assert.equal(row(rec({}), printingCard()).lamp, "run", "a running print is live");
+  assert.equal(row(rec({ state: "paused", severity: "attention", actions: [{ name: "resume" }] }), printingCard({ state: "paused" })).lamp, "warn",
+    "a held print is amber, not green and pulsing");
+});

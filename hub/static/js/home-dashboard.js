@@ -418,7 +418,7 @@ export function rackRows(src) {
       Number.isFinite(p.nozzle_temp) ? `Nozzle ${Math.round(p.nozzle_temp)}°` : "", Number.isFinite(p.bed_temp) ? `Bed ${Math.round(p.bed_temp)}°` : "",
       p.filament_type || "", Number.isFinite(p.ams_humidity) ? `AMS ${Math.round(p.ams_humidity)}%` : ""].filter(Boolean);
     const figure = !onPlate && !stale && Number.isFinite(m?.pct) && m.pct > 0 ? { value: `${m.pct}%`, note: doneNote } : null;
-    rows.push({ id: "printer", name: "X2D", lamp: !pr ? "unknown" : stale ? "warn" : m?.running ? "run" : lampOf(pr.severity),
+    rows.push({ id: "printer", name: "X2D", lamp: !pr ? "unknown" : stale ? "warn" : pr.state === "printing" ? "run" : pr.state === "paused" ? "warn" : lampOf(pr.severity),
       state, chip, detail: !pr ? "" : stale ? state : parts.join(", "), figure, readings,
       brief: !stale && Number.isFinite(m?.pct) ? `${m.pct}%` : "", href: "/workshop", link: "Open Workshop",
       printer: pr && !stale ? { actions: actionNames(pr.actions), state: pr.state, lab: m?.lab || "", labProject: m?.labProject || "" } : null });
