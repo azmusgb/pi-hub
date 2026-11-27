@@ -134,7 +134,23 @@ def test_a_stale_printer_record_gives_no_remaining_time():
     p = pr("Tile", "printing", at(14), None)
     printer = {"state": "printing", "stale": True, "detail": {"progress": 50, "minutes_left": 30}}
     marks = lane(today.build(NOW, inputs(prints=[p], printer=printer)), "printer")["marks"]
-    assert marks == [{"start": at(14), "end": NOW, "kind": "run", "title": "Tile: Printing"}]
+    # a stale record's last word is not a print running now: neutral kind, and the title does not say "Printing"
+    assert marks == [{"start": at(14), "end": NOW, "kind": "other", "title": "Tile: reading out of date"}]
+
+
+def test_a_stale_reading_of_a_print_never_draws_the_run_kind():
+    for state in ("printing", "paused"):
+        printer = {"state": state, "stale": True, "detail": {"job": "Tile", "started": at(14), "progress": 50, "minutes_left": 30}}
+        for prints in ([pr("Tile", "printing", at(14), None)], []):
+            marks = lane(today.build(NOW, inputs(prints=prints, printer=printer)), "printer")["marks"]
+            assert all(m["kind"] != "run" and "Printing" not in m["title"] for m in marks)
+
+
+def test_a_held_print_from_the_log_row_is_neutral_too():
+    p = pr("Tile", "printing", at(14), None)
+    printer = {"state": "paused", "detail": {"progress": 40, "minutes_left": 50}}
+    marks = lane(today.build(NOW, inputs(prints=[p], printer=printer)), "printer")["marks"]
+    assert [(m["kind"], m["title"]) for m in marks] == [("other", "Tile: Paused, 40%")]
 
 
 # Bambuddy's print log gets a row only when a print ends, so a print in progress is drawn from the printer record.
@@ -153,7 +169,7 @@ def test_a_print_with_no_log_row_yet_is_drawn_from_the_printer_record():
 def test_a_paused_print_from_the_record_says_paused():
     printer = {"state": "paused", "detail": {"job": "Tile", "started": at(14), "progress": 40, "minutes_left": 50}}
     marks = lane(today.build(NOW, inputs(printer=printer)), "printer")["marks"]
-    assert [(m["kind"], m["title"]) for m in marks] == [("run", "Tile: Paused, 40%")]
+    assert [(m["kind"], m["title"]) for m in marks] == [("other", "Tile: Paused, 40%")]
 
 
 def test_a_record_print_without_a_start_or_a_name_still_shows():

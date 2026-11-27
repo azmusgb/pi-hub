@@ -343,6 +343,25 @@ test("a lane whose source didn't answer is drawn as down, never as an empty quie
   } finally { env.uninstall(); }
 });
 
+// A stale or held print arrives as the neutral kind: it is drawn without the run colour, and only the run kind pulses.
+test("a neutral print mark is drawn in the neutral kind, and the pulse belongs to the run kind alone", async () => {
+  const d = day();
+  const at = START + 14 * 3600;
+  d.lanes[0] = { ...d.lanes[0], marks: [{ start: at, end: d.now, kind: "other", title: "Tile: reading out of date" }] };
+  const env = install();
+  try {
+    const { drawBand } = await import("../hub/static/js/home-dashboard.js");
+    const host = document.createElement("div");
+    drawBand(host, d, 900);
+    assert.equal(host.querySelectorAll(".hd-k-other").length, 1);
+    assert.equal(host.querySelectorAll(".hd-k-run").length, 0);
+    assert.match(host.querySelector(".hd-band__mark").getAttribute("aria-label"), /reading out of date/);
+  } finally { env.uninstall(); }
+  const css = readFileSync(new URL("../hub/static/home-dashboard.css", import.meta.url), "utf8");
+  const pulsing = [...css.matchAll(/([^{}]+)\{[^{}]*animation:\s*hd-pulse/g)].map((m) => m[1].trim());
+  assert.deepEqual(pulsing, [".hd-band__fill.hd-k-run"]);
+});
+
 test("the tally says — for a count whose source didn't answer, and 0 for a quiet day", () => {
   assert.deepEqual(countItems({ finished: 0, failed: null, power: 0, updates: 2 }).map((c) => c.value), ["0", "—", "0", "2"]);
   assert.deepEqual(countItems().map((c) => c.value), ["—", "—", "—", "—"]);

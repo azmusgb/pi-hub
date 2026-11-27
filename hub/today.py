@@ -16,6 +16,7 @@ LANES = [("printer", "X2D", "Bambuddy"), ("workshop_display", "Workshop display"
 HISTORY_THINGS = ("workshop_display", "pi")
 # Bambuddy's print status -> mark kind, and the word section 9 uses for it
 PRINT_KIND = {"completed": "ok", "failed": "bad", "cancelled": "bad", "printing": "run"}  # anything else: "other"
+STALE_WORD = "reading out of date"  # what a print row says when the printer record behind it has gone stale
 
 
 def day_bounds(now):
@@ -103,6 +104,10 @@ def _print_marks(prints, printer, start, end, now):
             and abs(newest["started"] - seen) > 30 * 60:
         newest = None
     word_now = "Paused" if rec and rec.get("state") == "paused" else bambuddy.status_word("printing")
+    # A stale record's last word, or a held print, is not a print running now: drawn in the neutral kind (no pulse), and
+    # a stale reading never says "Printing".
+    stale = isinstance(printer, dict) and bool(printer.get("stale")) and printer.get("state") in ("printing", "paused")
+    live = "other" if stale or (rec and rec.get("state") == "paused") else "run"
     for p in prints:
         kind = PRINT_KIND.get(p.get("status"), "other")
         name, word = p.get("name") or "Untitled", bambuddy.status_word(p.get("status"))
@@ -112,13 +117,13 @@ def _print_marks(prints, printer, start, end, now):
             began = p.get("started")
             left = detail.get("minutes_left")
             pct = detail.get("progress")
-            title = f"{name}: {word_now}" + (f", {round(pct)}%" if rec and isinstance(pct, (int, float)) else "")
+            title = f"{name}: {STALE_WORD if stale else word_now}" + (f", {round(pct)}%" if rec and isinstance(pct, (int, float)) else "")
             mark = {"start": max(began, start) if isinstance(began, (int, float)) else now, "end": now}
             if isinstance(left, (int, float)) and left > 0:
                 mark["until"] = int(now + left * 60)
             elif not isinstance(began, (int, float)):
                 continue  # nothing to draw: no start and no remaining time
-            marks.append({**mark, "kind": kind, "title": title})
+            marks.append({**mark, "kind": live, "title": title})
             continue
         began, ended = p.get("started"), p.get("ended")
         if not isinstance(ended, (int, float)) or ended < start or ended > end:
@@ -134,7 +139,7 @@ def _print_marks(prints, printer, start, end, now):
         if isinstance(left, (int, float)) and left > 0:
             mark["until"] = int(now + left * 60)
         title = f"{detail.get('job') or 'Untitled'}: {word_now}" + (f", {round(pct)}%" if isinstance(pct, (int, float)) else "")
-        marks.append({**mark, "kind": "run", "title": title})
+        marks.append({**mark, "kind": live, "title": title})
     return sorted(marks, key=lambda m: m["start"])
 
 
