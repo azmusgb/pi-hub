@@ -23,6 +23,8 @@ import * as networkPage from "./network.js";
 import * as devicesPage from "./devices.js";
 import * as mapPage from "./map.js";
 import * as versionsPage from "./versions.js";
+import * as missionsPage from "./missions.js";
+import * as missionPage from "./mission.js";
 import * as assistantPage from "./assistant.js";
 import { modelsPage, PURPOSES as READ_PURPOSES, statusPage, TITLES as READ_TITLES } from "./assistant-pages.js";
 import * as taskPage from "./assistant-run.js";
@@ -89,6 +91,8 @@ const ROUTES = {
   "/system": ["health", healthPage],
   "/backups": ["backups", backupsPage],
   "/versions": ["versions", versionsPage],
+  "/missions": ["missions", missionsPage],
+  "/missions/<initiative>": ["mission", missionPage],
   "/alerts": ["alerts", alertsPage],
   "/rules": ["rules", rulesPage],
   "/settings": ["settings", settingsPage],
@@ -103,7 +107,12 @@ const PAGES = Object.fromEntries(Object.entries(ROUTES).map(([path, [key, mod]])
 PAGES["/assistant/status"] = { key: "assistant-status", mod: statusPage, title: READ_TITLES.status, purpose: READ_PURPOSES.status };
 PAGES["/assistant/models"] = { key: "assistant-models", mod: modelsPage, title: READ_TITLES.models, purpose: READ_PURPOSES.models };
 const TASK_PAGE = { key: "assistant-run", mod: taskPage, title: taskPage.TITLE, purpose: taskPage.PURPOSE };
-const pageFor = (path) => PAGES[path] || (/^\/assistant\/run\/[^/]+$/.test(path) ? TASK_PAGE : null);
+// A mission is /missions/<initiative>, one page for every id as the hub takes it (the kit's `<value>` address, matched as a
+// pattern: the literal row in ROUTES is the page's own, never an address).
+const MISSION = "/missions/<initiative>";
+const MISSION_PAGE = { ...PAGES[MISSION], purpose: SITE.pageAt(MISSION).purpose };
+const pageFor = (path) => PAGES[path === MISSION ? "" : path] || (/^\/assistant\/run\/[^/]+$/.test(path) ? TASK_PAGE
+  : /^\/missions\/[a-z0-9][a-z0-9-]{1,39}$/.test(path) ? MISSION_PAGE : null);
 
 // In-app navigation to an address the hub doesn't have (the server answers a typed or bookmarked one with a 404 page).
 const NOT_FOUND = { key: "not-found", title: "Page not found", mod: {

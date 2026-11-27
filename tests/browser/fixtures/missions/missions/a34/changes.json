@@ -1,0 +1,75 @@
+{
+ "version": 1,
+ "as_of": "2026-11-26T09:41:00+00:00",
+ "seq": 31,
+ "after": 31,
+ "reset": false,
+ "views": [],
+ "events": [],
+ "truncated": false,
+ "executions": [
+  {
+   "id": "x1",
+   "source": "claude",
+   "level": "hook",
+   "title": "pi-hub fix/release-test-timing",
+   "tasks": [],
+   "model": "Opus 5.5",
+   "branch": "fix/release-test-timing",
+   "workstream": null,
+   "started_at": "2026-11-26T09:11:00+00:00",
+   "tool": null,
+   "shown": "Working",
+   "state": "working",
+   "live": true,
+   "since": "2026-11-26T09:40:40+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "claude",
+    "at": "2026-11-26T09:40:40+00:00"
+   }
+  },
+  {
+   "id": "x2",
+   "source": "localai",
+   "level": "full",
+   "title": "Local AI: draft the Assistant pages",
+   "tasks": [],
+   "model": null,
+   "branch": null,
+   "workstream": null,
+   "started_at": "2026-11-26T07:41:00+00:00",
+   "tool": null,
+   "shown": "Last known 08:58 (PC asleep)",
+   "state": "running",
+   "live": false,
+   "since": "2026-11-26T08:58:00+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "localai",
+    "at": "2026-11-26T08:58:00+00:00"
+   }
+  },
+  {
+   "id": "x3",
+   "source": "claude",
+   "level": "hook",
+   "title": "pi-hub docs/a34-notes",
+   "tasks": [],
+   "model": "Opus 5.5",
+   "branch": "docs/a34-notes",
+   "workstream": null,
+   "started_at": "2026-11-26T06:41:00+00:00",
+   "tool": null,
+   "shown": "Turn finished 09:12",
+   "state": "turn_finished",
+   "live": false,
+   "since": "2026-11-26T09:12:00+00:00",
+   "provenance": {
+    "trust": "reported",
+    "source": "claude",
+    "at": "2026-11-26T09:12:00+00:00"
+   }
+  }
+ ]
+}

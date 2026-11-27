@@ -1,0 +1,87 @@
+{
+ "version": 1,
+ "as_of": "2026-11-26T09:41:00+00:00",
+ "seq": 31,
+ "view": "decisions",
+ "state": "ok",
+ "open": [
+  {
+   "id": "d1",
+   "kind": "choice",
+   "question": "Raise the 900 s release test limit?",
+   "options": [
+    "No, fix the tests",
+    "Raise to 1200 s",
+    "Raise now, fix later"
+   ],
+   "recommended": "No, fix the tests",
+   "link": null,
+   "answered_at": null,
+   "answer": null,
+   "blocking": true,
+   "context": "Release tests took 883 of 900 s on 23 Nov.",
+   "why_needed": "A slower test run fails the release."
+  },
+  {
+   "id": "d2",
+   "kind": "yesno",
+   "question": "Keep the Pi test budget as a release gate?",
+   "options": [],
+   "recommended": null,
+   "link": null,
+   "answered_at": null,
+   "answer": null,
+   "blocking": false
+  }
+ ],
+ "answered": [
+  {
+   "id": "d9",
+   "kind": "choice",
+   "question": "Where does Activity live?",
+   "options": [],
+   "answer": "System",
+   "answered_at": 1795000000,
+   "when": "2026-11-26T07:41:00+00:00",
+   "provenance": {
+    "trust": "owner",
+    "source": "owner",
+    "at": "2026-11-26T07:41:00+00:00"
+   }
+  },
+  {
+   "id": "a34:d1",
+   "kind": "choice",
+   "question": "Which stage comes first when two plans touch the same page?",
+   "options": [],
+   "recommended": null,
+   "answer": "P0 Headroom",
+   "answered_at": "2026-11-23",
+   "answer_source": "manifest",
+   "when": "2026-11-23",
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  },
+  {
+   "id": "a34:d2",
+   "kind": "choice",
+   "question": "List A30 in the baseline?",
+   "options": [],
+   "recommended": null,
+   "answer": "Yes",
+   "answered_at": "2026-11-22",
+   "answer_source": "manifest",
+   "when": "2026-11-22",
+   "provenance": {
+    "trust": "imported",
+    "source": "importer",
+    "from": "azmusgb/pi-hub@4ef3c14"
+   }
+  }
+ ],
+ "total": 3,
+ "next": null
+}

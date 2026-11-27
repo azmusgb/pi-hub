@@ -3,6 +3,7 @@
 import { api, askFirst, empty, h, post, toast, when, whoami } from "./core.js";
 import { faceplate, faceplateLoading, fillNeedsHere, needsHere, section } from "./page-parts.js";
 import { firstFew } from "./section-links.js";
+import { SITE } from "./site.js";
 
 export const every = 60;
 
@@ -124,7 +125,19 @@ export function mount(state) {
   state.history = h("div");
   state.root.append(state.notice, state.plate, state.needs,
     section("What is live where", state.list),
-    section("Pi Hub versions", state.history));
+    section("Pi Hub versions", state.history),
+    missionsCard());
+}
+
+// The card that opens Missions (A35 M1b decision 14; the page list's `card:versions` reach): one linked row, named and
+// described by the page list.
+function missionsCard() {
+  const page = SITE.page("missions");
+  if (!page) return null;
+  return section(page.label, h("ul", { class: "ui-rows ui-rows--grid" }, h("li", {},
+    h("a", { class: "ui-row", href: page.path, "data-link": true },
+      h("span", { class: "ui-row__name" }, h("span", { class: "ui-row__title" }, page.label)),
+      h("span", { class: "ui-row__detail" }, page.purpose)))), { cls: "missions-card" });
 }
 
 // Asks inline under its button (A7 P7), naming the version by its change (decision 4).

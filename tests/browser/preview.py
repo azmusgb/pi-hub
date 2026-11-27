@@ -5,7 +5,7 @@ the live hub (--upstream). Every other method is refused with 405 and never reac
 previewed page can act on the house. A request for any host but 127.0.0.1 or localhost on the preview's own port is
 refused with 421 before anything is read, so a page elsewhere can't reach the hub's answers through it by DNS
 rebinding. --fixture DIR answers GET /api/<path> from DIR/<path>.json when that file
-exists (the long-content and empty states). The record stream is answered 404: the shell falls back to polling.
+exists (the long-content and empty states); with ?view=<v> it tries DIR/<path>--<v>.json first. The record stream is answered 404: the shell falls back to polling.
 
 Usage (from the Mac): python3 tests/browser/preview.py [--port 8799] [--upstream https://hub.rahe-home.duckdns.org]
 Stdlib only; run with the repo's .venv or any Python 3.11+.
@@ -16,6 +16,7 @@ import argparse
 import http.server
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -74,9 +75,13 @@ def handler(static: Path, upstream: str, fixture: Path | None, timeout: float = 
 
         def api(self, path: str):
             if fixture is not None:
-                f = (fixture / (path[len("/api/"):] + ".json")).resolve()
-                if f.is_relative_to(fixture.resolve()) and f.is_file():
-                    return self.send(200, f.read_bytes())
+                name = path[len("/api/"):]
+                # A route that answers one body per `?view=` (a mission's tabs) has one file per view: <name>--<view>.json.
+                view = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("view", [""])[0]
+                for stem in ([f"{name}--{view}"] if view.isalnum() else []) + [name]:
+                    f = (fixture / (stem + ".json")).resolve()
+                    if f.is_relative_to(fixture.resolve()) and f.is_file():
+                        return self.send(200, f.read_bytes())
             try:
                 with urllib.request.urlopen(upstream + self.path, timeout=timeout) as r:
                     return self.send(r.status, r.read(), r.headers.get("content-type", "application/json"))
