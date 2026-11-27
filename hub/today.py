@@ -107,7 +107,8 @@ def _print_marks(prints, printer, start, end, now):
     # A stale record's last word, or a held print, is not a print running now: drawn in the neutral kind (no pulse), and
     # a stale reading never says "Printing".
     stale = isinstance(printer, dict) and bool(printer.get("stale")) and printer.get("state") in ("printing", "paused")
-    live = "other" if stale or (rec and rec.get("state") == "paused") else "run"
+    held = bool(rec and rec.get("state") == "paused")  # a held print projects no finish: no "until"
+    live = "other" if stale or held else "run"
     for p in prints:
         kind = PRINT_KIND.get(p.get("status"), "other")
         name, word = p.get("name") or "Untitled", bambuddy.status_word(p.get("status"))
@@ -119,7 +120,7 @@ def _print_marks(prints, printer, start, end, now):
             pct = detail.get("progress")
             title = f"{name}: {STALE_WORD if stale else word_now}" + (f", {round(pct)}%" if rec and isinstance(pct, (int, float)) else "")
             mark = {"start": max(began, start) if isinstance(began, (int, float)) else now, "end": now}
-            if isinstance(left, (int, float)) and left > 0:
+            if isinstance(left, (int, float)) and left > 0 and not held:
                 mark["until"] = int(now + left * 60)
             elif not isinstance(began, (int, float)):
                 continue  # nothing to draw: no start and no remaining time
@@ -136,7 +137,7 @@ def _print_marks(prints, printer, start, end, now):
     if rec and newest is None and not ended_since:
         began, left, pct = detail.get("started"), detail.get("minutes_left"), detail.get("progress")
         mark = {"start": max(began, start) if isinstance(began, (int, float)) else now, "end": now}
-        if isinstance(left, (int, float)) and left > 0:
+        if isinstance(left, (int, float)) and left > 0 and not held:
             mark["until"] = int(now + left * 60)
         title = f"{detail.get('job') or 'Untitled'}: {word_now}" + (f", {round(pct)}%" if isinstance(pct, (int, float)) else "")
         marks.append({**mark, "kind": live, "title": title})

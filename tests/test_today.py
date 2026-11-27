@@ -372,3 +372,15 @@ def test_route_reads_the_hub_history(monkeypatch):
            t - 60, "pi", "ok", "power", "attention", "Power problem", "")
     rows = today.history_events(t - 3600)
     assert rows == [{"ts": t - 60, "thing": "pi", "new": "power"}]
+
+
+def test_a_held_print_projects_no_finish():
+    """Paused: no "until" (the client would say "done <time>"), but its percent and start stay, from record or log row."""
+    printer = {"state": "paused", "detail": {"job": "Tile", "started": at(14), "progress": 40, "minutes_left": 50}}
+    for prints in ([], [pr("Tile", "printing", at(14), None)]):
+        (mark,) = lane(today.build(NOW, inputs(prints=prints, printer=printer)), "printer")["marks"]
+        assert "until" not in mark and "done" not in mark["title"]
+        assert (mark["kind"], mark["start"], mark["end"], mark["title"]) == ("other", at(14), NOW, "Tile: Paused, 40%")
+    running = {**printer, "state": "printing"}
+    (mark,) = lane(today.build(NOW, inputs(printer=running)), "printer")["marks"]
+    assert mark["until"] == NOW + 50 * 60, "a running print still projects its finish"
