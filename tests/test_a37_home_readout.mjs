@@ -341,3 +341,21 @@ test("X2D row lamp: a paused print is warn, not live", () => {
   assert.equal(row(rec({ state: "paused", severity: "attention", actions: [{ name: "resume" }] }), printingCard({ state: "paused" })).lamp, "warn",
     "a held print is amber, not green and pulsing");
 });
+
+test("X2D row lamp: a stale reading is unknown, never live or warn, with the warn notice kept", () => {
+  const rec = (over) => ({ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 }, ...over });
+  const row = (records, printer) => rackRows({ now: { printer }, records: [records], nowTs: AS_OF, plateShown: false }).find((r) => r.id === "printer");
+  for (const state of ["printing", "paused"]) {
+    const r = row(rec({ state, stale: true, as_of: AS_OF - 720 }), printingCard({ state, stale: true }));
+    assert.equal(r.lamp, "unknown", `a stale ${state} reading is never live or warn`);
+    assert.match(r.state, /^Last seen /);
+  }
+  const h = withHead();
+  try {
+    const asOf = Math.floor(Date.now() / 1000) - 720;
+    renderDashboard(h.state, { today: null, records: [rec({ stale: true, as_of: asOf })], needs: { count: 0, items: [], unread: [] },
+      now: { printer: printingCard({ stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy", observed_at: new Date(asOf * 1000).toISOString() } }) } }, () => {});
+    assert.equal(h.parent.querySelector('[data-row="printer"]').dataset.lamp, "unknown");
+    assert.ok(h.parent.querySelector(".hd-printer-note.ui-notice--warn"), "the warn notice stays");
+  } finally { h.done(); }
+});
