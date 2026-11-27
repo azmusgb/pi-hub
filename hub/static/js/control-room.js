@@ -152,7 +152,69 @@ export function recordTitle(r) {
 // A record left in this state on purpose is not a Need: it shows on its system's row with the way to undo it
 // (amendment A8 D2). The Home badge counts the same list, so the two agree (baseline 5.5).
 export const DELIBERATE = { adguard: ["paused"] };
-const RECORD_ASK_IDS = new Set(["backups", "local_ai", "pc_printing"]);
+
+// Which record states are an ask and which are a heads-up when /api/needs didn't classify a record: the server's own
+// tables (hub/needs.py RECORD_ASK_STATES, RECORD_HEADS_UP_STATES), copied; tests/test_a37_home_readout.mjs fails when
+// the two drift. A state in neither table, or a record kind in neither, is an ask: unknown fails loud.
+export const RECORD_ASK_STATES = {
+  printer: ["paused", "finished", "failed"],
+  obico: ["failure", "blind"],
+  pc_printing: ["off_while_printing"],
+  movies_drive: ["not_mounted", "missing"],
+  plex: ["stopped"],
+  devices: ["stopped", "signed_out"],
+  paper_printer: ["problem"],
+  mac_lab: ["mac_silent"],
+};
+export const RECORD_HEADS_UP_STATES = {
+  printer: ["offline"],
+  obico: ["warning"],
+  camera: ["no_picture"],
+  workshop_display: ["offline"],
+  pc: ["off"],
+  local_ai: ["no_models", "down"],
+  pi: ["hot", "power"],
+  movie_copy: ["behind"],
+  internet: ["slow", "down"],
+  adguard: ["not_answering", "paused"],
+  backups: ["behind"],
+  weather: ["warning"],
+  hub: ["disagreement"],
+};
+
+// hub/records.py BACKUP_ASK_AFTER and PC_COPY_ASK_AFTER (seconds), copied; the drift test fails when they change.
+export const BACKUP_ASK_AFTER = 48 * 3600;
+export const PC_COPY_ASK_AFTER = 50 * 3600;
+const isAge = (n) => typeof n === "number" && !Number.isNaN(n);
+
+// hub/needs.py _backups_escalated: "behind" is an ask once a machine's last backup is older than BACKUP_ASK_AFTER, the
+// PC's copy of the Pi's backup is BACKUP... PC_COPY_ASK_AFTER old or older, or an age is missing (unknown fails loud).
+function backupsEscalated(rec) {
+  if (rec?.stale || rec?.state !== "behind") return false;
+  const d = rec.detail || {};
+  for (const m of Array.isArray(d.machines) ? d.machines : []) {
+    const age = m && typeof m === "object" ? m.age : null;
+    if (age === null || age === undefined || (isAge(age) && age > BACKUP_ASK_AFTER)) return true;
+  }
+  const copy = d.pc_copy;
+  if (copy && typeof copy === "object" && !Array.isArray(copy)) {
+    const age = copy.age;
+    if (age === null || age === undefined || (isAge(age) && age >= PC_COPY_ASK_AFTER)) return true;
+  }
+  return false;
+}
+
+// hub/needs.py _record_kind (and the backups escalation in _hub_item), for a record the client classifies itself.
+export function recordKind(id, rec) {
+  if (id === "source:bambuddy") return "ask";
+  if (String(id).startsWith("source:") || String(id).startsWith("release:")) return "heads_up";
+  if (!rec || rec.stale) {
+    return ["printer", "obico", "hms"].includes(id) ? "ask" : id in RECORD_ASK_STATES || id in RECORD_HEADS_UP_STATES ? "heads_up" : "ask";
+  }
+  if (RECORD_ASK_STATES[id]?.includes(rec.state)) return "ask";
+  if (id === "backups" && backupsEscalated(rec)) return "ask";
+  return RECORD_HEADS_UP_STATES[id]?.includes(rec.state) ? "heads_up" : "ask";
+}
 
 // Merge Needs you items with any problem/attention records so nothing falls through the cracks.
 export function mergeProblems(records = [], needs = null) {
@@ -193,7 +255,7 @@ export function mergeProblems(records = [], needs = null) {
     if (coveredAbout.has(r.id)) continue;
     const actions = actionNames(r.actions);
     const fix = FIX_MAP[r.id] || null;
-    const isAsk = r.severity === "problem" || actions.length > 0 || Boolean(fix) || RECORD_ASK_IDS.has(r.id);
+    const isAsk = recordKind(r.id, r) === "ask";
     out.push({
       kind: "record",
       id: `rec:${r.id}`,

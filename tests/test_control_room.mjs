@@ -57,7 +57,7 @@ test("Home's Needs you items carry the kit's verb keys, never a bare Open", asyn
   const { problemItems } = await import("../hub/static/js/control-room.js");
   const recs = [
     { id: "printer", state: "finished", severity: "attention", headline: "Finished, plate not cleared", actions: ["clear"], since: 1_800_000_000 },
-    { id: "internet", state: "down", severity: "problem", headline: "Internet is down", since: 1_800_000_100 },
+    { id: "internet", state: "unknown", severity: "attention", headline: "Internet unreadable", since: 1_800_000_100 },
     { id: "backups", state: "late", severity: "attention", headline: "Backups are late" },
   ];
   const needs = { items: [

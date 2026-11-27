@@ -3,11 +3,13 @@
 // 2026-11-05-a10-responsive, P4): the band reads its own width and type size. A11: where the band can't give an hour
 // 24 px with names beside, the day is a dial and the rack compact rows.
 import { clockTime, h } from "./core.js";
-import { printerPlate, sayHead } from "./page-parts.js";
+import { printerPlate } from "./page-parts.js";
 import { printerButtons } from "./printer-actions.js";
-import { jobTitle, printerReading } from "./printer-reading.js";
+import { jobTitle } from "./printer-reading.js";
 import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { couldntCheck } from "./wording.js";
+import { RECORDS, homePlateShown, homePrinterCard, homeReading, printerNote, sayHome } from "./home-reading.js";
+export { homePlateShown, homePrinterCard, homeReading, sayHome };
 import { decisionsState, drawDecisions } from "./home-decisions.js";
 import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, recordTone, renderProblems,
   splitNowRecords } from "./control-room.js";
@@ -384,52 +386,6 @@ const NET_WORD = {
   local_ai: { ready: "Ready", busy: "Busy", no_models: "No models loaded", down: "Down" },
 };
 
-// The printer card Home reads for its sentence and its plate (A37 R3, R4): /api/now's printer card, enriched by the
-// printer record when present (or built from the record alone when a test passes only records).
-export function homePrinterCard(d, records) {
-  const p = d?.printer && typeof d.printer === "object" ? d.printer : null;
-  const pr = (records || []).find((r) => r?.id === "printer") || null;
-  if (!p?.state && !pr?.state) return p;
-  const dt = pr?.detail || {};
-  const pct = typeof p?.percent === "number" ? p.percent : Number.isFinite(dt.progress) ? Math.round(dt.progress) : null;
-  const stale = Boolean(p?.stale || pr?.stale || p?.telemetry?.status === "stale");
-  const asOf = p?.as_of ?? pr?.as_of ?? null;
-  const tel = p?.telemetry || (pr ? { status: stale ? "stale" : "live", source: "Bambuddy", observed_at: Number.isFinite(asOf) ? new Date(asOf * 1000).toISOString() : "" } : undefined);
-  return {
-    ...p, state: p?.state || pr?.state, stale, as_of: asOf, percent: pct, progress: p?.progress ?? pct ?? 0,
-    job_name: p?.job_name ?? dt.job ?? "", layer_num: p?.layer_num ?? dt.layer ?? null, total_layers: p?.total_layers ?? dt.total_layers ?? null,
-    minutes_left: p?.minutes_left ?? dt.minutes_left ?? null, actions: Array.isArray(p?.actions) && p.actions.length ? p.actions : actionNames(pr?.actions),
-    telemetry: tel, lab: dt.lab?.experiment || dt.lab_experiment || dt.lab || "", labProject: dt.lab?.project || dt.lab_project || "",
-  };
-}
-
-// Home draws the printer plate only while a print runs or is held (A37 R4, Call 3); idle, the sentence says so.
-export function homePlateShown(card) {
-  return Boolean(card && (card.state === "printing" || card.state === "paused") && !card.stale && card.telemetry?.status !== "stale");
-}
-
-const conditionTitle = (p) => (p?.source === "Pi Hub" && typeof p.detail === "string" && p.detail.trim()
-  ? p.detail.split(". ")[0].trim() : typeof p?.title === "string" ? p.title.trim() : "");
-
-// What Home hands ApplianceSay.compose (A37 R2, R3): the asks count equals the ask rows Home drew; part unread names
-// the source that wasn't read; no asks with open decisions says how many decisions wait; bad conditions beat the
-// running print, which beats warn heads-up.
-export function homeReading(src = {}, { asks = null, headsUp = [], probs = null, decisions = undefined } = {}) {
-  const unread = [...(Array.isArray(src.needs?.unread) ? src.needs.unread : []),
-    ...(!src.needs && asks?.length ? ["Needs you"] : []), ...(src.needs && !src.records ? ["Pi Hub's records"] : [])];
-  const count = !src.needs && !asks?.length ? null : Array.isArray(asks) ? asks.length : null;
-  const bad = (probs || []).filter((p) => p?.tone === "bad").map((p) => ({ tone: "bad", title: conditionTitle(p) }));
-  const warn = (headsUp || []).filter((p) => p?.tone !== "bad").map((p) => ({ tone: "warn", title: conditionTitle(p) }));
-  const card = homePrinterCard(src.now, src.records);
-  return { page: "home", label: "Home", asks: count, unread, ...(decisions !== undefined ? { decisions } : {}),
-    conditions: [...bad, ...warn], printer: card?.state ? printerReading(card, { title: jobTitle }) : undefined };
-}
-
-export function sayHome(input, now = Date.now()) {
-  const kit = globalThis.ApplianceSay;
-  return kit ? sayHead(kit.compose(input, { now, ago: globalThis.ApplianceNeeds?.ago }), "now") : false;
-}
-
 // The rack as plain data (pure, tested): each row's lamp, name, state in words, one-line detail, optional figure and
 // link. While Home's plate shows the printer, the X2D row drops its figure (A37 R4, R6).
 export function rackRows(src) {
@@ -441,7 +397,7 @@ export function rackRows(src) {
   // X2D, from the printer record (the same one Workshop reads)
   const pr = rec("printer");
   if (!records) {
-    const down = sourceDown("Pi Hub's records");
+    const down = sourceDown(RECORDS);
     rows.push({ id: "printer", name: "X2D", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/workshop", link: "Open Workshop" });
   } else {
     const m = pr ? printerNow(pr) : null, dt = pr?.detail || {}, p = d?.printer || {}, readings = [];
@@ -462,7 +418,7 @@ export function rackRows(src) {
       Number.isFinite(p.nozzle_temp) ? `Nozzle ${Math.round(p.nozzle_temp)}°` : "", Number.isFinite(p.bed_temp) ? `Bed ${Math.round(p.bed_temp)}°` : "",
       p.filament_type || "", Number.isFinite(p.ams_humidity) ? `AMS ${Math.round(p.ams_humidity)}%` : ""].filter(Boolean);
     const figure = !onPlate && !stale && Number.isFinite(m?.pct) && m.pct > 0 ? { value: `${m.pct}%`, note: doneNote } : null;
-    rows.push({ id: "printer", name: "X2D", lamp: !pr ? "unknown" : stale ? "warn" : m?.running ? "run" : lampOf(pr.severity),
+    rows.push({ id: "printer", name: "X2D", lamp: !pr ? "unknown" : stale ? "unknown" : pr.state === "printing" ? "run" : pr.state === "paused" ? "warn" : lampOf(pr.severity),
       state, chip, detail: !pr ? "" : stale ? state : parts.join(", "), figure, readings,
       brief: !stale && Number.isFinite(m?.pct) ? `${m.pct}%` : "", href: "/workshop", link: "Open Workshop",
       printer: pr && !stale ? { actions: actionNames(pr.actions), state: pr.state, lab: m?.lab || "", labProject: m?.labProject || "" } : null });
@@ -482,7 +438,7 @@ export function rackRows(src) {
     if (up) readings.push({ label: "Up", value: up });
     if (Number.isFinite(pd.updates)) readings.push({ label: "Updates", value: pd.updates ? `${pd.updates} waiting` : "Up to date" });
     const power = typeof pd.power === "string" && pd.power !== "Good" ? pd.power : "";
-    const state = !records ? sourceDown("Pi Hub's records") : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
+    const state = !records ? sourceDown(RECORDS) : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
     const detail = !records ? state : [mem ? `Memory ${mem}` : "",
       sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed) ? `self-check ${sc.total - sc.failed} of ${sc.total}` : !pi ? "self-check not answering" : "",
       up ? `up ${up}` : "", Number.isFinite(pd.updates) ? (pd.updates ? `${pd.updates} updates waiting` : "up to date") : ""].filter(Boolean).join(", ");
@@ -493,7 +449,7 @@ export function rackRows(src) {
 
   // Network
   if (!records) {
-    const down = sourceDown("Pi Hub's records");
+    const down = sourceDown(RECORDS);
     rows.push({ id: "network", name: "Network", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/network", link: "Open Network" });
   } else {
     const ids = ["internet", "adguard", "pc", "local_ai"], recs = ids.map(rec), ag = rec("adguard");
@@ -518,7 +474,7 @@ export function rackRows(src) {
     const readings = [...drives.map((s) => ({ kind: "fill", label: s.name, pct: s.used_pct, value: `${gb(s.free_gb)} GB`, note: "free" })),
       ...repos.map((b) => ({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) }))];
     const recs = ["backups", "movies_drive", "movie_copy"].map(rec).filter(Boolean);
-    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown(RECORDS)].filter(Boolean);
     const bad = recs.find((r) => recordTone(r.severity) !== "ok");
     const state = bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up";
     const firstDrive = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
@@ -683,8 +639,8 @@ function drawDay(hd, at) {
 
 const renderRack = (hd, rows) => hd.rack.replaceChildren(...rows.map((r) => rackRow(r)));
 
-function renderPlate(hd, card, onReload) {
-  if (!homePlateShown(card)) { hd.plate?.remove(); hd.plate = null; return false; }
+function renderPlate(hd, card, onReload, recordsRead = true) {
+  if (!homePlateShown(card, recordsRead)) { hd.plate?.remove(); hd.plate = null; return false; }
   const btns = card.actions?.length ? printerButtons({ actions: card.actions, state: card.state }, onReload) : null;
   const lab = card.lab ? h("a", { class: "ui-btn ui-btn--ghost", href: printLabUrl(card.lab, card.labProject), "data-link": true }, `Open ${card.lab} in Print lab`) : null;
   const next = printerPlate(card, { actions: [btns, lab].filter(Boolean) });
@@ -750,9 +706,12 @@ export function renderDashboard(state, src, onReload) {
 
   // Needs you (asks) and Heads up (conditions, A36 D6): ordered by tone; the badge counts asks only.
   const card = homePrinterCard(src.now, src.records);
-  const plateShown = renderPlate(hd, card, onReload);
+  const plateShown = renderPlate(hd, card, onReload, Boolean(src.records));
+  const quiet = printerNote(card, nowTs);
+  if (hd.printerNote?.isConnected && quiet) hd.printerNote.replaceWith(quiet); else if (quiet) hd.root.prepend(quiet); else hd.printerNote?.remove();
+  hd.printerNote = quiet;
   {
-    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown(RECORDS)].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
     const asks = probs ? probs.filter((p) => p.itemKind !== "heads_up") : null;

@@ -15,7 +15,7 @@ import { pageHead } from "../hub/static/js/page-parts.js";
 import { homePlateShown, homeReading, mountDashboard, rackRows, renderDashboard } from "../hub/static/js/home-dashboard.js";
 import * as nowPage from "../hub/static/js/now.js";
 import { askArea } from "../hub/static/js/navigation.js";
-import { problemsBadge } from "../hub/static/js/control-room.js";
+import { BACKUP_ASK_AFTER, PC_COPY_ASK_AFTER, RECORD_ASK_STATES, RECORD_HEADS_UP_STATES, mergeProblems, problemsBadge } from "../hub/static/js/control-room.js";
 
 const sayMod = { exports: {} };
 new Function("module", readFileSync(new URL("../hub/static/ui/say.js", import.meta.url), "utf8"))(sayMod);
@@ -107,9 +107,9 @@ test("R3: Local AI unread and whole list unread produce their honest sentences, 
     renderDashboard(h.state, { today: null, records: [], needs: { count: 2, items, unread: ["Local AI"] }, now: {} }, () => {});
     assert.deepEqual(h.said(), ["Two things need you.", "Local AI wasn't read."]);
 
-    // /api/records failed while /api/needs answered with 0 asks: names Pi Hub's records as unread
+    // /api/records failed while /api/needs answered with 0 asks: names Pi Hub's record list as unread
     renderDashboard(h.state, { today: null, records: null, needs: { count: 0, items: [], unread: [] }, now: {} }, () => {});
-    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's records wasn't read."]);
+    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's record list wasn't read."]);
   } finally { h.done(); }
 });
 
@@ -232,5 +232,175 @@ test("A36 D2/D3 + A37 R3: attention records without an action or fix merge as he
     assert.ok(box, "drawn inside collapsed Heads up");
     assert.equal(box.querySelectorAll('.ui-need[data-kind="heads_up"]').length, 2);
     assert.equal(box.querySelector(".ui-need__action"), null, "no PAGE_VERB button on heads_up record rows (A36 D3)");
+  } finally { h.done(); }
+});
+
+// Finding 1 (PR 363 review): with /api/needs failed or silent about a record, the client classifies the records itself.
+// It must say what hub/needs.py _record_kind says, or a finished print lands in Heads up and "backups behind" counts as
+// an ask.
+test("mergeProblems classifies records as hub/needs.py _record_kind does, including with /api/needs failed", () => {
+  const cases = [
+    ["printer", "finished", "ask"], ["obico", "blind", "ask"], ["paper_printer", "problem", "ask"], ["printer", "unknown", "ask"],
+    ["backups", "behind", "heads_up"], ["local_ai", "no_models", "heads_up"], ["internet", "down", "heads_up"], ["pc", "off", "heads_up"],
+  ];
+  for (const [id, state, kind] of cases) {
+    for (const needs of [null, { count: 0, items: [], unread: [] }]) {
+      const [p] = mergeProblems([{ id, state, severity: "attention", headline: id }], needs);
+      assert.equal(p.itemKind, kind, `${id}(${state}) with needs ${needs ? "answering" : "failed"}`);
+    }
+  }
+  const [stale] = mergeProblems([{ id: "backups", state: "behind", severity: "attention", stale: true }], null);
+  assert.equal(stale.itemKind, "heads_up", "a stale known record that isn't printer, obico or hms is heads up, as the server has it");
+  const [stalePrinter] = mergeProblems([{ id: "printer", state: "printing", severity: "attention", stale: true }], null);
+  assert.equal(stalePrinter.itemKind, "ask");
+  const [stranger] = mergeProblems([{ id: "nobody_knows", state: "x", severity: "attention" }], null);
+  assert.equal(stranger.itemKind, "ask", "an unknown record kind fails loud as an ask");
+});
+
+test("failed /api/needs: the Home badge, sentence and rows count a finished print as an ask and backups behind as heads up", () => {
+  const h = withHead();
+  try {
+    const records = [
+      { id: "printer", state: "finished", severity: "attention", headline: "Finished", actions: [{ name: "clear" }] },
+      { id: "backups", state: "behind", severity: "attention", headline: "Backups are behind" },
+    ];
+    renderDashboard(h.state, { today: null, records, needs: null, now: {} }, () => {});
+    assert.equal(problemsBadge(null, h.state.probs).count, 1, "only the finished print is an ask");
+    assert.equal(h.said()[0], "One thing needs you.");
+  } finally { h.done(); }
+});
+
+test("the client's record tables are the server's: they fail when hub/needs.py changes and this file doesn't", () => {
+  const py = readFileSync(new URL("../hub/needs.py", import.meta.url), "utf8");
+  const parse = (name) => {
+    const body = py.match(new RegExp(`^${name} = \\{\\n([\\s\\S]*?)^\\}`, "m"))[1];
+    return Object.fromEntries([...body.matchAll(/"(\w+)": \{([^}]*)\}/g)].map(([, k, v]) => [k, [...v.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort()]));
+  };
+  const flat = (t) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, [...v].sort()]));
+  assert.deepEqual(flat(RECORD_ASK_STATES), parse("RECORD_ASK_STATES"));
+  assert.deepEqual(flat(RECORD_HEADS_UP_STATES), parse("RECORD_HEADS_UP_STATES"));
+
+  // The backups escalation (_backups_escalated): the two thresholds, and which comparison each one uses.
+  const rec = readFileSync(new URL("../hub/records.py", import.meta.url), "utf8");
+  const secs = (name) => { const m = rec.match(new RegExp(`^${name} = (\\d+) \\* 3600\\b`, "m")); return m ? Number(m[1]) * 3600 : null; };
+  assert.equal(BACKUP_ASK_AFTER, secs("BACKUP_ASK_AFTER"));
+  assert.equal(PC_COPY_ASK_AFTER, secs("PC_COPY_ASK_AFTER"));
+  const esc = py.match(/^def _backups_escalated\(rec\):\n([\s\S]*?)^def /m)[1].replace(/\s+/g, " ").trim();
+  assert.equal(esc, [
+    'if not rec or rec.get("stale") or rec.get("state") != "behind": return False',
+    'detail = rec.get("detail") or {}',
+    'for m in detail.get("machines") or (): age = m.get("age") if isinstance(m, dict) else None',
+    'if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age > records_mod.BACKUP_ASK_AFTER): return True',
+    'copy = detail.get("pc_copy")',
+    'if isinstance(copy, dict): age = copy.get("age")',
+    'if age is None or (isinstance(age, (int, float)) and not isinstance(age, bool) and age >= records_mod.PC_COPY_ASK_AFTER): return True',
+    "return False",
+  ].join(" "), "hub/needs.py _backups_escalated changed: mirror it in control-room.js backupsEscalated");
+  assert.match(py, /elif key == "backups" and _backups_escalated\(rec\):\n\s+item\.update\(kind="ask"/, "_hub_item still escalates backups to an ask");
+});
+
+test("backups behind escalates to an ask in the client as the server does: a stale machine, a stale PC copy, a missing age", () => {
+  const behind = (detail, extra = {}) => ({ id: "backups", state: "behind", severity: "attention", headline: "Backups are behind", detail, ...extra });
+  const kind = (r) => mergeProblems([r], null)[0].itemKind;
+  const old = BACKUP_ASK_AFTER + 1;
+  assert.equal(kind(behind({ machines: [{ age: 3600 }] })), "heads_up", "a recent backup is a heads-up");
+  assert.equal(kind(behind({})), "heads_up", "no machines and no PC copy named: nothing to escalate");
+  assert.equal(kind(behind({ machines: [{ age: BACKUP_ASK_AFTER }] })), "heads_up", "a machine at exactly the limit is not past it");
+  assert.equal(kind(behind({ machines: [{ age: 3600 }, { age: old }] })), "ask", "one machine past the limit");
+  assert.equal(kind(behind({ machines: [{ age: null }] })), "ask", "a machine with no age");
+  assert.equal(kind(behind({ machines: [{}] })), "ask", "a machine with no age key");
+  assert.equal(kind(behind({ pc_copy: { age: PC_COPY_ASK_AFTER - 1 } })), "heads_up");
+  assert.equal(kind(behind({ pc_copy: { age: PC_COPY_ASK_AFTER } })), "ask", "the PC copy limit is inclusive");
+  assert.equal(kind(behind({ pc_copy: { age: null } })), "ask", "a PC copy with no age");
+  assert.equal(kind(behind({ machines: [{ age: old }] }, { stale: true })), "heads_up", "a stale record stays a heads-up, as on the server");
+  assert.equal(kind({ ...behind({ machines: [{ age: old }] }), state: "ok" }), "ask", "a state outside both tables still fails loud");
+
+  const h = withHead();
+  try {
+    for (const detail of [{ machines: [{ age: 30 * 24 * 3600 }] }, { machines: [{ age: null }] }]) {
+      renderDashboard(h.state, { today: null, records: [behind(detail)], needs: null, now: {} }, () => {});
+      assert.equal(problemsBadge(null, h.state.probs).count, 1, "the badge counts it");
+      assert.equal(h.said()[0], "One thing needs you.");
+      assert.ok(h.said().every((l) => !/Nothing needs you\./.test(l)), "the sentence never says Nothing needs you");
+    }
+  } finally { h.done(); }
+});
+
+// Finding 2 (PR 363 review): a held or silent printer is in Home's sentence, and a printer that went stale gets a
+// notice that says how old its last reading is. The words come from the kit's printer sentences (say.js), never from here.
+test("a paused print is named in Home's second sentence, ahead of a warn heads-up", () => {
+  const h = withHead();
+  try {
+    const needs = { count: 0, heads_up_count: 1, unread: [], items: [
+      { id: "pi:Weather", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Weather", detail: "Wind advisory", link: "/weather", record: "weather" }] };
+    const records = [{ id: "printer", state: "paused", severity: "attention", detail: { progress: 45 }, actions: [{ name: "resume" }] },
+      { id: "weather", state: "warning", severity: "attention", headline: "Wind advisory" }];
+    renderDashboard(h.state, { today: null, records, needs, now: { printer: printingCard({ state: "paused", actions: ["resume"], as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.said()[1], "The X2D is paused at 45%.");
+  } finally { h.done(); }
+});
+
+test("a stale printer that was printing is in the sentence and gets a warn notice with its age; no plate", () => {
+  const h = withHead();
+  try {
+    const asOf = Math.floor(Date.now() / 1000) - 720;
+    const stale = printingCard({ stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy", observed_at: new Date(asOf * 1000).toISOString() } });
+    const needs = { count: 0, heads_up_count: 1, unread: [], items: [
+      { id: "pi:Raspberry Pi", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Raspberry Pi", detail: "Running hot", link: "/system", record: "pi" }] };
+    const records = [{ id: "printer", state: "printing", severity: "ok", stale: true, as_of: asOf, detail: { progress: 45 } },
+      { id: "pi", state: "hot", severity: "attention", headline: "Running hot" }];
+    renderDashboard(h.state, { today: null, records, needs, now: { printer: stale } }, () => {});
+    assert.match(h.said()[1], /^The X2D was 45% through .* 12 min ago\.$/);
+    const note = h.parent.querySelector(".hd-printer-note.ui-notice.ui-notice--warn");
+    assert.ok(note, "a warn notice is drawn");
+    assert.match(text(note), /Bambuddy isn't answering\. Last reading 12 min ago\./);
+    assert.equal(h.parent.querySelector(".hd-plate"), null, "the stale plate stays withheld");
+
+    // It goes when the printer answers again
+    renderDashboard(h.state, { today: null, records: [{ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 } }], needs: { count: 0, heads_up_count: 0, unread: [], items: [] }, now: { printer: printingCard({ as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-printer-note"), null);
+    assert.ok(h.parent.querySelector(".hd-plate"));
+
+    // A stale printer that was idle says nothing here: there is no print to lose track of
+    renderDashboard(h.state, { today: null, records: [{ id: "printer", state: "idle", severity: "ok", stale: true, as_of: asOf }], needs: { count: 0, heads_up_count: 0, unread: [], items: [] }, now: { printer: printingCard({ state: "idle", stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy" } }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-printer-note"), null);
+  } finally { h.done(); }
+});
+
+// Finding 3a: with /api/records down, the plate and the X2D row must not say two things about one printer.
+test("records down while /api/now answers: no plate, and the X2D row and sentence say the record list wasn't read", () => {
+  const h = withHead();
+  try {
+    renderDashboard(h.state, { today: null, records: null, needs: { count: 0, items: [], unread: [] }, now: { printer: printingCard({ as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-plate"), null, "no live plate beside a row that says No answer");
+    assert.equal(text(h.parent.querySelector('[data-row="printer"] .ui-chip')).includes("No answer"), true);
+    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's record list wasn't read."]);
+  } finally { h.done(); }
+});
+
+// Review of the Systems rack's printer row: the lamp follows the plate chip, and a stale reading is never live.
+test("X2D row lamp: a paused print is warn, not live", () => {
+  const rec = (over) => ({ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 }, ...over });
+  const row = (records, printer) => rackRows({ now: { printer }, records: [records], nowTs: AS_OF, plateShown: false }).find((r) => r.id === "printer");
+  assert.equal(row(rec({}), printingCard()).lamp, "run", "a running print is live");
+  assert.equal(row(rec({ state: "paused", severity: "attention", actions: [{ name: "resume" }] }), printingCard({ state: "paused" })).lamp, "warn",
+    "a held print is amber, not green and pulsing");
+});
+
+test("X2D row lamp: a stale reading is unknown, never live or warn, with the warn notice kept", () => {
+  const rec = (over) => ({ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 }, ...over });
+  const row = (records, printer) => rackRows({ now: { printer }, records: [records], nowTs: AS_OF, plateShown: false }).find((r) => r.id === "printer");
+  for (const state of ["printing", "paused"]) {
+    const r = row(rec({ state, stale: true, as_of: AS_OF - 720 }), printingCard({ state, stale: true }));
+    assert.equal(r.lamp, "unknown", `a stale ${state} reading is never live or warn`);
+    assert.match(r.state, /^Last seen /);
+  }
+  const h = withHead();
+  try {
+    const asOf = Math.floor(Date.now() / 1000) - 720;
+    renderDashboard(h.state, { today: null, records: [rec({ stale: true, as_of: asOf })], needs: { count: 0, items: [], unread: [] },
+      now: { printer: printingCard({ stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy", observed_at: new Date(asOf * 1000).toISOString() } }) } }, () => {});
+    assert.equal(h.parent.querySelector('[data-row="printer"]').dataset.lamp, "unknown");
+    assert.ok(h.parent.querySelector(".hd-printer-note.ui-notice--warn"), "the warn notice stays");
   } finally { h.done(); }
 });

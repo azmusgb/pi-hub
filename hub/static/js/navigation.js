@@ -99,7 +99,8 @@ function askItems(n) {
 }
 
 // One area's badge (A37 R7): asks only (System no longer counts unread alerts). An ask with an area badges that area
-// and Home; one without badges Home. When Workshop has no asks, a running or paused print shows its dot.
+// and Home; one without badges Home. When Workshop has no asks, a running or paused print shows its dot: the mark that
+// something is running there (A37 S6 says nothing against it; the kit's dot is warn-coloured and has no quieter form).
 function badgeFor(id) {
   if (id === "home") {
     if (needs === undefined) return null;

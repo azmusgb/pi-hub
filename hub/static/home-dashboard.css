@@ -18,12 +18,12 @@
 .hd-meter { font-weight: 720; font-stretch: var(--ui-stretch-readout); letter-spacing: -.005em; line-height: .9; }
 .hd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .hd-head { display: flex; align-items: baseline; gap: .625rem; min-height: 1.875rem; }
-.hd-plate { grid-area: plate; }
-.hd:has(> .hd-plate) { grid-template-areas: "plate" "needs" "ask" "rack" "today"; }
+.hd-plate, .hd-printer-note { grid-area: plate; }
+.hd:has(> .hd-plate, > .hd-printer-note) { grid-template-areas: "plate" "needs" "ask" "rack" "today"; }
 /* Two columns where Needs you gets about 22 rem and Systems about 36 rem (A10 D4), the day across both. */
 @container home (min-width: 59.5rem) {
   .hd { grid-template-columns: minmax(22rem, 2fr) minmax(36rem, 3fr); grid-template-areas: "needs rack" "ask rack" "today today"; grid-template-rows: auto 1fr auto; }
-  .hd:has(> .hd-plate) { grid-template-areas: "plate plate" "needs rack" "ask rack" "today today"; grid-template-rows: auto auto 1fr auto; }
+  .hd:has(> .hd-plate, > .hd-printer-note) { grid-template-areas: "plate plate" "needs rack" "ask rack" "today today"; grid-template-rows: auto auto 1fr auto; }
 }
 
 /* Ask the Assistant: one line, the text and the link (main.js fills the link and shows it off while Local AI is down) */
