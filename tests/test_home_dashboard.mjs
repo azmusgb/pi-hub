@@ -420,6 +420,18 @@ test("a hub need that stands for a record lights that record's lane", () => {
   assert.deepEqual(needMark({ kind: "need", record: "pi", about: "" }, d), { lane: "pi", index: 0 });
 });
 
+test("a Print lab need still lights the print when it is held or stale (drawn other, not run)", () => {
+  for (const title of ["B: Paused, 40%", "B: reading out of date"]) {
+    const d = day();
+    d.lanes[0].marks = [{ start: START, end: START + 50, kind: "other", title: "Odd: Aborted" },
+      { start: START + 60, end: d.now, kind: "other", title }];
+    assert.deepEqual(needMark({ kind: "need", source: "Print lab" }, d), { lane: "printer", index: 1 }, title);
+  }
+  const d = day();
+  d.lanes[0].marks = [{ start: START, end: START + 50, kind: "other", title: "Odd: Aborted" }];
+  assert.equal(needMark({ kind: "need", source: "Print lab" }, d), null, "an ended print is not the one asking");
+});
+
 test("a need lights its lane's newest mark today; a Print lab need lights the running print", () => {
   const d = day();
   d.lanes[2].marks = [{ at: START + 100, kind: "warn", title: "Low voltage seen" }, { at: START + 900, kind: "warn", title: "Low voltage seen" }];

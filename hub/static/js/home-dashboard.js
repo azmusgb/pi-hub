@@ -353,14 +353,16 @@ export function needsOrder(probs = []) {
 const LANE_OF = { pi: "pi", workshop_display: "workshop_display", printer: "printer" };
 
 // Which mark a need lights on the band (plan decision 7): a record's newest mark today in its lane; a print-lab need
-// the running print. Anything else lights nothing.
+// the running print, or, when it is held or its reading is stale (drawn "other", never "run"), the print still open at
+// day.now: today.py ends only the live print there, every finished one ends at its own time. Anything else lights nothing.
 export function needMark(p, day) {
   const lanes = day?.lanes || [];
   const laneId = p.kind === "record" ? LANE_OF[p.recordId] : p.source === "Print lab" ? "printer" : LANE_OF[p.about || p.record];
   const lane = laneId && lanes.find((l) => l.id === laneId && l.available);
   if (!lane || !lane.marks.length) return null;
   if (p.kind !== "record" && p.source === "Print lab") {
-    const i = lane.marks.findIndex((m) => m.kind === "run");
+    let i = lane.marks.findIndex((m) => m.kind === "run");
+    if (i < 0) i = lane.marks.map((m) => Number.isFinite(m.start) && m.end >= day.now).lastIndexOf(true);
     return i < 0 ? null : { lane: lane.id, index: i };
   }
   return { lane: lane.id, index: lane.marks.length - 1 };
