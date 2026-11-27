@@ -56,6 +56,9 @@ const BASE_RECORDS = (printerState = 'idle') => [
   { id: 'backups', state: 'ok', severity: 'ok' },
 ];
 
+const pausedPrinter = () => ({ ...printingPrinter(), state: 'paused', actions: ['resume', 'stop'] });
+const stalePrinter = () => ({ ...printingPrinter(), stale: true, as_of: nowSec() - 720, telemetry: tel('stale', 720) });
+
 const CASES = {
   printing: () => ({
     printer: printingPrinter(),
@@ -107,6 +110,34 @@ const CASES = {
     plate: false,
     askShown: false,
     badges: { home: null, workshop: null, system: null },
+  }),
+  paused: () => ({
+    printer: pausedPrinter(),
+    records: BASE_RECORDS('paused'),
+    needs: { count: 1, heads_up_count: 2, unread: [], items: [ASK, ...HEADS_UP] },
+    want: [/^One thing needs you\.$/, /^The X2D is paused at 45%\.$/],
+    plate: true,
+    askShown: true,
+    badges: { home: '1', workshop: '1', system: null },
+  }),
+  stale: () => ({
+    printer: stalePrinter(),
+    records: BASE_RECORDS('printing').map((r) => (r.id === 'printer' ? { ...r, stale: true, as_of: nowSec() - 720 } : r)),
+    needs: { count: 1, heads_up_count: 0, unread: [], items: [ASK] },
+    want: [/^One thing needs you\.$/, /^The X2D was 45% through .* 12 min ago\.$/],
+    plate: false,
+    note: /^X2D: Bambuddy isn't answering\. Last reading 12 min ago\.$/,
+    askShown: true,
+    badges: { home: '1', workshop: '1', system: null },
+  }),
+  records_down_printing: () => ({
+    printer: printingPrinter(),
+    records: null,
+    needs: { count: 0, heads_up_count: 0, unread: [], items: [] },
+    want: [/^Nothing needs you here\.$/, /^Pi Hub's record list wasn't read\.$/],
+    plate: false,
+    askShown: false,
+    badges: { home: null, workshop: '', system: null },
   }),
   down: () => ({
     printer: idlePrinter(),
@@ -180,6 +211,7 @@ for (const [width, height] of [[390, 844], [1024, 1366], [1440, 900]]) {
           firstAsk: box(document.querySelector('.hd-needs__list > .ui-needs .ui-need')),
           askLink: box(document.querySelector('.hd-needs__list > .ui-needs .ui-need a.ui-need__link')),
           askAction: box(document.querySelector('.hd-needs__list > .ui-needs .ui-need .ui-need__action')),
+          note: document.querySelector('.hd-printer-note.ui-notice--warn')?.textContent || null,
           x2dFig: document.querySelector('[data-row="printer"] .ui-row__figure')?.textContent || null,
           rackGrid: !!document.querySelector('.hd-rack > ul.ui-rows.ui-rows--grid'),
           rackRows: document.querySelectorAll('.hd-rack > ul.ui-rows.ui-rows--grid > li > a.ui-row').length,
@@ -198,6 +230,7 @@ for (const [width, height] of [[390, 844], [1024, 1366], [1440, 900]]) {
         bad(`said ${JSON.stringify(seen.sentences)}`);
       }
       if (!!seen.plate !== c.plate) bad(c.plate ? 'plate missing while printing' : 'plate drawn while idle');
+      if (c.note ? !c.note.test(seen.note || '') : seen.note) bad(`printer notice is ${JSON.stringify(seen.note)}`);
       if (seen.plateAside) bad('Home plate has a camera aside');
       if (seen.plateReadout) bad('Home plate has a big readout');
       if (c.plate && seen.x2dFig !== null) bad(`X2D row kept figure "${seen.x2dFig}" while plate is shown`);

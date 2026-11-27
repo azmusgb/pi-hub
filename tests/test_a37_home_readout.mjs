@@ -280,3 +280,55 @@ test("the client's record tables are the server's: they fail when hub/needs.py c
   assert.deepEqual(flat(RECORD_ASK_STATES), parse("RECORD_ASK_STATES"));
   assert.deepEqual(flat(RECORD_HEADS_UP_STATES), parse("RECORD_HEADS_UP_STATES"));
 });
+
+// Finding 2 (PR 363 review): a held or silent printer is in Home's sentence, and a printer that went stale gets a
+// notice that says how old its last reading is. The words come from the kit's printer sentences (say.js), never from here.
+test("a paused print is named in Home's second sentence, ahead of a warn heads-up", () => {
+  const h = withHead();
+  try {
+    const needs = { count: 0, heads_up_count: 1, unread: [], items: [
+      { id: "pi:Weather", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Weather", detail: "Wind advisory", link: "/weather", record: "weather" }] };
+    const records = [{ id: "printer", state: "paused", severity: "attention", detail: { progress: 45 }, actions: [{ name: "resume" }] },
+      { id: "weather", state: "warning", severity: "attention", headline: "Wind advisory" }];
+    renderDashboard(h.state, { today: null, records, needs, now: { printer: printingCard({ state: "paused", actions: ["resume"], as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.said()[1], "The X2D is paused at 45%.");
+  } finally { h.done(); }
+});
+
+test("a stale printer that was printing is in the sentence and gets a warn notice with its age; no plate", () => {
+  const h = withHead();
+  try {
+    const asOf = Math.floor(Date.now() / 1000) - 720;
+    const stale = printingCard({ stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy", observed_at: new Date(asOf * 1000).toISOString() } });
+    const needs = { count: 0, heads_up_count: 1, unread: [], items: [
+      { id: "pi:Raspberry Pi", source: "Pi Hub", tone: "warn", kind: "heads_up", title: "Raspberry Pi", detail: "Running hot", link: "/system", record: "pi" }] };
+    const records = [{ id: "printer", state: "printing", severity: "ok", stale: true, as_of: asOf, detail: { progress: 45 } },
+      { id: "pi", state: "hot", severity: "attention", headline: "Running hot" }];
+    renderDashboard(h.state, { today: null, records, needs, now: { printer: stale } }, () => {});
+    assert.match(h.said()[1], /^The X2D was 45% through .* 12 min ago\.$/);
+    const note = h.parent.querySelector(".hd-printer-note.ui-notice.ui-notice--warn");
+    assert.ok(note, "a warn notice is drawn");
+    assert.match(text(note), /Bambuddy isn't answering\. Last reading 12 min ago\./);
+    assert.equal(h.parent.querySelector(".hd-plate"), null, "the stale plate stays withheld");
+
+    // It goes when the printer answers again
+    renderDashboard(h.state, { today: null, records: [{ id: "printer", state: "printing", severity: "ok", detail: { progress: 45 } }], needs: { count: 0, heads_up_count: 0, unread: [], items: [] }, now: { printer: printingCard({ as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-printer-note"), null);
+    assert.ok(h.parent.querySelector(".hd-plate"));
+
+    // A stale printer that was idle says nothing here: there is no print to lose track of
+    renderDashboard(h.state, { today: null, records: [{ id: "printer", state: "idle", severity: "ok", stale: true, as_of: asOf }], needs: { count: 0, heads_up_count: 0, unread: [], items: [] }, now: { printer: printingCard({ state: "idle", stale: true, as_of: asOf, telemetry: { status: "stale", source: "Bambuddy" } }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-printer-note"), null);
+  } finally { h.done(); }
+});
+
+// Finding 3a: with /api/records down, the plate and the X2D row must not say two things about one printer.
+test("records down while /api/now answers: no plate, and the X2D row and sentence say the record list wasn't read", () => {
+  const h = withHead();
+  try {
+    renderDashboard(h.state, { today: null, records: null, needs: { count: 0, items: [], unread: [] }, now: { printer: printingCard({ as_of: Date.now() / 1000 - 20, telemetry: live() }) } }, () => {});
+    assert.equal(h.parent.querySelector(".hd-plate"), null, "no live plate beside a row that says No answer");
+    assert.equal(text(h.parent.querySelector('[data-row="printer"] .ui-chip')).includes("No answer"), true);
+    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's record list wasn't read."]);
+  } finally { h.done(); }
+});

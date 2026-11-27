@@ -3,11 +3,13 @@
 // 2026-11-05-a10-responsive, P4): the band reads its own width and type size. A11: where the band can't give an hour
 // 24 px with names beside, the day is a dial and the rack compact rows.
 import { clockTime, h } from "./core.js";
-import { printerPlate, sayHead } from "./page-parts.js";
+import { printerPlate } from "./page-parts.js";
 import { printerButtons } from "./printer-actions.js";
-import { jobTitle, printerReading } from "./printer-reading.js";
+import { jobTitle } from "./printer-reading.js";
 import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { couldntCheck } from "./wording.js";
+import { RECORDS, homePlateShown, homePrinterCard, homeReading, printerNote, sayHome } from "./home-reading.js";
+export { homePlateShown, homePrinterCard, homeReading, sayHome };
 import { decisionsState, drawDecisions } from "./home-decisions.js";
 import { RECORD_LABELS, actionNames, mergeProblems, printerNow, recordPath, recordTone, renderProblems,
   splitNowRecords } from "./control-room.js";
@@ -376,9 +378,6 @@ const dayOrTime = (ts, now) => {
   return d.toDateString() === n.toDateString() ? t(ts) : d.toLocaleDateString([], { day: "numeric", month: "short" });
 };
 const upFor = (hours) => (!Number.isFinite(hours) ? null : hours >= 48 ? `${Math.floor(hours / 24)} days` : `${Math.max(0, Math.round(hours))} h`);
-// The source Home names when /api/records didn't answer. Singular, so the kit's "{name} wasn't read" and the source-down
-// phrase both read as English.
-const RECORDS = "Pi Hub's record list";
 const PRINTER_WORD = { printing: "Printing", paused: "Paused", finished: "Finished", failed: "Failed", idle: "Ready", offline: "Offline", unknown: "No status yet" };
 const NET_WORD = {
   internet: { ok: "Fine", slow: "Slow", down: "Down" },
@@ -386,52 +385,6 @@ const NET_WORD = {
   pc: { on: "On", off: "Off or asleep" },
   local_ai: { ready: "Ready", busy: "Busy", no_models: "No models loaded", down: "Down" },
 };
-
-// The printer card Home reads for its sentence and its plate (A37 R3, R4): /api/now's printer card, enriched by the
-// printer record when present (or built from the record alone when a test passes only records).
-export function homePrinterCard(d, records) {
-  const p = d?.printer && typeof d.printer === "object" ? d.printer : null;
-  const pr = (records || []).find((r) => r?.id === "printer") || null;
-  if (!p?.state && !pr?.state) return p;
-  const dt = pr?.detail || {};
-  const pct = typeof p?.percent === "number" ? p.percent : Number.isFinite(dt.progress) ? Math.round(dt.progress) : null;
-  const stale = Boolean(p?.stale || pr?.stale || p?.telemetry?.status === "stale");
-  const asOf = p?.as_of ?? pr?.as_of ?? null;
-  const tel = p?.telemetry || (pr ? { status: stale ? "stale" : "live", source: "Bambuddy", observed_at: Number.isFinite(asOf) ? new Date(asOf * 1000).toISOString() : "" } : undefined);
-  return {
-    ...p, state: p?.state || pr?.state, stale, as_of: asOf, percent: pct, progress: p?.progress ?? pct ?? 0,
-    job_name: p?.job_name ?? dt.job ?? "", layer_num: p?.layer_num ?? dt.layer ?? null, total_layers: p?.total_layers ?? dt.total_layers ?? null,
-    minutes_left: p?.minutes_left ?? dt.minutes_left ?? null, actions: Array.isArray(p?.actions) && p.actions.length ? p.actions : actionNames(pr?.actions),
-    telemetry: tel, lab: dt.lab?.experiment || dt.lab_experiment || dt.lab || "", labProject: dt.lab?.project || dt.lab_project || "",
-  };
-}
-
-// Home draws the printer plate only while a print runs or is held (A37 R4, Call 3); idle, the sentence says so.
-export function homePlateShown(card) {
-  return Boolean(card && (card.state === "printing" || card.state === "paused") && !card.stale && card.telemetry?.status !== "stale");
-}
-
-const conditionTitle = (p) => (p?.source === "Pi Hub" && typeof p.detail === "string" && p.detail.trim()
-  ? p.detail.split(". ")[0].trim() : typeof p?.title === "string" ? p.title.trim() : "");
-
-// What Home hands ApplianceSay.compose (A37 R2, R3): the asks count equals the ask rows Home drew; part unread names
-// the source that wasn't read; no asks with open decisions says how many decisions wait; bad conditions beat the
-// running print, which beats warn heads-up.
-export function homeReading(src = {}, { asks = null, headsUp = [], probs = null, decisions = undefined } = {}) {
-  const unread = [...(Array.isArray(src.needs?.unread) ? src.needs.unread : []),
-    ...(!src.needs && asks?.length ? ["Needs you"] : []), ...(src.needs && !src.records ? [RECORDS] : [])];
-  const count = !src.needs && !asks?.length ? null : Array.isArray(asks) ? asks.length : null;
-  const bad = (probs || []).filter((p) => p?.tone === "bad").map((p) => ({ tone: "bad", title: conditionTitle(p) }));
-  const warn = (headsUp || []).filter((p) => p?.tone !== "bad").map((p) => ({ tone: "warn", title: conditionTitle(p) }));
-  const card = homePrinterCard(src.now, src.records);
-  return { page: "home", label: "Home", asks: count, unread, ...(decisions !== undefined ? { decisions } : {}),
-    conditions: [...bad, ...warn], printer: card?.state ? printerReading(card, { title: jobTitle }) : undefined };
-}
-
-export function sayHome(input, now = Date.now()) {
-  const kit = globalThis.ApplianceSay;
-  return kit ? sayHead(kit.compose(input, { now, ago: globalThis.ApplianceNeeds?.ago }), "now") : false;
-}
 
 // The rack as plain data (pure, tested): each row's lamp, name, state in words, one-line detail, optional figure and
 // link. While Home's plate shows the printer, the X2D row drops its figure (A37 R4, R6).
@@ -686,8 +639,8 @@ function drawDay(hd, at) {
 
 const renderRack = (hd, rows) => hd.rack.replaceChildren(...rows.map((r) => rackRow(r)));
 
-function renderPlate(hd, card, onReload) {
-  if (!homePlateShown(card)) { hd.plate?.remove(); hd.plate = null; return false; }
+function renderPlate(hd, card, onReload, recordsRead = true) {
+  if (!homePlateShown(card, recordsRead)) { hd.plate?.remove(); hd.plate = null; return false; }
   const btns = card.actions?.length ? printerButtons({ actions: card.actions, state: card.state }, onReload) : null;
   const lab = card.lab ? h("a", { class: "ui-btn ui-btn--ghost", href: printLabUrl(card.lab, card.labProject), "data-link": true }, `Open ${card.lab} in Print lab`) : null;
   const next = printerPlate(card, { actions: [btns, lab].filter(Boolean) });
@@ -753,7 +706,10 @@ export function renderDashboard(state, src, onReload) {
 
   // Needs you (asks) and Heads up (conditions, A36 D6): ordered by tone; the badge counts asks only.
   const card = homePrinterCard(src.now, src.records);
-  const plateShown = renderPlate(hd, card, onReload);
+  const plateShown = renderPlate(hd, card, onReload, Boolean(src.records));
+  const quiet = printerNote(card, nowTs);
+  if (hd.printerNote?.isConnected && quiet) hd.printerNote.replaceWith(quiet); else if (quiet) hd.root.prepend(quiet); else hd.printerNote?.remove();
+  hd.printerNote = quiet;
   {
     const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown(RECORDS)].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
