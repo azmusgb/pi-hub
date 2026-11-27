@@ -471,6 +471,18 @@ test("a stale paused print's Needs you row is worded as its last reading, and st
   assert.equal(fresh.title, "Bambu X2D: paused", "a fresh reading keeps the present tense");
 });
 
+test("a record with no or an unrecognised severity draws an unknown lamp, never ok", () => {
+  const lamp = (records, id) => rackRows({ now: {}, nowTs: START + 3600, records }).find((r) => r.id === id).lamp;
+  assert.equal(lamp([{ id: "pi", state: "ok" }], "pi"), "unknown", "missing");
+  assert.equal(lamp([{ id: "pi", state: "ok", severity: "fine" }], "pi"), "unknown", "unrecognised");
+  assert.equal(lamp([{ id: "pi", state: "ok", severity: "ok" }], "pi"), "ok");
+  assert.equal(lamp([{ id: "pi", state: "hot", severity: "attention" }], "pi"), "warn");
+  assert.equal(lamp([{ id: "pi", state: "x", severity: "problem" }], "pi"), "bad");
+  assert.equal(lamp([{ id: "internet", state: "up" }], "network"), "unknown", "a group with an unread record");
+  assert.equal(lamp([{ id: "internet", state: "up", severity: "ok" }], "network"), "ok");
+  assert.equal(lamp([{ id: "internet", state: "down", severity: "problem" }, { id: "pc", state: "up" }], "network"), "bad", "worse still wins");
+});
+
 test("a stale printer record says when it was last seen and offers no buttons", () => {
   const rows = rackRows({ now: { printer: {} }, nowTs: START + 3600,
     records: [{ id: "printer", state: "printing", severity: "ok", stale: true, as_of: START + 60, actions: [{ name: "pause" }] }] });

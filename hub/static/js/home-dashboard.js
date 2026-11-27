@@ -369,8 +369,14 @@ export function needMark(p, day) {
 // ---- Systems ----
 
 const SEVERITY_RANK = { problem: 2, attention: 1 };
-const worst = (recs) => recs.reduce((w, r) => (SEVERITY_RANK[r?.severity] || 0) > (SEVERITY_RANK[w] || 0) ? r.severity : w, "ok");
-const lampOf = (severity) => ({ bad: "bad", warn: "warn" }[recordTone(severity)] || "ok");
+const KNOWN_SEVERITY = ["ok", "problem", "bad", "attention", "warn"];
+// A record with no severity, or one this page doesn't know, is unread, never "ok": it keeps the group unknown unless
+// something worse is in it.
+const worst = (recs) => recs.reduce((w, r) => {
+  if ((SEVERITY_RANK[r?.severity] || 0) > (SEVERITY_RANK[w] || 0)) return r.severity;
+  return w === "ok" && !KNOWN_SEVERITY.includes(r?.severity) ? "unknown" : w;
+}, "ok");
+const lampOf = (severity) => (!KNOWN_SEVERITY.includes(severity) ? "unknown" : { bad: "bad", warn: "warn" }[recordTone(severity)] || "ok");
 const gb = (n) => (Number.isFinite(n) ? (n >= 100 ? Math.round(n) : Math.round(n * 10) / 10) : null);
 const dayOrTime = (ts, now) => {
   if (!Number.isFinite(ts)) return "—";
