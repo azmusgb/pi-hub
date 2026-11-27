@@ -44,7 +44,9 @@ test('on a phone the page strips, Search, Restart, the theme link and the Site m
     assert.ok(touch.includes(sel), `${sel} is in a touch block`);
   }
   // The rail's links are the kit's (ui-rail): 44 px at every width, so no rule of ours.
-  assert.match(readFileSync(new URL('../hub/static/ui/shell.css', import.meta.url), 'utf8'), /\.ui-rail a\{[^}]*min-height:44px/);
+  // Since kit 2.36 that 44 px is the kit's one touch-target token.
+  assert.match(readFileSync(new URL('../hub/static/ui/shell.css', import.meta.url), 'utf8'), /\.ui-rail a\{[^}]*min-height:var\(--ui-target\)/);
+  assert.match(readFileSync(new URL('../hub/static/ui/tokens.css', import.meta.url), 'utf8'), /--ui-target:44px;/);
 });
 
 test("Home's \"other things are fine\" disclosure and the rack's links are 44 px targets everywhere", () => {
