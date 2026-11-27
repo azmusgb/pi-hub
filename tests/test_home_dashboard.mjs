@@ -374,13 +374,13 @@ test("Needs you lists bad first, then attention, then the rest, keeping order wi
 test("Ad blocking paused is deliberate: it is not a Need, and the badge counts the list it shows", () => {
   const records = [
     { id: "adguard", state: "paused", severity: "attention", headline: "Ad blocking paused" },
-    { id: "pc", state: "off", severity: "problem", headline: "The PC is off" },
+    { id: "plex", state: "stopped", severity: "problem", headline: "Movies has stopped" },
   ];
   const needs = { count: 0, items: [], unread: [] };
   const probs = needsOrder(mergeProblems(records, needs));
   assert.deepEqual(probs.map((p) => p.recordId || p.id).filter((id) => /adguard/.test(id)), []);
   assert.equal(problemsBadge(needs, probs).count, probs.length);
-  assert.ok(probs.length >= 1, "the PC still needs you");
+  assert.ok(probs.length >= 1, "Movies still needs you");
 });
 
 test("the hub's own Ad blocking need is left out while the record says paused, and kept when records didn't answer", () => {

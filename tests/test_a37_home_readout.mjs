@@ -15,7 +15,7 @@ import { pageHead } from "../hub/static/js/page-parts.js";
 import { homePlateShown, homeReading, mountDashboard, rackRows, renderDashboard } from "../hub/static/js/home-dashboard.js";
 import * as nowPage from "../hub/static/js/now.js";
 import { askArea } from "../hub/static/js/navigation.js";
-import { problemsBadge } from "../hub/static/js/control-room.js";
+import { RECORD_ASK_STATES, RECORD_HEADS_UP_STATES, mergeProblems, problemsBadge } from "../hub/static/js/control-room.js";
 
 const sayMod = { exports: {} };
 new Function("module", readFileSync(new URL("../hub/static/ui/say.js", import.meta.url), "utf8"))(sayMod);
@@ -233,4 +233,50 @@ test("A36 D2/D3 + A37 R3: attention records without an action or fix merge as he
     assert.equal(box.querySelectorAll('.ui-need[data-kind="heads_up"]').length, 2);
     assert.equal(box.querySelector(".ui-need__action"), null, "no PAGE_VERB button on heads_up record rows (A36 D3)");
   } finally { h.done(); }
+});
+
+// Finding 1 (PR 363 review): with /api/needs failed or silent about a record, the client classifies the records itself.
+// It must say what hub/needs.py _record_kind says, or a finished print lands in Heads up and "backups behind" counts as
+// an ask.
+test("mergeProblems classifies records as hub/needs.py _record_kind does, including with /api/needs failed", () => {
+  const cases = [
+    ["printer", "finished", "ask"], ["obico", "blind", "ask"], ["paper_printer", "problem", "ask"], ["printer", "unknown", "ask"],
+    ["backups", "behind", "heads_up"], ["local_ai", "no_models", "heads_up"], ["internet", "down", "heads_up"], ["pc", "off", "heads_up"],
+  ];
+  for (const [id, state, kind] of cases) {
+    for (const needs of [null, { count: 0, items: [], unread: [] }]) {
+      const [p] = mergeProblems([{ id, state, severity: "attention", headline: id }], needs);
+      assert.equal(p.itemKind, kind, `${id}(${state}) with needs ${needs ? "answering" : "failed"}`);
+    }
+  }
+  const [stale] = mergeProblems([{ id: "backups", state: "behind", severity: "attention", stale: true }], null);
+  assert.equal(stale.itemKind, "heads_up", "a stale known record that isn't printer, obico or hms is heads up, as the server has it");
+  const [stalePrinter] = mergeProblems([{ id: "printer", state: "printing", severity: "attention", stale: true }], null);
+  assert.equal(stalePrinter.itemKind, "ask");
+  const [stranger] = mergeProblems([{ id: "nobody_knows", state: "x", severity: "attention" }], null);
+  assert.equal(stranger.itemKind, "ask", "an unknown record kind fails loud as an ask");
+});
+
+test("failed /api/needs: the Home badge, sentence and rows count a finished print as an ask and backups behind as heads up", () => {
+  const h = withHead();
+  try {
+    const records = [
+      { id: "printer", state: "finished", severity: "attention", headline: "Finished", actions: [{ name: "clear" }] },
+      { id: "backups", state: "behind", severity: "attention", headline: "Backups are behind" },
+    ];
+    renderDashboard(h.state, { today: null, records, needs: null, now: {} }, () => {});
+    assert.equal(problemsBadge(null, h.state.probs).count, 1, "only the finished print is an ask");
+    assert.equal(h.said()[0], "One thing needs you.");
+  } finally { h.done(); }
+});
+
+test("the client's record tables are the server's: they fail when hub/needs.py changes and this file doesn't", () => {
+  const py = readFileSync(new URL("../hub/needs.py", import.meta.url), "utf8");
+  const parse = (name) => {
+    const body = py.match(new RegExp(`^${name} = \\{\\n([\\s\\S]*?)^\\}`, "m"))[1];
+    return Object.fromEntries([...body.matchAll(/"(\w+)": \{([^}]*)\}/g)].map(([, k, v]) => [k, [...v.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort()]));
+  };
+  const flat = (t) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, [...v].sort()]));
+  assert.deepEqual(flat(RECORD_ASK_STATES), parse("RECORD_ASK_STATES"));
+  assert.deepEqual(flat(RECORD_HEADS_UP_STATES), parse("RECORD_HEADS_UP_STATES"));
 });
