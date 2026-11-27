@@ -375,7 +375,7 @@ const latestAct = (requests, id) => list(requests).find((r) => ACT.has(r.kind) &
 
 function needsHtml(ix, byId, now, requests = []) {
   const needs = list(ix.needs);
-  if (!needs.length) return '<p class="meta">Nothing needs you right now.</p>';
+  if (!needs.length) return "";  // the section is hidden then: no empty line, and never a copy of the kit's
   return `<ul class="ui-rows lab-needs">${needs.map((raw) => {
     const x = { ...raw, ...needView(raw, now, byId) };
     const cmd = x.command ? `<div class="lab-cmd"><code>${esc(x.command)}</code><button type="button" class="btn-outline lab-copy" data-copy="${esc(x.command)}" aria-label="Copy the command for ${esc(x.id)}">Copy</button></div>` : "";
