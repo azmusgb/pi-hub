@@ -309,7 +309,7 @@ their rotation, every failure message with its next action, backup, rollback (`H
 [`docs/quick-print.md`](quick-print.md). It is accepted only when the owner-attended print (plan P10) is recorded here as
 "Accepted <date>" with its evidence.
 
-## Spoken readout (A37) step 2, the Printer pilot: merged, live and runtime verified, not yet accepted
+## Spoken readout (A37) step 2, the Printer pilot: accepted 27 Nov 2026
 
 Amendment A37, plan `docs/superpowers/plans/2026-11-25-a37-printer-pilot.md`. Workshop > Printer says its reading in the
 head, and the faceplate is the plate.
@@ -323,9 +323,9 @@ head, and the faceplate is the plate.
   41.0. The read is written in full on #355.
 - **Not seen live:** the owner's Pause button (signed out), a paused, finished, stale or offline printer (those are in
   `tests/browser/printer-say.mjs` only), a real iPhone or iPad, the installed app, VoiceOver.
-- **Not yet accepted.** The gate is the owner's: use the live page on the phone, the iPad and the laptop through at
-  least one print and one idle spell, then say go or stop. Stop reverts #355 alone. It is recorded here as
-  "Accepted <date>" or "Stopped <date>" with what the owner said.
+- **Accepted 2026-11-27: go.** The owner answered the go/stop gate with "Go" on 27 Nov 2026, after the live read above. What the
+  owner looked at on which device is not recorded. The pilot stays; A37's later steps (kit release two, Home, the
+  other pages, Local AI) are open.
 
 ## One site (A22)
 
