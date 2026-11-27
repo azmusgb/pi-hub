@@ -435,7 +435,7 @@ test("Storage says which part didn't answer instead of Fine", () => {
 
 test("the Pi row says when its record or its self-check didn't answer", () => {
   const pi = (src) => rackRows({ now: {}, nowTs: START + 3600, ...src }).find((r) => r.id === "pi");
-  assert.equal(pi({ records: null, pi: {} }).state, "Pi Hub's records isn't answering");
+  assert.equal(pi({ records: null, pi: {} }).state, "Pi Hub's record list isn't answering");
   const r = pi({ records: [{ id: "pi", state: "ok", severity: "ok" }], pi: null });
   assert.deepEqual(r.readings.find((x) => x.label === "Self-check"), { label: "Self-check", value: "Not answering", warn: true });
 });
@@ -520,7 +520,7 @@ test("Needs you never says all clear when its sources didn't answer, and has no 
     assert.match(text(state.hd.needs), /Needs you isn't answering/);
     renderDashboard(state, { today: null, records: null, needs: { count: 1, unread: [], items: [{ id: "x", title: "E-026: Send it", tone: "warn", source: "Print lab" }] } }, () => {});
     assert.match(text(state.hd.needs), /E-026: Send it/);
-    assert.match(text(state.hd.needs), /Pi Hub's records isn't answering/);
+    assert.match(text(state.hd.needs), /Pi Hub's record list isn't answering/);
     renderDashboard(state, { today: null, records: [], needs: { count: 0, unread: [], items: [] } }, () => {});
     assert.match(text(state.hd.needs), /Nothing needs you right now/);
   } finally { k.done(); }
@@ -546,7 +546,7 @@ test("Needs you names a source the hub couldn't read, and never says nothing nee
     assert.equal(text(state.hd.needsCount), "1");
     renderDashboard(state, { today: null, records: null, needs: { count: 0, items: [], unread: ["Local AI", "Print lab"] } }, () => {});
     assert.doesNotMatch(text(state.hd.needs), /Nothing needs you/);
-    assert.match(text(state.hd.needs), /Couldn't check Local AI or Print lab\. Pi Hub's records isn't answering\. It will keep trying\./);
+    assert.match(text(state.hd.needs), /Couldn't check Local AI or Print lab\. Pi Hub's record list isn't answering\. It will keep trying\./);
     for (const unread of [[], undefined, "Local AI"]) {  // nothing unread, or not a list: the hub read all it has
       renderDashboard(state, { today: null, records: [], needs: { count: 0, items: [], unread } }, () => {});
       assert.match(text(state.hd.needs), /^Nothing needs you right now\.$/);

@@ -107,9 +107,9 @@ test("R3: Local AI unread and whole list unread produce their honest sentences, 
     renderDashboard(h.state, { today: null, records: [], needs: { count: 2, items, unread: ["Local AI"] }, now: {} }, () => {});
     assert.deepEqual(h.said(), ["Two things need you.", "Local AI wasn't read."]);
 
-    // /api/records failed while /api/needs answered with 0 asks: names Pi Hub's records as unread
+    // /api/records failed while /api/needs answered with 0 asks: names Pi Hub's record list as unread
     renderDashboard(h.state, { today: null, records: null, needs: { count: 0, items: [], unread: [] }, now: {} }, () => {});
-    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's records wasn't read."]);
+    assert.deepEqual(h.said(), ["Nothing needs you here.", "Pi Hub's record list wasn't read."]);
   } finally { h.done(); }
 });
 

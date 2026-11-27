@@ -376,6 +376,9 @@ const dayOrTime = (ts, now) => {
   return d.toDateString() === n.toDateString() ? t(ts) : d.toLocaleDateString([], { day: "numeric", month: "short" });
 };
 const upFor = (hours) => (!Number.isFinite(hours) ? null : hours >= 48 ? `${Math.floor(hours / 24)} days` : `${Math.max(0, Math.round(hours))} h`);
+// The source Home names when /api/records didn't answer. Singular, so the kit's "{name} wasn't read" and the source-down
+// phrase both read as English.
+const RECORDS = "Pi Hub's record list";
 const PRINTER_WORD = { printing: "Printing", paused: "Paused", finished: "Finished", failed: "Failed", idle: "Ready", offline: "Offline", unknown: "No status yet" };
 const NET_WORD = {
   internet: { ok: "Fine", slow: "Slow", down: "Down" },
@@ -416,7 +419,7 @@ const conditionTitle = (p) => (p?.source === "Pi Hub" && typeof p.detail === "st
 // running print, which beats warn heads-up.
 export function homeReading(src = {}, { asks = null, headsUp = [], probs = null, decisions = undefined } = {}) {
   const unread = [...(Array.isArray(src.needs?.unread) ? src.needs.unread : []),
-    ...(!src.needs && asks?.length ? ["Needs you"] : []), ...(src.needs && !src.records ? ["Pi Hub's records"] : [])];
+    ...(!src.needs && asks?.length ? ["Needs you"] : []), ...(src.needs && !src.records ? [RECORDS] : [])];
   const count = !src.needs && !asks?.length ? null : Array.isArray(asks) ? asks.length : null;
   const bad = (probs || []).filter((p) => p?.tone === "bad").map((p) => ({ tone: "bad", title: conditionTitle(p) }));
   const warn = (headsUp || []).filter((p) => p?.tone !== "bad").map((p) => ({ tone: "warn", title: conditionTitle(p) }));
@@ -441,7 +444,7 @@ export function rackRows(src) {
   // X2D, from the printer record (the same one Workshop reads)
   const pr = rec("printer");
   if (!records) {
-    const down = sourceDown("Pi Hub's records");
+    const down = sourceDown(RECORDS);
     rows.push({ id: "printer", name: "X2D", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/workshop", link: "Open Workshop" });
   } else {
     const m = pr ? printerNow(pr) : null, dt = pr?.detail || {}, p = d?.printer || {}, readings = [];
@@ -482,7 +485,7 @@ export function rackRows(src) {
     if (up) readings.push({ label: "Up", value: up });
     if (Number.isFinite(pd.updates)) readings.push({ label: "Updates", value: pd.updates ? `${pd.updates} waiting` : "Up to date" });
     const power = typeof pd.power === "string" && pd.power !== "Good" ? pd.power : "";
-    const state = !records ? sourceDown("Pi Hub's records") : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
+    const state = !records ? sourceDown(RECORDS) : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
     const detail = !records ? state : [mem ? `Memory ${mem}` : "",
       sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed) ? `self-check ${sc.total - sc.failed} of ${sc.total}` : !pi ? "self-check not answering" : "",
       up ? `up ${up}` : "", Number.isFinite(pd.updates) ? (pd.updates ? `${pd.updates} updates waiting` : "up to date") : ""].filter(Boolean).join(", ");
@@ -493,7 +496,7 @@ export function rackRows(src) {
 
   // Network
   if (!records) {
-    const down = sourceDown("Pi Hub's records");
+    const down = sourceDown(RECORDS);
     rows.push({ id: "network", name: "Network", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/network", link: "Open Network" });
   } else {
     const ids = ["internet", "adguard", "pc", "local_ai"], recs = ids.map(rec), ag = rec("adguard");
@@ -518,7 +521,7 @@ export function rackRows(src) {
     const readings = [...drives.map((s) => ({ kind: "fill", label: s.name, pct: s.used_pct, value: `${gb(s.free_gb)} GB`, note: "free" })),
       ...repos.map((b) => ({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) }))];
     const recs = ["backups", "movies_drive", "movie_copy"].map(rec).filter(Boolean);
-    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown(RECORDS)].filter(Boolean);
     const bad = recs.find((r) => recordTone(r.severity) !== "ok");
     const state = bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up";
     const firstDrive = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
@@ -752,7 +755,7 @@ export function renderDashboard(state, src, onReload) {
   const card = homePrinterCard(src.now, src.records);
   const plateShown = renderPlate(hd, card, onReload);
   {
-    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown("Pi Hub's records")].filter(Boolean);
+    const down = [src.needs ? couldntCheck(src.needs) : sourceDown("Needs you"), src.records ? "" : sourceDown(RECORDS)].filter(Boolean);
     const probs = !src.needs && !src.records ? null : needsOrder(mergeProblems(src.records || [], src.needs));
     state.probs = probs;
     const asks = probs ? probs.filter((p) => p.itemKind !== "heads_up") : null;
