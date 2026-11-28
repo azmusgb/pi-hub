@@ -353,14 +353,16 @@ export function needsOrder(probs = []) {
 const LANE_OF = { pi: "pi", workshop_display: "workshop_display", printer: "printer" };
 
 // Which mark a need lights on the band (plan decision 7): a record's newest mark today in its lane; a print-lab need
-// the running print. Anything else lights nothing.
+// the running print, or, when it is held or its reading is stale (drawn "other", never "run"), the print still open at
+// day.now: today.py ends only the live print there, every finished one ends at its own time. Anything else lights nothing.
 export function needMark(p, day) {
   const lanes = day?.lanes || [];
   const laneId = p.kind === "record" ? LANE_OF[p.recordId] : p.source === "Print lab" ? "printer" : LANE_OF[p.about || p.record];
   const lane = laneId && lanes.find((l) => l.id === laneId && l.available);
   if (!lane || !lane.marks.length) return null;
   if (p.kind !== "record" && p.source === "Print lab") {
-    const i = lane.marks.findIndex((m) => m.kind === "run");
+    let i = lane.marks.findIndex((m) => m.kind === "run");
+    if (i < 0) i = lane.marks.map((m) => Number.isFinite(m.start) && m.end >= day.now).lastIndexOf(true);
     return i < 0 ? null : { lane: lane.id, index: i };
   }
   return { lane: lane.id, index: lane.marks.length - 1 };
@@ -369,8 +371,18 @@ export function needMark(p, day) {
 // ---- Systems ----
 
 const SEVERITY_RANK = { problem: 2, attention: 1 };
-const worst = (recs) => recs.reduce((w, r) => (SEVERITY_RANK[r?.severity] || 0) > (SEVERITY_RANK[w] || 0) ? r.severity : w, "ok");
-const lampOf = (severity) => ({ bad: "bad", warn: "warn" }[recordTone(severity)] || "ok");
+const KNOWN_SEVERITY = ["ok", "problem", "bad", "attention", "warn"];
+// A record with no severity, or one this page doesn't know, is unread, never "ok": it keeps the group unknown unless
+// something worse is in it.
+const worst = (recs) => recs.reduce((w, r) => {
+  if ((SEVERITY_RANK[r?.severity] || 0) > (SEVERITY_RANK[w] || 0)) return r.severity;
+  return w === "ok" && !KNOWN_SEVERITY.includes(r?.severity) ? "unknown" : w;
+}, "ok");
+const lampOf = (severity) => recordTone(severity);
+// Worse than fine: a problem or an attention. An unread record is neither this nor fine; its words are NOT_REPORTED.
+const toned = (r) => ["bad", "warn"].includes(recordTone(r?.severity));
+const unread = (recs) => recs.some((r) => recordTone(r?.severity) === "unknown");
+const NOT_REPORTED = "Not reported"; // the kit's unknown_release wording (ui/needs.js)
 const gb = (n) => (Number.isFinite(n) ? (n >= 100 ? Math.round(n) : Math.round(n * 10) / 10) : null);
 const dayOrTime = (ts, now) => {
   if (!Number.isFinite(ts)) return "—";
@@ -438,7 +450,7 @@ export function rackRows(src) {
     if (up) readings.push({ label: "Up", value: up });
     if (Number.isFinite(pd.updates)) readings.push({ label: "Updates", value: pd.updates ? `${pd.updates} waiting` : "Up to date" });
     const power = typeof pd.power === "string" && pd.power !== "Good" ? pd.power : "";
-    const state = !records ? sourceDown(RECORDS) : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : "Fine");
+    const state = !records ? sourceDown(RECORDS) : !piRec ? "No status yet" : power || (piRec.state === "hot" ? "Running hot" : lampOf(piRec.severity) === "unknown" ? NOT_REPORTED : "Fine");
     const detail = !records ? state : [mem ? `Memory ${mem}` : "",
       sc && Number.isInteger(sc.total) && Number.isInteger(sc.failed) ? `self-check ${sc.total - sc.failed} of ${sc.total}` : !pi ? "self-check not answering" : "",
       up ? `up ${up}` : "", Number.isFinite(pd.updates) ? (pd.updates ? `${pd.updates} updates waiting` : "up to date") : ""].filter(Boolean).join(", ");
@@ -459,10 +471,10 @@ export function rackRows(src) {
       if (!r) return null;
       let value = NET_WORD[id][r.state] || r.headline || r.state;
       if (id === "adguard" && r.state === "paused" && Number.isFinite(r.since)) value = `Paused since ${dayOrTime(r.since, nowTs)}`;
-      return { label: label[id], value, warn: recordTone(r.severity) !== "ok" };
+      return { label: label[id], value, warn: toned(r) };
     }).filter(Boolean);
-    const lamp = lampOf(worst(recs.filter(Boolean))), firstWarn = recs.find((r) => r && recordTone(r.severity) !== "ok");
-    const state = firstWarn ? (firstWarn.id === "adguard" && firstWarn.state === "paused" ? "Ad blocking paused" : `${label[firstWarn.id]}: ${NET_WORD[firstWarn.id][firstWarn.state] || firstWarn.state}`) : "Fine";
+    const lamp = lampOf(worst(recs.filter(Boolean))), firstWarn = recs.find(toned);
+    const state = firstWarn ? (firstWarn.id === "adguard" && firstWarn.state === "paused" ? "Ad blocking paused" : `${label[firstWarn.id]}: ${NET_WORD[firstWarn.id][firstWarn.state] || firstWarn.state}`) : unread(recs.filter(Boolean)) ? NOT_REPORTED : "Fine";
     rows.push({ id: "network", name: "Network", lamp, state, chip: state, detail: readings.map((r) => `${r.label} ${r.value.toLowerCase()}`).join(", "), figure: null,
       readings, brief: "", href: "/network", link: "Open Network", action: ag && ag.state === "paused" ? { label: "Turn it on in AdGuard", href: resolveLink("tool:adguard") } : null });
   }
@@ -475,8 +487,8 @@ export function rackRows(src) {
       ...repos.map((b) => ({ label: `${b.name} backup`, value: dayOrTime(b.last, nowTs) }))];
     const recs = ["backups", "movies_drive", "movie_copy"].map(rec).filter(Boolean);
     const down = [pi ? "" : sourceDown("The Pi's status"), backups?.available ? "" : sourceDown("Backrest"), records ? "" : sourceDown(RECORDS)].filter(Boolean);
-    const bad = recs.find((r) => recordTone(r.severity) !== "ok");
-    const state = bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : "Backed up";
+    const bad = recs.find(toned);
+    const state = bad ? (bad.headline || RECORD_LABELS[bad.id]) : down.length ? down.join(". ") : unread(recs) ? NOT_REPORTED : "Backed up";
     const firstDrive = (Array.isArray(pi?.storage) ? pi.storage : []).find((x) => x?.mounted && Number.isFinite(x.free_gb));
     const freeGb = firstDrive ? gb(firstDrive.free_gb) : null;
     const detail = [...drives.map((s) => `${s.name} ${Math.round(s.used_pct)}% full`), ...repos.map((b) => `${b.name} backup ${dayOrTime(b.last, nowTs)}`), ...down].join(", ");

@@ -10,7 +10,7 @@ import { bandFits, bandLayout, countItems, dialHit, dialLayout, dialWords, markW
   from "../hub/static/js/home-dashboard.js";
 import * as controlRoom from "../hub/static/js/control-room.js";
 
-const { mergeProblems, problemsBadge } = controlRoom;
+const { mergeProblems, problemsBadge, recordTone } = controlRoom;
 const START = 1_793_854_800;  // a local midnight; the day's own bounds are what the band uses
 const day = (over = {}) => ({
   day: "2026-11-05", start: START, end: START + 86_400, now: START + 15.5 * 3600,
@@ -343,6 +343,25 @@ test("a lane whose source didn't answer is drawn as down, never as an empty quie
   } finally { env.uninstall(); }
 });
 
+// A stale or held print arrives as the neutral kind: it is drawn without the run colour, and only the run kind pulses.
+test("a neutral print mark is drawn in the neutral kind, and the pulse belongs to the run kind alone", async () => {
+  const d = day();
+  const at = START + 14 * 3600;
+  d.lanes[0] = { ...d.lanes[0], marks: [{ start: at, end: d.now, kind: "other", title: "Tile: reading out of date" }] };
+  const env = install();
+  try {
+    const { drawBand } = await import("../hub/static/js/home-dashboard.js");
+    const host = document.createElement("div");
+    drawBand(host, d, 900);
+    assert.equal(host.querySelectorAll(".hd-k-other").length, 1);
+    assert.equal(host.querySelectorAll(".hd-k-run").length, 0);
+    assert.match(host.querySelector(".hd-band__mark").getAttribute("aria-label"), /reading out of date/);
+  } finally { env.uninstall(); }
+  const css = readFileSync(new URL("../hub/static/home-dashboard.css", import.meta.url), "utf8");
+  const pulsing = [...css.matchAll(/([^{}]+)\{[^{}]*animation:\s*hd-pulse/g)].map((m) => m[1].trim());
+  assert.deepEqual(pulsing, [".hd-band__fill.hd-k-run"]);
+});
+
 test("the tally says — for a count whose source didn't answer, and 0 for a quiet day", () => {
   assert.deepEqual(countItems({ finished: 0, failed: null, power: 0, updates: 2 }).map((c) => c.value), ["0", "—", "0", "2"]);
   assert.deepEqual(countItems().map((c) => c.value), ["—", "—", "—", "—"]);
@@ -401,6 +420,18 @@ test("a hub need that stands for a record lights that record's lane", () => {
   assert.deepEqual(needMark({ kind: "need", record: "pi", about: "" }, d), { lane: "pi", index: 0 });
 });
 
+test("a Print lab need still lights the print when it is held or stale (drawn other, not run)", () => {
+  for (const title of ["B: Paused, 40%", "B: reading out of date"]) {
+    const d = day();
+    d.lanes[0].marks = [{ start: START, end: START + 50, kind: "other", title: "Odd: Aborted" },
+      { start: START + 60, end: d.now, kind: "other", title }];
+    assert.deepEqual(needMark({ kind: "need", source: "Print lab" }, d), { lane: "printer", index: 1 }, title);
+  }
+  const d = day();
+  d.lanes[0].marks = [{ start: START, end: START + 50, kind: "other", title: "Odd: Aborted" }];
+  assert.equal(needMark({ kind: "need", source: "Print lab" }, d), null, "an ended print is not the one asking");
+});
+
 test("a need lights its lane's newest mark today; a Print lab need lights the running print", () => {
   const d = day();
   d.lanes[2].marks = [{ at: START + 100, kind: "warn", title: "Low voltage seen" }, { at: START + 900, kind: "warn", title: "Low voltage seen" }];
@@ -438,6 +469,51 @@ test("the Pi row says when its record or its self-check didn't answer", () => {
   assert.equal(pi({ records: null, pi: {} }).state, "Pi Hub's record list isn't answering");
   const r = pi({ records: [{ id: "pi", state: "ok", severity: "ok" }], pi: null });
   assert.deepEqual(r.readings.find((x) => x.label === "Self-check"), { label: "Self-check", value: "Not answering", warn: true });
+});
+
+test("an unread record's words say Not reported, never Fine or Backed up; a worse one beside it still wins", () => {
+  const row = (records, id, src = {}) => rackRows({ now: {}, nowTs: START + 3600, records, pi: { storage: [] }, backups: { available: true, repos: [] }, ...src }).find((r) => r.id === id);
+  for (const sev of [undefined, "fine"]) {
+    const pi = row([{ id: "pi", state: "ok", severity: sev }], "pi");
+    assert.deepEqual([pi.lamp, pi.state, pi.chip], ["unknown", "Not reported", "Not reported"], `pi ${sev}`);
+    const net = row([{ id: "internet", state: "ok", severity: "ok" }, { id: "pc", state: "on", severity: sev }], "network");
+    assert.deepEqual([net.lamp, net.state, net.chip], ["unknown", "Not reported", "Not reported"], `network ${sev}`);
+    const st = row([{ id: "backups", state: "ok", severity: sev }], "storage");
+    assert.deepEqual([st.lamp, st.state, st.chip], ["unknown", "Not reported", "Not reported"], `storage ${sev}`);
+  }
+  assert.equal(row([{ id: "pi", state: "ok", severity: "ok" }], "pi").state, "Fine");
+  assert.equal(row([{ id: "backups", state: "ok", severity: "ok" }], "storage").state, "Backed up");
+  const net = row([{ id: "internet", state: "down", severity: "problem" }, { id: "pc", state: "on" }], "network");
+  assert.deepEqual([net.lamp, net.state], ["bad", "Internet: Down"], "the worse network record wins over the unread one");
+  const st = row([{ id: "backups", state: "ok" }, { id: "movies_drive", state: "x", severity: "attention", headline: "Movies drive missing" }], "storage");
+  assert.deepEqual([st.lamp, st.state, st.chip], ["warn", "Movies drive missing", "Movies drive missing"], "the worse storage record wins");
+  assert.equal(recordTone("fine"), "unknown");
+  assert.equal(recordTone(undefined), "unknown");
+  assert.equal(recordTone("ok"), "ok");
+});
+
+test("a stale paused print's Needs you row is worded as its last reading, and stays an ask", () => {
+  const rec = { id: "printer", state: "paused", severity: "attention", headline: "Bambu X2D: paused", stale: true,
+    cause: "Bambuddy not answering since 14:00; last read 12 min ago." };
+  const [row] = mergeProblems([rec], null);
+  assert.equal(row.itemKind, "ask");
+  assert.doesNotMatch(row.title, /: paused$/);
+  assert.match(row.title, /^Bambu X2D was paused when last read$/);
+  assert.match(row.detail, /last read 12 min ago/);
+  const [fresh] = mergeProblems([{ ...rec, stale: false }], null);
+  assert.equal(fresh.title, "Bambu X2D: paused", "a fresh reading keeps the present tense");
+});
+
+test("a record with no or an unrecognised severity draws an unknown lamp, never ok", () => {
+  const lamp = (records, id) => rackRows({ now: {}, nowTs: START + 3600, records }).find((r) => r.id === id).lamp;
+  assert.equal(lamp([{ id: "pi", state: "ok" }], "pi"), "unknown", "missing");
+  assert.equal(lamp([{ id: "pi", state: "ok", severity: "fine" }], "pi"), "unknown", "unrecognised");
+  assert.equal(lamp([{ id: "pi", state: "ok", severity: "ok" }], "pi"), "ok");
+  assert.equal(lamp([{ id: "pi", state: "hot", severity: "attention" }], "pi"), "warn");
+  assert.equal(lamp([{ id: "pi", state: "x", severity: "problem" }], "pi"), "bad");
+  assert.equal(lamp([{ id: "internet", state: "up" }], "network"), "unknown", "a group with an unread record");
+  assert.equal(lamp([{ id: "internet", state: "up", severity: "ok" }], "network"), "ok");
+  assert.equal(lamp([{ id: "internet", state: "down", severity: "problem" }, { id: "pc", state: "up" }], "network"), "bad", "worse still wins");
 });
 
 test("a stale printer record says when it was last seen and offers no buttons", () => {

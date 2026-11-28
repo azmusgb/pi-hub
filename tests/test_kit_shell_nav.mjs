@@ -197,6 +197,21 @@ test('A37 R7: asks badge their own area and Home; System no longer counts unread
   } finally { t.done(); }
 });
 
+test('Workshop shows no print dot for a stale reading: a last reading is never said as running now', async () => {
+  let printer = { state: 'printing', progress: 45, stale: true };
+  const t = await drawn({ '/api/needs': { count: 0, items: [], unread: [] }, '/api/alerts': { alerts: [] }, '/api/now': () => ({ printer }) });
+  try {
+    await t.nav.updateNavigation();
+    assert.equal(badge(t, 'workshop'), null, 'stale flag');
+    printer = { state: 'paused', progress: 45, telemetry: { status: 'stale' } };
+    await t.nav.updateNavigation();
+    assert.equal(badge(t, 'workshop'), null, 'stale telemetry');
+    printer = { state: 'printing', progress: 45, telemetry: { status: 'live' } };
+    await t.nav.updateNavigation();
+    assert.equal(badge(t, 'workshop').getAttribute('aria-label'), '3D print running, 45%', 'a fresh print keeps its dot');
+  } finally { t.done(); }
+});
+
 test('Home leads with Needs you, then the one Ask link, Systems, and Today; a failed read is its own state', async () => {
   const env = install();
   try {

@@ -83,6 +83,12 @@ function printerStatus(printer) {
     return "";
   }
 
+  // A reading the source stopped refreshing says nothing of the present: no dot, never "running" (DESIGN.md Honest states).
+  // Home's sentence and the printer's own ask say the print went quiet.
+  if (printer.stale || printer.telemetry?.status === "stale") {
+    return "";
+  }
+
   if (printer.state === "printing") {
     return `3D print running, ${clampPercent(printer.progress)}%`;
   }
