@@ -10,16 +10,14 @@
       "type": 1,
       "space": 24,
       "motion": 3,
-      "name": 6,
-      "target": 4
+      "name": 6
     },
     "hub/static/components.css": {
       "colour": 6,
       "type": 10,
       "space": 22,
       "shadow": 3,
-      "motion": 2,
-      "target": 5
+      "motion": 2
     },
     "hub/static/enhance.css": {
       "colour": 22,
@@ -28,27 +26,23 @@
       "radius": 2,
       "shadow": 1,
       "motion": 7,
-      "name": 4,
-      "target": 15
+      "name": 4
     },
     "hub/static/home-dashboard.css": {
       "type": 3,
       "space": 10,
-      "motion": 1,
-      "target": 3
+      "motion": 1
     },
     "hub/static/home.css": {
       "colour": 47,
       "type": 48,
       "space": 64,
-      "radius": 1,
-      "target": 7
+      "radius": 1
     },
     "hub/static/household-features.css": {
       "type": 15,
       "space": 18,
-      "radius": 3,
-      "target": 5
+      "radius": 3
     },
     "hub/static/index.html": {
       "colour": 2
@@ -74,13 +68,11 @@
       "space": 67,
       "shadow": 3,
       "motion": 1,
-      "layer": 1,
-      "target": 7
+      "layer": 1
     },
     "hub/static/lists-rich.css": {
       "type": 2,
-      "space": 3,
-      "target": 2
+      "space": 3
     },
     "hub/static/movies-print-rules-alerts-rich.css": {
       "type": 2
@@ -102,12 +94,11 @@
       "motion": 1,
       "layer": 1,
       "name": 3,
-      "target": 14
+      "target": 1
     },
     "hub/static/quick.css": {
       "space": 5,
-      "radius": 1,
-      "target": 8
+      "radius": 1
     },
     "hub/static/settings-rich.css": {
       "space": 2
@@ -115,8 +106,7 @@
     "hub/static/workshop-pi-rich.css": {
       "colour": 13,
       "space": 24,
-      "layer": 5,
-      "target": 9
+      "layer": 5
     }
   }
 }

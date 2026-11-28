@@ -70,8 +70,8 @@ body.wall.night { filter: brightness(0.55); }
   color: var(--ui-muted);
 }
 .wall-board .meta { font-size: .85em; }
-.wall-board .chip { min-height: 44px; white-space: nowrap; font-size: .8em; }
-.wall-board .tool-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 0; padding-block: 0; font-size: .85em; white-space: nowrap; }
+.wall-board .chip { min-height: var(--ui-target); white-space: nowrap; font-size: .8em; }
+.wall-board .tool-link { display: inline-flex; align-items: center; min-height: var(--ui-target); margin-top: 0; padding-block: 0; font-size: .85em; white-space: nowrap; }
 .wall-board .net-panel { gap: .35em; }
 .wall-board .net-headline { font-size: 1.05em; }
 .wall-board .status-list { gap: 0; }
@@ -112,7 +112,7 @@ body.wall.night { filter: brightness(0.55); }
 /* The house: the workshop light, the network and any other favourites. */
 .wall-house { display: grid; gap: var(--wall-gap); grid-template-columns: repeat(auto-fit, minmax(min(100%, 21em), 1fr)); align-content: start; align-items: start; }
 .wall-favourites-head { display: flex; justify-content: space-between; align-items: center; gap: .5em; margin-bottom: .5em; }
-.wall-favourites-head a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; white-space: nowrap; }
+.wall-favourites-head a { display: inline-flex; align-items: center; min-height: var(--ui-target); font-weight: 600; white-space: nowrap; }
 .wall-house .home-cards { grid-column: 1 / -1; margin: 0; }
 
 /* Extra tiles (tall screens and the wide layout's first column): the next hours and what's coming up. */
@@ -131,7 +131,7 @@ body.wall.night { filter: brightness(0.55); }
 .wall-tools { display: flex; flex-wrap: wrap; gap: var(--ui-s-2); justify-content: flex-end; align-items: center; align-self: end; }
 .kiosk-btn {
   box-sizing: border-box;
-  min-height: 44px;
+  min-height: var(--ui-target);
   padding: 0 var(--ui-s-4);
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-r-pill);
@@ -243,7 +243,7 @@ body.wall.night { filter: brightness(0.55); }
   align-items: center;
   gap: var(--ui-s-3);
   padding: var(--ui-s-2) var(--ui-s-3);
-  min-height: 44px;
+  min-height: var(--ui-target);
   border-radius: var(--ui-r-3);
   cursor: pointer;
 }
@@ -538,7 +538,7 @@ body.wall.night { filter: brightness(0.55); }
 .wx-flake { fill: #e6eef5; stroke: none; }
 .wx-bolt { stroke: #f2c45c; stroke-width: 1.8; }
 .wx-line { stroke: #aab3ba; }
-.out-weather { display: inline-flex; align-items: center; min-height: 44px; gap: 0.35rem; color: var(--ui-muted); text-decoration: none; }
+.out-weather { display: inline-flex; align-items: center; min-height: var(--ui-target); gap: 0.35rem; color: var(--ui-muted); text-decoration: none; }
 .out-weather:hover strong { color: var(--ui-accent); }
 /* A link on its own in the outside row (not inside a sentence), so it is a full touch target. */
 .out-alert { display: inline-flex; align-items: center; min-height: calc(var(--ui-space) * 11); color: var(--ui-warn); font-weight: 700; text-decoration: none; }
@@ -853,7 +853,7 @@ body:not(.wall) .page-now { display: block; }
 .home-card .dot[data-tone="bad"] { background: var(--ui-bad); }
 .home-card-action:focus-visible, .home-card-link:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .home-card-cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--ui-r-4); border: 1px solid var(--ui-line); }
-.home-card-action { margin-top: auto; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; border-radius: var(--ui-r-3); }
+.home-card-action { margin-top: auto; align-self: flex-start; min-height: var(--ui-target); display: inline-flex; align-items: center; border-radius: var(--ui-r-3); }
 .home-card-link { align-self: flex-start; padding-block: .35rem; }
 /* "Open <tool> ↗": the small product line under a task (one home, Words). */
 .home-card-link, .tool-link { color: var(--ui-accent-text); font-weight: 600; font-size: .9rem; }

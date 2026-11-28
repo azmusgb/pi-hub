@@ -532,7 +532,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px var(--ui-s-3);
-  min-height: 44px;
+  min-height: var(--ui-target);
   border-radius: var(--ui-r-pill);
   background: var(--ui-surface-2);
   border: 1px solid var(--ui-line);
@@ -660,7 +660,7 @@
 
 .btn-primary, .btn-outline, .btn-subtle {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 44px; padding: var(--ui-s-2) 14px; border: 1px solid transparent; border-radius: var(--ui-r-1);
+  min-height: var(--ui-target); padding: var(--ui-s-2) 14px; border: 1px solid transparent; border-radius: var(--ui-r-1);
   font: inherit; font-weight: 600; cursor: pointer;
 }
 .btn-primary { background: var(--ui-accent); color: var(--ui-on-accent); }
@@ -672,7 +672,7 @@
 .btn-primary:disabled, .btn-outline:disabled, .btn-subtle:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn-danger {
-  min-height: 44px;
+  min-height: var(--ui-target);
   color: var(--ui-bad);
   background: transparent;
   border: 1px solid var(--ui-bad);
@@ -685,7 +685,7 @@
 /* Photos: thumbnails, viewer, compare, wipe and the judging checklist (ported from Local AI, on the kit's tokens). */
 .lab-checklist__set { border: 1px solid var(--ui-line); border-radius: var(--ui-r-2); margin: 10px 0 0; padding: var(--ui-s-2) var(--ui-s-3); display: grid; gap: 2px; }
 .lab-checklist__set legend { font-size: var(--ui-fs-2); color: var(--ui-muted); }
-.lab-checkbox-label { display: flex; align-items: center; gap: var(--ui-s-2); min-height: 44px; font-size: var(--ui-fs-2); cursor: pointer; }
+.lab-checkbox-label { display: flex; align-items: center; gap: var(--ui-s-2); min-height: var(--ui-target); font-size: var(--ui-fs-2); cursor: pointer; }
 .lab-checkbox-label input { flex: none; width: auto; min-height: 0; margin: 0; }
 .lab-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; margin: 10px 0 6px; }
 .lab-thumb { position: relative; display: grid; place-items: center; aspect-ratio: 1; padding: 0; border: 1px solid var(--ui-line); border-radius: var(--ui-r-1); background: var(--ui-surface-2); color: var(--ui-text); font: 600 var(--ui-fs-3) inherit; overflow: hidden; cursor: pointer; }
@@ -983,7 +983,7 @@
 .lab-mac > summary,
 .lab-more > summary {
   box-sizing: border-box;
-  min-height: 44px;
+  min-height: var(--ui-target);
   padding-block: .65rem;
 }
 
@@ -991,12 +991,12 @@
 .lab-now a[data-lab-open] {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--ui-target);
 }
 
 /* A short experiment id ("E-26") is still a 44 px target. */
 .lab-now a[data-lab-open] {
-  min-width: 44px;
+  min-width: var(--ui-target);
 }
 
 /* Start a staged lab print (A12): what will print, then Sent / Accepted / Printing as each happens. */

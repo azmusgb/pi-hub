@@ -6,7 +6,7 @@
 .feature-message { font-size: .9rem; line-height: 1.5; margin: var(--ui-s-3) 0 1.1rem; }
 .feature-message:empty { display: none; }
 .feature-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-s-2); }
-.feature-actions > button, .feature-actions > a { min-height: 44px; }
+.feature-actions > button, .feature-actions > a { min-height: var(--ui-target); }
 .feature-empty { padding: var(--ui-s-5); border: 1px dashed var(--ui-line-2); border-radius: var(--ui-r-4); color: var(--ui-muted); line-height: 1.6; }
 .feature-empty h3 { color: var(--ui-text); font-size: 1.05rem; margin: 0 0 var(--ui-s-2); }
 .feature-empty p { margin: 0; }
@@ -33,7 +33,7 @@
 .night-suggestions { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr)); gap:var(--ui-s-4); container:nights / inline-size; }
 .night-suggestion { border-bottom:1px solid var(--ui-line-2); padding:0 0 var(--ui-s-4); display:grid; grid-template-columns:60px minmax(0,1fr); gap:var(--ui-s-3); min-width:0; }
 .match-reason { font-size:var(--ui-fs-2); color:var(--ui-muted); line-height:1.55; }
-.night-suggestion button { min-height:44px; }
+.night-suggestion button { min-height:var(--ui-target); }
 .project-feature { margin-bottom:var(--ui-s-5); }
 .project-add { margin:var(--ui-s-4) 0 var(--ui-s-5); border:1px solid var(--ui-line-2); border-radius:var(--ui-r-4); padding:0 var(--ui-s-4); }
 .project-add > summary { min-height:48px; display:list-item; padding:.85rem 0; cursor:pointer; font-weight:650; }
@@ -55,7 +55,7 @@
 .project-form input, .project-form select, .project-form textarea, .project-card select { width:100%; min-width:0; }
 .project-form textarea { resize:vertical; }
 .project-details, .project-edit { margin-top:var(--ui-s-3); border-top:1px solid var(--ui-line); }
-.project-details > summary, .project-edit > summary { cursor:pointer; min-height:44px; padding:var(--ui-s-3) 0; font-size:var(--ui-fs-2); font-weight:600; }
+.project-details > summary, .project-edit > summary { cursor:pointer; min-height:var(--ui-target); padding:var(--ui-s-3) 0; font-size:var(--ui-fs-2); font-weight:600; }
 .project-notes { white-space:pre-wrap; font-size:.85rem; line-height:1.6; }
 .project-card input[type="file"] { width:100%; min-width:0; font-size:var(--ui-fs-1); }
 .project-file { display:flex; gap:var(--ui-s-2); flex-wrap:wrap; padding:var(--ui-s-2) 0; align-items:center; font-size:var(--ui-fs-2); border-top:1px solid var(--ui-line); }
@@ -98,7 +98,7 @@
  .page-rules .rule .switch { margin-top:.2rem; }
  .page-rules .rule .feature-actions { grid-column:2; margin-left:0; }
 }
-.poster-nominate { width:100%; min-height:44px; margin-top:var(--ui-s-2); white-space:normal; }
+.poster-nominate { width:100%; min-height:var(--ui-target); margin-top:var(--ui-s-2); white-space:normal; }
 
 /* Sentence case, as the labels are written (iPad, 1 Nov: "BAMBU X2D", "LAYER", "PICK UP WHERE YOU LEFT OFF" shouted
    beside sentence-case headings). The wall display keeps its capitals: it is read from across a room. */
@@ -111,7 +111,7 @@
 /* Automations (A10 plan decision 17): on a narrow list each rule's Preview and Remove sit in the row's disclosure, which
    keeps the page short on a phone; on a wide one they are the row's buttons. The rules container is declared above. */
 .page-rules .rule-more { display:none; }
-.page-rules .rule-more > summary { display:flex; align-items:center; min-height:44px; cursor:pointer; color:var(--ui-muted); font-size:var(--ui-fs-3); }
+.page-rules .rule-more > summary { display:flex; align-items:center; min-height:var(--ui-target); cursor:pointer; color:var(--ui-muted); font-size:var(--ui-fs-3); }
 .page-rules .rule-more > .feature-actions { margin:var(--ui-s-1) 0 0; }
 @container rules (max-width:34rem) {
  .page-rules .rule > .feature-actions { display:none; }
