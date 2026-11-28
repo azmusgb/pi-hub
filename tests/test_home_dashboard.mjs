@@ -751,3 +751,17 @@ test("Home's stylesheet is linked and cached, and uses no tokens of its own", ()
   // A10 D4: the fluid root scales Home on the TV; no zoom
   assert.doesNotMatch(css, /zoom\s*:/);
 });
+
+// appliance-ui kit audit row 8 (design-system audit, 27 Nov 2026): the empty Needs-you line and "Open Network" are the
+// kit's words (ui/needs.js EMPTY and PHRASES.open_network). Home takes them from the kit and keeps no copy.
+test("Home keeps no copy of the kit's empty line or its Open Network verb", () => {
+  const kitEmpty = globalThis.ApplianceNeeds.renderList([], { doc: { createElement: () => ({}) } }).textContent;
+  const kitOpen = globalThis.ApplianceNeeds.PHRASES.open_network;
+  assert.ok(kitEmpty && kitEmpty.length > 10, "the kit draws an empty line");
+  assert.ok(kitOpen, "the kit has the verb");
+  const src = readFileSync(new URL("../hub/static/js/home-dashboard.js", import.meta.url), "utf8");
+  assert.ok(!src.includes(kitEmpty), "home-dashboard.js holds its own copy of the kit's empty line");
+  assert.ok(!src.includes(`"${kitOpen}"`), "home-dashboard.js holds its own copy of the kit's Open Network");
+  const net = rackRows({ now: {}, pi: {}, facts: {} }).find((r) => r.id === "network");
+  if (net && net.link) assert.equal(net.link, kitOpen);
+});
