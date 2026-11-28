@@ -231,7 +231,7 @@ a.card:hover {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
-  min-height: 40px;
+  min-height: var(--ui-control);
   padding: .3rem .7rem;
   border-radius: var(--ui-r-pill);
   background: var(--ui-surface-2);
@@ -314,7 +314,7 @@ a.card:hover {
   textarea
 ) {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--ui-target);
   font: inherit;
   font-size: .9375rem;
   color: var(--ui-text);
@@ -353,7 +353,7 @@ input:focus-visible {
 .field select {
   width: 100%;
   max-width: 100%;
-  min-height: 44px;
+  min-height: var(--ui-target);
   font: inherit;
   color: var(--ui-text);
   background: var(--ui-surface);
@@ -565,7 +565,7 @@ main a:not([class]):not(:is(.more, .home-card-items, .ui-strip, .ui-chips) a), m
 
 /* "Show all": the rest of a long list, one tap away. */
 .show-all { margin-top: var(--ui-s-2); }
-.show-all > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: .4rem; color: var(--ui-accent-text); font-weight: 600; list-style: none; }
+.show-all > summary { cursor: pointer; min-height: var(--ui-target); display: flex; align-items: center; gap: .4rem; color: var(--ui-accent-text); font-weight: 600; list-style: none; }
 .show-all > summary::-webkit-details-marker, .ws-set-fold > summary::-webkit-details-marker { display: none; }
 .show-all > summary::before, .ws-set-fold > summary::before { content: "▸"; }
 .show-all[open] > summary::before, .ws-set-fold[open] > summary::before { content: "▾"; }
@@ -575,7 +575,7 @@ main a:not([class]):not(:is(.more, .home-card-items, .ui-strip, .ui-chips) a), m
 
 /* Clear the plate, Pause, Resume under the Workshop printer band (one home, step 3) */
 .printer-actions { display: flex; flex-wrap: wrap; gap: var(--ui-s-2); margin-top: var(--ui-s-2); }
-.printer-actions .btn { min-height: 44px; }
+.printer-actions .btn { min-height: var(--ui-target); }
 
 /* System › Services on the Pi: status first, Restart small at the end of the row. */
 .service-list li { align-items: center; }

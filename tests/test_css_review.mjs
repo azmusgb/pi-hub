@@ -31,7 +31,7 @@ test('error text uses the error colour, never the ink meant for text on a red fi
 test("the Print lab's button classes are styled, at least 44 px tall", () => {
   const lab = css('lab.css');
   for (const c of ['btn-primary', 'btn-outline', 'btn-subtle']) assert.match(lab, new RegExp(`\\.${c}\\b[^{]*\\{`), c);
-  assert.match(lab, /\.btn-primary,[\s\S]{0,120}\{[^}]*min-height:\s*44px/);
+  assert.match(lab, /\.btn-primary,[\s\S]{0,120}\{[^}]*min-height:\s*var\(--ui-target\)/);
 });
 
 test('on a phone the page strips, Search, Restart, the theme link and the Site map links are 44 px targets', () => {
@@ -52,7 +52,7 @@ test('on a phone the page strips, Search, Restart, the theme link and the Site m
 test("Home's disclosures and the rack's kit row links are at least 44 px targets everywhere", () => {
   const home = css('home-dashboard.css');
   for (const sel of ['.hd-others__summary', '.hd-heads-up__summary']) {
-    assert.match(home, new RegExp(`${sel.replace('.', '\\.')} \\{[\\s\\S]*?min-height: 44px`), sel);
+    assert.match(home, new RegExp(`${sel.replace('.', '\\.')} \\{[\\s\\S]*?min-height: var\\(--ui-target\\)`), sel);
   }
   assert.match(readFileSync(new URL('../hub/static/ui/components.css', import.meta.url), 'utf8'),
     /\.ui-rows--grid \.ui-row\{[^}]*min-height:calc\(var\(--ui-space\)\*14\)/);

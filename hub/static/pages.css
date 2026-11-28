@@ -27,7 +27,7 @@ body.wall .shell { display: block; }
 /* Controls */
 button { font: inherit; color: inherit; cursor: pointer; }
 .primary {
-  border: 0; border-radius: 12px; padding: 0.7rem 1.2rem; min-height: 44px;
+  border: 0; border-radius: 12px; padding: 0.7rem 1.2rem; min-height: var(--ui-target);
   background: var(--ui-accent); color: var(--ui-on-accent); font-weight: 800;
 }
 /* Light theme: the deeper accent under white text; dark keeps dark text on the light accent. */
@@ -35,7 +35,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :root[data-theme="light"] .primary { background: var(--ui-accent-text); }
 .primary:hover { background: color-mix(in srgb, var(--ui-accent) 88%, var(--ui-text)); }
 .primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.ghost { border: 1px solid var(--ui-line-2); background: transparent; border-radius: 10px; padding: 0.45rem 0.8rem; min-height: 40px; color: var(--ui-text); }
+.ghost { border: 1px solid var(--ui-line-2); background: transparent; border-radius: 10px; padding: 0.45rem 0.8rem; min-height: var(--ui-control); color: var(--ui-text); }
 .ghost:hover { background: var(--ui-surface); }
 .ghost.small { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.85rem; color: var(--ui-muted); }
 .quick { display: flex; flex-wrap: wrap; gap: var(--ui-s-2); margin-top: auto; padding-top: 0.9rem; }
@@ -117,7 +117,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .store-head { display: flex; justify-content: space-between; gap: var(--ui-s-4); flex-wrap: wrap; }
 .pkg { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
 .pkg li { display: flex; justify-content: space-between; gap: var(--ui-s-4); }
-.updates-detail summary { cursor: pointer; display: list-item; min-block-size: 44px; align-content: center; }
+.updates-detail summary { cursor: pointer; display: list-item; min-block-size: var(--ui-target); align-content: center; }
 .updates-detail summary::marker { color: var(--ui-muted); }
 .updates-detail .pkg { padding-bottom: var(--ui-s-2); }
 
@@ -221,12 +221,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .add-spool summary { cursor: pointer; font-weight: 700; color: var(--ui-accent); margin-top: 0.4rem; }
 .spool-form { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 0.7rem; align-items: end; }
 .spool-form .primary { justify-self: start; }
-.colour-pick input { padding: 0.2rem; min-height: 44px; width: 100%; }
+.colour-pick input { padding: 0.2rem; min-height: var(--ui-target); width: 100%; }
 .print-row { grid-template-columns: 0.7rem minmax(0, 1fr) auto; }
 .print-row .use-btn { grid-column: 2 / 4; justify-self: start; margin-top: 0.2rem; }
 .use-form { grid-column: 2 / 4; display: grid; grid-template-columns: minmax(0, 1fr) 6rem auto; gap: var(--ui-s-2); margin-top: 0.3rem; }
-.use-form select { font: inherit; color: var(--ui-text); background: var(--ui-surface); border: 1px solid var(--ui-line-2); border-radius: 12px; padding: var(--ui-s-2); min-height: 44px; }
-.small-btn { min-height: 44px; padding: var(--ui-s-2) 0.9rem; }
+.use-form select { font: inherit; color: var(--ui-text); background: var(--ui-surface); border: 1px solid var(--ui-line-2); border-radius: 12px; padding: var(--ui-s-2); min-height: var(--ui-target); }
+.small-btn { min-height: var(--ui-target); padding: var(--ui-s-2) 0.9rem; }
 
 .foot-links { display: flex; gap: var(--ui-s-4); align-items: center; }
 .link-btn { border: 0; background: none; padding: 0; color: var(--ui-muted); font: inherit; text-decoration: underline; cursor: pointer; min-height: 32px; }
@@ -242,7 +242,7 @@ body.wall .link-btn { display: none; }
 .add .remind-toggle { grid-column: 1 / -1; }
 .remind-row { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; }
 .remind-row[hidden] { display: none; }
-.remind-row select, .use-form select { font: inherit; color: var(--ui-text); background: var(--ui-surface); border: 1px solid var(--ui-line-2); border-radius: 12px; padding: var(--ui-s-2) 0.7rem; min-height: 44px; }
+.remind-row select, .use-form select { font: inherit; color: var(--ui-text); background: var(--ui-surface); border: 1px solid var(--ui-line-2); border-radius: 12px; padding: var(--ui-s-2) 0.7rem; min-height: var(--ui-target); }
 .item label .due, .item .due { display: block; font-size: 0.82rem; color: var(--ui-accent); margin-top: 0.1rem; }
 .list-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .list-actions:empty { display: none; }
@@ -260,9 +260,9 @@ body.wall .link-btn { display: none; }
 }
 /* Fingers get bigger targets than mouse pointers. */
 @media (pointer: coarse) {
-  .ghost.small { min-height: 44px; padding: 0.4rem 0.8rem; }
-  .seg-btn { min-height: 44px; }
-  .tile-fav { min-width: 44px; min-height: 44px; }
+  .ghost.small { min-height: var(--ui-target); padding: 0.4rem 0.8rem; }
+  .seg-btn { min-height: var(--ui-target); }
+  .tile-fav { min-width: var(--ui-target); min-height: var(--ui-target); }
   .item { padding: 0.65rem 0; }
 }
 
@@ -308,7 +308,7 @@ body.wall .link-btn { display: none; }
 .night b { font-weight: 500; font-size: var(--ui-fs-1); color: var(--ui-muted); }
 .people-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
 .people-bars li { display: grid; grid-template-columns: 6rem 1fr 2rem; gap: 0.6rem; align-items: center; }
-.check { display: inline-flex; align-items: center; gap: var(--ui-s-2); min-height: 44px; cursor: pointer; }
+.check { display: inline-flex; align-items: center; gap: var(--ui-s-2); min-height: var(--ui-target); cursor: pointer; }
 .check input { width: 22px; height: 22px; margin: 0; accent-color: var(--ui-accent); flex: none; }
 
 /* ============================================================
@@ -387,7 +387,7 @@ body.wall .link-btn { display: none; }
 
 /* Documents: the search box. */
 .doc-search { display: flex; gap: var(--ui-s-2); margin-block: var(--ui-s-2) var(--ui-s-4); }
-.doc-search input { flex: 1; min-width: 0; min-height: 44px; padding: var(--ui-s-2) var(--ui-s-3); border-radius: var(--ui-r-3); border: 1px solid var(--ui-line-2); background: var(--ui-surface); color: var(--ui-text); font: inherit; }
+.doc-search input { flex: 1; min-width: 0; min-height: var(--ui-target); padding: var(--ui-s-2) var(--ui-s-3); border-radius: var(--ui-r-3); border: 1px solid var(--ui-line-2); background: var(--ui-surface); color: var(--ui-text); font: inherit; }
 .doc-search input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-accent); }
 
 /* Not found (platform step 7, PR 7.4): the in-app view; the server has its own page for typed addresses. */

@@ -135,7 +135,7 @@ p.hd-band__down { padding: var(--ui-s-3) 0; }
 .hd-heads-up__summary {
   display: flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--ui-target);
   color: var(--ui-muted);
   font-size: var(--ui-fs-2);
   cursor: pointer;
@@ -148,14 +148,14 @@ p.hd-band__down { padding: var(--ui-s-3) 0; }
 .hd-others__summary {
   display: flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--ui-target);
   color: var(--ui-muted);
   font-size: var(--ui-fs-2);
   cursor: pointer;
 }
 .hd-others__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .hd-others__list li { display: flex; flex-wrap: wrap; gap: var(--ui-s-1) var(--ui-s-3); align-items: baseline; padding: .375rem 0; border-top: 1px solid var(--ui-line); }
-.hd-others__list a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ui-text); font-weight: 600; }
+.hd-others__list a { display: inline-flex; align-items: center; min-height: var(--ui-target); color: var(--ui-text); font-weight: 600; }
 .hd-others__list span { color: var(--ui-muted); font-size: var(--ui-fs-2); }
 
 /* A band under 38 rem: the tally in four even columns with its short words (A9 D2, by the band's width, A10 D4) */

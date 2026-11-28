@@ -330,12 +330,12 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .help-topic { padding: 0 var(--ui-s-4); border: 1px solid var(--ui-line-2); border-radius: var(--ui-r-4); background: var(--ui-surface); }
 .help-topic summary { cursor: pointer; padding: var(--ui-s-4) 0; min-height: 48px; font-weight: 600; }
 .help-topic p { color: var(--ui-muted); line-height: 1.6; margin: 0 0 var(--ui-s-3); }
-.help-topic .action { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: var(--ui-s-2); }
+.help-topic .action { display: inline-flex; align-items: center; min-height: var(--ui-target); margin-bottom: var(--ui-s-2); }
 /* Keep the task prominent; use dividers for supporting information. */
 .page-trail { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 var(--ui-s-4); color: var(--ui-muted); font-size: var(--ui-fs-3); }
 /* Inside the page's grid the row gap is the space under the trail; the margin is for a trail above the page (main.js). */
 .page > .page-trail { margin: 0; }
-.page-trail a { display: inline-flex; align-items: center; min-height: 44px; }
+.page-trail a { display: inline-flex; align-items: center; min-height: var(--ui-target); }
 .help-topic { background: transparent; border: 0; border-bottom: 1px solid var(--ui-line-2); border-radius: 0; padding: 0; }
 .more a { background: transparent; border: 0; border-bottom: 1px solid var(--ui-line); border-radius: 0; padding: .875rem 0; }
 .more a .meta { color: var(--ui-muted); }
@@ -347,7 +347,7 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .map-body { container-type: inline-size; }
 .map-find { display: grid; grid-template-columns: minmax(0, 30rem) auto; align-items: end; gap: .375rem var(--ui-s-4); margin: 1.25rem 0 1.75rem; }
 .map-find label { grid-column: 1 / -1; font-weight: 600; }
-.map-find .ui-field { min-height: 44px; }
+.map-find .ui-field { min-height: var(--ui-target); }
 .map-count { margin: 0; padding-bottom: .625rem; font-variant-numeric: tabular-nums; }
 .map-empty { display: grid; justify-items: start; gap: var(--ui-s-4); padding: var(--ui-s-6) 0; text-align: left; }
 .map-empty p { margin: 0; max-width: 48ch; }
@@ -361,13 +361,13 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .map-band > * { padding-block: 1.125rem; }
 .map-name { padding-right: var(--ui-s-4); }
 .map-name h2 { margin: 0; font-size: var(--ui-fs-5); font-stretch: 87.5%; line-height: 1.15; }
-.map-name h2 a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -.625rem; text-decoration: none; }
+.map-name h2 a { display: inline-flex; align-items: center; min-height: var(--ui-target); margin-block: -.625rem; text-decoration: none; }
 .map-name h2 a:hover { text-decoration: underline; text-underline-offset: 4px; }
 .map-name .meta { margin: var(--ui-s-1) 0 0; font-size: var(--ui-fs-2); }
 .map-band--quiet .map-name h2 { font-size: 1.0625rem; color: var(--ui-muted); }
 .map-run { align-self: start; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ui-s-1) 1.75rem; margin: 0; padding-inline: var(--ui-s-5); list-style: none; }
 .map-run li { position: relative; display: flex; }
-.map-stop { display: grid; grid-template-columns: auto 1fr; column-gap: var(--ui-s-2); align-items: center; min-height: 44px; padding: var(--ui-s-1) var(--ui-s-2) var(--ui-s-1) 0; border-radius: var(--ui-r-2); color: var(--ui-text); text-decoration: none; }
+.map-stop { display: grid; grid-template-columns: auto 1fr; column-gap: var(--ui-s-2); align-items: center; min-height: var(--ui-target); padding: var(--ui-s-1) var(--ui-s-2) var(--ui-s-1) 0; border-radius: var(--ui-r-2); color: var(--ui-text); text-decoration: none; }
 .map-stop::before { content: ""; grid-row: 1 / span 2; width: .625rem; height: .625rem; border-radius: 50%; border: 2px solid var(--ui-line-2); background: var(--ui-surface); }
 .map-stop strong { font-weight: 600; }
 .map-stop .meta { grid-column: 2; font: .75rem var(--ui-mono); color: var(--ui-muted); }
@@ -375,7 +375,7 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .map-stop[aria-current="page"]::before { border-color: var(--ui-accent); background: var(--ui-accent); }
 .map-stop[aria-current="page"] strong::after { content: " · you are here"; font-weight: 400; color: var(--ui-accent-text); }
 .map-out { display: grid; align-content: start; gap: .125rem; margin: 0; padding-left: var(--ui-s-5); list-style: none; }
-.map-out a[target] { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--ui-s-2); min-height: 44px; box-sizing: border-box; padding: var(--ui-s-2) 0; color: var(--ui-text); text-decoration: none; }
+.map-out a[target] { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--ui-s-2); min-height: var(--ui-target); box-sizing: border-box; padding: var(--ui-s-2) 0; color: var(--ui-text); text-decoration: none; }
 .map-out a[target] strong { font-weight: 600; color: var(--ui-text); }
 .map-out a[target]:hover strong { text-decoration: underline; text-underline-offset: 3px; }
 .map-out .meta { color: var(--ui-muted); font-size: var(--ui-fs-3); overflow-wrap: anywhere; }
@@ -439,9 +439,9 @@ body.wall .source-freshness { display: none; }
 dialog.movie-upload { width: min(32rem, calc(100vw - 2rem)); padding: var(--ui-s-4); border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-surface); color: inherit; }
 dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 .movie-upload-form label { font-weight: 600; }
-.movie-upload-form input { width: 100%; min-height: 44px; box-sizing: border-box; }
+.movie-upload-form input { width: 100%; min-height: var(--ui-target); box-sizing: border-box; }
 .movie-upload-form .row-actions { display: flex; gap: var(--ui-s-2); flex-wrap: wrap; }
-.movie-upload-form .btn { min-height: 44px; }
+.movie-upload-form .btn { min-height: var(--ui-target); }
 .movie-upload [hidden] { display: none !important; }
 
 /* Responsive pass (31 Oct 2026 sweep at 320/390/768/1024/1440 px). */
@@ -452,17 +452,17 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
 /* Touch: every control at least 44 px tall (Apple HIG, WCAG 2.5.5); a text link becomes a 44 px target without
    changing how it reads. Desktop with a mouse keeps the compact sizes. */
 @media (pointer: coarse) {
-  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: 44px; }
+  #theme-btn, #wall-link, #map-link, .seg-btn, .btn, a.btn, button.action, a.action, .hud-cam-btn, .tile-fav { min-height: var(--ui-target); }
   a.action { display: inline-flex; align-items: center; }
-  .hud-cam-btn, .tile-fav { min-width: 44px; }
+  .hud-cam-btn, .tile-fav { min-width: var(--ui-target); }
   kbd { font-size: var(--ui-fs-1); }
   a.button, a.tool-link, button.chip, button.ghost, .print-photo-link,
-  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select { min-height: 44px; }
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), select { min-height: var(--ui-target); }
   a.button, a.tool-link, .print-photo-link { display: inline-flex; align-items: center; }
-  a.tool-link { min-width: 44px; justify-content: center; }
-  .status-list li a { display: inline-flex; align-items: center; min-height: 44px; }
+  a.tool-link { min-width: var(--ui-target); justify-content: center; }
+  .status-list li a { display: inline-flex; align-items: center; min-height: var(--ui-target); }
   input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }  /* WCAG 2.2 minimum; the label is the big target */
-  input[type=range] { min-height: 44px; }
+  input[type=range] { min-height: var(--ui-target); }
 }
 
 /* ---- Header (iPad review, 1 Nov) ---- */
@@ -475,7 +475,7 @@ dialog.movie-upload::backdrop { background: rgb(0 0 0 / .45); }
    theme link, the Site map's area links and Settings' setup steps (CSS review 4 Nov). */
 @media (pointer: coarse) {
   .top-cmd-btn, .service-list .status-side .btn, .link-btn,
-  .more-group > h2 a { min-height: 44px; }
+  .more-group > h2 a { min-height: var(--ui-target); }
   .more-group > h2 a { display: inline-flex; align-items: center; }
 }
 .top-cmd-btn .command-label { text-decoration: none; }

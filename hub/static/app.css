@@ -202,7 +202,7 @@ html {
 /* The Assistant (one home, D2): one persistent entry, the head's button, on every width. Never badged. A page's own
    "Ask" link (Home's) is a kit button. */
 .top-assistant {
-  display: inline-flex; align-items: center; gap: var(--ui-s-2); min-height: 44px; padding: .45rem var(--ui-s-3);
+  display: inline-flex; align-items: center; gap: var(--ui-s-2); min-height: var(--ui-target); padding: .45rem var(--ui-s-3);
   border-radius: var(--ui-r-pill); border: 1px solid var(--ui-line); color: var(--ui-text); text-decoration: none;
   font-weight: 600; font-size: var(--ui-fs-3);
 }
@@ -237,7 +237,7 @@ html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-to
    title has the room for one line from 360 px ("Home & network", A10 plan decision 17; by the bar's own width, A10 D2). */
 @container top (max-width: 27.5rem) {
   .top .top-cmd-btn { padding-inline: var(--ui-s-2); }
-  .top-assistant { width: 44px; padding: 0; justify-content: center; }
+  .top-assistant { width: var(--ui-target); padding: 0; justify-content: center; }
   .top-assistant span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .top-assistant[aria-disabled], [data-ask-assistant][aria-disabled] { cursor: not-allowed; }
@@ -377,7 +377,7 @@ html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-to
 /* The scroll padding matches the fade, so a link brought into view by Tab stops clear of it. The fade is a mask, which
    reads only the gradient's alpha: currentColor is opaque. */
 .ui-strip.page-strip { margin: 0 0 1.25rem; flex-wrap: nowrap; column-gap: 1.1rem; overflow-x: auto; scroll-padding-inline: 2.5rem; }
-.ui-strip.page-strip a { min-width: 44px; justify-content: center; }
+.ui-strip.page-strip a { min-width: var(--ui-target); justify-content: center; }
 .ui-strip.page-strip[data-more="end"] { mask-image: linear-gradient(to right, currentColor calc(100% - 2.5rem), transparent); }
 .ui-strip.page-strip[data-more="start"] { mask-image: linear-gradient(to left, currentColor calc(100% - 2.5rem), transparent); }
 .ui-strip.page-strip[data-more="both"] { mask-image: linear-gradient(to right, transparent, currentColor 2.5rem, currentColor calc(100% - 2.5rem), transparent); }
@@ -392,7 +392,7 @@ html:has(.top--say), .ui-shell:has(.top--say) .ui-shell-main { scroll-padding-to
 .more-list { margin-top: 1.25rem; }
 .more-list-item { margin-top: var(--ui-s-3); border: 1px solid var(--ui-line); border-radius: var(--ui-r-4); background: var(--ui-surface); }
 .more-list-item[hidden] { display: none; }
-.more-list-item > summary { display: flex; align-items: center; gap: .6rem; min-height: 44px; padding: var(--ui-s-3) 1.1rem; cursor: pointer; font-weight: 600; }
+.more-list-item > summary { display: flex; align-items: center; gap: .6rem; min-height: var(--ui-target); padding: var(--ui-s-3) 1.1rem; cursor: pointer; font-weight: 600; }
 .more-list-item > summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .more-list-item[open] > summary { border-bottom: 1px solid var(--ui-line); border-radius: var(--ui-r-4) var(--ui-r-4) 0 0; }
 .more-list-body { padding: var(--ui-s-4) 1.1rem; }
