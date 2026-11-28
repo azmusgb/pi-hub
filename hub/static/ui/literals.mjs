@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const CATEGORIES = ['colour', 'type', 'space', 'radius', 'shadow', 'motion', 'layer', 'name'];
+export const CATEGORIES = ['colour', 'type', 'space', 'radius', 'shadow', 'motion', 'layer', 'name', 'target'];
 const NAMED = new Set(('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood '
   + 'cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey '
   + 'darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey '
@@ -37,6 +37,9 @@ const NAMED = new Set(('aliceblue antiquewhite aqua aquamarine azure beige bisqu
   + 'yellow yellowgreen').split(' '));
 const COLOUR_PROP = /^(color|background(-color|-image)?|border(-(top|right|bottom|left|inline|block)(-(start|end))?)?(-color)?|outline(-color)?|fill|stroke|box-shadow|text-shadow|caret-color|accent-color|text-decoration(-color)?|column-rule(-color)?|scrollbar-color|stop-color|flood-color)$/;
 const SPACE_PROP = /^((margin|padding|inset)(-.+)?|(grid-)?((row|column)-)?gap)$/;
+// 2.38: a control's or a touch target's size written as a number (40 or 44 px), where --ui-control and --ui-target exist.
+const SIZE_PROP = /^((min|max)-)?(width|height|inline-size|block-size)$|^flex(-basis)?$/;
+const TARGET = /(?<![\w.])4[04]px(?![\w.])/;
 const HEX = /(?<![\w&])#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![\w-])/gi;
 const COLOUR_FN = /(?<![\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/gi;
 // In a script, lab( or color( is as likely a function of the app's own, so only the four that A22 names count there.
@@ -77,6 +80,7 @@ function declaration(decl, at, add, names, skipColour) {
     const word = /^(transition|animation|.*-timing-function)$/.test(prop) && /(?<![\w-])(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)(?![\w(-])/.test(bare);
     if (timed || curve || word) hit('motion');
   }
+  if (SIZE_PROP.test(prop) && TARGET.test(bare)) hit('target');
   if (prop === 'z-index' && (bare.match(/-?\d+/g) || []).some(n => !['0', '1', '-1'].includes(n))) hit('layer');
 }
 
