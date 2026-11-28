@@ -80,6 +80,50 @@ def _result(source: str, errors: list[dict], **fields) -> dict[str, Any]:
     return out
 
 
+def _readings(f: dict, only_problems: bool) -> list[dict]:
+    """Each freshness reading with its age against the answer's own time, and whether that is past its allowed age."""
+    as_of = f.get("as_of")
+    readings = []
+    for r in _list(f, "readings"):
+        age = None
+        if isinstance(as_of, (int, float)) and isinstance(r.get("checked_at"), (int, float)):
+            age = round(as_of - r["checked_at"])
+        max_age = r.get("max_age")
+        stale = age is not None and isinstance(max_age, (int, float)) and age > max_age
+        readings.append({**_pick(r, ("key", "label", "state", "reading", "max_age")),
+                         "age_seconds": age, "stale": stale})
+    if only_problems:
+        readings = [r for r in readings if r["stale"] or r["state"] not in ("current", "not_configured")]
+    return readings
+
+
+def _alerts(alerts: list[dict], since_hours: float | None, tag: str | None) -> list[dict]:
+    """Alerts newest first, from the last since_hours and of one tag when asked."""
+    alerts = sorted(alerts, key=lambda a: a.get("ts") if isinstance(a.get("ts"), (int, float)) else 0, reverse=True)
+    if since_hours is not None:
+        cutoff = time.time() - since_hours * 3600
+        alerts = [a for a in alerts if isinstance(a.get("ts"), (int, float)) and a["ts"] >= cutoff]
+    if tag:
+        alerts = [a for a in alerts if a.get("tag") == tag]
+    return alerts
+
+
+def _with_record(out: dict, target: str, recs: list[dict], errors: list[dict]) -> dict:
+    """deploy_state's answer with Pi Hub's release:<target> record (platform step 4: the deployment truth; live, read
+    over SSH, only verifies it) and a warning when the record can't be read, is missing or disagrees with live."""
+    rec = next((r for r in recs if r.get("id") == f"release:{target}"), None)
+    out["record"] = _release(rec) if rec else None
+    out["live_is"] = "verification: read from the target itself and checked against record"
+    running, recorded = _obj(out.get("live")).get("sha"), (out["record"] or {}).get("commit")
+    if errors:
+        out["warnings"].append(f"couldn't read Pi Hub's release:{target} record ({errors[0]['error']})")
+    elif rec is None:
+        out["warnings"].append(f"Pi Hub has no release:{target} record")
+    elif running and recorded and not deploy._same(running, recorded):
+        out["warnings"].append(f"the release record says {recorded[:10]}, but the target runs {running[:10]}")
+    return out
+
+
 def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_client,
                  runner: deploy.Runner = shell.run) -> MCPServer:
     mcp = MCPServer("home", instructions=INSTRUCTIONS)
@@ -164,19 +208,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/freshness")
         f = _shaped(data, errors, "/api/freshness", ("readings",))
-        as_of = f.get("as_of")
-        readings = []
-        for r in _list(f, "readings"):
-            age = None
-            if isinstance(as_of, (int, float)) and isinstance(r.get("checked_at"), (int, float)):
-                age = round(as_of - r["checked_at"])
-            max_age = r.get("max_age")
-            stale = age is not None and isinstance(max_age, (int, float)) and age > max_age
-            readings.append({**_pick(r, ("key", "label", "state", "reading", "max_age")),
-                             "age_seconds": age, "stale": stale})
-        if only_problems:
-            readings = [r for r in readings if r["stale"] or r["state"] not in ("current", "not_configured")]
-        return _result("pi-hub /api/freshness", errors, readings=readings)
+        return _result("pi-hub /api/freshness", errors, readings=_readings(f, only_problems))
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
     async def recent_alerts(limit: int = 20, since_hours: float | None = None, tag: str | None = None) -> dict[str, Any]:
@@ -188,13 +220,7 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
             raise ValueError("since_hours must be positive")
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/alerts")
-        alerts = sorted(_list(_shaped(data, errors, "/api/alerts", ("alerts",)), "alerts"),
-                        key=lambda a: a.get("ts") if isinstance(a.get("ts"), (int, float)) else 0, reverse=True)
-        if since_hours is not None:
-            cutoff = time.time() - since_hours * 3600
-            alerts = [a for a in alerts if isinstance(a.get("ts"), (int, float)) and a["ts"] >= cutoff]
-        if tag:
-            alerts = [a for a in alerts if a.get("tag") == tag]
+        alerts = _alerts(_list(_shaped(data, errors, "/api/alerts", ("alerts",)), "alerts"), since_hours, tag)
         return _result("pi-hub /api/alerts", errors, total=len(alerts),
                        alerts=[{"at": hub.iso(a.get("ts")), **_pick(a, ("tag", "title", "body"))}
                                for a in alerts[:limit]])
@@ -223,21 +249,10 @@ def build_server(client_factory: Callable[[], httpx.AsyncClient] = hub.make_clie
         (clean, dirty or unknown), and install_sh says separately whether deploy/install.sh would run. Never changes
         anything."""
         out = await deploy.deploy_state(runner, target, intended)
-        # Platform step 4: Pi Hub's release record is the deployment truth; live (read over SSH) only verifies it.
         async with client_factory() as c:
             data, errors = await hub.gather(c, "/api/records")
         recs = _list(_shaped(data, errors, "/api/records", ("records",)), "records")
-        rec = next((r for r in recs if r.get("id") == f"release:{target}"), None)
-        out["record"] = _release(rec) if rec else None
-        out["live_is"] = "verification: read from the target itself and checked against record"
-        running, recorded = _obj(out.get("live")).get("sha"), (out["record"] or {}).get("commit")
-        if errors:
-            out["warnings"].append(f"couldn't read Pi Hub's release:{target} record ({errors[0]['error']})")
-        elif rec is None:
-            out["warnings"].append(f"Pi Hub has no release:{target} record")
-        elif running and recorded and not deploy._same(running, recorded):
-            out["warnings"].append(f"the release record says {recorded[:10]}, but the target runs {running[:10]}")
-        return out
+        return _with_record(out, target, recs, errors)
 
     @mcp.tool(annotations=READ_ONLY, structured_output=True)
     async def service_logs(service: str, minutes: int = 60, lines: int = 100, contains: str | None = None) -> dict[str, Any]:
