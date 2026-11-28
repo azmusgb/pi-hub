@@ -6,7 +6,7 @@ import { clockTime, h } from "./core.js";
 import { printerPlate } from "./page-parts.js";
 import { printerButtons } from "./printer-actions.js";
 import { jobTitle } from "./printer-reading.js";
-import { printLabUrl, resolveLink, sourceDown } from "./sections.js";
+import { phrase, printLabUrl, resolveLink, sourceDown } from "./sections.js";
 import { couldntCheck } from "./wording.js";
 import { RECORDS, homePlateShown, homePrinterCard, homeReading, printerNote, sayHome } from "./home-reading.js";
 export { homePlateShown, homePrinterCard, homeReading, sayHome };
@@ -462,7 +462,7 @@ export function rackRows(src) {
   // Network
   if (!records) {
     const down = sourceDown(RECORDS);
-    rows.push({ id: "network", name: "Network", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/network", link: "Open Network" });
+    rows.push({ id: "network", name: "Network", lamp: "unknown", state: down, chip: "No answer", detail: down, figure: null, readings: [], brief: "", href: "/network", link: phrase("open_network") });
   } else {
     const ids = ["internet", "adguard", "pc", "local_ai"], recs = ids.map(rec), ag = rec("adguard");
     const label = { internet: "Internet", adguard: "Ad blocking", pc: "Windows PC", local_ai: "Local AI" };
@@ -476,7 +476,7 @@ export function rackRows(src) {
     const lamp = lampOf(worst(recs.filter(Boolean))), firstWarn = recs.find(toned);
     const state = firstWarn ? (firstWarn.id === "adguard" && firstWarn.state === "paused" ? "Ad blocking paused" : `${label[firstWarn.id]}: ${NET_WORD[firstWarn.id][firstWarn.state] || firstWarn.state}`) : unread(recs.filter(Boolean)) ? NOT_REPORTED : "Fine";
     rows.push({ id: "network", name: "Network", lamp, state, chip: state, detail: readings.map((r) => `${r.label} ${r.value.toLowerCase()}`).join(", "), figure: null,
-      readings, brief: "", href: "/network", link: "Open Network", action: ag && ag.state === "paused" ? { label: "Turn it on in AdGuard", href: resolveLink("tool:adguard") } : null });
+      readings, brief: "", href: "/network", link: phrase("open_network"), action: ag && ag.state === "paused" ? { label: "Turn it on in AdGuard", href: resolveLink("tool:adguard") } : null });
   }
 
   // Storage and backups
@@ -739,7 +739,7 @@ export function renderDashboard(state, src, onReload) {
     const headsSummary = `${headsUp.length} heads up: ${headsUp.map((p) => p.title).slice(0, 3).join(", ")}${headsUp.length > 3 ? "…" : ""}`;
     hd.needs.replaceChildren(...[
       asks?.length ? renderProblems(asks, onReload) : null,
-      note || (asks?.length || asked ? null : h("p", { class: "ui-needs__empty" }, "Nothing needs you right now.")),
+      note || (asks?.length || asked ? null : globalThis.ApplianceNeeds.renderList([])),
       headsUp.length ? h("details", { class: "hd-heads-up", open: headsOpen || null }, h("summary", { class: "hd-heads-up__summary" }, headsSummary), renderProblems(headsUp, onReload)) : null,
     ].filter(Boolean));
     const lis = new Map([...hd.needs.querySelectorAll(".ui-need")].map((el) => [el.dataset?.key, el]));
