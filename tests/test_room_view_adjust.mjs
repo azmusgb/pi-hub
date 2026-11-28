@@ -225,7 +225,7 @@ test('A23 CSS: the bars stack in a grid over the picture, reach 44 px on touch a
   assert.ok(part.length > 200);
   assert.match(part, /grid-template-areas/);
   assert.match(part, /\.ws-view-tools\[hidden\]/);
-  assert.match(part, /min-height: 44px/);
+  assert.match(part, /min-height: var\(--ui-target\)/);  // the kit's 44 px touch target (test_css_review.mjs holds its value)
   assert.doesNotMatch(part.replace(/\/\*[\s\S]*?\*\//g, ''), /transition|animation|#[0-9a-f]{3,6}\b|rgba?\(/i);
 });
 
